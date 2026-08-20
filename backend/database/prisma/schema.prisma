@@ -1,0 +1,21 @@
+// IFSMHP Platform — Prisma schema
+//
+// Milestone 2 establishes the datasource and generator only.
+//
+// The full normalized model set (User, Session, MemberProfile,
+// MembershipApplication, Project, SupportRequest, Publication, Conversation,
+// FileObject, Notification, Event, AuditLog and friends) is designed in
+// docs/architecture.md §F and is implemented in Milestone 3 — once the
+// blocking questions in §J.1 are answered, since the Member ID format and the
+// member-directory visibility rules are both baked into this schema.
+//
+// No speculative models are declared here (spec §67).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
