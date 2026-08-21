@@ -8,7 +8,6 @@ import {
   Paperclip,
   Calendar,
   Inbox,
-  Upload,
   User,
   Search,
   Bell,
@@ -96,9 +95,9 @@ const inbox: Message[] = [
 ];
 
 export default function MessagesPage() {
-  const initialId = inbox.length > 0 ? inbox[0].id : null;
+  const initialId = inbox.length > 0 ? inbox[0]!.id : null;
   const [selected, setSelected] = useState<string | null>(initialId);
-  const current = inbox.find((m) => m.id === selected) ?? (inbox.length > 0 ? inbox[0] : null);
+  const current = inbox.find((m) => m.id === selected) ?? (inbox.length > 0 ? inbox[0]! : null);
   const [tab, setTab] = useState<'inbox' | 'send'>('inbox');
 
   return (
@@ -187,6 +186,8 @@ export default function MessagesPage() {
         </Card>
 
         <Card className="lg:col-span-3 flex flex-col">
+          {current ? (
+            <>
           <CardHeader className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-forum-600 text-white font-semibold">
@@ -299,6 +300,12 @@ export default function MessagesPage() {
               </div>
             </div>
           </CardContent>
+            </>
+          ) : (
+            <CardContent className="p-10 text-center text-ink-subtle text-sm">
+              Select a message to view details.
+            </CardContent>
+          )}
         </Card>
       </div>
     </div>

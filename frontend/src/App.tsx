@@ -26,6 +26,26 @@ import CommunityPage from './pages/member/CommunityPage';
 import SupportRequestsPage from './pages/member/SupportRequestsPage';
 
 import AdminHomePage from './pages/admin/AdminHomePage';
+import AdminMembersPage from './pages/admin/AdminMembersPage';
+import AdminPendingApplicationsPage from './pages/admin/AdminPendingApplicationsPage';
+import AdminMemberDetailPage from './pages/admin/AdminMemberDetailPage';
+import AdminProjectsPage from './pages/admin/AdminProjectsPage';
+import AdminProjectDetailPage from './pages/admin/AdminProjectDetailPage';
+import AdminPublicationsPage from './pages/admin/AdminPublicationsPage';
+import AdminPublicationDetailPage from './pages/admin/AdminPublicationDetailPage';
+import AdminSupportPage from './pages/admin/AdminSupportPage';
+import AdminSupportDetailPage from './pages/admin/AdminSupportDetailPage';
+import AdminMessagesPage from './pages/admin/AdminMessagesPage';
+import AdminMessagesDetailPage from './pages/admin/AdminMessagesDetailPage';
+import AdminEventsPage from './pages/admin/AdminEventsPage';
+import AdminNewEventPage from './pages/admin/AdminNewEventPage';
+import AdminEditEventPage from './pages/admin/AdminEditEventPage';
+import AdminInquiriesPage from './pages/admin/AdminInquiriesPage';
+import AdminAuditLogPage from './pages/admin/AdminAuditLogPage';
+import AdminAnnouncementsPage from './pages/admin/AdminAnnouncementsPage';
+import AdminReportsPage from './pages/admin/AdminReportsPage';
+import AdminProfilePage from './pages/admin/AdminProfilePage';
+import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 
 export default function App() {
   return (
@@ -61,13 +81,30 @@ export default function App() {
 
       <Route path="admin" element={<AdminLayout />}>
         <Route index element={<AdminHomePage />} />
-        <Route path="members" element={<AdminHomePage />} />
-        <Route path="projects" element={<AdminHomePage />} />
-        <Route path="publications" element={<AdminHomePage />} />
-        <Route path="support" element={<AdminHomePage />} />
-        <Route path="messages" element={<AdminHomePage />} />
-        <Route path="reports" element={<AdminHomePage />} />
-        <Route path="awards" element={<AdminHomePage />} />
+        <Route path="members" element={<AdminMembersPage />} />
+        <Route path="members/pending" element={<AdminPendingApplicationsPage />} />
+        <Route path="members/lookup" element={<AdminMembersPage />} />
+        <Route path="members/:id" element={<AdminMemberDetailPage />} />
+        <Route path="projects" element={<AdminProjectsPage />} />
+        <Route path="projects/:id" element={<AdminProjectDetailPage />} />
+        <Route path="publications" element={<AdminPublicationsPage />} />
+        <Route path="publications/:id" element={<AdminPublicationDetailPage />} />
+        <Route path="support" element={<AdminSupportPage />} />
+        <Route path="support/:id" element={<AdminSupportDetailPage />} />
+        <Route path="messages" element={<AdminMessagesPage />} />
+        <Route path="messages/:conversationId" element={<AdminMessagesDetailPage />} />
+        <Route path="events" element={<AdminEventsPage />} />
+        <Route path="events/new" element={<AdminNewEventPage />} />
+        <Route path="events/:id/edit" element={<AdminEditEventPage />} />
+        <Route path="events/:id" element={<AdminEditEventPage />} />
+        <Route path="inquiries" element={<AdminInquiriesPage />} />
+        <Route path="notifications" element={<AdminAnnouncementsPage />} />
+        <Route path="audit-log" element={<AdminAuditLogPage />} />
+        <Route path="announcements" element={<AdminAnnouncementsPage />} />
+        <Route path="reports" element={<AdminReportsPage />} />
+        <Route path="awards" element={<AdminReportsPage />} />
+        <Route path="profile" element={<AdminProfilePage />} />
+        <Route path="settings" element={<AdminSettingsPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

@@ -104,7 +104,7 @@ export function Checkbox({
   label,
   className = '',
   ...rest
-}: { label: string; className?: string } & InputHTMLAttributes<HTMLInputElement>) {
+}: { label: ReactNode; className?: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className={`flex items-start gap-2.5 ${className}`}>
       <input

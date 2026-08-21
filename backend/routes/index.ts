@@ -1,30 +1,35 @@
 import { Router } from 'express';
 import healthRoutes from './health.routes';
+import adminRoutes from './admin.routes';
+import authRoutes from './auth.routes';
+import memberRoutes from './member.routes';
+import publicRoutes from './public.routes';
+import contactRoutes from './contact.routes';
+import publicationsPublicRoutes from './publications.routes';
 
 /**
  * API v1 router (spec §39).
  *
- * Modules are mounted here as milestones land. The commented block is the
- * agreed module map from the architecture document — kept visible so the
- * remaining surface area is obvious, but NOT stubbed out with fake handlers
- * (spec §67 — never fabricate functionality).
+ * Authorization hierarchy (also enforced in each route file via middleware):
+ *   /health            Public
+ *   /public/*          Public (published data only)
+ *   /contact           Public (rate-limited)
+ *   /auth/*            Public (rate-limited)
+ *   /members/*         MEMBER — requireAuth + requireRole(MEMBER) + object ownership
+ *   /admin/*           ADMIN  — requireAuth + requireRole(ADMIN) on EVERY endpoint
  *
- *   /auth              Milestone 5
- *   /membership        Milestone 6
- *   /members           Milestone 8
- *   /projects          Milestone 9
- *   /support-requests  Milestone 10
- *   /messages          Milestone 11
- *   /publications      Milestone 12
- *   /files             Milestone 9
- *   /notifications     Milestone 15
- *   /events            Milestone 14
- *   /contact           Milestone 7
- *   /public            Milestone 7
- *   /admin             Milestone 13
+ * Per architecture §B.3 / §I: "Never rely only on frontend route protection."
+ * Route-level middleware here AND service-layer ownership checks combine to
+ * form the full authorization boundary.
  */
 const router = Router();
 
 router.use('/health', healthRoutes);
+router.use('/public', publicRoutes);
+router.use('/contact', contactRoutes);
+router.use('/publications', publicationsPublicRoutes);
+router.use('/auth', authRoutes);
+router.use('/members', memberRoutes);
+router.use('/admin', adminRoutes);
 
 export default router;
