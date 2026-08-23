@@ -8,6 +8,7 @@ const navLinks = [
   { to: '/about', label: 'About Us' },
   { to: '/membership', label: 'Membership' },
   { to: '/research', label: 'Research' },
+  { to: '/gallery', label: 'Gallery' },
   { to: '/support-services', label: 'Support' },
   { to: '/events', label: 'Events' },
   { to: '/contact', label: 'Contact' },
@@ -31,7 +32,7 @@ export default function Navbar() {
                 IFSMHP
               </span>
               <span className="hidden text-[10px] uppercase tracking-wider text-ink-subtle sm:block">
-                Scientists & Mental Health
+                {/* Scientists & Mental Health */}
               </span>
             </div>
           </Link>

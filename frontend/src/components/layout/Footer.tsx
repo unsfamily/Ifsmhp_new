@@ -7,6 +7,7 @@ const quickLinks = [
   { to: '/about', label: 'About Us' },
   { to: '/membership', label: 'Membership' },
   { to: '/research', label: 'Research Publications' },
+  { to: '/gallery', label: 'Media Gallery' },
   { to: '/support-services', label: 'Support Services' },
   { to: '/events', label: 'Events' },
   { to: '/contact', label: 'Contact' },

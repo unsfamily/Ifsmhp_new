@@ -19,6 +19,7 @@ import {
   Settings,
   UserCircle,
   Clock,
+  Images,
 } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import logoImg from '../assets/images/logo.png';
@@ -55,6 +56,7 @@ const navSections: NavSection[] = [
     items: [
       { to: '/admin/projects', label: 'Research Projects', icon: FolderKanban, badge: null },
       { to: '/admin/publications', label: 'Publications', icon: FileText, badge: 12 },
+      { to: '/admin/gallery', label: 'Media Gallery', icon: Images, badge: 64 },
     ],
   },
   {
@@ -96,7 +98,7 @@ export default function AdminLayout() {
         onClick={() => setSidebarOpen(false)}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 transform bg-forum-900 text-forum-100 transition-transform lg:translate-x-0 lg:static lg:inset-auto lg:z-auto flex flex-col h-screen ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 transform bg-forum-900 text-forum-100 transition-transform lg:translate-x-0 lg:sticky lg:top-0 lg:z-auto flex flex-col h-screen overflow-hidden ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

@@ -16,6 +16,7 @@ import {
   Bell,
   IdCard,
   Building2,
+  Images,
 } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import logoImg from '../assets/images/logo.png';
@@ -28,6 +29,7 @@ const navItems = [
   { to: '/dashboard/messages', label: 'Messages from CRO', icon: MessageSquare, badge: 3 },
   { to: '/dashboard/documents', label: 'Document Exchange', icon: FileText },
   { to: '/dashboard/publications', label: 'Published Works', icon: FileText },
+  { to: '/dashboard/gallery', label: 'Media Gallery', icon: Images },
   { to: '/dashboard/community', label: 'Community', icon: Users },
   { to: '/dashboard/support', label: 'Support Requests', icon: ShieldCheck },
 ];

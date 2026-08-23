@@ -10,6 +10,7 @@ import ResearchPublicationsPage from './pages/public/ResearchPublicationsPage';
 import SupportServicesPage from './pages/public/SupportServicesPage';
 import EventsPage from './pages/public/EventsPage';
 import ContactPage from './pages/public/ContactPage';
+import PublicGalleryPage from './pages/public/PublicGalleryPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 import LoginPage from './pages/auth/LoginPage';
@@ -24,6 +25,7 @@ import DocumentExchangePage from './pages/member/DocumentExchangePage';
 import MemberPublicationsPage from './pages/member/MemberPublicationsPage';
 import CommunityPage from './pages/member/CommunityPage';
 import SupportRequestsPage from './pages/member/SupportRequestsPage';
+import MemberGalleryPage from './pages/member/MemberGalleryPage';
 
 import AdminHomePage from './pages/admin/AdminHomePage';
 import AdminMembersPage from './pages/admin/AdminMembersPage';
@@ -46,6 +48,7 @@ import AdminAnnouncementsPage from './pages/admin/AdminAnnouncementsPage';
 import AdminReportsPage from './pages/admin/AdminReportsPage';
 import AdminProfilePage from './pages/admin/AdminProfilePage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
+import AdminGalleryPage from './pages/admin/AdminGalleryPage';
 
 export default function App() {
   return (
@@ -56,6 +59,7 @@ export default function App() {
         <Route path="membership" element={<MembershipPage />} />
         <Route path="research" element={<ResearchPublicationsPage />} />
         <Route path="research/:id" element={<ResearchPublicationsPage />} />
+        <Route path="gallery" element={<PublicGalleryPage />} />
         <Route path="support-services" element={<SupportServicesPage />} />
         <Route path="events" element={<EventsPage />} />
         <Route path="contact" element={<ContactPage />} />
@@ -75,6 +79,7 @@ export default function App() {
         <Route path="messages" element={<MessagesPage />} />
         <Route path="documents" element={<DocumentExchangePage />} />
         <Route path="publications" element={<MemberPublicationsPage />} />
+        <Route path="gallery" element={<MemberGalleryPage />} />
         <Route path="community" element={<CommunityPage />} />
         <Route path="support" element={<SupportRequestsPage />} />
       </Route>
@@ -89,6 +94,7 @@ export default function App() {
         <Route path="projects/:id" element={<AdminProjectDetailPage />} />
         <Route path="publications" element={<AdminPublicationsPage />} />
         <Route path="publications/:id" element={<AdminPublicationDetailPage />} />
+        <Route path="gallery" element={<AdminGalleryPage />} />
         <Route path="support" element={<AdminSupportPage />} />
         <Route path="support/:id" element={<AdminSupportDetailPage />} />
         <Route path="messages" element={<AdminMessagesPage />} />
