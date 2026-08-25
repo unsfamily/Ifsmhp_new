@@ -11,6 +11,7 @@ import SupportServicesPage from './pages/public/SupportServicesPage';
 import EventsPage from './pages/public/EventsPage';
 import ContactPage from './pages/public/ContactPage';
 import PublicGalleryPage from './pages/public/PublicGalleryPage';
+import ProductReviewsPage from './pages/public/ProductReviewsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 import LoginPage from './pages/auth/LoginPage';
@@ -59,6 +60,7 @@ export default function App() {
         <Route path="membership" element={<MembershipPage />} />
         <Route path="research" element={<ResearchPublicationsPage />} />
         <Route path="research/:id" element={<ResearchPublicationsPage />} />
+        <Route path="product-reviews" element={<ProductReviewsPage />} />
         <Route path="gallery" element={<PublicGalleryPage />} />
         <Route path="support-services" element={<SupportServicesPage />} />
         <Route path="events" element={<EventsPage />} />

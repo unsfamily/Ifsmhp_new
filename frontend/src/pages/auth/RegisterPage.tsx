@@ -3,9 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   UserPlus,
   Mail,
-  Lock,
-  Eye,
-  EyeOff,
   ArrowRight,
   User,
   GraduationCap,
@@ -60,7 +57,6 @@ const schema = z
 type FormData = z.infer<typeof schema>;
 
 export default function RegisterPage() {
-  const [showPw, setShowPw] = useState(false);
   const [success, setSuccess] = useState(false);
   const {
     register,
@@ -231,7 +227,7 @@ export default function RegisterPage() {
                       error={errors.email?.message}
                       {...register('email')}
                     />
-                    <TextInput
+                    {/* <TextInput
                       label="Confirm Email Address"
                       type="email"
                       placeholder="jane@university.edu"
@@ -239,8 +235,8 @@ export default function RegisterPage() {
                       required
                       error={errors.confirmEmail?.message}
                       {...register('confirmEmail')}
-                    />
-                    <div className="relative">
+                    /> */}
+                    {/* <div className="relative">
                       <TextInput
                         label="Password"
                         type={showPw ? 'text' : 'password'}
@@ -258,8 +254,8 @@ export default function RegisterPage() {
                       >
                         {showPw ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                       </button>
-                    </div>
-                    <TextInput
+                    </div> */}
+                    {/* <TextInput
                       label="Confirm Password"
                       type={showPw ? 'text' : 'password'}
                       placeholder="Re-enter password"
@@ -267,7 +263,7 @@ export default function RegisterPage() {
                       required
                       error={errors.confirmPassword?.message}
                       {...register('confirmPassword')}
-                    />
+                    /> */}
                     <TextInput
                       label="Institution / Organization"
                       placeholder="University, Hospital, Institute..."

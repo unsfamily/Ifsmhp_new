@@ -13,7 +13,6 @@ import {
   IdCard,
   Globe2,
   Send,
-  ShieldCheck,
 } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
@@ -240,10 +239,10 @@ export default function MembershipPage() {
                 <Send className="h-4.5 w-4.5" />
                 Register Now
               </Button>
-              <Button as="link" to="/support-services" size="lg" variant="outline">
+              {/* <Button as="link" to="/support-services" size="lg" variant="outline">
                 <ShieldCheck className="h-4.5 w-4.5" />
                 Explore Support Services
-              </Button>
+              </Button> */}
             </div>
           </div>
           <div className="rounded-2xl border border-forum-200 bg-forum-50/50 p-6 sm:p-8">

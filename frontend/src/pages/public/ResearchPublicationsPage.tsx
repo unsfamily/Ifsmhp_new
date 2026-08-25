@@ -313,17 +313,17 @@ export default function ResearchPublicationsPage() {
             and new technologies shaping the field.
           </p>
           <div className="mt-8 flex justify-center flex-wrap gap-3">
-            <Button as="link" to="/research" variant="secondary" size="lg">
+            <Button as="link" to="/product-reviews" variant="secondary" size="lg">
               Browse Product Reviews
             </Button>
-            <Button
+            {/* <Button
               as="link"
               to="/register"
               size="lg"
               className="bg-brass-500 hover:bg-brass-700 focus-visible:ring-brass-500"
             >
               Publish Your Research
-            </Button>
+            </Button> */}
           </div>
         </div>
       </Section>
