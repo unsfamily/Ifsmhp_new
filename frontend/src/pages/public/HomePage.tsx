@@ -216,26 +216,22 @@ export default function HomePage() {
                 aria-roledescription="slide"
                 aria-label={`${i + 1} of ${HOME_BANNERS.length}: ${slide.eyebrow.label}`}
                 aria-hidden={!active}
-                className={`absolute inset-0 bg-gradient-to-br from-forum-900 via-forum-700 to-forum-600 transition-opacity duration-700 ease-in-out ${active ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+                className={`absolute inset-0 bg-forum-800 transition-opacity duration-700 ease-in-out ${active ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
               >
                 <img
                   src={slide.bgImage}
                   alt=""
-                  className="absolute inset-0 h-full w-full object-cover mix-blend-overlay opacity-70"
+                  className="absolute inset-0 h-full w-full object-cover"
                   loading={i === 0 ? 'eager' : 'lazy'}
                 />
-                <div
-                  className="absolute inset-0 opacity-10"
-                  style={{ backgroundImage: TRIANGLE_SVG }}
-                />
-                <div className={`absolute inset-0 bg-gradient-to-r ${slide.gradientOverlay}`} />
                 <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-center px-4 pb-10 pt-14 sm:px-6 sm:pb-12 sm:pt-20 lg:px-8 lg:pb-16">
-                  <div className="max-w-3xl">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20 backdrop-blur">
+                  <div className="relative max-w-3xl">
+                    <div className="absolute inset-x-[-1.5rem] -inset-y-8 -z-10 rounded-[2.5rem] bg-forum-950/25 backdrop-blur-[2px]" aria-hidden />
+                    <span className="inline-flex items-center gap-2 rounded-full bg-forum-950/40 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20 backdrop-blur">
                       <Icon className="h-3.5 w-3.5" />
                       {slide.eyebrow.label}
                     </span>
-                    <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.1] text-white sm:text-5xl lg:text-6xl">
+                    <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.1] text-white drop-shadow-sm sm:text-5xl lg:text-6xl">
                       {slide.title.split(slide.highlightWord).length === 2 ? (
                         <>
                           {slide.title.split(slide.highlightWord)[0]}
@@ -248,16 +244,16 @@ export default function HomePage() {
                         </>
                       )}
                     </h1>
-                    <p className="mt-6 text-lg leading-relaxed text-forum-100/80 sm:text-xl">
+                    <p className="mt-6 text-lg leading-relaxed text-white/90 sm:text-xl">
                       {slide.lead}
                     </p>
                     <div className="mt-5 flex flex-wrap gap-2">
                       {slide.chips.map((chip) => (
                         <span
                           key={chip.label}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-forum-950/35 px-3 py-1.5 text-xs font-medium text-white backdrop-blur"
                         >
-                          <span className="text-white/70">{chip.label}</span>
+                          <span className="text-white/80">{chip.label}</span>
                           {chip.value ? (
                             <span className="font-semibold text-brass-100">{chip.value}</span>
                           ) : null}
@@ -289,7 +285,7 @@ export default function HomePage() {
                             to={cta.to}
                             size="lg"
                             variant="outline"
-                            className="min-h-14 whitespace-nowrap border-white/30 bg-transparent px-6 text-white hover:bg-white/10 focus-visible:ring-white/50 sm:px-8"
+                            className="min-h-14 whitespace-nowrap border-white/40 bg-forum-950/30 px-6 text-white hover:bg-forum-950/50 focus-visible:ring-white/60 backdrop-blur sm:px-8"
                           >
                             {CtaIcon ? <CtaIcon className="h-4.5 w-4.5" /> : null}
                             {cta.label}
