@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Images,
   Search,
@@ -30,6 +30,10 @@ import {
   Building2,
   Award,
   Check,
+  Pause,
+  Play,
+  ArrowRight,
+  Camera,
 } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
@@ -330,6 +334,114 @@ const TYPE_VARIANT: Record<ItemType, 'default' | 'info' | 'brass' | 'success'> =
   document: 'info',
 };
 
+interface BannerSlide {
+  id: string;
+  eyebrow: string;
+  title: string;
+  lead: string;
+  promptSubject: string;
+  ctaPrimary: { label: string; onClick: (ctx: { setAlbum: (a: AlbumKey) => void; setOpenId: (id: string | null) => void }) => void };
+  ctaSecondary: { label: string; onClick: (ctx: { setAlbum: (a: AlbumKey) => void; setOpenId: (id: string | null) => void }) => void };
+  gradientOverlay: string;
+  chips: Array<{ label: string; icon: 'users' | 'calendar' | 'camera' | 'download'; value?: string }>;
+  tagline: string;
+}
+
+const BANNER_SLIDES: BannerSlide[] = [
+  {
+    id: 'bnr-symposium',
+    eyebrow: 'Spring Symposium 2026 · Featured collection',
+    title: 'Relive the 14th IFSMHP Spring Symposium',
+    lead: 'Three days of keynotes, poster sessions and riverside receptions — 18 curated editorial photos ready for release to public galleries, member newsletters and research profiles.',
+    promptSubject: 'Academic keynote plenary hall stage with spotlighted lecturer, audience in rows of seats, branded forum banner, wide shot with depth of field',
+    gradientOverlay: 'from-forum-950/85 via-forum-900/60 to-slateteal-900/40',
+    tagline: 'Featured album · 18 photos · 402 views this week',
+    chips: [
+      { label: 'Event', icon: 'calendar', value: '12–14 Mar 2026' },
+      { label: 'Attendees', icon: 'users', value: '214 members' },
+      { label: 'Photos', icon: 'camera', value: '18 curated' },
+      { label: 'Downloads', icon: 'download', value: '134' },
+    ],
+    ctaPrimary: {
+      label: 'Open Spring Symposium album',
+      onClick: (ctx) => ctx.setAlbum('symposium-2026'),
+    },
+    ctaSecondary: {
+      label: 'Preview keynote plenary photo',
+      onClick: (ctx) => ctx.setOpenId('gal-001'),
+    },
+  },
+  {
+    id: 'bnr-awards',
+    eyebrow: 'CRO Awards Night 2025 · Hall of Fame',
+    title: 'Celebrate the 2025 CRO Honours & Distinguished Citations',
+    lead: 'Induction ceremonies, medals, awards dinner and the Lifetime Contribution gallery — 11 high-resolution portrait-ready assets, cleared for public web and print-quality reproduction.',
+    promptSubject: 'Formal awards ceremony stage with medals, standing ovation audience, dimmed banquet hall with brass candlelight, academic regalia on recipients',
+    gradientOverlay: 'from-amber-950/80 via-brass-900/55 to-rose-950/40',
+    tagline: 'Hall of Fame · 11 assets · 1 pending media release',
+    chips: [
+      { label: 'Event', icon: 'calendar', value: '22 Nov 2025' },
+      { label: 'Inductees', icon: 'users', value: '9 honourees' },
+      { label: 'Photos', icon: 'camera', value: '11 edited' },
+      { label: 'Downloads', icon: 'download', value: '212' },
+    ],
+    ctaPrimary: {
+      label: 'Open Awards Night album',
+      onClick: (ctx) => ctx.setAlbum('awards-2025'),
+    },
+    ctaSecondary: {
+      label: 'Preview Lifetime Contribution portrait',
+      onClick: (ctx) => ctx.setOpenId('gal-004'),
+    },
+  },
+  {
+    id: 'bnr-retreat',
+    eyebrow: 'CRO Strategy Retreat · Internal collection',
+    title: '2026 CRO Strategy Retreat — working sessions, posters & dinners',
+    lead: 'Boardroom strategy, breakout whiteboards, poster critiques and the closing retreat dinner citation. 9 internal-use assets; mark public-ready individually before release to member or public galleries.',
+    promptSubject: 'Executives in modern retreat meeting room around wooden table, whiteboards with sticky notes, notebooks, cups of coffee, daylight from floor windows',
+    gradientOverlay: 'from-slateteal-950/80 via-forum-900/55 to-indigo-950/40',
+    tagline: 'Internal collection · 9 assets · Sensitive until board review',
+    chips: [
+      { label: 'Event', icon: 'calendar', value: '20–23 Jan 2026' },
+      { label: 'Attendees', icon: 'users', value: '18 CRO leads' },
+      { label: 'Assets', icon: 'camera', value: '9 working' },
+      { label: 'Downloads', icon: 'download', value: '23' },
+    ],
+    ctaPrimary: {
+      label: 'Open Strategy Retreat album',
+      onClick: (ctx) => ctx.setAlbum('cro-retreat'),
+    },
+    ctaSecondary: {
+      label: 'Preview retreat dinner photo',
+      onClick: (ctx) => ctx.setOpenId('gal-009'),
+    },
+  },
+  {
+    id: 'bnr-openhouse',
+    eyebrow: 'Lab Open House 2026 · Public outreach',
+    title: 'Open House 2026 showcases the IFSMHP research labs to 320 visitors',
+    lead: 'Lab tours, demo stations, family-friendly science zone and student poster speed-talks. 12 public-ready photos + 1 exhibitor floor plan PDF, cleared for community-relations publications.',
+    promptSubject: 'University laboratory open house tour with families in lab coats observing scientific experiment demos, glassware on benches, colourful beakers, friendly researchers explaining',
+    gradientOverlay: 'from-rose-950/75 via-forum-900/50 to-violet-950/40',
+    tagline: 'Public outreach · 12 photos · Exhibitor map PDF',
+    chips: [
+      { label: 'Event', icon: 'calendar', value: '18 Apr 2026' },
+      { label: 'Visitors', icon: 'users', value: '320 registered' },
+      { label: 'Assets', icon: 'camera', value: '12 + 1 PDF' },
+      { label: 'Downloads', icon: 'download', value: '156' },
+    ],
+    ctaPrimary: {
+      label: 'Open Lab Open House album',
+      onClick: (ctx) => ctx.setAlbum('lab-open-house'),
+    },
+    ctaSecondary: {
+      label: 'Download exhibitor floor plan',
+      onClick: (ctx) => ctx.setOpenId('gal-011'),
+    },
+  },
+];
+
 export default function AdminGalleryPage() {
   const [search, setSearch] = useState('');
   const [album, setAlbum] = useState<AlbumKey>('all');
@@ -345,6 +457,22 @@ export default function AdminGalleryPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadFlash, setUploadFlash] = useState<null | string>(null);
+
+  const [bannerIndex, setBannerIndex] = useState(0);
+  const [bannerPlaying, setBannerPlaying] = useState(true);
+  const [bannerHover, setBannerHover] = useState(false);
+
+  useEffect(() => {
+    if (!bannerPlaying || bannerHover) return;
+    const t = window.setInterval(() => {
+      setBannerIndex((i) => (i + 1) % BANNER_SLIDES.length);
+    }, 6000);
+    return () => window.clearInterval(t);
+  }, [bannerPlaying, bannerHover]);
+
+  const goPrev = () => setBannerIndex((i) => (i - 1 + BANNER_SLIDES.length) % BANNER_SLIDES.length);
+  const goNext = () => setBannerIndex((i) => (i + 1) % BANNER_SLIDES.length);
+  const bannerCtx = { setAlbum, setOpenId };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -477,6 +605,148 @@ export default function AdminGalleryPage() {
           </Button>
         </div>
       </div>
+
+      <section
+        aria-label="Featured media banner carousel"
+        aria-roledescription="carousel"
+        aria-live="polite"
+        className="relative overflow-hidden rounded-3xl border border-ink-line/80 shadow-md"
+        onMouseEnter={() => setBannerHover(true)}
+        onMouseLeave={() => setBannerHover(false)}
+        onFocus={() => setBannerHover(true)}
+        onBlur={() => setBannerHover(false)}
+      >
+        <div className="relative h-[340px] sm:h-[380px] lg:h-[420px]">
+          {BANNER_SLIDES.map((slide, i) => {
+            const active = i === bannerIndex;
+            return (
+              <div
+                key={slide.id}
+                id={`gallery-banner-slide-${slide.id}`}
+                aria-roledescription="slide"
+                aria-label={`${i + 1} of ${BANNER_SLIDES.length}: ${slide.title}`}
+                aria-hidden={!active}
+                className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${active ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+              >
+                <img
+                  src={IMG(slide.promptSubject, 'landscape_16_9')}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover"
+                  loading={i === 0 ? 'eager' : 'lazy'}
+                />
+                <div className={`absolute inset-0 bg-gradient-to-r ${slide.gradientOverlay}`} />
+                <div className="absolute inset-0 bg-paper/5" />
+                <div className="relative z-10 flex h-full items-end px-5 pb-6 sm:px-8 sm:pb-8 lg:items-center lg:px-12 lg:pb-0">
+                  <div className="max-w-3xl text-forum-50">
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-brass-100 backdrop-blur">
+                        <Camera className="h-3.5 w-3.5" />
+                        {slide.eyebrow}
+                      </span>
+                      <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-forum-100/70">
+                        <Sparkles className="h-3.5 w-3.5 text-brass-100" />
+                        {slide.tagline}
+                      </span>
+                    </div>
+                    <h2 className="font-display text-3xl font-semibold leading-tight text-white sm:text-4xl lg:text-5xl">
+                      {slide.title}
+                    </h2>
+                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-forum-100/85 sm:text-base">
+                      {slide.lead}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {slide.chips.map((chip) => (
+                        <span
+                          key={chip.label}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur"
+                        >
+                          {chip.icon === 'calendar' ? <Calendar className="h-3.5 w-3.5 text-brass-100" /> : null}
+                          {chip.icon === 'users' ? <Users className="h-3.5 w-3.5 text-brass-100" /> : null}
+                          {chip.icon === 'camera' ? <Camera className="h-3.5 w-3.5 text-brass-100" /> : null}
+                          {chip.icon === 'download' ? <Download className="h-3.5 w-3.5 text-brass-100" /> : null}
+                          <span className="text-white/70">{chip.label}</span>
+                          {chip.value ? <span className="font-semibold text-white">{chip.value}</span> : null}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        onClick={() => slide.ctaPrimary.onClick(bannerCtx)}
+                        className="min-h-12 whitespace-nowrap bg-brass-500 px-6 text-forum-950 hover:bg-brass-600 focus-visible:ring-brass-300 sm:px-7"
+                      >
+                        {slide.ctaPrimary.label}
+                        <ArrowRight className="h-4.5 w-4.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={() => slide.ctaSecondary.onClick(bannerCtx)}
+                        className="min-h-12 whitespace-nowrap border-white/30 bg-white/5 px-6 text-white hover:bg-white/10 focus-visible:ring-white/50 sm:px-7"
+                      >
+                        {slide.ctaSecondary.label}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={goPrev}
+          aria-label="Previous slide"
+          className="absolute left-3 top-1/2 z-20 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-forum-950/40 text-white backdrop-blur transition hover:bg-forum-950/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass-300 sm:left-4 sm:h-11 sm:w-11"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={goNext}
+          aria-label="Next slide"
+          className="absolute right-3 top-1/2 z-20 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-forum-950/40 text-white backdrop-blur transition hover:bg-forum-950/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass-300 sm:right-4 sm:h-11 sm:w-11"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+
+        <div className="absolute bottom-4 left-0 right-0 z-20 flex items-center justify-center gap-3 px-4 sm:bottom-6 sm:justify-between sm:px-8">
+          <div className="hidden items-center gap-1.5 sm:inline-flex">
+            <button
+              type="button"
+              onClick={() => setBannerPlaying((p) => !p)}
+              aria-label={bannerPlaying ? 'Pause carousel' : 'Play carousel'}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-forum-950/35 text-white backdrop-blur hover:bg-forum-950/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass-300"
+            >
+              {bannerPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </button>
+            <span className="text-[11px] font-medium uppercase tracking-wider text-white/80">
+              {bannerPlaying ? 'Auto-playing · 6 s' : 'Paused'}
+            </span>
+          </div>
+          <ol role="tablist" aria-label="Banner slides" className="flex items-center gap-2">
+            {BANNER_SLIDES.map((slide, i) => (
+              <li key={slide.id}>
+                <button
+                  role="tab"
+                  aria-selected={i === bannerIndex}
+                  aria-controls={`gallery-banner-slide-${slide.id}`}
+                  aria-label={`Go to slide ${i + 1}`}
+                  onClick={() => setBannerIndex(i)}
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    i === bannerIndex ? 'w-10 bg-brass-100' : 'w-2 bg-white/45 hover:bg-white/70'
+                  }`}
+                />
+              </li>
+            ))}
+          </ol>
+          <span className="hidden rounded-full border border-white/15 bg-forum-950/35 px-3 py-1 text-[11px] font-semibold text-white/90 backdrop-blur sm:inline-flex">
+            {bannerIndex + 1} / {BANNER_SLIDES.length}
+          </span>
+        </div>
+      </section>
 
       {uploadFlash && (
         <div className="rounded-xl border border-success-600/30 bg-success-100/40 p-3.5 flex items-start gap-3">
