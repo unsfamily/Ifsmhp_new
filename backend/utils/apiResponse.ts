@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import type { FieldError } from './ApiError';
+import type { ErrorMeta, FieldError } from './ApiError';
 
 /** Success envelope — spec §40. */
 export interface SuccessBody<T> {
@@ -13,6 +13,8 @@ export interface FailureBody {
   success: false;
   message: string;
   errors: FieldError[];
+  /** Machine-readable detail so clients branch on data, not on message text. */
+  meta?: ErrorMeta;
   /** Correlates a client-visible failure with a server log entry. */
   requestId?: string;
 }
@@ -31,8 +33,10 @@ export function sendFailure(
   statusCode: number,
   message: string,
   errors: FieldError[] = [],
+  meta?: ErrorMeta,
 ): Response<FailureBody> {
   const body: FailureBody = { success: false, message, errors };
+  if (meta) body.meta = meta;
   if (res.locals.requestId) body.requestId = res.locals.requestId as string;
   return res.status(statusCode).json(body);
 }

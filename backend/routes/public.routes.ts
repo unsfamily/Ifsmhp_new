@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
+import * as service from '../services/platform.service';
 
 const router = Router({ mergeParams: true });
 
@@ -15,59 +16,57 @@ const router = Router({ mergeParams: true });
 
 router.get(
   '/publications',
-  asyncHandler(async (_req, res) => {
-    // Service: filter WHERE status = PUBLISHED
-    sendSuccess(
-      res,
-      {
-        rows: [],
-        total: 0,
-        filters: { category: 'all', q: '' },
-      },
-      'Published research (public listing)'
-    );
+  asyncHandler(async (req, res) => {
+    const data = await service.publicPublications(req);
+    sendSuccess(res, data, 'Published research loaded');
   })
 );
 
 router.get(
   '/publications/:slugOrId',
   asyncHandler(async (req, res) => {
-    // Service: WHERE (slug = :slugOrId OR id = :slugOrId) AND status = PUBLISHED
-    sendSuccess(
-      res,
-      { publication: { id: req.params.slugOrId, status: 'PUBLISHED' } },
-      'Published work detail'
-    );
+    const publication = await service.publicPublicationDetail(req.params.slugOrId!, req);
+    sendSuccess(res, { publication }, 'Published work detail');
   })
 );
 
 router.get(
   '/events',
-  asyncHandler(async (_req, res) => {
-    // Only status=Published events and audience=Public (or Members+Public).
-    sendSuccess(res, { rows: [], total: 0 }, 'Public events listing');
+  asyncHandler(async (req, res) => {
+    const data = await service.publicEvents(req);
+    sendSuccess(res, data, 'Public events listing');
+  })
+);
+
+router.get(
+  '/events/:slugOrId',
+  asyncHandler(async (req, res) => {
+    const event = await service.eventDetail(req.params.slugOrId!);
+    sendSuccess(res, { event }, 'Public event detail');
+  })
+);
+
+router.get(
+  '/gallery',
+  asyncHandler(async (req, res) => {
+    const data = await service.gallery(req);
+    sendSuccess(res, data, 'Public gallery loaded');
+  })
+);
+
+router.get(
+  '/product-reviews',
+  asyncHandler(async (req, res) => {
+    const data = await service.productReviews(req);
+    sendSuccess(res, data, 'Product reviews loaded');
   })
 );
 
 router.get(
   '/stats',
   asyncHandler(async (_req, res) => {
-    // Aggregate-only. Never row-level PII.
-    sendSuccess(
-      res,
-      {
-        platform: {
-          totalMembers: 277,
-          countriesRepresented: 42,
-          publicationsPublished: 223,
-          publicLifetimeViews: 285142,
-        },
-        latest: [
-          { title: 'CBT outcomes in digital mental health', publishedAt: '2026-07-15', slug: 'cbt-digital-mh-2026' },
-        ],
-      },
-      'Public platform statistics'
-    );
+    const data = await service.publicStats();
+    sendSuccess(res, data, 'Public platform statistics');
   })
 );
 

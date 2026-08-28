@@ -6,6 +6,7 @@ import memberRoutes from './member.routes';
 import publicRoutes from './public.routes';
 import contactRoutes from './contact.routes';
 import publicationsPublicRoutes from './publications.routes';
+import filesRoutes from './files.routes';
 
 /**
  * API v1 router (spec §39).
@@ -29,6 +30,7 @@ router.use('/public', publicRoutes);
 router.use('/contact', contactRoutes);
 router.use('/publications', publicationsPublicRoutes);
 router.use('/auth', authRoutes);
+router.use('/files', filesRoutes);
 router.use('/members', memberRoutes);
 router.use('/admin', adminRoutes);
 

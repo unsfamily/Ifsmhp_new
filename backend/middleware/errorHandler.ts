@@ -30,7 +30,7 @@ export function errorHandler(
   if (err instanceof ApiError) {
     if (err.statusCode >= 500) logger.error(err.message, { ...correlation, stack: err.stack });
     else logger.warn(err.message, correlation);
-    sendFailure(res, err.statusCode, err.message, err.errors);
+    sendFailure(res, err.statusCode, err.message, err.errors, err.meta);
     return;
   }
 

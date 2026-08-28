@@ -33,8 +33,33 @@ const envSchema = z.object({
   /** Comma-separated list of allowed browser origins. */
   CLIENT_URL: z.string().default('http://localhost:5173'),
 
-  /** Required from Milestone 3 onward; optional while there is no schema yet. */
-  DATABASE_URL: z.string().optional(),
+  DATABASE_URL: z.string().url(),
+  JWT_ACCESS_SECRET: z.string().min(32),
+  JWT_REFRESH_SECRET: z.string().min(32),
+  ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
+  COOKIE_DOMAIN: z.string().optional(),
+  UPLOAD_STORAGE_PATH: z.string().default('./uploads'),
+  MAX_UPLOAD_MB: z.coerce.number().int().positive().default(25),
+  SEED_ADMIN_EMAIL: z.string().email().default('admin@ifsmhp.local'),
+  SEED_ADMIN_PASSWORD: z.string().min(12).default('ChangeMeNow!2026'),
+
+  // --- Mail transport -------------------------------------------------------
+  // All optional so the API still boots without mail configured; in that case
+  // OTP delivery falls back to a development-only log (see mail.service.ts).
+  // These are read here and nowhere else — they must never reach the frontend.
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  /** Envelope From. Falls back to SMTP_USER when unset. */
+  MAIL_FROM: z.string().optional(),
+
+  // --- One-time passcodes ---------------------------------------------------
+  OTP_TTL_MINUTES: z.coerce.number().int().positive().default(10),
+  OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(60),
+  OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  OTP_MAX_RESENDS: z.coerce.number().int().positive().default(5),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -54,6 +79,9 @@ export const env = {
   ...raw,
   isProduction: raw.NODE_ENV === 'production',
   isTest: raw.NODE_ENV === 'test',
+  /** Mail is only usable once a host and both credentials are present. */
+  mailConfigured: Boolean(raw.SMTP_HOST && raw.SMTP_USER && raw.SMTP_PASS),
+  mailFrom: raw.MAIL_FROM ?? raw.SMTP_USER ?? 'no-reply@ifsmhp.local',
   /** CLIENT_URL parsed into an origin allowlist for CORS. */
   allowedOrigins: raw.CLIENT_URL.split(',')
     .map((origin) => origin.trim())

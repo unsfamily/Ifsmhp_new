@@ -1,6 +1,7 @@
 import { createApp } from './app';
 import { env } from './config';
 import { logger } from './utils/logger';
+import { verifyTransport } from './services/mail.service';
 
 const app = createApp();
 
@@ -9,6 +10,9 @@ const server = app.listen(env.PORT, () => {
     environment: env.NODE_ENV,
     allowedOrigins: env.allowedOrigins,
   });
+  // Report mail health at boot rather than leaving it to be discovered by a
+  // user waiting for a code that cannot be sent. Never blocks startup.
+  void verifyTransport();
 });
 
 /** Graceful shutdown so in-flight requests finish before the process exits. */

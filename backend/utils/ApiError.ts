@@ -9,17 +9,26 @@ export interface FieldError {
   message: string;
 }
 
+/**
+ * Machine-readable detail attached to a failure so clients can branch on it
+ * instead of parsing the human message. Must stay free of anything secret —
+ * it is serialized straight into the response body.
+ */
+export type ErrorMeta = Record<string, string | number | boolean>;
+
 export class ApiError extends Error {
   public readonly statusCode: number;
   public readonly errors: FieldError[];
+  public readonly meta?: ErrorMeta;
   /** Marks errors that are safe to surface verbatim to the client. */
   public readonly isOperational = true;
 
-  constructor(statusCode: number, message: string, errors: FieldError[] = []) {
+  constructor(statusCode: number, message: string, errors: FieldError[] = [], meta?: ErrorMeta) {
     super(message);
     this.name = 'ApiError';
     this.statusCode = statusCode;
     this.errors = errors;
+    if (meta) this.meta = meta;
     Error.captureStackTrace(this, this.constructor);
   }
 

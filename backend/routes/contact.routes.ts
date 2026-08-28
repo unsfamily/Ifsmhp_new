@@ -4,6 +4,7 @@ import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 import rateLimit from 'express-rate-limit';
+import * as service from '../services/platform.service';
 
 const router = Router({ mergeParams: true });
 
@@ -19,29 +20,19 @@ const contactSchema = z.object({
   organization: z.string().trim().max(200).optional(),
   country: z.string().trim().max(80).optional(),
   phone: z.string().trim().max(40).optional(),
-  topic: z.enum(['General Question', 'Membership', 'Events', 'Publications', 'Press / Media', 'Partnership']),
+  topic: z.string().trim().min(2).max(80),
   subject: z.string().trim().min(4).max(200),
-  message: z.string().trim().min(20).max(5000),
-  consent: z.literal(true, { invalid_type_error: 'You must consent to processing.' }),
+  message: z.string().trim().min(10).max(5000),
+  consent: z.literal(true, { invalid_type_error: 'You must consent to processing.' }).optional(),
 }).strict();
 
 router.post(
   '/',
   rateLimit({ max: 5, windowMs: 60 * 60 * 1000 }),
   validate({ body: contactSchema }),
-  asyncHandler(async (_req, res) => {
-    // 1. Write to ContactInquiry table (status = NEW)
-    // 2. Queue CRO Office notification (in-app, no email-bomb)
-    // 3. Generic reply — do not confirm/deny existing relationships
-    sendSuccess(
-      res,
-      {
-        inquiryId: 'inq-new',
-        status: 'NEW',
-        next: 'Our team will respond within two working days.',
-      },
-      'Message received — thank you for contacting IFSMHP.'
-    );
+  asyncHandler(async (req, res) => {
+    const data = await service.createContactInquiry(req.body);
+    sendSuccess(res, data, 'Message received — thank you for contacting IFSMHP.', 201);
   })
 );
 

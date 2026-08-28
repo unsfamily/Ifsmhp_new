@@ -1,5 +1,7 @@
 import { Request, RequestHandler } from 'express';
 import { ApiError } from '../utils/ApiError';
+import { prisma } from '../config/database';
+import { verifyAccessToken } from '../utils/security';
 
 /* eslint-disable @typescript-eslint/no-namespace */
 export type UserRole = 'MEMBER' | 'ADMIN' | 'APPLICANT';
@@ -39,13 +41,13 @@ const extractBearerToken = (req: Request): string | null => {
  * Per architecture §B.3 rule R1: authentication is verified on every protected request,
  * not just at login-time.
  */
-export const requireAuth: RequestHandler = (req, _res, next) => {
-  const env = process.env.NODE_ENV ?? 'development';
+export const requireAuth: RequestHandler = async (req, _res, next) => {
+  const runtimeEnv = process.env.NODE_ENV ?? 'development';
   const token = extractBearerToken(req);
 
   let user: AuthenticatedUser | null = null;
 
-  if (env === 'development' && req.header('X-Test-Role')) {
+  if (runtimeEnv === 'development' && req.header('X-Test-Role')) {
     const testRole = req.header('X-Test-Role') as UserRole;
     const testStatus = (req.header('X-Test-Status') as UserStatus) ?? 'ACTIVE';
     user = {
@@ -59,6 +61,24 @@ export const requireAuth: RequestHandler = (req, _res, next) => {
       return next(new ApiError(401, 'Authentication required', [
         { field: 'Authorization', message: 'Missing or invalid Bearer token' },
       ]));
+    }
+    try {
+      const payload = verifyAccessToken(token);
+      const session = await prisma.session.findUnique({
+        where: { id: payload.sessionId },
+        include: { user: { include: { memberProfile: true } } },
+      });
+      if (!session || session.revokedAt || session.expiresAt <= new Date() || session.userId !== payload.sub) {
+        return next(new ApiError(401, 'Invalid or expired credentials'));
+      }
+      user = {
+        id: session.user.id,
+        role: session.user.role,
+        status: session.user.status,
+        memberId: session.user.memberProfile?.memberId ?? undefined,
+      };
+    } catch {
+      return next(new ApiError(401, 'Invalid or expired credentials'));
     }
   }
 

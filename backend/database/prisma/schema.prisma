@@ -1,21 +1,952 @@
-// IFSMHP Platform — Prisma schema
-//
-// Milestone 2 establishes the datasource and generator only.
-//
-// The full normalized model set (User, Session, MemberProfile,
-// MembershipApplication, Project, SupportRequest, Publication, Conversation,
-// FileObject, Notification, Event, AuditLog and friends) is designed in
-// docs/architecture.md §F and is implemented in Milestone 3 — once the
-// blocking questions in §J.1 are answered, since the Member ID format and the
-// member-directory visibility rules are both baked into this schema.
-//
-// No speculative models are declared here (spec §67).
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  APPLICANT
+  MEMBER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum ApplicationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ProjectStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SupportKind {
+  MORAL
+  OFFICIAL
+  FUNDING
+}
+
+enum SupportStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum PublicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  PAST
+  CANCELLED
+}
+
+enum FileVisibility {
+  PRIVATE
+  MEMBER
+  PUBLIC
+}
+
+enum InquiryStatus {
+  NEW
+  ASSIGNED
+  RESPONDED
+  CLOSED
+  SPAM
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum AuditSeverity {
+  INFO
+  SUCCESS
+  WARNING
+  DANGER
+}
+
+enum OtpPurpose {
+  REGISTER
+  LOGIN
+}
+
+model User {
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
+  // Nullable: members authenticate by emailed OTP and never set a password.
+  // Admins still sign in with a password, so existing hashes are preserved.
+  passwordHash            String?
+  fullName                String
+  role                    UserRole                 @default(APPLICANT)
+  status                  UserStatus               @default(PENDING)
+  lastLoginAt             DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  deletedAt               DateTime?
+  sessions                Session[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  memberProfile           MemberProfile?
+  membershipApplication   MembershipApplication?
+  uploadedFiles           FileObject[]             @relation("UploadedFiles")
+  projects                Project[]                @relation("ProjectOwner")
+  supportRequests         SupportRequest[]         @relation("SupportRequester")
+  publications            Publication[]            @relation("PublicationAuthor")
+  sentMessages            Message[]                @relation("MessageSender")
+  conversations           ConversationParticipant[]
+  notifications           Notification[]
+  auditEntries            AuditLog[]               @relation("AuditActor")
+  createdEvents           Event[]                  @relation("EventCreator")
+  announcements           Announcement[]           @relation("AnnouncementAuthor")
+
+  @@index([role, status])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  userAgent String?   @db.Text
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// One-time codes emailed for member registration and login.
+///
+/// Deliberately NOT related to User: a REGISTER code is issued before any
+/// account exists, which is what lets the account be created only after the
+/// address is proven. `payload` holds the registration draft until then, so an
+/// unverified signup cannot squat on an email address.
+model EmailOtp {
+  id          String     @id @default(cuid())
+  email       String
+  purpose     OtpPurpose
+  /// sha256("<purpose>:<email>:<code>") — the code itself is never stored.
+  codeHash    String
+  payload     Json?
+  expiresAt   DateTime
+  attempts    Int        @default(0)
+  resendCount Int        @default(0)
+  lastSentAt  DateTime   @default(now())
+  consumedAt  DateTime?
+  ipAddress   String?
+  createdAt   DateTime   @default(now())
+
+  @@index([email, purpose, consumedAt])
+  @@index([expiresAt])
+}
+
+model MemberProfile {
+  id                String                   @id @default(cuid())
+  userId            String                   @unique
+  memberId          String?                  @unique
+  professionalTitle String?
+  professionalType  String
+  institution       String
+  country           String?
+  phone             String?
+  biography         String?                  @db.Text
+  publicEmail       String?
+  websiteUrl        String?
+  scholarUrl        String?
+  orcid             String?
+  approvedAt        DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  user              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application       MembershipApplication?
+  education         Education[]
+  credentials       ProfessionalCredential[]
+  interests         ResearchInterest[]
+  connectionsFrom   MemberConnection[]       @relation("ConnectionFrom")
+  connectionsTo     MemberConnection[]       @relation("ConnectionTo")
+
+  @@index([memberId])
+  @@index([professionalType])
+  @@index([institution])
+}
+
+model MembershipApplication {
+  id              String                     @id @default(cuid())
+  applicationCode String                     @unique
+  userId          String                     @unique
+  profileId       String                     @unique
+  status          ApplicationStatus          @default(PENDING)
+  priority        String                     @default("Standard")
+  credentialsText String                     @db.Text
+  educationText   String                     @db.Text
+  researchText    String                     @db.Text
+  reviewNotes     String?                    @db.Text
+  rejectionReason String?                    @db.Text
+  reviewedById    String?
+  reviewedAt      DateTime?
+  /// Approval acknowledgement delivery. Set only on a successful send, so it
+  /// doubles as the duplicate guard: a retry is refused once this is non-null.
+  approvalEmailSentAt   DateTime?
+  /// Last delivery failure, kept so an admin can see why nothing arrived.
+  approvalEmailError    String?               @db.Text
+  approvalEmailAttempts Int                   @default(0)
+  submittedAt     DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  user            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile         MemberProfile              @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  histories       ApplicationStatusHistory[]
+}
+
+model ApplicationStatusHistory {
+  id            String                @id @default(cuid())
+  applicationId String
+  fromStatus    ApplicationStatus?
+  toStatus      ApplicationStatus
+  note          String?               @db.Text
+  actorId       String?
+  createdAt     DateTime              @default(now())
+  application   MembershipApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, createdAt])
+}
+
+model Education {
+  id          String        @id @default(cuid())
+  profileId   String
+  degree      String
+  institution String
+  field       String?
+  startYear   String?
+  endYear     String?
+  detail      String?       @db.Text
+  profile     MemberProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model ProfessionalCredential {
+  id              String        @id @default(cuid())
+  profileId       String
+  fileId          String?
+  title           String
+  issuer          String?
+  credentialType  String
+  year            String?
+  referenceNumber String?
+  createdAt       DateTime      @default(now())
+  profile         MemberProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  file            FileObject?   @relation("CredentialFile", fields: [fileId], references: [id])
+}
+
+model ResearchInterest {
+  id        String        @id @default(cuid())
+  profileId String
+  name      String
+  profile   MemberProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([name])
+}
+
+model MemberIdSequence {
+  id         String   @id @default(cuid())
+  year       Int      @unique
+  nextNumber Int      @default(1)
+  updatedAt  DateTime @updatedAt
+}
+
+model FileObject {
+  id                 String                     @id @default(cuid())
+  uploaderId         String?
+  storageKey         String                     @unique
+  originalName       String
+  mimeType           String
+  sizeBytes          Int
+  checksum           String?
+  visibility         FileVisibility             @default(PRIVATE)
+  createdAt          DateTime                   @default(now())
+  deletedAt          DateTime?
+  uploader           User?                      @relation("UploadedFiles", fields: [uploaderId], references: [id])
+  credentials        ProfessionalCredential[]   @relation("CredentialFile")
+  projectFiles       ProjectFile[]
+  publicationFiles   PublicationFile[]
+  messageAttachments MessageAttachment[]
+  eventCovers        Event[]                    @relation("EventCover")
+  galleryItems       GalleryItem[]
+  inquiryAttachments ContactInquiryAttachment[]
+
+  @@index([uploaderId])
+  @@index([visibility])
+}
+
+model Project {
+  id              String                 @id @default(cuid())
+  ownerId         String
+  title           String
+  category        String
+  description     String                 @db.Text
+  timeline        String?
+  budget          String?
+  priority        String                 @default("Standard")
+  status          ProjectStatus          @default(DRAFT)
+  viewCount       Int                    @default(0)
+  submittedAt     DateTime?
+  publishedAt     DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  deletedAt       DateTime?
+  owner           User                   @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  supportTypes    ProjectSupportType[]
+  resourceLinks   ProjectResourceLink[]
+  files           ProjectFile[]
+  histories       ProjectStatusHistory[]
+  supportRequests SupportRequest[]
+  publications    Publication[]
+
+  @@index([ownerId, status])
+  @@index([category])
+}
+
+model ProjectSupportType {
+  id        String      @id @default(cuid())
+  projectId String
+  kind      SupportKind
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, kind])
+}
+
+model ProjectResourceLink {
+  id        String  @id @default(cuid())
+  projectId String
+  url       String  @db.Text
+  label     String?
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ProjectFile {
+  id        String     @id @default(cuid())
+  projectId String
+  fileId    String
+  kind      String
+  createdAt DateTime   @default(now())
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  file      FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, fileId])
+}
+
+model ProjectStatusHistory {
+  id         String         @id @default(cuid())
+  projectId  String
+  fromStatus ProjectStatus?
+  toStatus   ProjectStatus
+  note       String?        @db.Text
+  actorId    String?
+  createdAt  DateTime       @default(now())
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+model SupportRequest {
+  id              String                  @id @default(cuid())
+  requesterId     String
+  projectId       String?
+  subject         String
+  description     String                  @db.Text
+  priority        String                  @default("Standard")
+  status          SupportStatus           @default(PENDING)
+  requestedAmount Decimal?                @db.Decimal(12, 2)
+  currency        String?
+  adminResponse   String?                 @db.Text
+  assignedAdmin   String?
+  requiredBy      DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  requester       User                    @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  project         Project?                @relation(fields: [projectId], references: [id])
+  types           SupportRequestType[]
+  histories       SupportRequestHistory[]
+
+  @@index([requesterId, status])
+  @@index([status, priority])
+}
+
+model SupportRequestType {
+  id        String         @id @default(cuid())
+  requestId String
+  kind      SupportKind
+  request   SupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, kind])
+}
+
+model SupportRequestHistory {
+  id         String         @id @default(cuid())
+  requestId  String
+  fromStatus SupportStatus?
+  toStatus   SupportStatus
+  note       String?        @db.Text
+  actorId    String?
+  createdAt  DateTime       @default(now())
+  request    SupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+model Publication {
+  id            String                     @id @default(cuid())
+  authorId      String
+  projectId     String?
+  title         String
+  slug          String?                    @unique
+  abstract      String                     @db.Text
+  fullText      String?                    @db.LongText
+  venue         String?
+  category      String
+  researchType  String
+  status        PublicationStatus          @default(DRAFT)
+  doi           String?
+  featured      Boolean                    @default(false)
+  viewCount     Int                        @default(0)
+  downloadCount Int                        @default(0)
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+  author        User                       @relation("PublicationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  project       Project?                   @relation(fields: [projectId], references: [id])
+  files         PublicationFile[]
+  reviews       PublicationReview[]
+  histories     PublicationStatusHistory[]
+  views         PublicationView[]
+
+  @@index([authorId, status])
+  @@index([status, publishedAt])
+  @@index([category, researchType])
+}
+
+model PublicationFile {
+  id            String      @id @default(cuid())
+  publicationId String
+  fileId        String
+  kind          String
+  createdAt     DateTime    @default(now())
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  file          FileObject  @relation(fields: [fileId], references: [id], onDelete: Cascade)
+}
+
+model PublicationReview {
+  id            String      @id @default(cuid())
+  publicationId String
+  reviewerId    String?
+  decision      String
+  comment       String      @db.Text
+  createdAt     DateTime    @default(now())
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+}
+
+model PublicationStatusHistory {
+  id            String             @id @default(cuid())
+  publicationId String
+  fromStatus    PublicationStatus?
+  toStatus      PublicationStatus
+  note          String?            @db.Text
+  actorId       String?
+  createdAt     DateTime           @default(now())
+  publication   Publication        @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+}
+
+model PublicationView {
+  id            String      @id @default(cuid())
+  publicationId String
+  visitorHash   String
+  viewedAt      DateTime    @default(now())
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  @@unique([publicationId, visitorHash])
+}
+
+model ProductReview {
+  id           String   @id @default(cuid())
+  title        String
+  author       String
+  authorRole   String
+  category     String
+  subjects     Json
+  rating       Int
+  publishedAt  DateTime
+  readMinutes  Int
+  endorsements Int      @default(0)
+  comments     Int      @default(0)
+  summary      String   @db.Text
+  pros         Json
+  cons         Json
+  verdict      String   @db.Text
+  methodology  String   @db.Text
+  ethics       String   @db.Text
+  conflicts    String   @db.Text
+  tags         Json
+  featured     Boolean  @default(false)
+  region       String
+}
+
+model Conversation {
+  id            String                    @id @default(cuid())
+  subject       String
+  category      String
+  status        String                    @default("Open")
+  priority      String                    @default("Standard")
+  assignee      String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  participants  ConversationParticipant[]
+  messages      Message[]
+  linkedRecords LinkedRecord[]
+
+  @@index([status, priority])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  roleLabel      String?
+  lastReadAt     DateTime?
+  joinedAt       DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String              @id @default(cuid())
+  conversationId String
+  senderId       String?
+  senderName     String
+  senderRole     String
+  body           String              @db.Text
+  internal       Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  conversation   Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User?               @relation("MessageSender", fields: [senderId], references: [id])
+  attachments    MessageAttachment[]
+  sharedLinks    SharedLink[]
+}
+
+model MessageAttachment {
+  id        String     @id @default(cuid())
+  messageId String
+  fileId    String
+  message   Message    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  file      FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+}
+
+model SharedLink {
+  id        String  @id @default(cuid())
+  messageId String
+  url       String  @db.Text
+  label     String?
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+}
+
+model LinkedRecord {
+  id             String       @id @default(cuid())
+  conversationId String
+  label          String
+  recordId       String
+  name           String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model Event {
+  id                   String              @id @default(cuid())
+  creatorId            String?
+  coverFileId          String?
+  title                String
+  slug                 String              @unique
+  shortDescription     String              @db.Text
+  longDescription      String              @db.LongText
+  date                 DateTime
+  timeStart            String
+  timeEnd              String
+  timezone             String
+  location             String
+  format               String
+  audience             String
+  capacity             Int?
+  externalUrl          String?             @db.Text
+  organizer            String
+  organizerEmail       String
+  status               EventStatus         @default(DRAFT)
+  featured             Boolean             @default(false)
+  registrationRequired Boolean              @default(true)
+  waitlistEnabled      Boolean              @default(true)
+  recordingProvided    Boolean              @default(false)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  creator              User?               @relation("EventCreator", fields: [creatorId], references: [id])
+  coverFile            FileObject?         @relation("EventCover", fields: [coverFileId], references: [id])
+  speakers             EventSpeaker[]
+  tags                 EventTag[]
+  registrations        EventRegistration[]
+  resources            EventResource[]
+
+  @@index([status, date])
+}
+
+model EventSpeaker {
+  id      String @id @default(cuid())
+  eventId String
+  name    String
+  sort    Int    @default(0)
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model EventTag {
+  id      String @id @default(cuid())
+  eventId String
+  name    String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, name])
+}
+
+model EventRegistration {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String?
+  name      String?
+  email     String?
+  status    String   @default("Registered")
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model EventResource {
+  id      String @id @default(cuid())
+  eventId String
+  title   String
+  kind    String
+  url     String? @db.Text
+  fileId  String?
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model GalleryAlbum {
+  id            String         @id @default(cuid())
+  key           String         @unique
+  label         String
+  coverGradient String
+  visibility    FileVisibility @default(PUBLIC)
+  items         GalleryItem[]
+  banners       GalleryBanner[]
+}
+
+model GalleryItem {
+  id           String         @id @default(cuid())
+  albumId      String
+  fileId       String?
+  type         String
+  title        String
+  caption      String         @db.Text
+  capturedAt   DateTime
+  location     String
+  photographer String
+  aspect       String
+  sizeMB       Decimal        @db.Decimal(8, 2)
+  resolution   String?
+  views        Int            @default(0)
+  downloads    Int            @default(0)
+  starred      Boolean        @default(false)
+  creditLine   String
+  visibility   FileVisibility @default(PUBLIC)
+  album        GalleryAlbum   @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  file         FileObject?    @relation(fields: [fileId], references: [id])
+  tags         GalleryTag[]
+}
+
+model GalleryTag {
+  id     String      @id @default(cuid())
+  itemId String
+  name   String
+  item   GalleryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, name])
+}
+
+model GalleryBanner {
+  id            String       @id @default(cuid())
+  albumId       String
+  eyebrow       String
+  title         String
+  lead          String       @db.Text
+  tagline       String
+  promptSubject String       @db.Text
+  album         GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+}
+
+model InterestGroup {
+  id        String                @id @default(cuid())
+  name      String
+  tag       String
+  createdAt DateTime              @default(now())
+  members   InterestGroupMember[]
+  threads   DiscussionThread[]
+}
+
+model InterestGroupMember {
+  id        String        @id @default(cuid())
+  groupId   String
+  profileId String
+  group     InterestGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, profileId])
+}
+
+model DiscussionThread {
+  id        String            @id @default(cuid())
+  groupId   String?
+  authorId  String?
+  title     String
+  category  String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  group     InterestGroup?    @relation(fields: [groupId], references: [id])
+  replies   DiscussionReply[]
+}
+
+model DiscussionReply {
+  id        String           @id @default(cuid())
+  threadId  String
+  authorId  String?
+  body      String           @db.Text
+  createdAt DateTime         @default(now())
+  thread    DiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+}
+
+model MemberConnection {
+  id          String        @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      String        @default("Pending")
+  createdAt   DateTime      @default(now())
+  requester   MemberProfile @relation("ConnectionFrom", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee   MemberProfile @relation("ConnectionTo", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+}
+
+model ContactInquiry {
+  id           String                     @id @default(cuid())
+  name         String
+  email        String
+  organization String?
+  country      String?
+  phone        String?
+  topic        String
+  subject      String
+  message      String                     @db.Text
+  status       InquiryStatus              @default(NEW)
+  priority     String                     @default("Normal")
+  assignee     String?
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+  notes        InquiryNote[]
+  replies      InquiryReply[]
+  histories    InquiryStatusHistory[]
+  attachments  ContactInquiryAttachment[]
+
+  @@index([status, priority])
+}
+
+model ContactInquiryAttachment {
+  id        String         @id @default(cuid())
+  inquiryId String
+  fileId    String
+  inquiry   ContactInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  file      FileObject     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+}
+
+model InquiryNote {
+  id        String         @id @default(cuid())
+  inquiryId String
+  authorId  String?
+  text      String         @db.Text
+  private   Boolean        @default(false)
+  createdAt DateTime       @default(now())
+  inquiry   ContactInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+}
+
+model InquiryReply {
+  id        String         @id @default(cuid())
+  inquiryId String
+  authorId  String?
+  author    String
+  text      String         @db.Text
+  createdAt DateTime       @default(now())
+  inquiry   ContactInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+}
+
+model InquiryStatusHistory {
+  id         String         @id @default(cuid())
+  inquiryId  String
+  fromStatus InquiryStatus?
+  toStatus   InquiryStatus
+  reason     String?        @db.Text
+  actorId    String?
+  createdAt  DateTime       @default(now())
+  inquiry    ContactInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+}
+
+model Announcement {
+  id                String                 @id @default(cuid())
+  authorId          String?
+  subject           String
+  body              String                 @db.LongText
+  audience          String
+  channel           String
+  status            AnnouncementStatus     @default(DRAFT)
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  appendUnsubscribe Boolean                @default(true)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  author            User?                  @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+  deliveries        AnnouncementDelivery[]
+}
+
+model AnnouncementDelivery {
+  id              String       @id @default(cuid())
+  announcementId  String
+  recipientUserId String?
+  recipientEmail  String?
+  status          String       @default("Pending")
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  createdAt       DateTime     @default(now())
+  announcement    Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String             @id @default(cuid())
+  userId    String
+  title     String
+  body      String             @db.Text
+  type      String
+  status    NotificationStatus @default(UNREAD)
+  link      String?
+  createdAt DateTime           @default(now())
+  readAt    DateTime?
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+}
+
+model PlatformSetting {
+  id        String   @id @default(cuid())
+  section   String
+  key       String
+  value     Json
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  @@unique([section, key])
+}
+
+model ReportDefinition {
+  id          String      @id @default(cuid())
+  key         String      @unique
+  title       String
+  category    String
+  description String      @db.Text
+  cadence     String
+  format      String
+  recipient   String
+  runs        ReportRun[]
+}
+
+model ReportRun {
+  id           String           @id @default(cuid())
+  definitionId String
+  status       String           @default("Generated")
+  rowsJson     Json?
+  createdAt    DateTime         @default(now())
+  definition   ReportDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String        @id @default(cuid())
+  actorId     String?
+  actorLabel  String
+  actorRole   String
+  action      String
+  entity      String
+  severity    AuditSeverity @default(INFO)
+  description String        @db.Text
+  changes     Json?
+  ipAddress   String?
+  userAgent   String?       @db.Text
+  createdAt   DateTime      @default(now())
+  actor       User?         @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([action, createdAt])
+  @@index([severity, createdAt])
 }
