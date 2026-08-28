@@ -19,6 +19,8 @@ import { Card, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { SelectInput } from '../../components/common/Input';
+import { memberApi } from '../../api/member';
+import { useApiData } from '../../hooks/useApiData';
 
 type Status = 'All' | 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Published';
 type SupportType = 'All' | 'Moral' | 'Official' | 'Funding';
@@ -29,73 +31,10 @@ interface Project {
   category: string;
   status: Exclude<Status, 'All'>;
   support: Exclude<SupportType, 'All'>[];
-  submitted: string;
-  updated: string;
+  submitted: string | Date | null;
+  updated: string | Date;
   views: number;
 }
-
-const projects: Project[] = [
-  {
-    id: 'p1',
-    title: 'Cognitive Behavioral Therapy Outcomes in Digital Mental Health Platforms: A Meta-Analysis',
-    category: 'Clinical Research',
-    status: 'Published',
-    support: ['Official'],
-    submitted: 'Mar 15, 2026',
-    updated: 'Jul 15, 2026',
-    views: 1247,
-  },
-  {
-    id: 'p2',
-    title: 'Blood Biomarker Panels for Major Depressive Disorder Subtyping and Treatment Response Prediction',
-    category: 'Biological Psychiatry',
-    status: 'Under Review',
-    support: ['Funding', 'Official'],
-    submitted: 'Jul 08, 2026',
-    updated: 'Aug 01, 2026',
-    views: 88,
-  },
-  {
-    id: 'p3',
-    title: 'Evaluating Commercial Wearable EEG Devices: Scientific Validity and Clinical Correlates',
-    category: 'Technology Validation',
-    status: 'Submitted',
-    support: ['Moral'],
-    submitted: 'Jun 30, 2026',
-    updated: 'Jul 02, 2026',
-    views: 34,
-  },
-  {
-    id: 'p4',
-    title: 'Post-Pandemic Youth Mental Health Service Utilization: Five-Nation Comparative Analysis',
-    category: 'Health Services',
-    status: 'Draft',
-    support: ['Funding'],
-    submitted: '—',
-    updated: 'Jun 22, 2026',
-    views: 12,
-  },
-  {
-    id: 'p5',
-    title: '8-Week Mindfulness App RCT for Generalized Anxiety: Protocol and Baseline Characteristics',
-    category: 'Clinical Trials',
-    status: 'Approved',
-    support: ['Moral', 'Official'],
-    submitted: 'May 20, 2026',
-    updated: 'Jul 11, 2026',
-    views: 412,
-  },
-  {
-    id: 'p6',
-    title: 'Clinician Burnout Predictors in Hybrid Telehealth Workforce: Longitudinal Cohort Study',
-    category: 'Occupational Mental Health',
-    status: 'Draft',
-    support: [],
-    submitted: '—',
-    updated: 'Aug 10, 2026',
-    views: 5,
-  },
-];
 
 const statusConfig: Record<Exclude<Status, 'All'>, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'brass'; icon: typeof Clock }> = {
   Draft: { variant: 'default', icon: FileText },
@@ -121,11 +60,14 @@ export default function MemberProjectsPage() {
   const [status, setStatus] = useState<Status>('All');
   const [support, setSupport] = useState<SupportType>('All');
   const [search, setSearch] = useState('');
+  const { data, loading, error } = useApiData<{ items: Project[]; pagination: { total: number } }>(
+    () => memberApi.projects({ status, q: search }) as Promise<{ items: Project[]; pagination: { total: number } }>,
+    [status, search],
+  );
 
+  const projects = data?.items ?? [];
   const filtered = projects.filter((p) => {
-    if (status !== 'All' && p.status !== status) return false;
     if (support !== 'All' && !p.support.includes(support)) return false;
-    if (search && !p.title.toLowerCase().includes(search.toLowerCase()) && !p.category.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -170,7 +112,8 @@ export default function MemberProjectsPage() {
             </div>
           </div>
           <p className="mt-3 text-xs text-ink-subtle">
-            Showing <strong className="text-ink-muted">{filtered.length}</strong> of <strong className="text-ink-muted">{projects.length}</strong> projects
+            {loading ? 'Loading projects...' : <>Showing <strong className="text-ink-muted">{filtered.length}</strong> of <strong className="text-ink-muted">{data?.pagination.total ?? projects.length}</strong> projects</>}
+            {error ? <span className="ml-2 text-danger-600">{error}</span> : null}
           </p>
         </CardContent>
       </Card>
@@ -207,11 +150,11 @@ export default function MemberProjectsPage() {
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Submitted</p>
-                    <p className="text-ink-muted mt-0.5">{p.submitted}</p>
+                    <p className="text-ink-muted mt-0.5">{p.submitted ? new Date(p.submitted).toLocaleDateString() : '-'}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Last Updated</p>
-                    <p className="text-ink-muted mt-0.5">{p.updated}</p>
+                    <p className="text-ink-muted mt-0.5">{new Date(p.updated).toLocaleDateString()}</p>
                   </div>
                 </div>
                 <div className="mt-5 flex items-center justify-between gap-2 pt-3 border-t border-paper-border">

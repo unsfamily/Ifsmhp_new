@@ -15,6 +15,8 @@ import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput, FileInput } from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import { useForm } from 'react-hook-form';
+import { memberApi } from '../../api/member';
+import { normalizeError } from '../../api/client';
 
 interface FormData {
   title: string;
@@ -29,19 +31,34 @@ interface FormData {
 
 export default function UploadProjectPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
     formState: { isSubmitting, errors },
   } = useForm<FormData>();
 
-  const onSubmit = (_data: FormData) =>
-    new Promise((resolve) => {
-      setTimeout(() => {
-        setSubmitted(true);
-        resolve(true);
-      }, 1500);
-    });
+  const onSubmit = async (data: FormData) => {
+    setErrorMsg(null);
+    try {
+      await memberApi.createProject({
+        title: data.title,
+        category: data.category,
+        description: data.description,
+        timeline: data.timeline,
+        budget: data.budget,
+        supportTypes: [
+          data.supportMoral ? 'Moral Support' : null,
+          data.supportOfficial ? 'Official Support' : null,
+          data.supportFunding ? 'Funding Support' : null,
+        ].filter(Boolean),
+        submit: true,
+      });
+      setSubmitted(true);
+    } catch (error) {
+      setErrorMsg(normalizeError(error).message);
+    }
+  };
 
   if (submitted) {
     return (
@@ -102,6 +119,11 @@ export default function UploadProjectPage() {
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {errorMsg && (
+            <div className="rounded-lg border border-danger-600/20 bg-danger-100 p-4 text-sm text-danger-600">
+              {errorMsg}
+            </div>
+          )}
           <Card>
             <CardHeader>
               <h2 className="font-display text-lg font-semibold text-forum-900 flex items-center gap-2">

@@ -17,6 +17,8 @@ import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput } from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import { useForm } from 'react-hook-form';
+import { publicApi } from '../../api/public';
+import { normalizeError } from '../../api/client';
 
 type InquiryType = 'Membership' | 'Research Support' | 'General' | 'Partnership' | 'Event';
 
@@ -100,6 +102,7 @@ const colorClasses = {
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -108,9 +111,20 @@ export default function ContactPage() {
     defaultValues: { inquiryType: 'General' },
   });
 
-  const onSubmit = (_data: ContactForm) => {
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 6000);
+  const onSubmit = async (data: ContactForm) => {
+    setErrorMsg(null);
+    try {
+      await publicApi.contact({
+        name: data.name,
+        email: data.email,
+        subject: data.subject,
+        topic: data.inquiryType,
+        message: data.message,
+      });
+      setSubmitted(true);
+    } catch (error) {
+      setErrorMsg(normalizeError(error).message);
+    }
   };
 
   return (
@@ -234,6 +248,11 @@ export default function ContactPage() {
                   </div>
                 ) : (
                   <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
+                    {errorMsg && (
+                      <div className="rounded-lg border border-danger-600/20 bg-danger-100 p-4 text-sm text-danger-600">
+                        {errorMsg}
+                      </div>
+                    )}
                     <div className="grid gap-4 sm:grid-cols-2">
                       <TextInput
                         label="Your Name"

@@ -16,8 +16,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput, Checkbox, FileInput } from '../../components/common/Input';
+import OtpCodeStep from '../../components/auth/OtpCodeStep';
 import Badge from '../../components/common/Badge';
 import logoImg from '../../assets/images/logo.png';
+import { requestOtp } from '../../api/auth';
+import { normalizeError } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
+import { useOtpFlow } from '../../hooks/useOtpFlow';
 
 const professionalTypes = [
   'Research Scholar / Scientist',
@@ -31,33 +36,38 @@ const professionalTypes = [
   'Other Mental Health Professional',
 ];
 
-const schema = z
-  .object({
-    fullName: z.string().min(2, 'Please enter your full name'),
-    email: z.string().email('Enter a valid email address'),
-    confirmEmail: z.string().email('Enter a valid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-    confirmPassword: z.string(),
-    professionalType: z.string().min(1, 'Select your professional type'),
-    institution: z.string().min(2, 'Institution / Organization is required'),
-    credentials: z.string().min(10, 'Please briefly describe your credentials'),
-    education: z.string().min(10, 'Please list your relevant education'),
-    researchInterests: z.string().min(10, 'Please describe your research interests'),
-    agreeTerms: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms' }) }),
-  })
-  .refine((d) => d.email === d.confirmEmail, {
-    message: 'Emails do not match',
-    path: ['confirmEmail'],
-  })
-  .refine((d) => d.password === d.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
+// The address is asked for once: a one-time code is emailed to it and the
+// account is not created until that code comes back, so a typo cannot slip
+// through unnoticed the way it could when registration completed immediately.
+const schema = z.object({
+  fullName: z.string().min(2, 'Please enter your full name'),
+  email: z.string().email('Enter a valid email address'),
+  professionalType: z.string().min(1, 'Select your professional type'),
+  institution: z.string().min(2, 'Institution / Organization is required'),
+  credentials: z.string().min(10, 'Please briefly describe your credentials'),
+  education: z.string().min(10, 'Please list your relevant education'),
+  researchInterests: z.string().min(10, 'Please describe your research interests'),
+  agreeTerms: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms' }) }),
+});
 
 type FormData = z.infer<typeof schema>;
 
 export default function RegisterPage() {
-  const [success, setSuccess] = useState(false);
+  const { refreshUser } = useAuth();
+  const [submitted, setSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // The code step, its countdown, and its persistence across a refresh all live
+  // in the shared flow. The account is created only when `submit` succeeds.
+  const otp = useOtpFlow('REGISTER', {
+    onVerified: async () => {
+      // The applicant is signed in on verification, so the session is live for
+      // the dashboard link on the success panel.
+      await refreshUser().catch(() => undefined);
+      setSubmitted(true);
+    },
+  });
+
   const {
     register,
     handleSubmit,
@@ -66,14 +76,31 @@ export default function RegisterPage() {
     resolver: zodResolver(schema),
   });
 
-  const onSubmit = (_data: FormData) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(true);
-        setSuccess(true);
-      }, 1500);
-    });
+  /** Builds the registration payload the API expects from the current form. */
+  const payloadFrom = (data: FormData) => ({
+    purpose: 'REGISTER' as const,
+    fullName: data.fullName,
+    email: data.email,
+    professionalType: data.professionalType,
+    institution: data.institution,
+    credentials: data.credentials,
+    education: data.education,
+    researchInterests: data.researchInterests,
+    agreeTerms: data.agreeTerms,
+  });
+
+  const onSubmit = async (data: FormData) => {
+    setErrorMsg(null);
+    try {
+      // Only enters the code step once the backend confirms a code was really
+      // sent; a delivery failure throws and is surfaced below.
+      otp.begin(await requestOtp(payloadFrom(data)));
+    } catch (error) {
+      setErrorMsg(normalizeError(error).message);
+    }
   };
+
+  const success = submitted;
 
   if (success) {
     return (
@@ -110,6 +137,38 @@ export default function RegisterPage() {
               Go to Login
             </Button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (otp.active) {
+    return (
+      <div className="min-h-screen bg-paper flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md rounded-2xl border border-paper-border bg-paper-raised p-8 sm:p-10 shadow-lg">
+          <OtpCodeStep
+            email={otp.email}
+            code={otp.code}
+            onCodeChange={otp.setCode}
+            onSubmit={otp.submit}
+            onResend={otp.resend}
+            onBack={otp.reset}
+            backLabel="Back to the application"
+            submitLabel="Verify and submit application"
+            title="Verify your email"
+            description="Enter the 6-digit code we sent to"
+            status={otp.status}
+            codeError={otp.codeError}
+            error={otp.error}
+            notice={otp.notice}
+            verifying={otp.verifying}
+            resending={otp.resending}
+            seconds={otp.seconds}
+            canResend={otp.canResend}
+          />
+          <p className="mt-6 text-center text-xs text-ink-subtle">
+            Your account is created only once this code is confirmed.
+          </p>
         </div>
       </div>
     );
@@ -189,6 +248,11 @@ export default function RegisterPage() {
 
           <div className="lg:col-span-2">
             <div className="rounded-2xl border border-paper-border bg-paper-raised p-6 sm:p-8 lg:p-10 shadow-sm">
+              {errorMsg && (
+                <div className="mb-6 rounded-lg border border-danger-600/20 bg-danger-100 p-4 text-sm text-danger-600">
+                  {errorMsg}
+                </div>
+              )}
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 <div>
                   <h2 className="font-display text-xl font-semibold text-forum-900 flex items-center gap-2">
@@ -225,45 +289,9 @@ export default function RegisterPage() {
                       icon={<Mail className="h-4.5 w-4.5" />}
                       required
                       error={errors.email?.message}
+                      hint="We'll send a 6-digit code here to verify your address."
                       {...register('email')}
                     />
-                    {/* <TextInput
-                      label="Confirm Email Address"
-                      type="email"
-                      placeholder="jane@university.edu"
-                      icon={<Mail className="h-4.5 w-4.5" />}
-                      required
-                      error={errors.confirmEmail?.message}
-                      {...register('confirmEmail')}
-                    /> */}
-                    {/* <div className="relative">
-                      <TextInput
-                        label="Password"
-                        type={showPw ? 'text' : 'password'}
-                        placeholder="Minimum 8 characters"
-                        icon={<Lock className="h-4.5 w-4.5" />}
-                        required
-                        error={errors.password?.message}
-                        {...register('password')}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPw(!showPw)}
-                        className="absolute right-3 top-8 text-ink-subtle hover:text-ink-muted"
-                        aria-label={showPw ? 'Hide password' : 'Show password'}
-                      >
-                        {showPw ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
-                      </button>
-                    </div> */}
-                    {/* <TextInput
-                      label="Confirm Password"
-                      type={showPw ? 'text' : 'password'}
-                      placeholder="Re-enter password"
-                      icon={<Lock className="h-4.5 w-4.5" />}
-                      required
-                      error={errors.confirmPassword?.message}
-                      {...register('confirmPassword')}
-                    /> */}
                     <TextInput
                       label="Institution / Organization"
                       placeholder="University, Hospital, Institute..."

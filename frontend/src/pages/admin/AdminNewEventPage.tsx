@@ -658,7 +658,7 @@ export default function AdminNewEventPage() {
               <Button variant="outline" size="sm" className="justify-start" onClick={() => setShowPreview((v) => !v)}>
                 <Eye className="h-4 w-4" /> {showPreview ? 'Hide preview card' : 'Show full page preview'}
               </Button>
-              <Button type="button" variant="primary" className="justify-start bg-success-600 hover:bg-success-600/90" onClick={publish as any} disabled={!isValid}>
+              <Button type="submit" variant="primary" className="justify-start bg-success-600 hover:bg-success-600/90" disabled={!isValid}>
                 <Send className="h-4 w-4" /> Publish now
               </Button>
             </CardContent>

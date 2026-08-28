@@ -23,13 +23,16 @@ import {
 } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import logoImg from '../assets/images/logo.png';
+import { useAuth } from '../context/AuthContext';
+import { adminApi } from '../api/admin';
+import { useApiData } from '../hooks/useApiData';
 
 interface NavItem {
   to: string;
   label: string;
   icon: typeof LayoutDashboard;
   end?: boolean;
-  badge?: string | number | null;
+  badgeKey?: keyof AdminCounts;
 }
 
 interface NavSection {
@@ -37,48 +40,64 @@ interface NavSection {
   items: NavItem[];
 }
 
+/** Sidebar counts that have a real source in GET /admin/stats. */
+interface AdminCounts {
+  /** Every row the members directory lists. */
+  directoryTotal: number;
+  totalMembers: number;
+  membershipPending: number;
+  publicationsQueue: number;
+  openSupportTickets: number;
+  messagesAwaitingReply: number;
+  newInquiries: number;
+}
+
 const navSections: NavSection[] = [
   {
     heading: 'Overview',
     items: [
-      { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true, badge: null },
+      { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
     ],
   },
   {
     heading: 'Members',
     items: [
-      { to: '/admin/members', label: 'All Members', icon: Users, badge: 277 },
-      { to: '/admin/members/pending', label: 'Pending Applications', icon: Clock, badge: 6 },
+      { to: '/admin/members', label: 'All Members', icon: Users, badgeKey: 'directoryTotal' },
+      { to: '/admin/members/pending', label: 'Pending Applications', icon: Clock, badgeKey: 'membershipPending' },
     ],
   },
   {
     heading: 'Research & Content',
     items: [
-      { to: '/admin/projects', label: 'Research Projects', icon: FolderKanban, badge: null },
-      { to: '/admin/publications', label: 'Publications', icon: FileText, badge: 12 },
-      { to: '/admin/gallery', label: 'Media Gallery', icon: Images, badge: 64 },
+      { to: '/admin/projects', label: 'Research Projects', icon: FolderKanban },
+      { to: '/admin/publications', label: 'Publications', icon: FileText, badgeKey: 'publicationsQueue' },
+      { to: '/admin/gallery', label: 'Media Gallery', icon: Images },
     ],
   },
   {
     heading: 'Operations',
     items: [
-      { to: '/admin/support', label: 'Support Requests', icon: ShieldCheck, badge: 8 },
-      { to: '/admin/messages', label: 'Messages', icon: MessageSquare, badge: 5 },
-      { to: '/admin/events', label: 'Events', icon: Calendar, badge: null },
-      { to: '/admin/inquiries', label: 'Contact Inquiries', icon: Mail, badge: null },
+      { to: '/admin/support', label: 'Support Requests', icon: ShieldCheck, badgeKey: 'openSupportTickets' },
+      { to: '/admin/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'messagesAwaitingReply' },
+      { to: '/admin/events', label: 'Events', icon: Calendar },
+      { to: '/admin/inquiries', label: 'Contact Inquiries', icon: Mail, badgeKey: 'newInquiries' },
     ],
   },
   {
     heading: 'Administration',
     items: [
-      { to: '/admin/notifications', label: 'Notifications', icon: Bell, badge: 3 },
-      { to: '/admin/audit-log', label: 'Audit Log', icon: History, badge: null },
+      { to: '/admin/notifications', label: 'Notifications', icon: Bell },
+      { to: '/admin/audit-log', label: 'Audit Log', icon: History },
     ],
   },
 ];
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Real counts; a failure just leaves the badges off rather than showing
+  // numbers that contradict the pages they label.
+  const { data: stats } = useApiData<AdminCounts>(() => adminApi.stats() as Promise<AdminCounts>, []);
+  const { user, logout } = useAuth();
   const loc = useLocation();
 
   const allNavItems = navSections.flatMap((s) => s.items);
@@ -136,7 +155,7 @@ export default function AdminLayout() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-white text-sm truncate">
-                  Office of the CRO
+                  {user?.fullName ?? 'Office of the CRO'}
                 </p>
                 <Badge variant="brass">
                   <ShieldCheck className="h-2.5 w-2.5 mr-1" />
@@ -178,11 +197,11 @@ export default function AdminLayout() {
                     >
                       <Icon className="h-4.5 w-4.5 shrink-0" />
                       <span className="flex-1 truncate">{item.label}</span>
-                      {item.badge && (
+                      {item.badgeKey && stats?.[item.badgeKey] ? (
                         <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brass-500 px-1.5 text-[11px] font-semibold text-white">
-                          {item.badge}
+                          {stats[item.badgeKey]}
                         </span>
-                      )}
+                      ) : null}
                     </NavLink>
                   );
                 })}
@@ -212,7 +231,7 @@ export default function AdminLayout() {
             <button
               type="button"
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-forum-100/70 hover:bg-forum-800 hover:text-white transition-colors"
-              onClick={() => (window.location.href = '/login')}
+              onClick={() => void logout()}
             >
               <LogOut className="h-4.5 w-4.5 shrink-0" />
               <span className="flex-1 text-left">Sign Out</span>

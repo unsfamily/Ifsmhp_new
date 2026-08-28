@@ -319,7 +319,7 @@ export default function AdminMessagesDetailPage() {
 
             <div className="border-t border-paper-border p-4 sm:p-6 space-y-3 bg-paper/70">
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <SelectInput value={signAs as string} onChange={(e) => setSignAs(e.target.value as any)} className="w-auto [&>select]:text-xs">
+                <SelectInput value={signAs} onChange={(e) => setSignAs(e.target.value as 'CRO Office' | 'SAB' | 'CRO Lead (signed)')} className="w-auto [&>select]:text-xs">
                   <option>Sign as CRO Office</option>
                   <option>Sign as SAB</option>
                   <option>Sign as CRO Lead (signed)</option>
@@ -330,7 +330,7 @@ export default function AdminMessagesDetailPage() {
               </div>
               <TextArea
                 rows={3}
-                label={null as any}
+                label=""
                 placeholder={`Write your reply — signed as ${signAs}. Visible to all conversation participants.`}
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}

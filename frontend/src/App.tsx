@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 import PublicLayout from './layouts/PublicLayout';
 import MemberLayout from './layouts/MemberLayout';
 import AdminLayout from './layouts/AdminLayout';
+import { RequireAuth } from './context/AuthContext';
 
 import HomePage from './pages/public/HomePage';
 import AboutPage from './pages/public/AboutPage';
@@ -72,7 +73,7 @@ export default function App() {
       <Route path="forgot-password" element={<LoginPage />} />
       <Route path="reset-password" element={<LoginPage />} />
 
-      <Route path="dashboard" element={<MemberLayout />}>
+      <Route path="dashboard" element={<RequireAuth role="MEMBER"><MemberLayout /></RequireAuth>}>
         <Route index element={<DashboardHomePage />} />
         <Route path="profile" element={<MemberProfilePage />} />
         <Route path="projects" element={<MemberProjectsPage />} />
@@ -86,7 +87,7 @@ export default function App() {
         <Route path="support" element={<SupportRequestsPage />} />
       </Route>
 
-      <Route path="admin" element={<AdminLayout />}>
+      <Route path="admin" element={<RequireAuth role="ADMIN"><AdminLayout /></RequireAuth>}>
         <Route index element={<AdminHomePage />} />
         <Route path="members" element={<AdminMembersPage />} />
         <Route path="members/pending" element={<AdminPendingApplicationsPage />} />

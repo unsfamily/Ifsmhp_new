@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -37,24 +37,15 @@ import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { TextArea, TextInput } from '../../components/common/Input';
-import { apiClient } from '../../api/client';
-
-const DEMO_LABEL = '[DEMO DATA — API pending]';
+import { apiClient, normalizeError } from '../../api/client';
+import { adminApi, type AdminMemberDetail } from '../../api/admin';
+import { useApiData } from '../../hooks/useApiData';
 
 type ApplicationStatus =
   | 'PENDING'
   | 'UNDER_REVIEW'
   | 'APPROVED'
   | 'REJECTED';
-
-type ProfessionalType =
-  | 'Scientist'
-  | 'Mental Health Professional'
-  | 'Researcher'
-  | 'Academician'
-  | 'Clinician'
-  | 'Policy Advisor'
-  | 'Public Health Specialist';
 
 interface EducationRecord {
   institution: string;
@@ -82,22 +73,13 @@ interface StatusHistoryEntry {
   note?: string;
 }
 
-interface ReviewEntry {
-  id: string;
-  reviewer: string;
-  role: string;
-  timestamp: string;
-  action: 'STARTED_REVIEW' | 'ADDED_NOTE' | 'REQUESTED_INFO' | 'RECOMMENDED_APPROVE' | 'RECOMMENDED_REJECT';
-  comment: string;
-}
-
 interface ApplicationRecord {
   id: string;
   fullName: string;
   email: string;
   phone?: string;
   professionalTitle: string;
-  professionalType: ProfessionalType;
+  professionalType: string;
   institution: string;
   country: string;
   biography: string;
@@ -108,198 +90,68 @@ interface ApplicationRecord {
   submittedAt: string;
   status: ApplicationStatus;
   statusHistory: StatusHistoryEntry[];
-  reviews: ReviewEntry[];
   memberId?: string;
+  /** Free-text answers submitted at registration — the substance under review. */
+  credentialsText: string;
+  educationText: string;
+  researchText: string;
+  slaDays: number;
 }
 
-const mockApplications: Record<string, ApplicationRecord> = {
-  mr1: {
-    id: 'mr1',
-    fullName: 'Dr. Anika Kapoor',
-    email: 'anika.kapoor@aiimsdelhi.edu.in',
-    phone: '+91 98113 45678',
-    professionalTitle: 'Associate Professor of Clinical Psychology',
-    professionalType: 'Mental Health Professional',
-    institution: 'All India Institute of Medical Sciences, Delhi',
-    country: 'India',
-    biography:
-      'Fifteen years of clinical practice and academic research specializing in adolescent mental health, PTSD in urban populations, and culturally adapted CBT protocols. Lead researcher on the Delhi Youth Mental Health Initiative, with 32 peer-reviewed publications and 4 national policy contributions. Supervises 6 doctoral candidates and coordinates a 12-site clinical trial across northern India.',
-    researchInterests: [
-      'Adolescent Mental Health',
-      'Culturally Adapted CBT',
-      'Suicide Prevention',
-      'Digital Mental Health Tools',
-      'PTSD & Urban Trauma',
-      'Youth Public Health Policy',
-    ],
-    education: [
-      {
-        institution: 'All India Institute of Medical Sciences, Delhi',
-        degree: 'MD (Psychiatry)',
-        field: 'Clinical Psychiatry',
-        startYear: '2011',
-        endYear: '2014',
-      },
-      {
-        institution: 'Maulana Azad Medical College',
-        degree: 'MBBS',
-        field: 'Medicine & Surgery',
-        startYear: '2006',
-        endYear: '2010',
-      },
-      {
-        institution: 'University of Delhi',
-        degree: 'B.Sc. (Honours)',
-        field: 'Psychology',
-        startYear: '2003',
-        endYear: '2006',
-      },
-    ],
-    credentials: [
-      {
-        id: 'c1',
-        title: 'MD Psychiatry — Degree Certificate',
-        issuer: 'All India Institute of Medical Sciences',
-        year: '2014',
-        referenceNumber: 'AIIMS/MD/PSY/2014/0417',
-        type: 'Postgraduate',
-        fileSize: '2.4 MB',
-        uploadedAt: '2026-08-17',
-      },
-      {
-        id: 'c2',
-        title: 'MBBS Degree Certificate',
-        issuer: 'University of Delhi',
-        year: '2010',
-        referenceNumber: 'DU-MBBS-2010-8832',
-        type: 'Degree',
-        fileSize: '1.8 MB',
-        uploadedAt: '2026-08-17',
-      },
-      {
-        id: 'c3',
-        title: 'MCI Permanent Registration Certificate',
-        issuer: 'National Medical Commission, India',
-        year: '2015',
-        referenceNumber: 'MCI-REG-78452-KAP',
-        type: 'License',
-        fileSize: '540 KB',
-        uploadedAt: '2026-08-17',
-      },
-      {
-        id: 'c4',
-        title: 'Publication Dossier & Peer Review List',
-        issuer: 'Self-attested (32 papers)',
-        year: '2026',
-        referenceNumber: 'SELF-ATT-0817-KAP-1',
-        type: 'Research',
-        fileSize: '8.1 MB',
-        uploadedAt: '2026-08-17',
-      },
-      {
-        id: 'c5',
-        title: 'Professional Reference Letter — Prof. M. Iyer',
-        issuer: 'NIMHANS Bangalore',
-        year: '2026',
-        referenceNumber: 'NIMH-REF-2026-112',
-        type: 'Other',
-        fileSize: '380 KB',
-        uploadedAt: '2026-08-17',
-      },
-    ],
-    applicationId: 'IFSMHP-APP-2026-01847',
-    submittedAt: '2026-08-17T09:12:44+05:30',
-    status: 'PENDING',
-    statusHistory: [
-      { status: 'CREATED', timestamp: '2026-08-15T14:22:10+05:30', actor: 'anika.kapoor@aiimsdelhi.edu.in', note: 'Draft application started' },
-      { status: 'PENDING', timestamp: '2026-08-17T09:12:44+05:30', actor: 'anika.kapoor@aiimsdelhi.edu.in', note: 'Application submitted with all required documents' },
-    ],
-    reviews: [
-      {
-        id: 'r1',
-        reviewer: 'Dr. Priya Narayanan',
-        role: 'Credentials Officer',
-        timestamp: '2026-08-18T11:32:00+05:30',
-        action: 'ADDED_NOTE',
-        comment: 'Degree certificates appear authentic. Cross-checking MCI registration via NMC public registry — number format matches.',
-      },
-    ],
-  },
-  mr3: {
-    id: 'mr3',
-    fullName: 'Dr. Maya Fernández',
-    email: 'maya.fernandez@hcuchile.cl',
-    professionalTitle: 'Head, Child & Adolescent Psychiatry Unit',
-    professionalType: 'Clinician',
-    institution: 'Hospital Clínico Universidad de Chile',
-    country: 'Chile',
-    biography:
-      'Ten years as a child psychiatrist in public and private settings. Lead clinician on early intervention programs for preschool-age anxiety disorders. Principal investigator on a study of inter-generational trauma in Chilean schools with 1,200 enrolled families.',
-    researchInterests: [
-      'Child Psychiatry',
-      'Early Intervention',
-      'Inter-generational Trauma',
-      'Preschool Mental Health',
-      'Public Child Health',
-    ],
-    education: [
-      {
-        institution: 'Universidad de Chile',
-        degree: 'Especialidad en Psiquiatría Infantil',
-        field: 'Child & Adolescent Psychiatry',
-        startYear: '2013',
-        endYear: '2016',
-      },
-      {
-        institution: 'Universidad de Chile',
-        degree: 'Médico Cirujano',
-        field: 'Medicine',
-        startYear: '2007',
-        endYear: '2013',
-      },
-    ],
-    credentials: [
-      {
-        id: 'c1',
-        title: 'Medical Specialist Title',
-        issuer: 'Universidad de Chile',
-        year: '2016',
-        referenceNumber: 'UCH-ESP-2016-1184-FERN',
-        type: 'Postgraduate',
-        fileSize: '1.2 MB',
-        uploadedAt: '2026-08-19',
-      },
-      {
-        id: 'c2',
-        title: 'Medical License — Colegio Médico de Chile',
-        issuer: 'Colegio Médico de Chile',
-        year: '2017',
-        referenceNumber: 'CMC-REG-88745-F',
-        type: 'License',
-        fileSize: '260 KB',
-        uploadedAt: '2026-08-19',
-      },
-    ],
-    applicationId: 'IFSMHP-APP-2026-01882',
-    submittedAt: '2026-08-19T15:08:12-04:00',
-    status: 'UNDER_REVIEW',
-    statusHistory: [
-      { status: 'CREATED', timestamp: '2026-08-16T10:05:22-04:00', actor: 'maya.fernandez@hcuchile.cl' },
-      { status: 'PENDING', timestamp: '2026-08-19T15:08:12-04:00', actor: 'maya.fernandez@hcuchile.cl', note: 'Submitted with 2 credentials' },
-      { status: 'UNDER_REVIEW', timestamp: '2026-08-20T08:44:00-04:00', actor: 'Admin — Chief Research Office', note: 'High-priority queue: High priority flag set — well-regarded regional lead' },
-    ],
-    reviews: [
-      {
-        id: 'r1',
-        reviewer: 'Admin — CRO Office',
-        role: 'Administrator',
-        timestamp: '2026-08-20T08:44:00-04:00',
-        action: 'STARTED_REVIEW',
-        comment: 'Opening review. High regional impact profile — recommending expedited pathway with second reviewer.',
-      },
-    ],
-  },
-};
+/**
+ * Adapts the API payload to the shape this screen renders.
+ *
+ * `statusHistory` is the real audit trail written by the backend on every
+ * transition; the page previously showed a separate fabricated "reviews" list,
+ * which has no counterpart in the data and has been dropped.
+ */
+function toApplicationRecord(detail: AdminMemberDetail): ApplicationRecord {
+  return {
+    id: detail.id,
+    fullName: detail.fullName,
+    email: detail.email,
+    phone: detail.phone ?? undefined,
+    professionalTitle: detail.professionalTitle ?? '—',
+    professionalType: detail.professionalType,
+    institution: detail.institution,
+    country: detail.country ?? '—',
+    biography: detail.biography ?? '',
+    researchInterests: detail.researchInterests,
+    education: detail.education.map((e) => ({
+      institution: e.institution,
+      degree: e.degree,
+      field: e.field ?? e.detail ?? '—',
+      startYear: '',
+      endYear: e.endYear ?? '',
+    })),
+    credentials: detail.credentials.map((c) => ({
+      id: c.id,
+      title: c.title,
+      issuer: c.issuer ?? '—',
+      year: c.year ?? '—',
+      referenceNumber: '',
+      type: (['Degree', 'Postgraduate', 'License', 'Research'].includes(c.type)
+        ? c.type
+        : 'Other') as CredentialDocument['type'],
+      fileSize: c.fileSize,
+      uploadedAt: c.uploadedAt,
+    })),
+    applicationId: detail.applicationId,
+    submittedAt: detail.submittedAt,
+    status: detail.statusValue,
+    statusHistory: detail.statusHistory.map((h) => ({
+      status: h.toStatus as ApplicationStatus,
+      timestamp: h.createdAt,
+      actor: 'IFSMHP',
+      note: h.note ?? undefined,
+    })),
+    memberId: detail.memberId ?? undefined,
+    credentialsText: detail.credentialsText,
+    educationText: detail.educationText,
+    researchText: detail.researchText,
+    slaDays: detail.slaDays,
+  };
+}
 
 const statusBadgeMap: Record<ApplicationStatus, 'info' | 'warning' | 'success' | 'danger'> = {
   PENDING: 'info',
@@ -315,15 +167,11 @@ const statusLabelMap: Record<ApplicationStatus, string> = {
   REJECTED: 'Rejected',
 };
 
-const typeBadgeMap: Record<ProfessionalType, 'default' | 'info' | 'success' | 'brass' | 'warning'> = {
-  Scientist: 'default',
-  'Mental Health Professional': 'info',
-  Researcher: 'success',
-  Academician: 'brass',
-  Clinician: 'warning',
-  'Policy Advisor': 'info',
-  'Public Health Specialist': 'success',
-};
+/**
+ * Professional type is free text chosen at registration, so it cannot be keyed
+ * to a fixed palette. One neutral badge keeps every value renderable.
+ */
+const TYPE_BADGE = 'info' as const;
 
 const credentialTypeColors: Record<CredentialDocument['type'], string> = {
   Degree: 'bg-forum-50 text-forum-700',
@@ -378,9 +226,13 @@ function formatDateShort(iso: string) {
 export default function AdminMemberDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const application = mockApplications[id!] ?? mockApplications['mr1']!;
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const [status, setStatus] = useState<ApplicationStatus>(application.status);
+  const { data, loading, error } = useApiData<AdminMemberDetail>(
+    () => adminApi.member(id!),
+    [id, reloadKey],
+  );
+
   const [reviewNotes, setReviewNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [decision, setDecision] = useState<null | 'approve' | 'reject'>(null);
@@ -388,63 +240,116 @@ export default function AdminMemberDetailPage() {
   const [documentPreview, setDocumentPreview] = useState<CredentialDocument | null>(null);
   const [processing, setProcessing] = useState<null | 'start' | 'approve' | 'reject'>(null);
   const [confirmRejectValid, setConfirmRejectValid] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [resendingEmail, setResendingEmail] = useState(false);
+
+  // The decision panels live far down the right-hand column — well below the
+  // fold on a phone — so revealing one is not enough on its own: the page has
+  // to take the admin there, or the trigger looks like it did nothing.
+  const decisionPanelRef = useRef<HTMLDivElement | null>(null);
+  const approveHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const rejectReasonRef = useRef<HTMLTextAreaElement | null>(null);
+  // Bumped on every trigger click so re-clicking an already-open panel scrolls
+  // to it again rather than doing nothing.
+  const [revealNonce, setRevealNonce] = useState(0);
+
+  const openDecision = (next: 'approve' | 'reject') => {
+    setDecision(next);
+    setRevealNonce((n) => n + 1);
+  };
 
   useEffect(() => {
-    setStatus(application.status);
-  }, [application.status]);
+    if (!decision) return;
+    const panel = decisionPanelRef.current;
+    if (!panel) return;
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // 'center' rather than 'start': the admin layout has a sticky top bar that
+    // would otherwise cover the heading, and centring reads well at every width.
+    panel.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+
+    // preventScroll matters — focusing normally jumps the viewport instantly,
+    // which cancels the smooth scroll that was just started.
+    const target = decision === 'reject' ? rejectReasonRef.current : approveHeadingRef.current;
+    target?.focus({ preventScroll: true });
+
+    panel.classList.remove('attention-ring');
+    // Reading offsetWidth forces a reflow so the animation restarts when the
+    // same panel is revealed twice in a row.
+    void panel.offsetWidth;
+    panel.classList.add('attention-ring');
+  }, [decision, revealNonce]);
+
+  const application = data ? toApplicationRecord(data) : null;
+  const status: ApplicationStatus = data?.statusValue ?? 'PENDING';
 
   const isPendOrReview = status === 'PENDING' || status === 'UNDER_REVIEW';
   const canStartReview = status === 'PENDING';
   const canApprove = isPendOrReview;
   const canReject = isPendOrReview;
 
-  const nextMemberId = useMemo(() => {
-    const year = new Date().getFullYear();
-    const seq = 278;
-    return `IFSMHP-${year}-${seq.toString().padStart(6, '0')}`;
-  }, []);
+  const refresh = () => setReloadKey((k) => k + 1);
 
-  const startReview = async () => {
-    setProcessing('start');
+  /** Runs an admin decision, then reloads so the screen shows the stored result. */
+  const runAction = async (kind: 'start' | 'approve' | 'reject', call: () => Promise<unknown>, failure: string) => {
+    setProcessing(kind);
+    setActionError(null);
     try {
-      await apiClient.patch(`/admin/members/${id}/status`, {
-        status: 'UNDER_REVIEW',
-        reviewNotes: reviewNotes || 'Review initiated',
-      }).catch(() => {
-        /* mock path — API not wired */
-      });
-      setStatus('UNDER_REVIEW');
-      const note: ReviewEntry = {
-        id: `r-auto-${Date.now()}`,
-        reviewer: 'You (CRO Admin)',
-        role: 'Administrator',
-        timestamp: new Date().toISOString(),
-        action: 'STARTED_REVIEW',
-        comment: reviewNotes || 'Review opened by CRO Office.',
-      };
-      application.reviews.unshift(note);
+      await call();
+      refresh();
+      return true;
+    } catch (err) {
+      setActionError(normalizeError(err).message || failure);
+      return false;
     } finally {
       setProcessing(null);
     }
   };
 
+  const startReview = () =>
+    runAction('start', () => adminApi.reviewMember(id!, reviewNotes || undefined), 'Could not start the review.');
+
   const confirmApproval = async () => {
     setProcessing('approve');
+    setActionError(null);
+    setActionNotice(null);
     try {
-      await apiClient.post(`/admin/members/${id}/approve`, {
-        reviewNotes,
-      }).catch(() => {});
-      setStatus('APPROVED');
-      application.memberId = nextMemberId;
-      application.statusHistory.push({
-        status: 'APPROVED',
-        timestamp: new Date().toISOString(),
-        actor: 'You (CRO Admin)',
-        note: `Approval issued · Member ID ${nextMemberId}`,
-      });
+      const result = await adminApi.approveMember(id!, reviewNotes || undefined);
+      // The member is approved regardless; only the notification can fail.
+      if (result.emailSent) {
+        setActionNotice(`Approved. Member ID ${result.memberId} issued and the member has been emailed.`);
+      } else {
+        setActionError(
+          `Approved and Member ID ${result.memberId} issued, but the acknowledgement email could not be sent. Use Retry below.`,
+        );
+      }
       setDecision(null);
+      refresh();
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not approve this application.');
     } finally {
       setProcessing(null);
+    }
+  };
+
+  /** Retries a failed acknowledgement. The server refuses once one has been sent. */
+  const retryApprovalEmail = async () => {
+    setResendingEmail(true);
+    setActionError(null);
+    setActionNotice(null);
+    try {
+      const result = await adminApi.resendApprovalEmail(id!);
+      if (result.emailSent) {
+        setActionNotice('Acknowledgement email sent.');
+      } else {
+        setActionError(`Still could not send the acknowledgement: ${result.emailError ?? 'unknown error'}`);
+      }
+      refresh();
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not send the acknowledgement.');
+    } finally {
+      setResendingEmail(false);
     }
   };
 
@@ -457,23 +362,14 @@ export default function AdminMemberDetailPage() {
   };
 
   const submitRejection = async () => {
-    setProcessing('reject');
-    try {
-      await apiClient.post(`/admin/members/${id}/reject`, {
-        reason: rejectionReason,
-        reviewNotes,
-      }).catch(() => {});
-      setStatus('REJECTED');
-      application.statusHistory.push({
-        status: 'REJECTED',
-        timestamp: new Date().toISOString(),
-        actor: 'You (CRO Admin)',
-        note: rejectionReason,
-      });
+    const ok = await runAction(
+      'reject',
+      () => adminApi.rejectMember(id!, rejectionReason),
+      'Could not reject this application.',
+    );
+    if (ok) {
       setConfirmRejectOpen(false);
       setDecision(null);
-    } finally {
-      setProcessing(null);
     }
   };
 
@@ -521,29 +417,47 @@ export default function AdminMemberDetailPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="py-24 flex flex-col items-center justify-center gap-3">
+        <Clock3 className="h-8 w-8 text-forum-600 animate-spin" />
+        <p className="text-sm text-ink-muted">Loading application…</p>
+      </div>
+    );
+  }
+
+  if (error || !application) {
+    return (
+      <div className="py-24 flex flex-col items-center justify-center gap-3">
+        <div className="h-16 w-16 flex items-center justify-center rounded-2xl bg-danger-100 text-danger-600">
+          <AlertCircle className="h-8 w-8" />
+        </div>
+        <p className="text-base font-semibold text-forum-900">Application not found</p>
+        <p className="text-sm text-ink-muted max-w-md text-center">
+          {error ?? 'This application may have been removed.'}
+        </p>
+        <Button size="sm" variant="outline" onClick={() => navigate('/admin/members/pending')}>
+          <ArrowLeft className="h-3.5 w-3.5" /> Back to the queue
+        </Button>
+      </div>
+    );
+  }
+
   const initials = application.fullName
     .split(' ')
-    .slice(1, 2)
-    .concat(application.fullName.split(' ').slice(-1))
+    .filter(Boolean)
+    .slice(-2)
     .map((n) => n[0])
     .join('');
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <Link to="/admin/members" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-forum-700">
+        <Link to="/admin/members/pending" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-forum-700">
           <ArrowLeft className="h-4 w-4" />
-          Back to Members
+          Back to the queue
         </Link>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="brass" className="gap-1">
-            <Sparkles className="h-2.5 w-2.5" />
-            {DEMO_LABEL}
-          </Badge>
-          <Button variant="ghost" size="sm">
-            <Mail className="h-4 w-4" />
-            Email Applicant
-          </Button>
           {canStartReview && (
             <Button
               variant="outline"
@@ -561,6 +475,51 @@ export default function AdminMemberDetailPage() {
           )}
         </div>
       </div>
+
+      {actionNotice && (
+        <div className="rounded-lg border border-success-600/20 bg-success-100 p-4 flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-success-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-success-600">{actionNotice}</p>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="rounded-lg border border-danger-600/20 bg-danger-100 p-4 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-danger-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-danger-600">{actionError}</p>
+        </div>
+      )}
+
+      {/*
+        Approved but never notified. The retry is offered only in this state —
+        once an acknowledgement has gone out, the server refuses a second one.
+      */}
+      {status === 'APPROVED' && data && !data.approvalEmailSentAt && (
+        <div className="rounded-lg border border-brass-500/30 bg-brass-100/50 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-brass-700 shrink-0" />
+          <div className="flex-1 text-sm">
+            <p className="font-medium text-brass-700">Acknowledgement email not delivered</p>
+            <p className="mt-0.5 text-brass-700/80">
+              This member is approved, but the welcome email could not be sent
+              {data.approvalEmailAttempts > 0 ? ` (${data.approvalEmailAttempts} attempt${data.approvalEmailAttempts === 1 ? '' : 's'})` : ''}
+              {data.approvalEmailError ? `: ${data.approvalEmailError}` : '.'}
+            </p>
+          </div>
+          <Button size="sm" variant="outline" onClick={retryApprovalEmail} disabled={resendingEmail}>
+            {resendingEmail ? <Clock3 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {resendingEmail ? 'Sending…' : 'Retry email'}
+          </Button>
+        </div>
+      )}
+
+      {status === 'APPROVED' && data?.approvalEmailSentAt && (
+        <div className="rounded-lg border border-success-600/20 bg-success-100/60 p-4 flex items-start gap-3">
+          <Mail className="h-5 w-5 text-success-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-success-600">
+            Acknowledgement emailed to {application.email} on {formatDateFull(data.approvalEmailSentAt)}.
+          </p>
+        </div>
+      )}
 
       {/* ===== APPLICANT PROFILE HEADER ===== */}
       <div className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-600 via-forum-700 to-forum-900 p-6 sm:p-8 text-white relative overflow-hidden">
@@ -612,8 +571,10 @@ export default function AdminMemberDetailPage() {
               <Button
                 size="lg"
                 className="bg-brass-500 hover:bg-brass-700 focus-visible:ring-brass-500"
-                onClick={() => setDecision('approve')}
+                onClick={() => openDecision('approve')}
                 disabled={processing !== null}
+                aria-expanded={decision === 'approve'}
+                aria-controls="approve-decision-panel"
               >
                 <CheckCircle2 className="h-4.5 w-4.5" />
                 Approve &amp; Issue ID
@@ -624,8 +585,10 @@ export default function AdminMemberDetailPage() {
                 size="lg"
                 variant="outline"
                 className="border-white/25 text-white hover:bg-white/10 bg-transparent"
-                onClick={() => setDecision('reject')}
+                onClick={() => openDecision('reject')}
                 disabled={processing !== null}
+                aria-expanded={decision === 'reject'}
+                aria-controls="reject-decision-panel"
               >
                 <XCircle className="h-4.5 w-4.5" />
                 Reject Application
@@ -656,12 +619,29 @@ export default function AdminMemberDetailPage() {
                 <InfoRow icon={Building2} label="Institution" value={application.institution} />
                 <InfoRow icon={Globe2} label="Country" value={application.country} />
                 <InfoRow icon={Briefcase} label="Professional Title" value={application.professionalTitle} />
-                <InfoRow icon={Badge as any} label="Professional Type" value={application.professionalType} badgeVariant={typeBadgeMap[application.professionalType]} />
+                <InfoRow icon={Briefcase} label="Professional Type" value={application.professionalType} badgeVariant={TYPE_BADGE} />
               </div>
 
-              <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-2">Biography</h4>
-                <p className="text-sm text-ink leading-relaxed whitespace-pre-line">{application.biography}</p>
+              {/*
+                The applicant's own words, exactly as submitted. Everything else
+                on this screen is parsed out of these three answers, so an admin
+                deciding the application should be able to read the source.
+              */}
+              <div className="space-y-4">
+                {[
+                  { label: 'Credentials', value: application.credentialsText },
+                  { label: 'Education', value: application.educationText },
+                  { label: 'Research Interests', value: application.researchText },
+                ]
+                  .filter((f) => f.value?.trim())
+                  .map((f) => (
+                    <div key={f.label}>
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-2">
+                        {f.label} <span className="font-normal normal-case">— as submitted</span>
+                      </h4>
+                      <p className="text-sm text-ink leading-relaxed whitespace-pre-line">{f.value}</p>
+                    </div>
+                  ))}
               </div>
 
               <div>
@@ -874,37 +854,39 @@ export default function AdminMemberDetailPage() {
               <p className="text-xs text-ink-subtle mt-0.5">Admin actions and reviewer commentary</p>
             </CardHeader>
             <CardContent className="pt-0 space-y-3">
-              {application.reviews.length === 0 ? (
+              {application.statusHistory.length === 0 ? (
                 <p className="text-sm text-ink-subtle text-center py-6">No review activity yet.</p>
               ) : (
-                application.reviews.map((r) => (
-                  <div key={r.id} className="rounded-lg border border-paper-border bg-paper p-3.5">
-                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                      <p className="text-sm font-medium text-forum-900">{r.reviewer}</p>
-                      <Badge variant="info">{r.role}</Badge>
-                      <span className="inline-flex items-center gap-1 text-[11px] text-ink-muted">
-                        <Clock className="h-3 w-3" />
-                        {formatDateFull(r.timestamp)}
-                      </span>
+                application.statusHistory
+                  .slice()
+                  .reverse()
+                  .map((h, i) => (
+                    <div key={`${h.status}-${i}`} className="rounded-lg border border-paper-border bg-paper p-3.5">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                        <Badge variant={historyStatusBadge[h.status] ?? 'default'}>
+                          {h.status.replace(/_/g, ' ')}
+                        </Badge>
+                        <span className="inline-flex items-center gap-1 text-[11px] text-ink-muted">
+                          <Clock className="h-3 w-3" />
+                          {formatDateFull(h.timestamp)}
+                        </span>
+                      </div>
+                      {h.note && <p className="text-sm text-ink mt-2 leading-relaxed">{h.note}</p>}
                     </div>
-                    <Badge variant="default">{r.action.replace(/_/g, ' ')}</Badge>
-                    <p className="text-sm text-ink mt-2 leading-relaxed">{r.comment}</p>
-                  </div>
-                ))
+                  ))
               )}
 
               <div className="border-t border-paper-border pt-3 mt-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-2">Add Review Note</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-2">Review Note</h4>
                 <TextArea
                   rows={3}
-                  placeholder="Document credential cross-checks, policy references, or findings. Included in the audit trail."
+                  placeholder="Document credential cross-checks, policy references, or findings. Attached to your next decision and recorded in the audit trail."
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
                 />
-                <Button size="sm" className="mt-2 w-full justify-center">
-                  <Send className="h-3.5 w-3.5" />
-                  Save to Review History
-                </Button>
+                <p className="mt-2 text-xs text-ink-subtle">
+                  Saved with the next Start Review, Approve, or Reject action.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -929,8 +911,8 @@ export default function AdminMemberDetailPage() {
               ) : (
                 <div className="rounded-xl bg-gradient-to-br from-slateteal-100 to-forum-50 border border-slateteal-500/20 p-5 text-center">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slateteal-700">On Approval — Server-Side Generation</p>
-                  <p className="mt-2 font-mono text-2xl font-bold text-forum-900 tracking-tight">{nextMemberId}</p>
-                  <p className="mt-2 text-xs text-ink-subtle">Projected sequence · {new Date().getFullYear()} cohort</p>
+                  <p className="mt-2 font-mono text-2xl font-bold text-forum-900 tracking-tight">IFSMHP-{new Date().getFullYear()}-######</p>
+                  <p className="mt-2 text-xs text-ink-subtle">The sequence is allocated by the server when you approve.</p>
                 </div>
               )}
               <div className="mt-4 space-y-2 text-xs text-ink-muted">
@@ -944,9 +926,21 @@ export default function AdminMemberDetailPage() {
 
           {/* Decision Panels */}
           {decision === 'approve' && (
+            <div
+              ref={decisionPanelRef}
+              id="approve-decision-panel"
+              role="region"
+              aria-labelledby="approve-decision-heading"
+              className="rounded-lg"
+            >
             <Card className="border-success-600/30 ring-2 ring-success-100">
               <CardHeader className="bg-success-100/60 rounded-t-lg">
-                <h3 className="font-display text-lg font-semibold flex items-center gap-2 text-success-600">
+                <h3
+                  id="approve-decision-heading"
+                  ref={approveHeadingRef}
+                  tabIndex={-1}
+                  className="font-display text-lg font-semibold flex items-center gap-2 text-success-600 outline-none"
+                >
                   <CheckCircle2 className="h-5 w-5" />
                   Confirm Approval
                 </h3>
@@ -954,15 +948,15 @@ export default function AdminMemberDetailPage() {
               <CardContent className="pt-4 space-y-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-2">
-                    On confirmation, the server will perform these 7 actions:
+                    On confirmation, the server will:
                   </p>
                   <ul className="space-y-2 text-sm">
-                    <ApprovalStep icon={IdCard} text={`Generate Member ID server-side (projected: ${nextMemberId})`} done />
-                    <ApprovalStep icon={UserCheck as any} text="Activate user account — promote to ACTIVE" done />
-                    <ApprovalStep icon={Briefcase} text="Create Member Profile record if missing" done />
+                    <ApprovalStep icon={IdCard} text="Generate Member ID server-side (IFSMHP-YYYY-NNNNNN)" done />
+                    <ApprovalStep icon={UserCheck} text="Activate user account — promote to ACTIVE" done />
+                    <ApprovalStep icon={Briefcase} text="Stamp the Member Profile with the ID and approval date" done />
                     <ApprovalStep icon={Clock} text="Record approval timestamp with admin attribution" done />
                     <ApprovalStep icon={Bell} text="Create in-app notification for the applicant" done />
-                    <ApprovalStep icon={Send} text="Queue welcome email job (with ID + credentials)" done />
+                    <ApprovalStep icon={Send} text="Email the member their Member ID (no password — sign-in is by emailed code)" done />
                     <ApprovalStep icon={History} text="Create immutable AuditLog entry (actor + review notes)" done />
                   </ul>
                 </div>
@@ -978,23 +972,39 @@ export default function AdminMemberDetailPage() {
                   />
                 </div>
                 <div className="flex flex-col-reverse sm:flex-row gap-2">
-                  <Button variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => setDecision(null)} disabled={processing === 'approve'}>
+                  <Button variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => setDecision(null)} disabled={processing !== null}>
                     <ChevronDown className="h-3.5 w-3.5" />
                     Cancel
                   </Button>
-                  <Button className="w-full sm:w-auto bg-success-600 hover:bg-success-600/90" onClick={confirmApproval} disabled={processing === 'approve'}>
+                  {/*
+                    Disabled for the whole of any in-flight decision, not just an
+                    approval: the request waits on an SMTP round-trip, which is a
+                    real window for a second click.
+                  */}
+                  <Button className="w-full sm:w-auto bg-success-600 hover:bg-success-600/90" onClick={confirmApproval} disabled={processing !== null}>
                     {processing === 'approve' ? <Clock3 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                    Confirm Approval &amp; Issue ID
+                    {processing === 'approve' ? 'Approving…' : 'Confirm Approval & Issue ID'}
                   </Button>
                 </div>
               </CardContent>
             </Card>
+            </div>
           )}
 
           {decision === 'reject' && (
+            <div
+              ref={decisionPanelRef}
+              id="reject-decision-panel"
+              role="region"
+              aria-labelledby="reject-decision-heading"
+              className="rounded-lg"
+            >
             <Card className="border-danger-600/30 ring-2 ring-danger-100">
               <CardHeader className="bg-danger-100/60 rounded-t-lg">
-                <h3 className="font-display text-lg font-semibold flex items-center gap-2 text-danger-600">
+                <h3
+                  id="reject-decision-heading"
+                  className="font-display text-lg font-semibold flex items-center gap-2 text-danger-600"
+                >
                   <XCircle className="h-5 w-5" />
                   Reject Application
                 </h3>
@@ -1015,6 +1025,7 @@ export default function AdminMemberDetailPage() {
                     Rejection Reason (required · min 12 characters)
                   </h4>
                   <TextArea
+                    ref={rejectReasonRef}
                     rows={5}
                     placeholder="Specific, factual grounds for rejection. This text is shared with the applicant per policy §14 and recorded in the audit log."
                     value={rejectionReason}
@@ -1049,14 +1060,14 @@ export default function AdminMemberDetailPage() {
                 </ul>
 
                 <div className="flex flex-col-reverse sm:flex-row gap-2">
-                  <Button variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => setDecision(null)} disabled={processing === 'reject'}>
+                  <Button variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => setDecision(null)} disabled={processing !== null}>
                     <ChevronDown className="h-3.5 w-3.5" />
                     Cancel
                   </Button>
                   <Button
                     className="w-full sm:w-auto bg-danger-600 hover:bg-danger-600/90"
                     onClick={openRejectConfirm}
-                    disabled={!rejectionValid || processing === 'reject'}
+                    disabled={!rejectionValid || processing !== null}
                   >
                     <XCircle className="h-4 w-4" />
                     Review &amp; Confirm Rejection
@@ -1064,6 +1075,7 @@ export default function AdminMemberDetailPage() {
                 </div>
               </CardContent>
             </Card>
+            </div>
           )}
         </div>
       </div>

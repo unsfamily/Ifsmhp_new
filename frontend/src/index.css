@@ -48,4 +48,25 @@
     @apply sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50
            focus:rounded focus:bg-forum-600 focus:px-4 focus:py-2 focus:text-white;
   }
+
+  /*
+   * Brief ring pulse drawing the eye to a panel that has just been revealed and
+   * scrolled to. Sits in this file so the prefers-reduced-motion block above
+   * already collapses it to a no-op.
+   */
+  .attention-ring {
+    animation: attention-ring 1.4s ease-out 1;
+  }
+}
+
+@keyframes attention-ring {
+  0% {
+    box-shadow: 0 0 0 0 theme('colors.brass.500' / 65%);
+  }
+  70% {
+    box-shadow: 0 0 0 12px theme('colors.brass.500' / 0%);
+  }
+  100% {
+    box-shadow: 0 0 0 0 theme('colors.brass.500' / 0%);
+  }
 }

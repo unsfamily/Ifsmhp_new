@@ -17,8 +17,11 @@ import {
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { SelectInput, TextArea, TextInput, Checkbox } from '../../components/common/Input';
+import { memberApi } from '../../api/member';
+import { normalizeError } from '../../api/client';
+import { useApiData } from '../../hooks/useApiData';
 
 type Status = 'All' | 'Open' | 'In Review' | 'Approved' | 'Closed';
 
@@ -26,19 +29,13 @@ interface Request {
   id: string;
   project: string;
   type: ('Moral' | 'Official' | 'Funding')[];
-  submitted: string;
-  lastUpdate: string;
+  subject?: string;
+  submitted: string | Date;
+  lastUpdate: string | Date;
   status: Exclude<Status, 'All'>;
   priority: 'Standard' | 'High' | 'Urgent';
   messages: number;
 }
-
-const requests: Request[] = [
-  { id: 'r1', project: 'Biomarker Panels for MDD Subtyping', type: ['Funding', 'Official'], submitted: 'Jul 08, 2026', lastUpdate: '2h ago', status: 'In Review', priority: 'High', messages: 7 },
-  { id: 'r2', project: 'Wearable EEG Validation Study', type: ['Moral'], submitted: 'Jun 30, 2026', lastUpdate: '5d ago', status: 'Approved', priority: 'Standard', messages: 3 },
-  { id: 'r3', project: 'Youth Telehealth Utilization 5-Nation Study', type: ['Funding'], submitted: 'Jun 22, 2026', lastUpdate: 'Yesterday', status: 'Open', priority: 'Standard', messages: 2 },
-  { id: 'r4', project: 'CBT in Digital Mental Health — Meta-Analysis', type: ['Official'], submitted: 'Mar 15, 2026', lastUpdate: 'Jul 15, 2026', status: 'Closed', priority: 'Standard', messages: 11 },
-];
 
 const statusConfig = {
   Open: { variant: 'info' as const, icon: Clock },
@@ -59,14 +56,38 @@ export default function SupportRequestsPage() {
   const [showForm, setShowForm] = useState(false);
   const [status, setStatus] = useState<Status>('All');
   const [search, setSearch] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const { data, loading, error } = useApiData<{ items: Request[] }>(
+    () => memberApi.support({ status, q: search }) as Promise<{ items: Request[] }>,
+    [status, search],
+  );
+  const requests = data?.items ?? [];
 
   const filtered = requests.filter((r) => {
-    if (status !== 'All' && r.status !== status) return false;
     if (search && !r.project.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
   const totalOpen = requests.filter((r) => ['Open', 'In Review'].includes(r.status)).length;
+  const submitSupport = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const types = form.getAll('types').map(String);
+    setErrorMsg(null);
+    try {
+      await memberApi.createSupport({
+        projectId: String(form.get('projectId') ?? '') || undefined,
+        subject: String(form.get('subject') ?? ''),
+        description: String(form.get('description') ?? ''),
+        priority: String(form.get('priority') ?? 'Standard'),
+        requiredBy: String(form.get('requiredBy') ?? '') || undefined,
+        types,
+      });
+      setShowForm(false);
+    } catch (err) {
+      setErrorMsg(normalizeError(err).message);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -121,8 +142,9 @@ export default function SupportRequestsPage() {
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); setShowForm(false); }}>
-              <SelectInput label="Select Project" required defaultValue="">
+            <form className="space-y-5" onSubmit={submitSupport}>
+              {errorMsg && <div className="rounded-lg border border-danger-600/20 bg-danger-100 p-4 text-sm text-danger-600">{errorMsg}</div>}
+              <SelectInput label="Select Project" name="projectId" defaultValue="">
                 <option value="" disabled>Choose a project...</option>
                 <option value="biomarker">Biomarker Panels for MDD Subtyping</option>
                 <option value="eeg">Wearable EEG Validation Study</option>
@@ -145,7 +167,7 @@ export default function SupportRequestsPage() {
                     const Icon = opt.icon;
                     return (
                       <label key={opt.key} className="relative rounded-xl border border-paper-border p-4 cursor-pointer hover:border-forum-300 transition-all peer">
-                        <input type="checkbox" className="sr-only peer" />
+                        <input type="checkbox" className="sr-only peer" name="types" value={opt.title} />
                         <div className="flex items-start gap-3">
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-forum-50 text-forum-700 peer-checked:bg-forum-600 peer-checked:text-white transition-colors">
                             <Icon className="h-5 w-5" />
@@ -161,16 +183,16 @@ export default function SupportRequestsPage() {
                 </div>
               </div>
 
-              <TextInput label="Request Title / Subject" placeholder="e.g. Request for endorsement letter for NIH R01 submission" required />
-              <TextArea label="Detailed Request Description" rows={5} placeholder="Explain the context, timeline, deliverables needed, and how this support will impact your work..." required hint="The more detail you provide, the faster we can assign the right team." />
+              <TextInput name="subject" label="Request Title / Subject" placeholder="e.g. Request for endorsement letter for NIH R01 submission" required />
+              <TextArea name="description" label="Detailed Request Description" rows={5} placeholder="Explain the context, timeline, deliverables needed, and how this support will impact your work..." required hint="The more detail you provide, the faster we can assign the right team." />
 
               <div className="grid gap-5 sm:grid-cols-2">
-                <SelectInput label="Priority" defaultValue="Standard">
+                <SelectInput label="Priority" name="priority" defaultValue="Standard">
                   <option value="Standard">Standard (3-5 business days)</option>
                   <option value="High">High (1-2 business days)</option>
                   <option value="Urgent">Urgent (24-hour response — requires justification)</option>
                 </SelectInput>
-                <TextInput label="Required By Date (optional)" type="date" />
+                <TextInput name="requiredBy" label="Required By Date (optional)" type="date" />
               </div>
 
               <Checkbox label="I confirm this request is accurate and I have provided all necessary context." required />
@@ -223,6 +245,8 @@ export default function SupportRequestsPage() {
       )}
 
       <div className="space-y-4">
+        {loading ? <p className="text-sm text-ink-muted">Loading support requests...</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
         {filtered.map((r) => {
           const sc = statusConfig[r.status];
           const SIcon = sc.icon;
@@ -253,11 +277,11 @@ export default function SupportRequestsPage() {
                     <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Submitted</p>
-                        <p className="mt-0.5 text-ink-muted font-medium">{r.submitted}</p>
+                    <p className="mt-0.5 text-ink-muted font-medium">{new Date(r.submitted).toLocaleDateString()}</p>
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Last Update</p>
-                        <p className="mt-0.5 text-ink-muted font-medium">{r.lastUpdate}</p>
+                    <p className="mt-0.5 text-ink-muted font-medium">{new Date(r.lastUpdate).toLocaleDateString()}</p>
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Ticket ID</p>

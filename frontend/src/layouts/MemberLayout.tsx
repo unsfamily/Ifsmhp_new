@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import logoImg from '../assets/images/logo.png';
+import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -36,10 +37,17 @@ const navItems = [
 
 export default function MemberLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, logout } = useAuth();
   const loc = useLocation();
   const currentPage = navItems.find((n) =>
     n.end ? loc.pathname === n.to : loc.pathname.startsWith(n.to)
   );
+  const initials = (user?.fullName ?? 'Member')
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="min-h-screen bg-paper lg:flex">
@@ -84,15 +92,15 @@ export default function MemberLayout() {
           <div className="rounded-xl bg-forum-800/50 ring-1 ring-forum-700 p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brass-500 text-white font-semibold">
-                DS
+                {initials}
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-white text-sm truncate">
-                  Dr. Sarah Chen
+                  {user?.fullName ?? 'Member'}
                 </p>
                 <p className="flex items-center gap-1 text-[11px] text-brass-100 font-medium">
                   <IdCard className="h-3 w-3" />
-                  IFSMHP-00142
+                  {user?.memberId ?? 'Pending ID'}
                 </p>
               </div>
             </div>
@@ -145,7 +153,7 @@ export default function MemberLayout() {
           <button
             type="button"
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-forum-100/70 hover:bg-forum-800 hover:text-white transition-colors"
-            onClick={() => (window.location.href = '/login')}
+            onClick={() => void logout()}
           >
             <LogOut className="h-4.5 w-4.5" />
             Sign Out
@@ -170,7 +178,7 @@ export default function MemberLayout() {
                   {currentPage?.label || 'Dashboard'}
                 </h1>
                 <p className="text-xs text-ink-subtle">
-                  Welcome back, <span className="font-medium text-ink-muted">Dr. Chen</span>
+                  Welcome back, <span className="font-medium text-ink-muted">{user?.fullName ?? 'Member'}</span>
                 </p>
               </div>
             </div>

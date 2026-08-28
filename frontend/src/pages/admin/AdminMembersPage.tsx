@@ -10,7 +10,6 @@ import {
   Building2,
   ChevronRight,
   IdCard,
-  Download,
   ArrowRight,
   ArrowLeft,
   ChevronLeft,
@@ -22,7 +21,6 @@ import {
   RefreshCw,
   Mail,
   AlertCircle,
-  Sparkles,
   CalendarDays,
   Globe2,
   Loader2,
@@ -34,118 +32,26 @@ import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { SelectInput, TextInput } from '../../components/common/Input';
+import { adminApi, type AdminMembersResult, type AccountStatusLabel } from '../../api/admin';
+import { useApiData } from '../../hooks/useApiData';
 
-const DEMO_LABEL = '[DEMO DATA — API pending]';
-
-type ProfessionalType =
-  | 'Scientist'
-  | 'Mental Health Professional'
-  | 'Researcher'
-  | 'Academician'
-  | 'Clinician'
-  | 'Policy Advisor'
-  | 'Public Health Specialist';
-
-type Status =
-  | 'Pending'
-  | 'Active'
-  | 'Suspended'
-  | 'Deactivated'
-  | 'Rejected'
-  | 'Under Review';
-
-interface MemberRecord {
-  id: string;
-  name: string;
-  email: string;
-  memberId?: string;
-  role: string;
-  professionalType: ProfessionalType;
-  institution: string;
-  country: string;
-  registrationDate: string;
-  status: Status;
-  credentials: number;
-  priority?: 'Standard' | 'High';
-}
-
-const professionalTypes: ProfessionalType[] = [
-  'Scientist',
-  'Mental Health Professional',
-  'Researcher',
-  'Academician',
-  'Clinician',
-  'Policy Advisor',
-  'Public Health Specialist',
-];
-
-const statuses: Status[] = [
-  'Pending',
-  'Active',
-  'Suspended',
-  'Deactivated',
-  'Rejected',
-];
-
-const allMembers: MemberRecord[] = [
-  { id: 'm1', name: 'Dr. Sarah Chen', email: 'sarah.chen@stanford.edu', memberId: 'IFSMHP-2024-000142', role: 'Research Scholar', professionalType: 'Scientist', institution: 'Stanford University', country: 'USA', registrationDate: '2024-03-12', status: 'Active', credentials: 5 },
-  { id: 'm2', name: 'Prof. Rajiv Mehta', email: 'rajiv.mehta@nimhans.ac.in', memberId: 'IFSMHP-2024-000078', role: 'Psychiatrist', professionalType: 'Mental Health Professional', institution: 'NIMHANS', country: 'India', registrationDate: '2024-01-05', status: 'Active', credentials: 6 },
-  { id: 'm3', name: 'Dr. Emma Thompson', email: 'emma.thompson@ox.ac.uk', memberId: 'IFSMHP-2024-000105', role: 'Clinical Psychologist', professionalType: 'Clinician', institution: 'University of Oxford', country: 'UK', registrationDate: '2024-02-20', status: 'Active', credentials: 4 },
-  { id: 'm4', name: 'Dr. John Okafor', email: 'john.okafor@unilag.edu.ng', memberId: 'IFSMHP-2024-000198', role: 'Public Health', professionalType: 'Public Health Specialist', institution: 'University of Lagos', country: 'Nigeria', registrationDate: '2024-04-18', status: 'Deactivated', credentials: 3 },
-  { id: 'm5', name: 'Prof. Yuki Tanaka', email: 'yuki.tanaka@u-tokyo.ac.jp', memberId: 'IFSMHP-2024-000211', role: 'Neuroscientist', professionalType: 'Scientist', institution: 'University of Tokyo', country: 'Japan', registrationDate: '2024-05-01', status: 'Active', credentials: 8 },
-  { id: 'm6', name: 'Dr. Ana Pereira', email: 'ana.pereira@usp.br', memberId: 'IFSMHP-2024-000245', role: 'Therapist', professionalType: 'Mental Health Professional', institution: 'Universidade de São Paulo', country: 'Brazil', registrationDate: '2024-06-14', status: 'Active', credentials: 4 },
-  { id: 'm7', name: 'Dr. Michael Brown', email: 'michael.brown@imperial.ac.uk', role: 'Scientist', professionalType: 'Researcher', institution: 'Imperial College London', country: 'UK', registrationDate: '2024-07-03', status: 'Rejected', credentials: 1 },
-  { id: 'm8', name: 'Dr. Amina Kone', email: 'amina.kone@fann.sn', memberId: 'IFSMHP-2024-000301', role: 'Child Psychiatrist', professionalType: 'Clinician', institution: 'Hôpital de Fann', country: 'Senegal', registrationDate: '2024-08-10', status: 'Suspended', credentials: 5 },
-  { id: 'm9', name: 'Prof. Eleanor Whitfield', email: 'e.whitfield@ucl.ac.uk', memberId: 'IFSMHP-2024-000312', role: 'Cognitive Neuroscience', professionalType: 'Academician', institution: 'UCL', country: 'UK', registrationDate: '2024-08-16', status: 'Active', credentials: 7 },
-  { id: 'm10', name: 'Dr. Lucia Rossi', email: 'lucia.rossi@unimib.it', memberId: 'IFSMHP-2025-000012', role: 'Research Psychologist', professionalType: 'Researcher', institution: 'University of Milan-Bicocca', country: 'Italy', registrationDate: '2025-01-18', status: 'Active', credentials: 4 },
-  { id: 'm11', name: 'Dr. Carlos Mendez', email: 'carlos.mendez@unal.edu.co', memberId: 'IFSMHP-2025-000034', role: 'Policy Advisor', professionalType: 'Policy Advisor', institution: 'Universidad Nacional de Colombia', country: 'Colombia', registrationDate: '2025-02-22', status: 'Active', credentials: 3 },
-  { id: 'm12', name: 'Dr. Priya Sharma', email: 'priya.sharma@pgimer.edu', memberId: 'IFSMHP-2025-000047', role: 'Public Health Researcher', professionalType: 'Public Health Specialist', institution: 'PGIMER Chandigarh', country: 'India', registrationDate: '2025-03-05', status: 'Suspended', credentials: 6 },
-  { id: 'm13', name: 'Prof. Lars Svensson', email: 'lars.svensson@ki.se', memberId: 'IFSMHP-2025-000059', role: 'Epidemiologist', professionalType: 'Scientist', institution: 'Karolinska Institutet', country: 'Sweden', registrationDate: '2025-03-14', status: 'Active', credentials: 7 },
-  { id: 'm14', name: 'Dr. Nora Hargrove', email: 'nora.hargrove@mgh.harvard.edu', memberId: 'IFSMHP-2025-000063', role: 'Clinical Researcher', professionalType: 'Researcher', institution: 'Massachusetts General Hospital', country: 'USA', registrationDate: '2025-03-28', status: 'Active', credentials: 8 },
-  { id: 'm15', name: 'Dr. Fatima Al-Sayed', email: 'fatima.alsayed@ksu.edu.sa', memberId: 'IFSMHP-2025-000071', role: 'Consultant Psychiatrist', professionalType: 'Mental Health Professional', institution: 'King Saud University', country: 'Saudi Arabia', registrationDate: '2025-04-02', status: 'Active', credentials: 5 },
-  { id: 'm16', name: 'Dr. Kenji Watanabe', email: 'kenji.w@keio.jp', memberId: 'IFSMHP-2025-000082', role: 'Neuropsychologist', professionalType: 'Clinician', institution: 'Keio University', country: 'Japan', registrationDate: '2025-04-19', status: 'Deactivated', credentials: 5 },
-  { id: 'm17', name: 'Prof. Nomsa Dlamini', email: 'nomsa.d@wits.ac.za', memberId: 'IFSMHP-2025-000094', role: 'Health Policy Professor', professionalType: 'Academician', institution: 'University of the Witwatersrand', country: 'South Africa', registrationDate: '2025-05-07', status: 'Active', credentials: 6 },
-  { id: 'm18', name: 'Dr. Elena Vasquez', email: 'evasquez@uchile.cl', memberId: 'IFSMHP-2025-000107', role: 'Clinical Psychologist', professionalType: 'Mental Health Professional', institution: 'Hospital Clínico UCH', country: 'Chile', registrationDate: '2025-05-20', status: 'Active', credentials: 5 },
-  { id: 'm19', name: 'Dr. Ryan Palmer', email: 'rpalmer@unimelb.edu.au', role: 'Postdoc Researcher', professionalType: 'Researcher', institution: 'University of Melbourne', country: 'Australia', registrationDate: '2026-08-14', status: 'Pending', credentials: 3, priority: 'Standard' },
-  { id: 'm20', name: 'Dr. Anika Kapoor', email: 'anika.kapoor@aiims.edu', role: 'Clinical Psychologist', professionalType: 'Mental Health Professional', institution: 'AIIMS Delhi', country: 'India', registrationDate: '2026-08-17', status: 'Under Review', credentials: 4, priority: 'High' },
-  { id: 'm21', name: 'Prof. Henrik Lindberg', email: 'h.lindberg@ki.se', role: 'Neuroscientist', professionalType: 'Scientist', institution: 'Karolinska Institutet', country: 'Sweden', registrationDate: '2026-08-18', status: 'Pending', credentials: 6, priority: 'Standard' },
-  { id: 'm22', name: 'Dr. Maya Fernández', email: 'maya.fernandez@hcuch.cl', role: 'Child Psychiatrist', professionalType: 'Clinician', institution: 'Hospital Clínico UCH', country: 'Chile', registrationDate: '2026-08-19', status: 'Under Review', credentials: 5, priority: 'High' },
-  { id: 'm23', name: 'Dr. Theo Mbeki', email: 't.mbeki@wits.ac.za', role: 'Public Health Researcher', professionalType: 'Public Health Specialist', institution: 'Wits University', country: 'South Africa', registrationDate: '2026-08-20', status: 'Pending', credentials: 3, priority: 'Standard' },
-  { id: 'm24', name: 'Dr. Siti Wijaya', email: 's.wijaya@ui.ac.id', role: 'Mental Health Counselor', professionalType: 'Mental Health Professional', institution: 'Universitas Indonesia', country: 'Indonesia', registrationDate: '2026-08-15', status: 'Pending', credentials: 2, priority: 'Standard' },
-  { id: 'm25', name: 'Dr. Gabriel Adeyemi', email: 'g.adeyemi@uniben.edu', role: 'Psychiatric Nurse Researcher', professionalType: 'Researcher', institution: 'University of Benin', country: 'Nigeria', registrationDate: '2026-08-12', status: 'Rejected', credentials: 1 },
-];
-
-const statusBadgeMap: Record<Status, 'success' | 'warning' | 'info' | 'brass' | 'danger' | 'default'> = {
-  Active: 'success',
+const statusBadgeMap: Record<AccountStatusLabel, 'success' | 'warning' | 'info' | 'brass' | 'danger' | 'default'> = {
   Pending: 'info',
-  'Under Review': 'warning',
+  Active: 'success',
   Suspended: 'brass',
-  Rejected: 'danger',
   Deactivated: 'default',
+  Rejected: 'danger',
 };
 
-const statusIconMap: Record<Status, typeof Clock> = {
-  Active: CheckCircle2,
+const statusIconMap: Record<AccountStatusLabel, typeof Clock> = {
   Pending: Clock,
-  'Under Review': Eye,
+  Active: CheckCircle2,
   Suspended: Ban,
+  Deactivated: UserX,
   Rejected: XCircle,
-  Deactivated: XCircle,
-};
-
-const typeBadgeMap: Record<ProfessionalType, 'default' | 'info' | 'success' | 'brass' | 'warning'> = {
-  Scientist: 'default',
-  'Mental Health Professional': 'info',
-  Researcher: 'success',
-  Academician: 'brass',
-  Clinician: 'warning',
-  'Policy Advisor': 'info',
-  'Public Health Specialist': 'success',
 };
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
-
-type DataState = 'idle' | 'loading' | 'success' | 'error';
 
 export default function AdminMembersPage() {
   const [search, setSearch] = useState('');
@@ -153,90 +59,61 @@ export default function AdminMembersPage() {
   const [emailSearch, setEmailSearch] = useState('');
   const [institutionSearch, setInstitutionSearch] = useState('');
   const [countrySearch, setCountrySearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'All' | ProfessionalType>('All');
-  const [statusFilter, setStatusFilter] = useState<'All' | Status>('All');
+  const [typeFilter, setTypeFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState<'All' | AccountStatusLabel>('All');
   const [regFrom, setRegFrom] = useState('');
   const [regTo, setRegTo] = useState('');
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0] ?? 10);
-  const [dataState, setDataState] = useState<DataState>('success');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [actionMenuOpenId, setActionMenuOpenId] = useState<string | null>(null);
-  const [simulateLoading, setSimulateLoading] = useState(false);
-  const [simulateError, setSimulateError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
+  // Debounced so typing does not fire a request per keystroke.
+  const [debounced, setDebounced] = useState({ search: '', memberIdSearch: '', emailSearch: '', institutionSearch: '', countrySearch: '' });
   useEffect(() => {
-    if (simulateLoading) {
-      setDataState('loading');
-      const t = setTimeout(() => {
-        setDataState('success');
-        setSimulateLoading(false);
-      }, 1200);
-      return () => clearTimeout(t);
-    }
-  }, [simulateLoading]);
+    const id = setTimeout(
+      () => setDebounced({ search, memberIdSearch, emailSearch, institutionSearch, countrySearch }),
+      300,
+    );
+    return () => clearTimeout(id);
+  }, [search, memberIdSearch, emailSearch, institutionSearch, countrySearch]);
 
-  useEffect(() => {
-    if (simulateError) {
-      setDataState('error');
-      const t = setTimeout(() => {
-        setDataState('success');
-        setSimulateError(false);
-      }, 5000);
-      return () => clearTimeout(t);
-    }
-  }, [simulateError]);
+  // Filtering and paging happen server-side: the directory can outgrow a page,
+  // so narrowing only the rows already fetched would misreport the totals.
+  const { data, loading, error } = useApiData<AdminMembersResult>(
+    () =>
+      adminApi.members({
+        q: debounced.search,
+        memberId: debounced.memberIdSearch,
+        email: debounced.emailSearch,
+        institution: debounced.institutionSearch,
+        country: debounced.countrySearch,
+        professionalType: typeFilter,
+        status: statusFilter,
+        registeredFrom: regFrom,
+        registeredTo: regTo,
+        page,
+        limit: pageSize,
+      }),
+    [debounced, typeFilter, statusFilter, regFrom, regTo, page, pageSize, reloadKey],
+  );
 
-  const filtered = useMemo(() => {
-    return allMembers.filter((m) => {
-      if (search) {
-        const s = search.toLowerCase();
-        if (!m.name.toLowerCase().includes(s) &&
-            !m.role.toLowerCase().includes(s)) return false;
-      }
-      if (memberIdSearch) {
-        const s = memberIdSearch.toLowerCase();
-        if (!m.memberId || !m.memberId.toLowerCase().includes(s)) return false;
-      }
-      if (emailSearch) {
-        if (!m.email.toLowerCase().includes(emailSearch.toLowerCase())) return false;
-      }
-      if (institutionSearch) {
-        if (!m.institution.toLowerCase().includes(institutionSearch.toLowerCase())) return false;
-      }
-      if (countrySearch) {
-        if (!m.country.toLowerCase().includes(countrySearch.toLowerCase())) return false;
-      }
-      if (typeFilter !== 'All' && m.professionalType !== typeFilter) return false;
-      if (statusFilter !== 'All' && m.status !== statusFilter) return false;
-      if (regFrom) {
-        if (m.registrationDate < regFrom) return false;
-      }
-      if (regTo) {
-        if (m.registrationDate > regTo) return false;
-      }
-      return true;
-    });
-  }, [search, memberIdSearch, emailSearch, institutionSearch, countrySearch, typeFilter, statusFilter, regFrom, regTo]);
+  const pageItems = data?.items ?? [];
+  const total = data?.pagination.total ?? 0;
+  const totalPages = data?.pagination.pages ?? 1;
+  const typeOptions = data?.professionalTypes ?? [];
+  const counts = data?.accountCounts ?? {
+    total: 0, active: 0, pending: 0, suspended: 0, deactivated: 0, rejected: 0,
+  };
 
   useEffect(() => {
     setPage(1);
-  }, [search, memberIdSearch, emailSearch, institutionSearch, countrySearch, typeFilter, statusFilter, regFrom, regTo, pageSize]);
+  }, [debounced, typeFilter, statusFilter, regFrom, regTo, pageSize]);
 
-  const safePageSize = typeof pageSize === 'number' && pageSize > 0 ? pageSize : 10;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / safePageSize));
-  const safePage = Math.min(page, totalPages);
-  const startIdx = (safePage - 1) * safePageSize;
-  const pageItems = filtered.slice(startIdx, startIdx + safePageSize);
-
-  const counts = useMemo(() => ({
-    total: allMembers.length,
-    pending: allMembers.filter((m) => m.status === 'Pending' || m.status === 'Under Review').length,
-    active: allMembers.filter((m) => m.status === 'Active').length,
-    suspended: allMembers.filter((m) => m.status === 'Suspended').length,
-    deactivated: allMembers.filter((m) => m.status === 'Deactivated').length,
-    rejected: allMembers.filter((m) => m.status === 'Rejected').length,
-  }), []);
+  const refresh = () => setReloadKey((k) => k + 1);
+  const safePage = page;
+  const startIdx = (safePage - 1) * pageSize;
 
   const hasActiveFilters = search !== '' || memberIdSearch !== '' || emailSearch !== '' || institutionSearch !== '' || countrySearch !== '' || typeFilter !== 'All' || statusFilter !== 'All' || regFrom !== '' || regTo !== '';
 
@@ -253,24 +130,22 @@ export default function AdminMembersPage() {
   };
 
   const formatDate = (iso: string) => {
-    const d = new Date(iso + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+    try {
+      return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+    } catch {
+      return iso;
+    }
   };
 
-  const availableActions = (status: Status) => ({
+  const availableActions = (status: AccountStatusLabel) => ({
     view: true,
     edit: status !== 'Rejected' && status !== 'Deactivated',
     suspend: status === 'Active',
-    deactivate: status === 'Active' || status === 'Suspended' || status === 'Pending' || status === 'Under Review',
+    deactivate: status === 'Active' || status === 'Suspended' || status === 'Pending',
     reactivate: status === 'Suspended' || status === 'Deactivated',
-    approve: status === 'Pending' || status === 'Under Review',
-    reject: status === 'Pending' || status === 'Under Review',
+    approve: status === 'Pending',
+    reject: status === 'Pending',
   });
-
-  const handleExport = () => {
-    setSimulateLoading(true);
-    setTimeout(() => setSimulateLoading(false), 1200);
-  };
 
   return (
     <div className="space-y-6">
@@ -278,11 +153,7 @@ export default function AdminMembersPage() {
       <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">
         <div className="flex-1 max-w-3xl">
           <div className="flex flex-wrap items-center gap-2 text-xs text-ink-subtle mb-2">
-            <Badge variant="brass">
-              <Sparkles className="h-2.5 w-2.5 mr-1" />
-              {DEMO_LABEL}
-            </Badge>
-            {simulateLoading || dataState === 'loading' ? (
+            {loading ? (
               <Badge variant="info">
                 <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" />
                 Syncing…
@@ -297,17 +168,9 @@ export default function AdminMembersPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => setSimulateError(true)}>
-            <AlertCircle className="h-3.5 w-3.5" />
-            Test Error
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setSimulateLoading(true)}>
-            <RefreshCw className="h-3.5 w-3.5" />
+          <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExport} disabled={dataState === 'loading'}>
-            <Download className="h-3.5 w-3.5" />
-            Export CSV
           </Button>
         </div>
       </div>
@@ -416,20 +279,20 @@ export default function AdminMembersPage() {
               <SelectInput
                 label="Professional Type"
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as ProfessionalType | 'All')}
+                onChange={(e) => setTypeFilter(e.target.value)}
               >
                 <option value="All">All Professional Types</option>
-                {professionalTypes.map((t) => (
+                {typeOptions.map((t: string) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </SelectInput>
               <SelectInput
                 label="Membership Status"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as Status | 'All')}
+                onChange={(e) => setStatusFilter(e.target.value as 'All' | AccountStatusLabel)}
               >
                 <option value="All">All Statuses</option>
-                {statuses.map((s) => (
+                {(['Pending', 'Active', 'Suspended', 'Deactivated', 'Rejected'] as AccountStatusLabel[]).map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </SelectInput>
@@ -462,7 +325,7 @@ export default function AdminMembersPage() {
             </h3>
             <p className="text-xs text-ink-subtle mt-0.5">
               Showing <span className="font-semibold text-ink-muted">{pageItems.length}</span> of{' '}
-              <span className="font-semibold text-ink-muted">{filtered.length}</span> members
+              <span className="font-semibold text-ink-muted">{total}</span> members
               {hasActiveFilters && (
                 <> · <span className="text-brass-700 font-medium">filters applied</span></>
               )}
@@ -471,7 +334,7 @@ export default function AdminMembersPage() {
           <div className="flex items-center gap-2">
             <label className="text-xs text-ink-muted">Rows per page</label>
             <SelectInput
-              value={safePageSize.toString()}
+              value={pageSize.toString()}
               onChange={(e) => setPageSize(Number(e.target.value))}
               className="w-24"
             >
@@ -482,10 +345,10 @@ export default function AdminMembersPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          {dataState === 'loading' ? (
+          {loading ? (
             <LoadingState />
-          ) : dataState === 'error' ? (
-            <ErrorState onRetry={() => { setSimulateError(false); setDataState('success'); }} />
+          ) : error ? (
+            <ErrorState message={error} onRetry={refresh} />
           ) : pageItems.length === 0 ? (
             <EmptyState hasFilters={hasActiveFilters} onClear={clearFilters} />
           ) : (
@@ -500,14 +363,15 @@ export default function AdminMembersPage() {
                       <th className="py-3 px-2 text-xs font-semibold uppercase tracking-wider text-ink-subtle hidden sm:table-cell">Institution</th>
                       <th className="py-3 px-2 text-xs font-semibold uppercase tracking-wider text-ink-subtle hidden lg:table-cell">Country</th>
                       <th className="py-3 px-2 text-xs font-semibold uppercase tracking-wider text-ink-subtle hidden xl:table-cell">Registration</th>
+                      <th className="py-3 px-2 text-xs font-semibold uppercase tracking-wider text-ink-subtle hidden xl:table-cell">Approved</th>
                       <th className="py-3 px-2 text-xs font-semibold uppercase tracking-wider text-ink-subtle">Status</th>
                       <th className="py-3 px-2 text-xs font-semibold uppercase tracking-wider text-ink-subtle text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pageItems.map((m) => {
-                      const StatusIcon = statusIconMap[m.status];
-                      const actions = availableActions(m.status);
+                      const StatusIcon = statusIconMap[m.accountStatus];
+                      const actions = availableActions(m.accountStatus);
                       const isMenuOpen = actionMenuOpenId === m.id;
                       return (
                         <tr
@@ -546,7 +410,7 @@ export default function AdminMembersPage() {
                             )}
                           </td>
                           <td className="py-3.5 px-2 hidden lg:table-cell">
-                            <Badge variant={typeBadgeMap[m.professionalType]}>{m.professionalType}</Badge>
+                            <Badge variant="info">{m.professionalType}</Badge>
                           </td>
                           <td className="py-3.5 px-2 hidden sm:table-cell">
                             <div className="text-sm">
@@ -569,10 +433,29 @@ export default function AdminMembersPage() {
                               {formatDate(m.registrationDate)}
                             </span>
                           </td>
+                          <td className="py-3.5 px-2 hidden xl:table-cell">
+                            {m.approvedAt ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 text-xs text-ink-muted">
+                                  <CheckCircle2 className="h-3 w-3 text-success-600" />
+                                  {formatDate(m.approvedAt)}
+                                </span>
+                                {/* Approved but never notified — the admin needs to see this. */}
+                                {!m.approvalEmailSentAt && (
+                                  <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-danger-600">
+                                    <AlertCircle className="h-3 w-3" />
+                                    Email not sent
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-ink-subtle">—</span>
+                            )}
+                          </td>
                           <td className="py-3.5 px-2">
-                            <Badge variant={statusBadgeMap[m.status]}>
+                            <Badge variant={statusBadgeMap[m.accountStatus]}>
                               <StatusIcon className="h-3 w-3 mr-1" />
-                              {m.status}
+                              {m.accountStatus}
                             </Badge>
                           </td>
                           <td className="py-3.5 px-2 text-right align-top">
@@ -635,8 +518,8 @@ export default function AdminMembersPage() {
               <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-paper-border pt-4">
                 <p className="text-xs text-ink-subtle">
                   Showing <span className="font-semibold text-ink-muted">{startIdx + 1}</span>–
-                  <span className="font-semibold text-ink-muted">{Math.min(startIdx + safePageSize, filtered.length)}</span> of{' '}
-                  <span className="font-semibold text-ink-muted">{filtered.length}</span> members
+                  <span className="font-semibold text-ink-muted">{Math.min(startIdx + pageItems.length, total)}</span> of{' '}
+                  <span className="font-semibold text-ink-muted">{total}</span> members
                 </p>
                 <div className="flex items-center gap-1.5">
                   <Button
@@ -680,12 +563,6 @@ export default function AdminMembersPage() {
               </div>
             </>
           )}
-          <div className="mt-4 flex justify-end pt-2 border-t border-paper-border">
-            <Badge variant="default">
-              <Sparkles className="h-2.5 w-2.5 mr-1" />
-              {DEMO_LABEL}
-            </Badge>
-          </div>
         </CardContent>
       </Card>
     </div>
@@ -768,7 +645,7 @@ function LoadingState() {
   );
 }
 
-function ErrorState({ onRetry }: { onRetry: () => void }) {
+function ErrorState({ onRetry, message }: { onRetry: () => void; message?: string }) {
   return (
     <div className="py-16 flex flex-col items-center justify-center gap-3">
       <div className="h-14 w-14 flex items-center justify-center rounded-full bg-danger-100 text-danger-600">
@@ -777,7 +654,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
       <div className="text-center max-w-md">
         <p className="text-base font-semibold text-forum-900">Couldn't load members</p>
         <p className="text-sm text-ink-muted mt-1">
-          We hit a problem fetching the member directory. Check your connection or try again.
+          {message ?? 'We hit a problem fetching the member directory. Check your connection or try again.'}
         </p>
       </div>
       <div className="flex gap-2 mt-2">

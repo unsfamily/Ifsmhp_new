@@ -19,32 +19,21 @@ import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { Link } from 'react-router-dom';
+import { memberApi } from '../../api/member';
+import { useApiData } from '../../hooks/useApiData';
 
-const stats = [
-  { label: 'Projects', value: '7', change: '+2', icon: FolderKanban, color: 'forum' },
-  { label: 'Published Papers', value: '4', change: '+1', icon: FileText, color: 'slateteal' },
-  { label: 'Support Requests', value: '2', change: 'Active', icon: ShieldCheck, color: 'brass' },
-  { label: 'Publications Views', value: '3,247', change: '+18%', icon: Eye, color: 'forum' },
-];
-
-const recentProjects = [
-  { id: 'p1', title: 'CBT in Digital Mental Health Platforms', status: 'Published', support: 'Official', date: 'Jul 15, 2026', statusColor: 'success' as const },
-  { id: 'p2', title: 'Biomarker Panels for MDD Subtyping', status: 'Under Review', support: 'Funding', date: 'Jul 08, 2026', statusColor: 'warning' as const },
-  { id: 'p3', title: 'Wearable EEG Device Validation', status: 'Submitted', support: 'Moral', date: 'Jun 30, 2026', statusColor: 'info' as const },
-  { id: 'p4', title: 'Youth Teletherapy Utilization Study', status: 'Draft', support: 'Funding', date: 'Jun 22, 2026', statusColor: 'default' as const },
-];
-
-const recentMessages = [
-  { id: 'm1', from: 'Chief Research Officer', subject: 'Re: Biomarker Study — Funding Endorsement', time: '2h ago', unread: true, type: 'Document' },
-  { id: 'm2', from: 'CRO Office', subject: 'Invitation: Digital Mental Health Symposium', time: '1d ago', unread: true, type: 'Announcement' },
-  { id: 'm3', from: 'Chief Research Officer', subject: 'CBT paper published — congratulations!', time: '3d ago', unread: false, type: 'Update' },
-];
-
-const upcomingEvents = [
-  { date: 'Sep 12', title: 'Digital Mental Health Symposium', type: 'Symposium' },
-  { date: 'Oct 03', title: 'Crisis Support Workshop', type: 'Workshop' },
-  { date: 'Oct 27', title: 'Annual Research Showcase', type: 'Conference' },
-];
+interface DashboardData {
+  member: { name: string; memberSince: string | Date };
+  stats: {
+    projects: { total: number; inReview: number };
+    publications: { published: number; inReview: number };
+    supportTickets: { open: number };
+    unreadMessages: number;
+  };
+  recentProjects: Array<{ id: string; title: string; status: string; support: string[]; updated: string | Date }>;
+  recentMessages: Array<{ id: string; senderName: string; body: string; createdAt: string | Date }>;
+  upcomingEvents: Array<{ id: string; slug?: string; title: string; date: string | Date; format?: string }>;
+}
 
 const colorMap = {
   forum: { icon: 'bg-forum-50 text-forum-700', change: 'text-forum-700 bg-forum-50' },
@@ -53,6 +42,17 @@ const colorMap = {
 };
 
 export default function DashboardHomePage() {
+  const { data, loading, error } = useApiData<DashboardData>(() => memberApi.dashboard() as Promise<DashboardData>, []);
+  const stats = [
+    { label: 'Projects', value: String(data?.stats.projects.total ?? 0), change: `${data?.stats.projects.inReview ?? 0} in review`, icon: FolderKanban, color: 'forum' },
+    { label: 'Published Papers', value: String(data?.stats.publications.published ?? 0), change: `${data?.stats.publications.inReview ?? 0} in review`, icon: FileText, color: 'slateteal' },
+    { label: 'Support Requests', value: String(data?.stats.supportTickets.open ?? 0), change: 'Active', icon: ShieldCheck, color: 'brass' },
+    { label: 'Unread Messages', value: String(data?.stats.unreadMessages ?? 0), change: 'Inbox', icon: Eye, color: 'forum' },
+  ];
+  const recentProjects = data?.recentProjects ?? [];
+  const recentMessages = data?.recentMessages ?? [];
+  const upcomingEvents = data?.upcomingEvents ?? [];
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-600 via-forum-700 to-forum-900 p-6 sm:p-8 text-white relative overflow-hidden">
@@ -67,14 +67,15 @@ export default function DashboardHomePage() {
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium ring-1 ring-inset ring-white/20 text-brass-100">
               <TrendingUp className="h-3.5 w-3.5" />
-              Member Since March 2024
+              {loading ? 'Loading dashboard...' : `Member Since ${data?.member.memberSince ? new Date(data.member.memberSince).toLocaleDateString() : 'Approval Pending'}`}
             </span>
             <h2 className="mt-4 font-display text-2xl sm:text-3xl font-semibold leading-tight">
-              Welcome back, Dr. Chen 👋
+              Welcome back, {data?.member.name ?? 'Member'} 👋
             </h2>
             <p className="mt-2 text-forum-100/80 max-w-xl">
-              You have <strong className="text-brass-100">3 unread messages</strong> from the CRO office and{' '}
-              <strong className="text-brass-100">1 project under review</strong>.
+              You have <strong className="text-brass-100">{data?.stats.unreadMessages ?? 0} unread messages</strong> from the CRO office and{' '}
+              <strong className="text-brass-100">{data?.stats.projects.inReview ?? 0} projects under review</strong>.
+              {error ? <span className="block text-brass-100">{error}</span> : null}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -146,7 +147,7 @@ export default function DashboardHomePage() {
                         <p className="font-medium text-forum-900 truncate max-w-xs">{p.title}</p>
                       </td>
                       <td className="py-3.5 px-2">
-                        <Badge variant={p.statusColor}>
+                        <Badge variant={p.status === 'Published' ? 'success' : p.status === 'Under Review' ? 'warning' : p.status === 'Submitted' ? 'info' : 'default'}>
                           {p.status === 'Published' ? <CheckCircle2 className="h-3 w-3 mr-1" /> :
                            p.status === 'Under Review' ? <Clock className="h-3 w-3 mr-1" /> :
                            p.status === 'Submitted' ? <AlertCircle className="h-3 w-3 mr-1" /> : null}
@@ -155,13 +156,13 @@ export default function DashboardHomePage() {
                       </td>
                       <td className="py-3.5 px-2 hidden sm:table-cell">
                         <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
-                          {p.support === 'Funding' ? <DollarSign className="h-3.5 w-3.5 text-brass-700" /> :
-                           p.support === 'Official' ? <ShieldCheck className="h-3.5 w-3.5 text-forum-700" /> :
+                          {p.support[0] === 'Funding' ? <DollarSign className="h-3.5 w-3.5 text-brass-700" /> :
+                           p.support[0] === 'Official' ? <ShieldCheck className="h-3.5 w-3.5 text-forum-700" /> :
                            <HeartHandshake className="h-3.5 w-3.5 text-slateteal-700" />}
-                          {p.support}
+                          {p.support[0] ?? 'None'}
                         </span>
                       </td>
-                      <td className="py-3.5 px-2 text-ink-subtle hidden md:table-cell">{p.date}</td>
+                      <td className="py-3.5 px-2 text-ink-subtle hidden md:table-cell">{new Date(p.updated).toLocaleDateString()}</td>
                       <td className="py-3.5 px-2 text-right">
                         <Link
                           to={`/dashboard/projects/${p.id}`}
@@ -190,17 +191,17 @@ export default function DashboardHomePage() {
               <div key={e.title} className="flex items-center gap-3 p-3 rounded-lg hover:bg-forum-50/60 transition-colors">
                 <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-forum-50 border border-forum-100">
                   <span className="text-[10px] uppercase tracking-wider text-forum-700 font-medium leading-none">
-                    {e.date.split(' ')[0]}
+                    {new Date(e.date).toLocaleDateString('en-US', { month: 'short' })}
                   </span>
                   <span className="font-display text-lg font-bold text-forum-900 leading-none mt-0.5">
-                    {e.date.split(' ')[1]}
+                    {new Date(e.date).getDate()}
                   </span>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-forum-900 text-sm truncate">{e.title}</p>
                   <Badge variant="info" className="mt-1">
                     <Calendar className="h-2.5 w-2.5 mr-1" />
-                    {e.type}
+                    {e.format ?? 'Event'}
                   </Badge>
                 </div>
               </div>
@@ -232,27 +233,24 @@ export default function DashboardHomePage() {
               <div
                 key={m.id}
                 className={`flex items-start gap-3 p-3.5 rounded-lg transition-colors ${
-                  m.unread ? 'bg-brass-100/30 border border-brass-500/20' : 'hover:bg-forum-50/40'
+                  'hover:bg-forum-50/40'
                 }`}
               >
-                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                  m.unread ? 'bg-brass-500 text-white' : 'bg-forum-100 text-forum-700'
-                }`}>
-                  {m.unread ? <MessageSquare className="h-4 w-4" /> : <BookOpenCheck className="h-4 w-4" />}
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-forum-100 text-forum-700">
+                  <BookOpenCheck className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className={`font-medium text-sm ${m.unread ? 'text-forum-900' : 'text-ink-muted'}`}>
-                      {m.from}
+                    <p className="font-medium text-sm text-ink-muted">
+                      {m.senderName}
                     </p>
-                    <Badge variant={m.unread ? 'brass' : 'default'}>{m.type}</Badge>
-                    {m.unread && <span className="text-[10px] font-semibold text-brass-700 uppercase tracking-wider">New</span>}
+                    <Badge variant="default">Message</Badge>
                   </div>
-                  <p className={`text-sm mt-0.5 truncate ${m.unread ? 'text-forum-900 font-medium' : 'text-ink-muted'}`}>
-                    {m.subject}
+                  <p className="text-sm mt-0.5 truncate text-ink-muted">
+                    {m.body}
                   </p>
                 </div>
-                <span className="shrink-0 text-xs text-ink-subtle whitespace-nowrap">{m.time}</span>
+                <span className="shrink-0 text-xs text-ink-subtle whitespace-nowrap">{new Date(m.createdAt).toLocaleDateString()}</span>
               </div>
             ))}
           </CardContent>

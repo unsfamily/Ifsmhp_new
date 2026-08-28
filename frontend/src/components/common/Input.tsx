@@ -1,4 +1,11 @@
-import { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes, ReactNode } from 'react';
+import {
+  forwardRef,
+  useId,
+  InputHTMLAttributes,
+  TextareaHTMLAttributes,
+  SelectHTMLAttributes,
+  ReactNode,
+} from 'react';
 
 type BaseInputProps = {
   label?: ReactNode;
@@ -8,52 +15,75 @@ type BaseInputProps = {
   icon?: ReactNode;
 };
 
-export function TextInput({
-  label,
-  error,
-  hint,
-  className = '',
-  ...rest
-}: BaseInputProps & InputHTMLAttributes<HTMLInputElement>) {
+// Every field here forwards its ref. react-hook-form's `register()` returns a
+// `ref` callback alongside `name`/`onChange`/`onBlur`, and call sites spread the
+// whole object onto these components — without forwardRef React 18 drops the ref
+// silently and RHF loses focus-on-error and scroll-to-error.
+//
+// Each label is tied to its control with a generated id so clicking the label
+// focuses the field and screen readers announce the two together. `rest.id`
+// still wins when a caller supplies one.
+
+export const TextInput = forwardRef<
+  HTMLInputElement,
+  BaseInputProps & InputHTMLAttributes<HTMLInputElement>
+>(function TextInput({ label, error, hint, className = '', icon, ...rest }, ref) {
+  const generatedId = useId();
+  const id = rest.id ?? generatedId;
   return (
     <div className={className}>
       {label && (
-        <label className="mb-1.5 block text-sm font-medium text-ink">
+        <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-ink">
           {label}
           {rest.required && <span className="ml-1 text-danger-600">*</span>}
         </label>
       )}
-      <input
-        className={`w-full rounded-md border px-3 py-2.5 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-paper ${
-          error
-            ? 'border-danger-600 focus:border-danger-600 focus:ring-danger-600'
-            : 'border-paper-border focus:border-forum-600 focus:ring-forum-600'
-        }`}
-        {...rest}
-      />
+      <div className="relative">
+        {icon && (
+          // Sizing and colour come from the caller's own icon element; this only
+          // positions it and supplies a fallback colour.
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex items-center text-ink-subtle">
+            {icon}
+          </span>
+        )}
+        <input
+          ref={ref}
+          id={id}
+          aria-invalid={Boolean(error)}
+          className={`w-full rounded-md border ${
+            icon ? 'pl-9 pr-3' : 'px-3'
+          } py-2.5 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-paper ${
+            error
+              ? 'border-danger-600 focus:border-danger-600 focus:ring-danger-600'
+              : 'border-paper-border focus:border-forum-600 focus:ring-forum-600'
+          }`}
+          {...rest}
+        />
+      </div>
       {error && <p className="mt-1 text-xs text-danger-600">{error}</p>}
       {hint && !error && <p className="mt-1 text-xs text-ink-subtle">{hint}</p>}
     </div>
   );
-}
+});
 
-export function TextArea({
-  label,
-  error,
-  hint,
-  className = '',
-  rows = 4,
-  ...rest
-}: BaseInputProps & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export const TextArea = forwardRef<
+  HTMLTextAreaElement,
+  BaseInputProps & TextareaHTMLAttributes<HTMLTextAreaElement>
+>(function TextArea({ label, error, hint, className = '', icon: _icon, rows = 4, ...rest }, ref) {
+  const generatedId = useId();
+  const id = rest.id ?? generatedId;
   return (
     <div className={className}>
       {label && (
-        <label className="mb-1.5 block text-sm font-medium text-ink">
+        <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-ink">
           {label}
           {rest.required && <span className="ml-1 text-danger-600">*</span>}
         </label>
       )}
       <textarea
+        ref={ref}
+        id={id}
+        aria-invalid={Boolean(error)}
         rows={rows}
         className={`w-full rounded-md border px-3 py-2.5 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-paper ${
           error
@@ -66,25 +96,26 @@ export function TextArea({
       {hint && !error && <p className="mt-1 text-xs text-ink-subtle">{hint}</p>}
     </div>
   );
-}
+});
 
-export function SelectInput({
-  label,
-  error,
-  hint,
-  className = '',
-  children,
-  ...rest
-}: BaseInputProps & SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
+export const SelectInput = forwardRef<
+  HTMLSelectElement,
+  BaseInputProps & SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode }
+>(function SelectInput({ label, error, hint, className = '', icon: _icon, children, ...rest }, ref) {
+  const generatedId = useId();
+  const id = rest.id ?? generatedId;
   return (
     <div className={className}>
       {label && (
-        <label className="mb-1.5 block text-sm font-medium text-ink">
+        <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-ink">
           {label}
           {rest.required && <span className="ml-1 text-danger-600">*</span>}
         </label>
       )}
       <select
+        ref={ref}
+        id={id}
+        aria-invalid={Boolean(error)}
         className={`w-full rounded-md border bg-paper-raised px-3 py-2.5 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-paper ${
           error
             ? 'border-danger-600 focus:border-danger-600 focus:ring-danger-600'
@@ -98,16 +129,16 @@ export function SelectInput({
       {hint && !error && <p className="mt-1 text-xs text-ink-subtle">{hint}</p>}
     </div>
   );
-}
+});
 
-export function Checkbox({
-  label,
-  className = '',
-  ...rest
-}: { label: ReactNode; className?: string } & InputHTMLAttributes<HTMLInputElement>) {
+export const Checkbox = forwardRef<
+  HTMLInputElement,
+  { label: ReactNode; className?: string } & InputHTMLAttributes<HTMLInputElement>
+>(function Checkbox({ label, className = '', ...rest }, ref) {
   return (
     <label className={`flex items-start gap-2.5 ${className}`}>
       <input
+        ref={ref}
         type="checkbox"
         className="mt-0.5 h-4 w-4 rounded border-paper-border text-forum-600 focus:ring-forum-600"
         {...rest}
@@ -115,16 +146,12 @@ export function Checkbox({
       <span className="text-sm text-ink-muted">{label}</span>
     </label>
   );
-}
+});
 
-export function FileInput({
-  label,
-  error,
-  hint,
-  className = '',
-  accept,
-  ...rest
-}: BaseInputProps & InputHTMLAttributes<HTMLInputElement>) {
+export const FileInput = forwardRef<
+  HTMLInputElement,
+  BaseInputProps & InputHTMLAttributes<HTMLInputElement>
+>(function FileInput({ label, error, hint, className = '', icon: _icon, accept, ...rest }, ref) {
   return (
     <div className={className}>
       {label && (
@@ -152,6 +179,7 @@ export function FileInput({
             <label className="relative cursor-pointer rounded-md font-medium text-forum-600 hover:text-forum-700 focus-within:outline-none">
               <span>Upload a file</span>
               <input
+                ref={ref}
                 type="file"
                 accept={accept}
                 className="sr-only"
@@ -166,4 +194,4 @@ export function FileInput({
       {error && <p className="mt-1 text-xs text-danger-600">{error}</p>}
     </div>
   );
-}
+});

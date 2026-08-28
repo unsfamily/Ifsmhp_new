@@ -455,7 +455,7 @@ function ReviewSLASettings() {
   const [maxSimultaneous, setMaxSimultaneous] = useState('8');
   const [doubleBlind, setDoubleBlind] = useState(true);
   const [reviewerConflictCheck, setReviewerConflictCheck] = useState(true);
-  const [pubDelegates, _setPubDelegates] = useState([
+  const [pubDelegates] = useState([
     { id: 1, name: 'Prof. H. Lindberg', track: 'Scientists', role: 'SAB Chair', limit: '12' },
     { id: 2, name: 'Dr. E. Thompson', track: 'Clinicians', role: 'Review Delegate', limit: '15' },
   ]);
@@ -580,7 +580,7 @@ function IntegrationsSettings() {
   const [storageProvider, setStorageProvider] = useState('Encrypted object store (EU-West)');
   const [videoProvider, setVideoProvider] = useState('Zoom Events + YouTube Live');
   const [emailProvider, setEmailProvider] = useState('Transactional: Resend · Bulk: Mailgun');
-  const [apiClients, _setApiClients] = useState([
+  const [apiClients] = useState([
     { id: 1, name: 'Members portal (frontend SPA)', key: 'pk_live_5c7a•…•39f2', lastUsed: 'today · 14:22', status: 'Active' },
     { id: 2, name: 'Bulk newsletter pipeline', key: 'sk_prod_910d•…•e091', lastUsed: 'today · 06:00', status: 'Active' },
     { id: 3, name: 'Legacy events importer (deprecated)', key: 'sk_test_b7ff•…•01ac', lastUsed: '12 days ago', status: 'Scheduled for deletion' },
