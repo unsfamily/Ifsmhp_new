@@ -1,8 +1,7 @@
-# IFSMHP Platform — Milestone 1: Requirements Analysis & Architecture
+# IFSMHP Platform Architecture
 
-**Document status:** Draft for approval
-**Repository state at time of writing:** No existing repository found. Greenfield build. §59 (inspect-before-change) does not apply to Milestone 1 but becomes binding from Milestone 2 onward.
-**Scope of this document:** Sections A–K of the required first task. Section L is delivered separately as `docs/requirements-traceability.md`.
+**Document status:** Updated for the Express/Prisma/MySQL integration baseline.
+**Database:** MySQL via Prisma. Static informational copy remains in React; operational workflows are modeled for database-backed APIs.
 
 ---
 
@@ -19,6 +18,24 @@ The International Forum of Scientists and Mental Health Professionals is a profe
 | **Public institutional site** | Anyone | Credibility, recruitment, dissemination of approved research | None |
 | **Member workspace** (`/dashboard`) | Approved members | Do the work: projects, support requests, publications, communication | Required, role `MEMBER`, status `ACTIVE` |
 | **Admin back office** (`/admin`) | CRO / administrators | Review and decide: applications, projects, support, publications, events | Required, role `ADMIN` |
+
+### A.2.1 Implemented Data Model
+
+The Prisma schema is normalized around the actual frontend surfaces:
+
+| Area | Primary tables |
+|---|---|
+| Auth/session | `User`, `Session`, `PasswordResetToken`, `EmailVerificationToken` |
+| Membership | `MemberProfile`, `MembershipApplication`, `ApplicationStatusHistory`, `Education`, `ProfessionalCredential`, `ResearchInterest`, `MemberIdSequence` |
+| Files | `FileObject` plus join/link tables for credentials, projects, publications, messages, event covers, gallery items, and inquiry attachments |
+| Projects/support | `Project`, `ProjectSupportType`, `ProjectResourceLink`, `ProjectStatusHistory`, `SupportRequest`, `SupportRequestType`, `SupportRequestHistory` |
+| Publications/reviews | `Publication`, `PublicationFile`, `PublicationReview`, `PublicationStatusHistory`, `PublicationView`, `ProductReview` |
+| Messaging | `Conversation`, `ConversationParticipant`, `Message`, `MessageAttachment`, `SharedLink`, `LinkedRecord` |
+| Events/gallery | `Event`, `EventSpeaker`, `EventTag`, `EventRegistration`, `EventResource`, `GalleryAlbum`, `GalleryItem`, `GalleryTag`, `GalleryBanner` |
+| Community | `InterestGroup`, `InterestGroupMember`, `DiscussionThread`, `DiscussionReply`, `MemberConnection` |
+| Admin operations | `ContactInquiry`, `InquiryNote`, `InquiryReply`, `InquiryStatusHistory`, `Announcement`, `AnnouncementDelivery`, `Notification`, `PlatformSetting`, `ReportDefinition`, `ReportRun`, `AuditLog` |
+
+Member IDs are issued transactionally with `MemberIdSequence` using `IFSMHP-YYYY-NNNNNN`. `AuditLog` is append-only by convention and admin/member state transitions write status-history rows.
 
 ### A.3 The core value loop
 

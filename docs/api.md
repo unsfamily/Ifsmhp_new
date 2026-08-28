@@ -2,78 +2,114 @@
 
 Base path: `/api/v1`
 
-All endpoints return the envelope defined in specification §40.
+Every endpoint returns the shared envelope:
 
-**Success**
 ```json
 { "success": true, "data": {}, "message": "Operation completed successfully" }
 ```
 
-**Failure**
+Failures return:
+
 ```json
 { "success": false, "message": "Useful error message", "errors": [], "requestId": "uuid" }
 ```
 
-`errors` is an array of `{ field, message }`. `requestId` correlates the failure with a server log entry and is also returned on every response as the `X-Request-Id` header. Database errors, SQL, stack traces, filesystem paths and secrets are never returned.
+List endpoints use `?page=1&limit=20` and return `items` plus `pagination`.
 
-**Status codes**
+## Authentication
 
-| Code | Meaning |
-|---|---|
-| 200 / 201 | Success |
-| 400 | Malformed request |
-| 401 | Not authenticated |
-| 403 | Authenticated but not permitted |
-| 404 | Not found — also returned for member-scoped records the caller does not own, so existence is not leaked |
-| 409 | Conflict (duplicate) |
-| 422 | Validation failed; see `errors` |
-| 429 | Rate limited |
-| 500 | Unexpected server error |
+Access tokens are short-lived JWTs returned in the response body. Refresh tokens are random values stored as hashed `Session` rows and sent as an httpOnly cookie.
 
-**Pagination** — every list endpoint accepts `?page=1&limit=20` (limit max 100) and returns `{ items, pagination: { page, limit, total, pages } }`.
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/auth/register` | Create a pending applicant, profile, and membership application |
+| `POST` | `/auth/login` | Verify password, create session, set refresh cookie |
+| `POST` | `/auth/logout` | Revoke current refresh session and clear cookie |
+| `POST` | `/auth/refresh` | Rotate refresh token and return a new access token |
+| `GET` | `/auth/me` | Return current user/profile |
+| `POST` | `/auth/forgot-password` | Create a hashed reset token record |
+| `POST` | `/auth/reset-password` | Consume reset token and update password hash |
 
----
+## Public
 
-## Implemented
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/public/stats` | Published platform/member/content counters |
+| `GET` | `/public/publications` | Published publications with `q`, `category`, and `researchType` filters |
+| `GET` | `/public/publications/:slugOrId` | Published publication detail and view tracking |
+| `GET` | `/public/product-reviews` | Product reviews with pagination/filtering |
+| `GET` | `/public/events` | Public published/past events |
+| `GET` | `/public/events/:slugOrId` | Event detail |
+| `GET` | `/public/gallery` | Public gallery albums, banners, and items |
+| `POST` | `/contact` | Create a contact inquiry |
 
-### GET /health
+## Member
 
-Service health and readiness. Public, unauthenticated.
+All member routes require an active `MEMBER` session. Admins may pass member route checks for operational escalation.
 
-**Response 200**
-```json
-{
-  "success": true,
-  "data": {
-    "status": "ok",
-    "service": "ifsmhp-api",
-    "version": "0.1.0",
-    "environment": "development",
-    "uptimeSeconds": 42,
-    "timestamp": "2026-01-01T00:00:00.000Z"
-  },
-  "message": "Service is healthy"
-}
-```
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/members/me/dashboard` | Member dashboard aggregate |
+| `GET` | `/members/me/profile` | Current member profile |
+| `GET` | `/members/me/projects` | Owned projects |
+| `POST` | `/members/me/projects` | Create draft/submitted project |
+| `GET` | `/members/me/projects/:projectId` | Owned project detail |
+| `GET` | `/members/me/support` | Owned support requests |
+| `POST` | `/members/me/support` | Create support request |
+| `GET` | `/members/me/publications` | Member manuscripts/publications |
+| `GET` | `/members/me/conversations` | Participating conversations |
+| `POST` | `/members/me/conversations/:id/messages` | Add a message |
+| `GET` | `/members/me/documents` | Attachments visible to the member |
+| `GET` | `/members/me/community` | Member directory, groups, and threads |
 
-**Errors** — none. Returns 404 through the standard handler if the route is mistyped.
+## Admin
 
----
+All admin routes require an active `ADMIN` session.
 
-## Planned
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/admin/stats` | CRO dashboard counters |
+| `GET` | `/admin/members` | Members/applications queue |
+| `GET` | `/admin/members/:id` | Application detail |
+| `POST` | `/admin/members/:id/approve` | Transactionally approve application and issue `IFSMHP-YYYY-NNNNNN` |
+| `POST` | `/admin/members/:id/reject` | Reject application with reason |
+| `GET` | `/admin/projects` | Project review queue |
+| `GET` | `/admin/projects/:id` | Project detail |
+| `POST` | `/admin/projects/:id/approve` | Approve project |
+| `POST` | `/admin/projects/:id/reject` | Reject project |
+| `PATCH` | `/admin/projects/:id/status` | Legal project status transition |
+| `GET` | `/admin/publications` | Publication queue |
+| `GET` | `/admin/publications/:id` | Publication detail |
+| `POST` | `/admin/publications/:id/approve` | Approve internally |
+| `POST` | `/admin/publications/:id/reject` | Reject manuscript |
+| `POST` | `/admin/publications/:id/publish` | Publish publicly and create slug if needed |
+| `POST` | `/admin/publications/:id/unpublish` | Return to approved internal state |
+| `GET` | `/admin/support` | Support queue |
+| `POST` | `/admin/support/:id/approve` | Approve support request |
+| `POST` | `/admin/support/:id/reject` | Reject support request |
+| `POST` | `/admin/support/:id/complete` | Complete support request |
+| `GET` | `/admin/conversations` | All conversations |
+| `GET` | `/admin/conversations/:id` | Conversation detail |
+| `POST` | `/admin/conversations/:id/messages` | CRO reply |
+| `GET` | `/admin/events` | Admin event list |
+| `POST` | `/admin/events` | Create event |
+| `PATCH` | `/admin/events/:id` | Update event |
+| `GET` | `/admin/inquiries` | Contact inquiry queue |
+| `POST` | `/admin/inquiries/:id/reply` | Add inquiry reply and mark responded |
+| `POST` | `/admin/inquiries/:id/close` | Close inquiry |
+| `POST` | `/admin/inquiries/:id/spam` | Mark inquiry as spam |
+| `GET` | `/admin/announcements` | Announcement list |
+| `POST` | `/admin/announcements` | Create draft/scheduled/sent announcement |
+| `GET` | `/admin/gallery` | Admin gallery view |
+| `GET` | `/admin/audit-log` | Immutable audit log |
+| `GET` | `/admin/reports` | Report definitions |
+| `GET` | `/admin/settings` | Platform settings |
 
-The full module map is in `docs/architecture.md` §G. Each module is specified here — method, path, role, purpose, request, response, errors — **before** it is implemented, per specification §39.
+## Files
 
-| Module | Milestone |
-|---|---|
-| `/auth` | 5 |
-| `/membership` | 6 |
-| `/public`, `/contact` | 7 |
-| `/members` | 8 |
-| `/projects`, `/files` | 9 |
-| `/support-requests` | 10 |
-| `/messages` | 11 |
-| `/publications` | 12 |
-| `/admin` | 13 |
-| `/events` | 14 |
-| `/notifications` | 15 |
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/files/upload` | Authenticated upload with size, MIME, and magic-byte checks |
+| `GET` | `/files/:id/download` | Authorized streaming download |
+
+Files are never served statically. Private file access is allowed to admins, uploaders, credential owners, project owners, publication authors, and conversation participants.

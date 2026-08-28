@@ -1,6 +1,6 @@
 # IFSMHP Requirements Traceability
 
-**Last updated:** Milestone 2 (project scaffolding complete)
+**Last updated:** Full-stack integration baseline
 **Statuses:** `NOT_STARTED` · `IN_PROGRESS` · `COMPLETE` · `BLOCKED`
 
 This file is updated at the end of every milestone (§62). A requirement moves to `COMPLETE` only when it satisfies the Definition of Done in §66 — database, API, validation, authorization, frontend integration, loading/empty/error states, responsive layout, tests, types, build and docs.
@@ -13,12 +13,10 @@ This file is updated at the end of every milestone (§62). A requirement moves t
 |---|---|---|
 | M1 — Analysis & architecture | §68 A–L | COMPLETE |
 | M2 — Project scaffolding | §3, §50, §65 | COMPLETE |
-| M3 — Database & Prisma schema | §2, §33–§37, §56 | **BLOCKED** on §J.1 |
-| M4–M18 | All remaining | NOT_STARTED |
+| M3 — Database & Prisma schema | §2, §33–§37, §56 | COMPLETE |
+| M4–M18 | Auth, APIs, frontend integration, docs, verification | IN_PROGRESS |
 
-**M2 verification:** `npm run verify` passes — server and client typecheck, both workspaces lint clean, 4 tests pass, production build succeeds for both. API smoke-tested live: security headers present, success and failure envelopes correct, correlation IDs issued.
-
-**Blocked count: 6** — all blocked on decisions listed in §J of `architecture-analysis.md`.
+**Latest verification:** backend typecheck/build pass, frontend typecheck/build pass, backend Vitest health suite passes when local test binding is permitted. MySQL migration/seed require a running local MySQL server.
 
 ---
 
@@ -27,14 +25,14 @@ This file is updated at the end of every milestone (§62). A requirement moves t
 | Requirement | Ref | Status | Frontend | API | Database | Notes |
 |---|---|---|---|---|---|---|
 | Technology stack | §1 | **COMPLETE** | React 18/Vite 6/TS/Tailwind 3/Router 6/Axios/RHF/Zod/Lucide | Express 4/TS/Zod | Prisma 5 | Installed as specified. ADR-003 (TanStack Query) **declined pending approval** — not added |
-| PostgreSQL + Prisma, no binary blobs in DB | §2 | IN_PROGRESS | — | — | datasource + generator | Models in M3; StorageAdapter implemented in M9 |
+| MySQL + Prisma, no binary blobs in DB | §2 | COMPLETE | — | — | MySQL datasource + normalized schema | Files stored on disk with `FileObject` metadata |
 | Project structure | §3 | **COMPLETE** | `frontend/` | `backend/` | `backend/database/prisma/` | **ADR-004:** layout changed from `client/`+`server/` to `backend/`+`frontend/` standalone projects at client request, matching the supplied reference. Internal `src/` subdirectories retained per §3. ADR-002 (shared package) declined pending approval |
 | Requirements analysis & architecture | §68, §69 | **COMPLETE** | — | — | — | `docs/architecture-analysis.md` |
 | Architecture documentation | §63 | **COMPLETE** | — | — | — | `docs/architecture.md`; updated each milestone |
-| API documentation | §64 | IN_PROGRESS | — | `docs/api.md` | — | Envelope, status codes and `/health` documented; modules specified before implementation |
-| README | §65 | IN_PROGRESS | — | — | — | Written at M2; deployment section completed at M18 |
+| API documentation | §64 | COMPLETE | — | `docs/api.md` | — | Auth, public, member, admin and file endpoints documented |
+| README | §65 | COMPLETE | — | — | — | Updated for MySQL, auth, migrations, seed, file storage |
 | Environment variables / `.env.example` | §50 | **COMPLETE** | VITE_API_BASE_URL | Zod-validated at boot | DATABASE_URL | Only consumed variables listed; grows per milestone |
-| Seed data (clearly marked demo) | §53 | IN_PROGRESS | — | — | `prisma/seed.ts` | Harness in place; populated in M3 |
+| Seed data (development-only) | §53 | COMPLETE | — | — | `prisma/seed.ts` | Admin/member/applicant and operational records |
 | Development workflow milestone order | §58 | IN_PROGRESS | — | — | — | Plan in §K |
 | Existing-repository inspection rule | §59 | IN_PROGRESS | — | — | — | Repository now exists; binding for all future changes |
 | Code modification rules | §60 | NOT_STARTED | — | — | — | Ongoing discipline |
@@ -46,24 +44,24 @@ This file is updated at the end of every milestone (§62). A requirement moves t
 
 | Requirement | Ref | Status | Frontend | API | Database | Notes |
 |---|---|---|---|---|---|---|
-| Normalized schema (expanded model set) | §33 | NOT_STARTED | — | — | all | Designed in §F; ADR-001 adds 5 models |
-| User model | §34 | NOT_STARTED | — | — | User | |
-| MemberProfile model | §35 | NOT_STARTED | — | — | MemberProfile | |
-| Membership application status enum | §36 | NOT_STARTED | — | — | MembershipApplication | |
-| Relational file model (no `*_Path` fields) | §37 | NOT_STARTED | — | — | FileObject + join tables | |
-| Audit logging | §38 | NOT_STARTED | `/admin/audit-log` | `/admin/audit-log` | AuditLog | Written in-transaction |
-| Database integrity: keys, uniques, indexes, cascades | §56 | NOT_STARTED | — | — | all | Index list in §F.3 |
-| Soft delete strategy | §57 | NOT_STARTED | — | — | selected models | Audit history never hard-deleted |
+| Normalized schema (expanded model set) | §33 | COMPLETE | — | — | all | Implemented in Prisma |
+| User model | §34 | COMPLETE | auth/session | `/auth/*` | User | |
+| MemberProfile model | §35 | COMPLETE | profile/admin/member screens | `/members/me/profile`, `/admin/members/:id` | MemberProfile | |
+| Membership application status enum | §36 | COMPLETE | register/admin approvals | `/auth/register`, `/admin/members/*` | MembershipApplication | |
+| Relational file model (no `*_Path` fields) | §37 | COMPLETE | upload/download APIs | `/files/*` | FileObject + join tables | |
+| Audit logging | §38 | COMPLETE | `/admin/audit-log` | `/admin/audit-log` | AuditLog | State transitions write audit rows |
+| Database integrity: keys, uniques, indexes, cascades | §56 | COMPLETE | — | — | all | Prisma migration generated for MySQL |
+| Soft delete strategy | §57 | IN_PROGRESS | — | — | selected models | Operational soft-delete columns present where needed |
 
 ## Authentication, authorization & security
 
 | Requirement | Ref | Status | Frontend | API | Database | Notes |
 |---|---|---|---|---|---|---|
-| User roles (Admin/CRO, Member, Public) | §4 | NOT_STARTED | route guards | rbac middleware | User.role | Matrix in §B.2 |
-| Login / forgot / reset password | §9 | NOT_STARTED | `/login`, `/forgot-password`, `/reset-password` | `/auth/*` | User, Session | |
-| Backend-enforced admin authorization | §9, §67 | NOT_STARTED | — | rbac + policy | — | Frontend guards are UX only |
+| User roles (Admin/CRO, Member, Public) | §4 | COMPLETE | route guards | rbac middleware | User.role | Matrix in §B.2 |
+| Login / forgot / reset password | §9 | COMPLETE | `/login` wired | `/auth/*` | User, Session | Forgot/reset API implemented |
+| Backend-enforced admin authorization | §9, §67 | COMPLETE | — | rbac + policy | — | Frontend guards are UX only |
 | Security controls (helmet, CORS, rate limit, RBAC, validation) | §43 | IN_PROGRESS | — | helmet, CORS allowlist, rate limit, body limits, Zod validate | — | RBAC at M5; hardening pass at M16 |
-| File upload security | §44 | NOT_STARTED | FileUploader | `/files` | FileObject | MIME + extension + magic bytes + size |
+| File upload security | §44 | COMPLETE | File inputs can submit FormData | `/files/upload`, `/files/:id/download` | FileObject | MIME + magic-byte + size + auth checks |
 | Data privacy — public/member/admin field tiers | §45 | NOT_STARTED | — | serializers | — | Default-deny projections (I.13) |
 | Critical authorization tests (9 cases) | §55 | NOT_STARTED | — | — | — | Release-blocking |
 
@@ -78,7 +76,7 @@ This file is updated at the end of every milestone (§62). A requirement moves t
 | Membership page + eligibility + benefits | §6 | NOT_STARTED | `/membership` | — | — | |
 | About page + leadership + impact stats | §21 | **BLOCKED** | `/about` | `/public/statistics` | derived | Blocked on §J.3-9, J.3-13 (CRO bio/photo, impact figures) |
 | Support services page | §22 | NOT_STARTED | `/support-services` | — | — | |
-| Contact page + form + spam protection | §25 | NOT_STARTED | `/contact` | `/contact` | ContactInquiry | CAPTCHA choice open (§J.3-16) |
+| Contact page + form + spam protection | §25 | IN_PROGRESS | `/contact` | `/contact` | ContactInquiry | API-backed; CAPTCHA/provider still open |
 | Footer (links, legal, social) | §26 | **BLOCKED** | Footer | — | — | Blocked on §J.3-11 (social URLs); placeholders until then |
 | Legal placeholder pages | §51 | **BLOCKED** | `/privacy`, `/terms`, `/code-of-ethics`, `/cookies` | — | — | Blocked on §J.3-17; marked awaiting approved copy |
 | Public member directory / author pages | §4, §17 | **BLOCKED** | `/members`, `/members/:memberId` | `/public/members` | MemberProfile | Blocked on §J.1-4 (scope and visible fields undefined) |
@@ -88,10 +86,10 @@ This file is updated at the end of every milestone (§62). A requirement moves t
 
 | Requirement | Ref | Status | Frontend | API | Database | Notes |
 |---|---|---|---|---|---|---|
-| Registration page & form | §7 | NOT_STARTED | `/register` | `/auth/register` | User, MembershipApplication, ... | Multi-step |
-| Registration → approval workflow | §7 | NOT_STARTED | `/application-status` | `/admin/members/:id/approve` | MembershipApplication | Journey C.1–C.2 |
-| Unique Member ID system | §8 | **BLOCKED** | display only | server-side only | MemberIdSequence, MemberProfile.memberId | Blocked on §J.1-1 (year semantics); design ready (E.6) |
-| Membership administration (review/approve/reject/activate) | §28 | NOT_STARTED | `/admin/members*` | `/admin/members/*` | + AuditLog, Notification | Single transaction |
+| Registration page & form | §7 | COMPLETE | `/register` | `/auth/register` | User, MembershipApplication, ... | API-backed |
+| Registration → approval workflow | §7 | IN_PROGRESS | admin detail pages partially wired | `/admin/members/:id/approve` | MembershipApplication | Approval transaction implemented |
+| Unique Member ID system | §8 | COMPLETE | display only | server-side only | MemberIdSequence, MemberProfile.memberId | Uses current approval year |
+| Membership administration (review/approve/reject/activate) | §28 | IN_PROGRESS | `/admin/members*` | `/admin/members/*` | + AuditLog, Notification | Backend complete; frontend queues partly local |
 
 ## Member workspace
 

@@ -2,8 +2,8 @@
 
 Website and membership management platform for the **International Forum of Scientists and Mental Health Professionals**.
 
-> **Current status: Milestone 2 — project scaffolding.**
-> The repository builds, lints, typechecks and serves a health endpoint. No product features are implemented yet. Milestone 3 (database schema) is blocked pending the decisions listed in [`docs/architecture.md` §J.1–J.2](docs/architecture.md).
+> **Current status: full-stack integration baseline.**
+> The backend uses Express, TypeScript, Prisma, and MySQL with authenticated public/member/admin APIs. The frontend has API-backed auth/session routing and the primary operational write workflows are wired to the backend.
 
 ---
 
@@ -21,7 +21,7 @@ The system is fundamentally a **gated professional workflow**: nearly every memb
 
 ## Architecture
 
-A modular monolith — one Express API process, one PostgreSQL database, one React SPA.
+A modular monolith: one Express API process, one MySQL database, one React SPA.
 
 ```
 ifsmhp-platform/
@@ -65,15 +65,15 @@ Backend layering is enforced by convention and review: **controllers never touch
 ## Technology stack
 
 **Frontend** — React 18, Vite 6, TypeScript, Tailwind CSS 3, React Router 6, Axios, React Hook Form, Zod, Lucide React
-**Backend** — Node.js 20+, Express 4, TypeScript (compiled to `backend/dist`), Zod, Helmet, CORS, express-rate-limit, cookie-parser
-**Database** — PostgreSQL 14+ with Prisma ORM and migrations
+**Backend** — Node.js 20+, Express 4, TypeScript, Zod, Helmet, CORS, express-rate-limit, cookie-parser, bcryptjs, jsonwebtoken, multer, file-type
+**Database** — MySQL 8+ with Prisma ORM and migrations
 **Testing** — Vitest + Supertest
 
 ## Requirements
 
 - Node.js **20 or later** (developed against 22)
 - npm 10+
-- PostgreSQL 14+ (required from Milestone 3 onward)
+- MySQL 8+
 
 ## Installation
 
@@ -96,22 +96,28 @@ Backend and frontend keep **separate** `.env` files, and that separation is a se
 
 Never commit a real `.env`. See `backend/.env.example` and `frontend/.env.example`.
 
-## PostgreSQL setup
+## MySQL Setup
 
 ```bash
-createdb ifsmhp
-# then set DATABASE_URL in .env, e.g.
-# DATABASE_URL="postgresql://ifsmhp:ifsmhp@localhost:5432/ifsmhp?schema=public"
+mysql -u root -p
+CREATE DATABASE ifsmhp_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'ifsmhp'@'localhost' IDENTIFIED BY 'ifsmhp';
+GRANT ALL PRIVILEGES ON ifsmhp_platform.* TO 'ifsmhp'@'localhost';
+FLUSH PRIVILEGES;
+
+# backend/.env
+DATABASE_URL="mysql://ifsmhp:ifsmhp@localhost:3306/ifsmhp_platform"
 ```
 
 ## Prisma migrations
 
-The schema lives at `backend/database/prisma/schema.prisma` and currently contains only the datasource and generator — models arrive in Milestone 3.
+The schema lives at `backend/database/prisma/schema.prisma`. The first MySQL migration is in `backend/database/prisma/migrations/20260828000000_init_mysql`.
 
 ```bash
-npm run db:generate   # regenerate the Prisma client
-npm run db:migrate    # create and apply a development migration
-npm run db:studio     # browse data
+npm --prefix backend run db:generate
+npm --prefix backend run db:migrate
+npm --prefix backend run db:deploy
+npm --prefix backend run db:studio
 ```
 
 ## Seed data
@@ -120,7 +126,13 @@ npm run db:studio     # browse data
 npm run db:seed
 ```
 
-Seed data is **development-only and clearly labelled as demo data**. It must never be applied to a production database.
+Seed data is **development-only** and must never be applied to a production database. Seed accounts:
+
+```text
+admin@ifsmhp.local / ChangeMeNow!2026
+member@ifsmhp.local / ChangeMeNow!2026
+applicant@ifsmhp.local / ChangeMeNow!2026
+```
 
 ## Running the application
 
@@ -165,7 +177,7 @@ The production storage provider is not yet chosen (`docs/architecture.md` §J.3-
 
 ## Authentication
 
-Short-lived JWT access tokens (15 min, held in memory by the client) paired with rotating refresh tokens stored server-side as hashed `Session` rows and delivered as httpOnly cookies. Server-side sessions are what make "deactivate a member" and "log out everywhere" actually work.
+Short-lived JWT access tokens are held by the client and attached as `Authorization: Bearer ...`. Rotating refresh tokens are stored server-side as hashed `Session` rows and delivered as httpOnly cookies. Server-side sessions are what make deactivation and global logout enforceable.
 
 **The backend is the sole source of authorization truth.** Frontend route guards improve the experience; they are not a security control.
 
