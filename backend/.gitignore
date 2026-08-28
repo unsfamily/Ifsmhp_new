@@ -1,0 +1,14 @@
+# ---------------------------------------------------------------------------
+# Backend-specific ignores. Dependencies, dist/, .env and editor cruft are
+# already covered by the repository-root .gitignore.
+# ---------------------------------------------------------------------------
+
+# Member-uploaded files are user data, not source. The directory itself must
+# survive a fresh clone, so the .gitkeep placeholder stays tracked — the
+# UPLOAD_STORAGE_PATH default (./uploads) expects it to exist.
+uploads/*
+!uploads/.gitkeep
+
+# Prisma generates the client into node_modules; nothing else here is generated.
+# The schema and the migrations under database/prisma/migrations/ are source and
+# are intentionally NOT ignored.

@@ -1,0 +1,16 @@
+# ---------------------------------------------------------------------------
+# Frontend-specific ignores. Dependencies, dist/, .env and editor cruft are
+# already covered by the repository-root .gitignore.
+#
+# Remember that Vite inlines every VITE_* variable into the public bundle, so
+# nothing secret belongs in .env here in the first place — see .env.example.
+# ---------------------------------------------------------------------------
+
+# Vite's dev-server cache (it lives under node_modules, but be explicit).
+.vite/
+
+# Local-only overrides Vite recognises.
+*.local
+
+# Bundle analysis output
+stats.html
