@@ -28,6 +28,7 @@ import bannerCommunity from '../../assets/images/slide_01.png';
 import bannerSymposium from '../../assets/images/slide_02.png';
 import bannerAwards from '../../assets/images/slide_03.png';
 import bannerReviews from '../../assets/images/slide_04.png';
+import logoImg from '../../assets/images/logo.png';
 
 const stats = [
   { value: '277+', label: 'Global Members', icon: Users },
@@ -121,7 +122,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
   {
     id: 'home-banner-symposium',
     eyebrow: { icon: Calendar, label: 'Spring Symposium 2026 · Save the date' },
-    title: 'The 14th IFSMHP Spring Symposium — Call for Abstracts Now Open',
+    title: 'The IFSMHP Spring Symposium — Call for Abstracts Now Open',
     highlightWord: 'Call for Abstracts Now Open',
     lead: 'Submit your methodological, clinical or policy-focused work by 15 October 2026. Three tracks, 9 keynote plenaries, and a riverside networking reception hosted at the UNS Sydney Forum Hall.',
     chips: [
@@ -195,6 +196,19 @@ export default function HomePage() {
 
   return (
     <>
+      <div
+        aria-hidden
+        className="pointer-events-none fixed right-2 top-20 z-40 sm:right-4 sm:top-20 lg:right-7 lg:top-20"
+      >
+        <span className="inline-flex items-center justify-center rounded-xl bg-white/60 px-1 py-1 shadow-[0_4px_14px_-4px_rgba(20,29,27,0.45)] ring-1 ring-inset ring-white/80 backdrop-blur-sm sm:rounded-2xl sm:px-1.5 sm:py-1.5 lg:rounded-2xl lg:px-2 lg:py-2">
+          <img
+            src={logoImg}
+            alt=""
+            aria-hidden
+            className="block w-[92px] object-contain sm:w-[125px] lg:w-[135px]"
+          />
+        </span>
+      </div>
       <section
         aria-label="IFSMHP home banner carousel"
         aria-roledescription="carousel"
@@ -205,7 +219,7 @@ export default function HomePage() {
         onFocus={() => setBannerHover(true)}
         onBlur={() => setBannerHover(false)}
       >
-        <div className="relative h-[460px] sm:h-[520px] lg:h-[620px]">
+        <div className="relative h-[560px] sm:h-[520px] lg:h-[620px]">
           {HOME_BANNERS.map((slide, i) => {
             const active = i === bannerIndex;
             const Icon = slide.eyebrow.icon;
@@ -224,14 +238,14 @@ export default function HomePage() {
                   className="absolute inset-0 h-full w-full object-cover"
                   loading={i === 0 ? 'eager' : 'lazy'}
                 />
-                <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-center px-4 pb-10 pt-14 sm:px-6 sm:pb-12 sm:pt-20 lg:px-8 lg:pb-16">
-                  <div className="relative max-w-3xl">
+                <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-center px-4 pb-28 pt-24 sm:px-6 sm:pb-12 sm:pt-20 lg:px-8 lg:pb-16 lg:pt-20">
+                  <div className="relative max-w-3xl pr-[104px] sm:pr-0">
                     <div className="absolute inset-x-[-1.5rem] -inset-y-8 -z-10 rounded-[2.5rem] bg-forum-950/25 backdrop-blur-[2px]" aria-hidden />
                     <span className="inline-flex items-center gap-2 rounded-full bg-forum-950/40 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20 backdrop-blur">
                       <Icon className="h-3.5 w-3.5" />
                       {slide.eyebrow.label}
                     </span>
-                    <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.1] text-white drop-shadow-sm sm:text-5xl lg:text-6xl">
+                    <h1 className="mt-5 text-3xl font-semibold leading-[1.1] text-white drop-shadow-sm sm:mt-6 sm:max-w-4xl sm:text-5xl lg:text-6xl">
                       {slide.title.split(slide.highlightWord).length === 2 ? (
                         <>
                           {slide.title.split(slide.highlightWord)[0]}
@@ -244,14 +258,14 @@ export default function HomePage() {
                         </>
                       )}
                     </h1>
-                    <p className="mt-6 text-lg leading-relaxed text-white/90 sm:text-xl">
+                    <p className="mt-5 text-[15px] leading-relaxed text-white/90 sm:mt-6 sm:text-lg lg:text-xl">
                       {slide.lead}
                     </p>
-                    <div className="mt-5 flex flex-wrap gap-2">
+                    <div className="mt-4 flex flex-wrap gap-2 sm:mt-5">
                       {slide.chips.map((chip) => (
                         <span
                           key={chip.label}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-forum-950/35 px-3 py-1.5 text-xs font-medium text-white backdrop-blur"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-forum-950/35 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur sm:text-xs"
                         >
                           <span className="text-white/80">{chip.label}</span>
                           {chip.value ? (
@@ -260,7 +274,7 @@ export default function HomePage() {
                         </span>
                       ))}
                     </div>
-                    <div className="mt-10 flex flex-wrap items-center gap-3 sm:gap-4">
+                    <div className="mt-7 grid grid-cols-1 items-center gap-2.5 sm:mt-10 sm:flex sm:flex-wrap sm:gap-4">
                       {slide.ctas.map((cta, idx) => {
                         const CtaIcon = cta.icon;
                         if (cta.variant === 'primary') {
@@ -271,10 +285,10 @@ export default function HomePage() {
                               to={cta.to}
                               size="lg"
                               variant="primary"
-                              className="min-h-14 whitespace-nowrap bg-brass-500 px-6 text-forum-950 hover:bg-brass-700 focus-visible:ring-brass-500 sm:px-8"
+                              className="min-h-12 w-full whitespace-nowrap bg-brass-500 px-5 text-forum-950 hover:bg-brass-700 focus-visible:ring-brass-500 sm:w-auto sm:min-h-14 sm:px-8"
                             >
                               {cta.label}
-                              {CtaIcon ? <CtaIcon className="h-4.5 w-4.5" /> : null}
+                              {CtaIcon ? <CtaIcon className="h-4 w-4 sm:h-4.5 sm:w-4.5" /> : null}
                             </Button>
                           );
                         }
@@ -285,9 +299,9 @@ export default function HomePage() {
                             to={cta.to}
                             size="lg"
                             variant="outline"
-                            className="min-h-14 whitespace-nowrap border-white/40 bg-forum-950/30 px-6 text-white hover:bg-forum-950/50 focus-visible:ring-white/60 backdrop-blur sm:px-8"
+                            className="min-h-12 w-full whitespace-nowrap border-white/40 bg-forum-950/30 px-5 text-white hover:bg-forum-950/50 focus-visible:ring-white/60 backdrop-blur sm:w-auto sm:min-h-14 sm:px-8"
                           >
-                            {CtaIcon ? <CtaIcon className="h-4.5 w-4.5" /> : null}
+                            {CtaIcon ? <CtaIcon className="h-4 w-4 sm:h-4.5 sm:w-4.5" /> : null}
                             {cta.label}
                           </Button>
                         );
@@ -304,7 +318,7 @@ export default function HomePage() {
           type="button"
           onClick={goPrev}
           aria-label="Previous slide"
-          className="absolute left-3 top-1/2 z-20 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-forum-950/40 text-white backdrop-blur transition hover:bg-forum-950/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass-300 sm:left-4 sm:h-11 sm:w-11"
+          className="absolute bottom-20 left-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-forum-950/40 text-white backdrop-blur transition hover:bg-forum-950/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass-300 sm:left-4 sm:top-1/2 sm:-translate-y-1/2 sm:h-11 sm:w-11"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -312,7 +326,7 @@ export default function HomePage() {
           type="button"
           onClick={goNext}
           aria-label="Next slide"
-          className="absolute right-3 top-1/2 z-20 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-forum-950/40 text-white backdrop-blur transition hover:bg-forum-950/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass-300 sm:right-4 sm:h-11 sm:w-11"
+          className="absolute bottom-20 right-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-forum-950/40 text-white backdrop-blur transition hover:bg-forum-950/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass-300 sm:right-4 sm:top-1/2 sm:-translate-y-1/2 sm:h-11 sm:w-11"
         >
           <ChevronRight className="h-5 w-5" />
         </button>

@@ -351,7 +351,7 @@ const BANNER_SLIDES: BannerSlide[] = [
   {
     id: 'bnr-symposium',
     eyebrow: 'Spring Symposium 2026 · Featured collection',
-    title: 'Relive the 14th IFSMHP Spring Symposium',
+    title: 'Relive the IFSMHP Spring Symposium',
     lead: 'Three days of keynotes, poster sessions and riverside receptions — 18 curated editorial photos ready for release to public galleries, member newsletters and research profiles.',
     promptSubject: 'Academic keynote plenary hall stage with spotlighted lecturer, audience in rows of seats, branded forum banner, wide shot with depth of field',
     gradientOverlay: 'from-forum-950/85 via-forum-900/60 to-slateteal-900/40',
