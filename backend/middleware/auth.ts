@@ -68,7 +68,7 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
         where: { id: payload.sessionId },
         include: { user: { include: { memberProfile: true } } },
       });
-      if (!session || session.revokedAt || session.expiresAt <= new Date() || session.userId !== payload.sub) {
+      if (!session || session.revokedAt || session.expiresAt <= new Date() || session.userId !== payload.sub || session.user.deletedAt) {
         return next(new ApiError(401, 'Invalid or expired credentials'));
       }
       user = {

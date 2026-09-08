@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
 import {
@@ -15,6 +16,12 @@ import { env } from '../config';
 import { writeAudit } from './audit.service';
 import * as otpService from './otp.service';
 import { normalizeEmail } from './otp.service';
+import {
+  registrationDocumentTitle,
+  registrationDocumentType,
+  resolveRegistrationDocuments,
+  type RegistrationDocumentClaim,
+} from './registration-documents.service';
 
 export interface RegisterInput {
   fullName: string;
@@ -26,6 +33,7 @@ export interface RegisterInput {
   researchInterests: string;
   country?: string;
   phone?: string;
+  documents: RegistrationDocumentClaim[];
 }
 
 export interface LoginInput {
@@ -37,13 +45,17 @@ export interface LoginInput {
 /** Statuses that may never start a session, whatever the credential. */
 const BLOCKED_STATUSES = ['REJECTED', 'SUSPENDED', 'DEACTIVATED'];
 
+function jsonPayload(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
 function publicUser(user: {
   id: string;
   email: string;
   fullName: string;
   role: string;
   status: string;
-  memberProfile?: { memberId: string | null } | null;
+  memberProfile?: { memberId: string | null; professionalType?: string } | null;
   membershipApplication?: { status: string } | null;
 }) {
   return {
@@ -53,6 +65,7 @@ function publicUser(user: {
     role: user.role,
     status: user.status,
     memberId: user.memberProfile?.memberId ?? null,
+    professionalType: user.memberProfile?.professionalType ?? null,
     /**
      * The stored application state, so the client can say "under review" only
      * when that is actually true rather than inferring it from the role.
@@ -120,6 +133,7 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
     .slice(0, 20);
 
   const result = await prisma.$transaction(async (tx) => {
+    const documents = await resolveRegistrationDocuments(input.documents, tx);
     const user = await tx.user.create({
       data: {
         email,
@@ -166,6 +180,21 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         type: 'membership',
       },
     });
+    for (const document of documents) {
+      await tx.professionalCredential.create({
+        data: {
+          profileId: profile.id,
+          fileId: document.fileId,
+          title: registrationDocumentTitle(document.kind),
+          issuer: input.institution.trim(),
+          credentialType: registrationDocumentType(document.kind),
+        },
+      });
+      await tx.fileObject.update({
+        where: { id: document.fileId },
+        data: { uploaderId: user.id },
+      });
+    }
     return { user, application };
   });
 
@@ -230,11 +259,12 @@ export async function requestRegistrationOtp(input: RegisterInput, req: Request)
       { field: 'email', message: 'This email is already registered.' },
     ]);
   }
+  await resolveRegistrationDocuments(input.documents);
 
   const { expiresAt, resendAfterSeconds, resendAfterAt } = await otpService.requestOtp(
     email,
     'REGISTER',
-    { payload: { ...input, email }, ipAddress: req.ip },
+    { payload: jsonPayload({ ...input, email }), ipAddress: req.ip },
   );
 
   return { email, expiresAt, resendAfterSeconds, resendAfterAt };

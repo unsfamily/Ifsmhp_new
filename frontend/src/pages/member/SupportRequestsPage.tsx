@@ -165,11 +165,12 @@ export default function SupportRequestsPage() {
                     { key: 'funding', icon: DollarSign, title: 'Funding Support', desc: 'Grant access, budget review, funder connections' },
                   ].map((opt) => {
                     const Icon = opt.icon;
+                    // `has-[:checked]`, not `peer-checked`: the input is a descendant, not a sibling.
                     return (
-                      <label key={opt.key} className="relative rounded-xl border border-paper-border p-4 cursor-pointer hover:border-forum-300 transition-all peer">
-                        <input type="checkbox" className="sr-only peer" name="types" value={opt.title} />
+                      <label key={opt.key} className="group relative rounded-xl border border-paper-border p-4 cursor-pointer hover:border-forum-300 transition-all has-[:checked]:border-forum-600 has-[:checked]:ring-2 has-[:checked]:ring-forum-600/20 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-forum-600">
+                        <input type="checkbox" className="sr-only" name="types" value={opt.title} />
                         <div className="flex items-start gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-forum-50 text-forum-700 peer-checked:bg-forum-600 peer-checked:text-white transition-colors">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-forum-50 text-forum-700 group-has-[:checked]:bg-forum-600 group-has-[:checked]:text-white transition-colors">
                             <Icon className="h-5 w-5" />
                           </div>
                           <div>

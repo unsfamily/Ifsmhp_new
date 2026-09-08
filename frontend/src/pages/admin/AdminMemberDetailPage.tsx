@@ -62,6 +62,10 @@ interface CredentialDocument {
   year: string;
   referenceNumber: string;
   type: 'Degree' | 'Postgraduate' | 'License' | 'Research' | 'Other';
+  fileId: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
   fileSize: string;
   uploadedAt: string;
 }
@@ -133,6 +137,10 @@ function toApplicationRecord(detail: AdminMemberDetail): ApplicationRecord {
       type: (['Degree', 'Postgraduate', 'License', 'Research'].includes(c.type)
         ? c.type
         : 'Other') as CredentialDocument['type'],
+      fileId: c.fileId,
+      fileName: c.fileName,
+      mimeType: c.mimeType,
+      sizeBytes: c.sizeBytes,
       fileSize: c.fileSize,
       uploadedAt: c.uploadedAt,
     })),
@@ -380,39 +388,39 @@ export default function AdminMemberDetailPage() {
    * then stream the file. No storage paths or pre-signed URLs are exposed to
    * the frontend — this follows spec §40 and architecture §F.5.
    */
-  const viewCredential = (cred: CredentialDocument) => {
+  const credentialBlob = async (cred: CredentialDocument) => {
+    if (!cred.fileId) throw new Error('No file is attached to this credential.');
+    const res = await apiClient.get(`/files/${cred.fileId}/download`, { responseType: 'blob' });
+    return res.data as Blob;
+  };
+
+  const viewCredential = async (cred: CredentialDocument) => {
     setDocumentPreview(cred);
-    const token = 'auth-token-attached-via-cookie';
-    const auditId = `audit-${Date.now()}`;
-    void token;
-    void auditId;
-    void window.open(
-      `${apiClient.defaults.baseURL}/admin/credentials/${cred.id}/view?requestId=${auditId}`,
-      '_blank',
-      'noopener,noreferrer'
-    );
+    setActionError(null);
+    try {
+      const blob = await credentialBlob(cred);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not open this credential.');
+    }
   };
 
   const downloadCredential = async (cred: CredentialDocument) => {
+    setActionError(null);
     try {
-      const auditId = `audit-${Date.now()}`;
-      const res = await apiClient.get(
-        `/admin/credentials/${cred.id}/download`,
-        {
-          responseType: 'blob',
-          headers: { 'X-Audit-Request-Id': auditId },
-        }
-      );
-      const blob = res.data as Blob;
+      const blob = await credentialBlob(cred);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `[IFSMHP-CONFIDENTIAL]-${cred.id}.pdf`;
+      a.download = cred.fileName ?? `[IFSMHP-CONFIDENTIAL]-${cred.id}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-    } catch {
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not download this credential.');
       setDocumentPreview(cred);
     }
   };
@@ -740,7 +748,8 @@ export default function AdminMemberDetailPage() {
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-subtle">
                           <div className="flex items-center gap-3">
-                            <span className="inline-flex items-center gap-1"><FileText className="h-3 w-3" />{c.fileSize}</span>
+                            <span className="inline-flex items-center gap-1"><FileText className="h-3 w-3" />{c.fileName ?? c.fileSize}</span>
+                            {c.sizeBytes !== null && <span>{c.fileSize}</span>}
                             <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />Uploaded {formatDateShort(c.uploadedAt)}</span>
                             <span className="inline-flex items-center gap-1 text-success-600 font-medium">
                               <Lock className="h-3 w-3" />
@@ -764,11 +773,11 @@ export default function AdminMemberDetailPage() {
                       <div className="mt-4 rounded-lg border border-paper-border bg-paper p-3 text-xs text-ink-muted">
                         <div className="flex items-center gap-2 mb-1.5">
                           <ShieldCheck className="h-4 w-4 text-success-600" />
-                          <span className="font-semibold text-ink">Secure access (simulated — API pending)</span>
+                          <span className="font-semibold text-ink">Secure credential access</span>
                         </div>
                         <p>
-                          Production calls: <code className="bg-forum-50 px-1 rounded font-mono">GET /api/v1/admin/credentials/{c.id}/view</code> (authorized stream, in-popup viewer) and
-                          <code className="bg-forum-50 px-1 rounded font-mono mx-1">/download</code> (blobs named <code className="font-mono">[IFSMHP-CONFIDENTIAL]-{c.id}.pdf</code> with audit headers). Storage paths never leave the server.
+                          This file is streamed through the authorized file endpoint and audited on access. Storage paths never leave the server.
+                          {c.mimeType && <span className="ml-1">Detected type: <code className="bg-forum-50 px-1 rounded font-mono">{c.mimeType}</code>.</span>}
                         </p>
                       </div>
                     )}

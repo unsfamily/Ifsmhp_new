@@ -2,7 +2,7 @@
   "name": "ifsmhp-platform",
   "version": "0.1.0",
   "private": true,
-  "description": "International Forum of Scientists and Mental Health Professionals — website and membership management platform",
+  "description": "International Forum of Scientists and Mental Health Professionals \u2014 website and membership management platform",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -15,6 +15,8 @@
     "typecheck": "npm --prefix backend run typecheck && npm --prefix frontend run typecheck",
     "lint": "npm --prefix backend run lint && npm --prefix frontend run lint",
     "test": "npm --prefix backend run test",
+    "db:setup": "npm --prefix backend run db:setup --",
+    "db:bootstrap": "npm --prefix backend run db:bootstrap",
     "db:generate": "npm --prefix backend run db:generate",
     "db:migrate": "npm --prefix backend run db:migrate",
     "db:seed": "npm --prefix backend run db:seed",

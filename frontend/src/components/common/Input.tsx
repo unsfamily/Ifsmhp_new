@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useId,
+  useState,
   InputHTMLAttributes,
   TextareaHTMLAttributes,
   SelectHTMLAttributes,
@@ -150,17 +151,42 @@ export const Checkbox = forwardRef<
 
 export const FileInput = forwardRef<
   HTMLInputElement,
-  BaseInputProps & InputHTMLAttributes<HTMLInputElement>
->(function FileInput({ label, error, hint, className = '', icon: _icon, accept, ...rest }, ref) {
+  BaseInputProps & InputHTMLAttributes<HTMLInputElement> & {
+    /** Receives dropped files. Without it the drop zone is click-only. */
+    onFiles?: (files: FileList) => void;
+  }
+>(function FileInput({ label, error, hint, className = '', icon: _icon, accept, onFiles, ...rest }, ref) {
+  const generatedId = useId();
+  const id = rest.id ?? generatedId;
+  const [dragging, setDragging] = useState(false);
+
   return (
     <div className={className}>
       {label && (
-        <label className="mb-1.5 block text-sm font-medium text-ink">
+        <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-ink">
           {label}
           {rest.required && <span className="ml-1 text-danger-600">*</span>}
         </label>
       )}
-      <div className="flex justify-center rounded-md border-2 border-dashed border-paper-border bg-paper px-6 py-8 transition-colors hover:border-forum-400">
+      {/*
+        The whole dashed area is the label, so clicking anywhere in it opens the
+        picker — previously only the "Upload a file" text was clickable, which
+        read as a dead control.
+      */}
+      <label
+        htmlFor={id}
+        onDragOver={(event) => { if (onFiles) { event.preventDefault(); setDragging(true); } }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          if (!onFiles) return;
+          event.preventDefault();
+          setDragging(false);
+          if (event.dataTransfer.files?.length) onFiles(event.dataTransfer.files);
+        }}
+        className={`flex cursor-pointer justify-center rounded-md border-2 border-dashed bg-paper px-6 py-8 transition-colors focus-within:border-forum-600 ${
+          dragging ? 'border-forum-600 bg-forum-50' : 'border-paper-border hover:border-forum-400'
+        }`}
+      >
         <div className="text-center">
           <svg
             className="mx-auto h-10 w-10 text-ink-subtle"
@@ -176,21 +202,20 @@ export const FileInput = forwardRef<
             />
           </svg>
           <div className="mt-3 flex text-sm text-ink-muted">
-            <label className="relative cursor-pointer rounded-md font-medium text-forum-600 hover:text-forum-700 focus-within:outline-none">
-              <span>Upload a file</span>
-              <input
-                ref={ref}
-                type="file"
-                accept={accept}
-                className="sr-only"
-                {...rest}
-              />
-            </label>
+            <span className="font-medium text-forum-600">Upload a file</span>
             <p className="pl-1">or drag and drop</p>
           </div>
           {hint && <p className="mt-1 text-xs text-ink-subtle">{hint}</p>}
         </div>
-      </div>
+        <input
+          ref={ref}
+          id={id}
+          type="file"
+          accept={accept}
+          className="sr-only"
+          {...rest}
+        />
+      </label>
       {error && <p className="mt-1 text-xs text-danger-600">{error}</p>}
     </div>
   );

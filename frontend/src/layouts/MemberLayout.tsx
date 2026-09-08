@@ -100,23 +100,36 @@ export default function MemberLayout() {
                 </p>
                 <p className="flex items-center gap-1 text-[11px] text-brass-100 font-medium">
                   <IdCard className="h-3 w-3" />
-                  {user?.memberId ?? 'Pending ID'}
+                  {user?.memberId ?? 'Not provided'}
                 </p>
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2">
               <Badge variant="brass">
                 <Building2 className="h-2.5 w-2.5 mr-1" />
-                Research Scholar
+                {user?.professionalType ?? 'Not provided'}
               </Badge>
               <Badge variant="info" className="bg-slateteal-500/20 text-slateteal-100">
-                Active
+                {user?.status ? user.status.charAt(0) + user.status.slice(1).toLowerCase() : 'Not provided'}
               </Badge>
             </div>
           </div>
         </div>
 
         <nav className="p-3 overflow-y-auto h-[calc(100%-17rem)] space-y-1">
+          {/* Admins reach the member portal via "Member View" in the admin
+              header; without this they would have no way back but the URL bar. */}
+          {user?.role === 'ADMIN' && (
+            <Link
+              to="/admin"
+              onClick={() => setSidebarOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 mb-2 rounded-lg text-sm font-medium bg-brass-500/15 text-brass-100 ring-1 ring-brass-500/30 hover:bg-brass-500/25 hover:text-white transition-colors"
+            >
+              <ShieldCheck className="h-4.5 w-4.5 shrink-0" />
+              <span className="flex-1">Back to Admin Dashboard</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
           <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-forum-200/40">
             Menu
           </p>

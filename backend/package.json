@@ -2,7 +2,7 @@
   "name": "ifsmhp-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "IFSMHP platform — REST API",
+  "description": "IFSMHP platform \u2014 REST API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch server.ts",
@@ -12,6 +12,8 @@
     "lint": "eslint \"**/*.ts\"",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:setup": "tsx scripts/setup-database.ts",
+    "db:bootstrap": "tsx scripts/bootstrap-database.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",

@@ -1,4 +1,7 @@
 import { apiClient } from './client';
+import type { ProjectStatusLabel, SupportKindLabel } from './member';
+
+export type { ProjectStatusLabel, SupportKindLabel };
 
 interface Envelope<T> {
   success: true;
@@ -77,7 +80,19 @@ export interface AdminMemberDetail {
   biography: string | null;
   researchInterests: string[];
   education: { id: string; degree: string; institution: string; field?: string | null; endYear?: string | null; detail?: string | null }[];
-  credentials: { id: string; title: string; issuer: string | null; year: string | null; type: string; fileSize: string; uploadedAt: string }[];
+  credentials: {
+    id: string;
+    title: string;
+    issuer: string | null;
+    year: string | null;
+    type: string;
+    fileName: string | null;
+    mimeType: string | null;
+    sizeBytes: number | null;
+    fileSize: string;
+    uploadedAt: string;
+    fileId: string | null;
+  }[];
   credentialsText: string;
   educationText: string;
   researchText: string;
@@ -96,6 +111,72 @@ export interface AdminMemberDetail {
   memberId: string | null;
 }
 
+/** Raw enum values the transition endpoints expect, unlike the display labels used for filtering. */
+export type ProjectStatusValue =
+  | 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'PUBLISHED' | 'ARCHIVED';
+
+/** One row of the project review queue, as returned by `GET /admin/projects`. */
+export interface AdminProjectRow {
+  id: string;
+  title: string;
+  category: string;
+  status: ProjectStatusLabel;
+  support: SupportKindLabel[];
+  /** ISO timestamp, or null while the project is still a draft. */
+  submitted: string | null;
+  updated: string;
+  views: number;
+  priority: string;
+  description: string;
+  member?: string;
+  memberId?: string | null;
+  /** Days the project has waited since submission — drives the SLA colouring. */
+  queueDays: number;
+}
+
+/** Standing KPIs for the queue, computed over every live project rather than the filtered page. */
+export interface AdminProjectCounts {
+  total: number;
+  inReview: number;
+  approved: number;
+  published: number;
+  slaBreach: number;
+  urgent: number;
+}
+
+export interface AdminProjectsResult {
+  items: AdminProjectRow[];
+  pagination: { page: number; limit: number; total: number; pages: number };
+  counts: AdminProjectCounts;
+  /** Distinct categories actually present in the data, for the filter dropdown. */
+  categories: string[];
+}
+
+export interface AdminProjectHistoryEntry {
+  id: string;
+  from: ProjectStatusLabel | null;
+  to: ProjectStatusLabel;
+  note: string | null;
+  actor: string;
+  at: string;
+}
+
+export interface AdminProjectFile {
+  id: string;
+  name: string;
+  kind: string;
+  size: number;
+}
+
+export interface AdminProjectDetail extends AdminProjectRow {
+  timeline: string | null;
+  budget: string | null;
+  files: AdminProjectFile[];
+  resourceLinks: { id: string; url: string; label: string | null }[];
+  history: AdminProjectHistoryEntry[];
+  linkedSupport: { id: string; status: string } | null;
+}
+
 const get = async (url: string, params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>(url, { params })).data.data;
 const post = async (url: string, payload?: unknown) => (await apiClient.post<Envelope<unknown>>(url, payload ?? {})).data.data;
 const patch = async (url: string, payload?: unknown) => (await apiClient.patch<Envelope<unknown>>(url, payload ?? {})).data.data;
@@ -111,9 +192,14 @@ export const adminApi = {
   resendApprovalEmail: (id: string) =>
     post(`/admin/members/${id}/resend-approval-email`) as Promise<{ emailSent: boolean; emailError?: string }>,
   rejectMember: (id: string, reason: string) => post(`/admin/members/${id}/reject`, { reason }),
-  projects: (params?: Record<string, unknown>) => get('/admin/projects', params),
-  project: (id: string) => get(`/admin/projects/${id}`),
-  transitionProject: (id: string, status: string, reviewNotes?: string) => patch(`/admin/projects/${id}/status`, { status, reviewNotes }),
+  projects: (params?: Record<string, unknown>) => get('/admin/projects', params) as Promise<AdminProjectsResult>,
+  project: (id: string) => get(`/admin/projects/${id}`) as Promise<AdminProjectDetail>,
+  /** Any move in the state machine. Takes the raw enum value, not the display label. */
+  transitionProject: (id: string, status: ProjectStatusValue, reviewNotes?: string) =>
+    patch(`/admin/projects/${id}/status`, { status, reviewNotes }),
+  approveProject: (id: string, reviewNotes?: string) => post(`/admin/projects/${id}/approve`, { reviewNotes }),
+  /** Notes are mandatory — the server refuses a rejection under 10 characters. */
+  rejectProject: (id: string, reviewNotes: string) => post(`/admin/projects/${id}/reject`, { reviewNotes }),
   publications: (params?: Record<string, unknown>) => get('/admin/publications', params),
   publication: (id: string) => get(`/admin/publications/${id}`),
   publishPublication: (id: string) => post(`/admin/publications/${id}/publish`),

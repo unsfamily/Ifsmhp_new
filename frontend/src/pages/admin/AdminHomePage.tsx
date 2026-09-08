@@ -450,7 +450,7 @@ export default function AdminHomePage() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Link
-                to="/admin/notifications"
+                to="/admin/announcements"
                 className="relative inline-flex items-center justify-center rounded-lg h-10 w-10 text-ink-muted hover:bg-forum-50 hover:text-forum-700 transition-colors border border-paper-border bg-paper"
                 aria-label="Notifications"
               >

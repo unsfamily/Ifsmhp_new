@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   UserPlus,
@@ -10,17 +10,31 @@ import {
   FileCheck2,
   Briefcase,
   Send,
+  Upload,
+  FileText,
+  Eye,
+  Download,
+  Trash2,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Button from '../../components/common/Button';
-import { TextInput, TextArea, SelectInput, Checkbox, FileInput } from '../../components/common/Input';
+import { TextInput, TextArea, SelectInput, Checkbox } from '../../components/common/Input';
 import OtpCodeStep from '../../components/auth/OtpCodeStep';
 import Badge from '../../components/common/Badge';
 import logoImg from '../../assets/images/logo.png';
-import { requestOtp } from '../../api/auth';
+import {
+  removeRegistrationDocument,
+  requestOtp,
+  uploadRegistrationDocument,
+  type RegistrationDocumentKind,
+  type RegistrationDocumentUpload,
+} from '../../api/auth';
 import { normalizeError } from '../../api/client';
+import { formatBytes } from '../../utils/formatBytes';
 import { useAuth } from '../../context/AuthContext';
 import { useOtpFlow } from '../../hooks/useOtpFlow';
 
@@ -51,11 +65,71 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
+type UploadStatus = 'idle' | 'uploading' | 'uploaded' | 'removing' | 'failed';
+
+type UploadState = {
+  status: UploadStatus;
+  file: File | null;
+  uploaded: RegistrationDocumentUpload | null;
+  previewUrl: string | null;
+  error: string | null;
+};
+
+const documentSlots: Array<{
+  kind: RegistrationDocumentKind;
+  label: string;
+  accept: string;
+  hint: string;
+}> = [
+  { kind: 'CV', label: 'CV / Resume', accept: '.pdf,.doc,.docx', hint: 'PDF, DOC, DOCX (max 10MB)' },
+  {
+    kind: 'CREDENTIAL',
+    label: 'Credentials / Certifications',
+    accept: '.pdf,.doc,.docx,.jpg,.jpeg,.png',
+    hint: 'Scanned degrees, licenses, certificates (max 10MB)',
+  },
+];
+
+const initialUploadState = (): Record<RegistrationDocumentKind, UploadState> => ({
+  CV: { status: 'idle', file: null, uploaded: null, previewUrl: null, error: null },
+  CREDENTIAL: { status: 'idle', file: null, uploaded: null, previewUrl: null, error: null },
+});
+
+const allowedExtensions = new Set(['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png']);
+const previewMimeTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
+
+function fileExtension(fileName: string) {
+  return fileName.split('.').pop()?.toLowerCase() ?? '';
+}
+
+function readableType(mimeType: string, fileName: string) {
+  const ext = fileExtension(fileName).toUpperCase();
+  if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType === 'application/msword') return 'DOC';
+  if (mimeType.includes('wordprocessingml')) return 'DOCX';
+  if (mimeType === 'image/jpeg') return 'JPG';
+  if (mimeType === 'image/png') return 'PNG';
+  return ext || mimeType;
+}
+
+function clientFileError(file: File) {
+  if (file.size <= 0) return 'Choose a non-empty file.';
+  if (file.size > 10 * 1024 * 1024) return 'Upload a file under 10 MB.';
+  if (!allowedExtensions.has(fileExtension(file.name))) return 'Upload a PDF, DOC, DOCX, JPG, or PNG file.';
+  return null;
+}
+
+function makePreviewUrl(file: File, mimeType: string) {
+  if (!previewMimeTypes.has(mimeType) && !previewMimeTypes.has(file.type)) return null;
+  return URL.createObjectURL(file);
+}
 
 export default function RegisterPage() {
   const { refreshUser } = useAuth();
   const [submitted, setSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [documentUploads, setDocumentUploads] = useState(initialUploadState);
+  const documentUploadsRef = useRef(documentUploads);
 
   // The code step, its countdown, and its persistence across a refresh all live
   // in the shared flow. The account is created only when `submit` succeeds.
@@ -76,6 +150,139 @@ export default function RegisterPage() {
     resolver: zodResolver(schema),
   });
 
+  useEffect(() => {
+    documentUploadsRef.current = documentUploads;
+  }, [documentUploads]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(documentUploadsRef.current).forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+  }, []);
+
+  const documentClaims = documentSlots
+    .map((slot) => {
+      const uploaded = documentUploads[slot.kind].uploaded;
+      return uploaded ? { kind: slot.kind, fileId: uploaded.id, claimToken: uploaded.claimToken } : null;
+    })
+    .filter(Boolean) as Array<{ kind: RegistrationDocumentKind; fileId: string; claimToken: string }>;
+
+  const documentsReady = documentSlots.every((slot) => documentUploads[slot.kind].status === 'uploaded' && documentUploads[slot.kind].uploaded);
+  const documentsBusy = documentSlots.some((slot) => ['uploading', 'removing'].includes(documentUploads[slot.kind].status));
+  const documentsFailed = documentSlots.some((slot) => documentUploads[slot.kind].status === 'failed');
+
+  const replacePreview = (kind: RegistrationDocumentKind, nextUrl: string | null) => {
+    const previous = documentUploads[kind].previewUrl;
+    if (previous) URL.revokeObjectURL(previous);
+    return nextUrl;
+  };
+
+  const handleDocumentSelected = async (kind: RegistrationDocumentKind, file: File | null) => {
+    if (!file) return;
+    setErrorMsg(null);
+
+    const previous = documentUploads[kind];
+    const localError = clientFileError(file);
+    if (localError) {
+      setDocumentUploads((current) => ({
+        ...current,
+        [kind]: {
+          status: 'failed',
+          file,
+          uploaded: null,
+          previewUrl: replacePreview(kind, null),
+          error: localError,
+        },
+      }));
+      return;
+    }
+
+    setDocumentUploads((current) => ({
+      ...current,
+      [kind]: {
+        status: 'uploading',
+        file,
+        uploaded: null,
+        previewUrl: replacePreview(kind, null),
+        error: null,
+      },
+    }));
+
+    try {
+      const uploaded = await uploadRegistrationDocument(file);
+      const previewUrl = makePreviewUrl(file, uploaded.mimeType);
+      setDocumentUploads((current) => ({
+        ...current,
+        [kind]: {
+          status: 'uploaded',
+          file,
+          uploaded,
+          previewUrl,
+          error: null,
+        },
+      }));
+      if (previous.uploaded) {
+        await removeRegistrationDocument({ id: previous.uploaded.id, claimToken: previous.uploaded.claimToken }).catch(() => undefined);
+      }
+    } catch (error) {
+      const normalized = normalizeError(error);
+      setDocumentUploads((current) => ({
+        ...current,
+        [kind]: {
+          status: 'failed',
+          file,
+          uploaded: null,
+          previewUrl: null,
+          error: normalized.fieldErrors.file ?? normalized.message,
+        },
+      }));
+    }
+  };
+
+  const removeDocument = async (kind: RegistrationDocumentKind) => {
+    const current = documentUploads[kind];
+    if (!current.uploaded) {
+      if (current.previewUrl) URL.revokeObjectURL(current.previewUrl);
+      setDocumentUploads((all) => ({
+        ...all,
+        [kind]: { status: 'idle', file: null, uploaded: null, previewUrl: null, error: null },
+      }));
+      return;
+    }
+
+    setDocumentUploads((all) => ({
+      ...all,
+      [kind]: { ...all[kind], status: 'removing', error: null },
+    }));
+    try {
+      await removeRegistrationDocument({ id: current.uploaded.id, claimToken: current.uploaded.claimToken });
+      if (current.previewUrl) URL.revokeObjectURL(current.previewUrl);
+      setDocumentUploads((all) => ({
+        ...all,
+        [kind]: { status: 'idle', file: null, uploaded: null, previewUrl: null, error: null },
+      }));
+    } catch (error) {
+      setDocumentUploads((all) => ({
+        ...all,
+        [kind]: { ...all[kind], status: 'uploaded', error: normalizeError(error).message },
+      }));
+    }
+  };
+
+  const downloadLocalDocument = (state: UploadState) => {
+    if (!state.file) return;
+    const url = URL.createObjectURL(state.file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = state.uploaded?.name ?? state.file.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   /** Builds the registration payload the API expects from the current form. */
   const payloadFrom = (data: FormData) => ({
     purpose: 'REGISTER' as const,
@@ -86,11 +293,22 @@ export default function RegisterPage() {
     credentials: data.credentials,
     education: data.education,
     researchInterests: data.researchInterests,
+    documents: documentClaims,
     agreeTerms: data.agreeTerms,
   });
 
   const onSubmit = async (data: FormData) => {
     setErrorMsg(null);
+    if (!documentsReady || documentClaims.length !== documentSlots.length) {
+      setErrorMsg('Upload both required documents before submitting your application.');
+      setDocumentUploads((current) => ({
+        CV: current.CV.uploaded ? current.CV : { ...current.CV, error: 'Upload your CV / Resume.' },
+        CREDENTIAL: current.CREDENTIAL.uploaded
+          ? current.CREDENTIAL
+          : { ...current.CREDENTIAL, error: 'Upload your Credentials / Certifications.' },
+      }));
+      return;
+    }
     try {
       // Only enters the code step once the backend confirms a code was really
       // sent; a delivery failure throws and is surfaced below.
@@ -341,16 +559,143 @@ export default function RegisterPage() {
                     Document Upload
                   </h2>
                   <div className="mt-5 grid gap-5 sm:grid-cols-2">
-                    <FileInput
-                      label="CV / Resume"
-                      accept=".pdf,.doc,.docx"
-                      hint="PDF, DOC, DOCX (max 10MB)"
-                    />
-                    <FileInput
-                      label="Credentials / Certifications"
-                      accept=".pdf,.doc,.docx,.jpg,.png"
-                      hint="Scanned degrees, licenses, certificates"
-                    />
+                    {documentSlots.map((slot) => {
+                      const state = documentUploads[slot.kind];
+                      const uploaded = state.uploaded;
+                      const statusText =
+                        state.status === 'uploading'
+                          ? 'Uploading...'
+                          : state.status === 'removing'
+                            ? 'Removing...'
+                            : state.status === 'uploaded'
+                              ? 'Uploaded'
+                              : state.status === 'failed'
+                                ? 'Upload failed'
+                                : 'Required';
+                      const statusClass =
+                        state.status === 'uploaded'
+                          ? 'bg-success-100 text-success-600'
+                          : state.status === 'failed'
+                            ? 'bg-danger-100 text-danger-600'
+                            : ['uploading', 'removing'].includes(state.status)
+                              ? 'bg-forum-50 text-forum-700'
+                              : 'bg-warning-100 text-warning-600';
+
+                      return (
+                        <div key={slot.kind}>
+                          <div className="mb-1.5 flex items-center justify-between gap-3">
+                            <label className="block text-sm font-medium text-ink">
+                              {slot.label}
+                              <span className="ml-1 text-danger-600">*</span>
+                            </label>
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass}`}>
+                              {['uploading', 'removing'].includes(state.status) && <RefreshCw className="h-3 w-3 animate-spin" />}
+                              {state.status === 'failed' && <AlertCircle className="h-3 w-3" />}
+                              {state.status === 'uploaded' && <CheckCircle2 className="h-3 w-3" />}
+                              {statusText}
+                            </span>
+                          </div>
+
+                          <div
+                            className={`rounded-lg border ${
+                              state.error
+                                ? 'border-danger-600/40 bg-danger-100/20'
+                                : uploaded
+                                  ? 'border-success-600/25 bg-success-100/20'
+                                  : 'border-dashed border-paper-border bg-paper'
+                            } p-4`}
+                          >
+                            {uploaded ? (
+                              <div className="space-y-3">
+                                <div className="flex items-start gap-3">
+                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-paper-raised text-forum-700 ring-1 ring-paper-border">
+                                    <FileText className="h-5 w-5" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-semibold text-forum-900">{uploaded.name}</p>
+                                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-subtle">
+                                      <span>{readableType(uploaded.mimeType, uploaded.name)}</span>
+                                      <span>{formatBytes(uploaded.sizeBytes)}</span>
+                                      <span>Saved for submission</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {state.error && <p className="text-xs text-danger-600">{state.error}</p>}
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {state.previewUrl && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => window.open(state.previewUrl!, '_blank', 'noopener,noreferrer')}
+                                    >
+                                      <Eye className="h-3.5 w-3.5" />
+                                      Preview
+                                    </Button>
+                                  )}
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => downloadLocalDocument(state)}>
+                                    <Download className="h-3.5 w-3.5" />
+                                    Download
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => removeDocument(slot.kind)}
+                                    disabled={state.status === 'removing'}
+                                  >
+                                    {state.status === 'removing' ? (
+                                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    )}
+                                    Remove
+                                  </Button>
+                                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-forum-600 bg-transparent px-3 py-1.5 text-sm font-medium text-forum-700 transition-colors hover:bg-forum-50">
+                                    <Upload className="h-3.5 w-3.5" />
+                                    Replace
+                                    <input
+                                      type="file"
+                                      accept={slot.accept}
+                                      className="sr-only"
+                                      disabled={state.status === 'removing'}
+                                      onChange={(event) => {
+                                        void handleDocumentSelected(slot.kind, event.currentTarget.files?.[0] ?? null);
+                                        event.currentTarget.value = '';
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center">
+                                <Upload className="mx-auto h-9 w-9 text-ink-subtle" />
+                                <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-lg bg-forum-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-forum-700">
+                                  {state.status === 'uploading' ? 'Uploading...' : 'Upload file'}
+                                  <input
+                                    type="file"
+                                    accept={slot.accept}
+                                    className="sr-only"
+                                    disabled={state.status === 'uploading'}
+                                    onChange={(event) => {
+                                      void handleDocumentSelected(slot.kind, event.currentTarget.files?.[0] ?? null);
+                                      event.currentTarget.value = '';
+                                    }}
+                                  />
+                                </label>
+                                <p className="mt-2 text-xs text-ink-subtle">{slot.hint}</p>
+                                {state.status === 'uploading' && (
+                                  <p className="mt-2 text-xs font-medium text-forum-700">Uploading and validating document...</p>
+                                )}
+                                {state.error && <p className="mt-2 text-xs text-danger-600">{state.error}</p>}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -383,9 +728,22 @@ export default function RegisterPage() {
                       Sign in instead
                     </Link>
                   </p>
-                  <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={isSubmitting}>
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full sm:w-auto"
+                    disabled={isSubmitting || documentsBusy || documentsFailed || !documentsReady}
+                  >
                     <Send className="h-4.5 w-4.5" />
-                    {isSubmitting ? 'Submitting Application...' : 'Submit Application'}
+                    {isSubmitting
+                      ? 'Submitting Application...'
+                      : documentsBusy
+                        ? 'Uploading Documents...'
+                        : documentsFailed
+                          ? 'Fix Document Upload'
+                        : !documentsReady
+                          ? 'Upload Required Documents'
+                          : 'Submit Application'}
                     {!isSubmitting && <ArrowRight className="h-4.5 w-4.5" />}
                   </Button>
                 </div>

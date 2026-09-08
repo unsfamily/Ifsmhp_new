@@ -22,7 +22,7 @@ import Button from '../../components/common/Button';
 import { TextInput, Checkbox } from '../../components/common/Input';
 import OtpCodeStep from '../../components/auth/OtpCodeStep';
 import logoImg from '../../assets/images/logo.png';
-import { useAuth } from '../../context/AuthContext';
+import { homePathFor, useAuth } from '../../context/AuthContext';
 import { requestOtp, type SessionUser } from '../../api/auth';
 import { normalizeError, type NormalizedApiError } from '../../api/client';
 import { useOtpFlow } from '../../hooks/useOtpFlow';
@@ -47,8 +47,14 @@ export default function LoginPage() {
 
   const routeAfterLogin = (user: SessionUser) => {
     const state = location.state as { from?: { pathname?: string } } | null;
-    const fallback = user.role === 'ADMIN' ? '/admin' : '/dashboard';
-    navigate(state?.from?.pathname ?? fallback, { replace: true });
+    const from = state?.from?.pathname;
+    const home = homePathFor(user.role);
+    // Resume the pre-login page only when this role actually belongs there.
+    // `from` is stamped by RequireAuth on any bounce — including the one that
+    // follows a sign-out — so without this check an admin signing in after a
+    // member signed out of /dashboard would land in the member portal.
+    const target = from === home || from?.startsWith(`${home}/`) ? from : home;
+    navigate(target, { replace: true });
   };
 
   return (

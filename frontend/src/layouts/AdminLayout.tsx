@@ -16,6 +16,7 @@ import {
   Calendar,
   Mail,
   History,
+  BarChart3,
   Settings,
   UserCircle,
   Clock,
@@ -86,7 +87,8 @@ const navSections: NavSection[] = [
   {
     heading: 'Administration',
     items: [
-      { to: '/admin/notifications', label: 'Notifications', icon: Bell },
+      { to: '/admin/announcements', label: 'Announcements', icon: Bell },
+      { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
       { to: '/admin/audit-log', label: 'Audit Log', icon: History },
     ],
   },
@@ -268,7 +270,7 @@ export default function AdminLayout() {
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
               <Link
-                to="/admin/notifications"
+                to="/admin/announcements"
                 className="relative inline-flex items-center justify-center rounded-md h-9 w-9 text-ink-muted hover:bg-forum-50 hover:text-forum-700 transition-colors"
                 aria-label="Notifications"
               >

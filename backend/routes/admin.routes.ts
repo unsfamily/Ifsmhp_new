@@ -16,6 +16,44 @@ const noteBody = z.object({
   comment: z.string().max(4000).optional(),
   response: z.string().max(4000).optional(),
 });
+const PROJECT_STATUS_VALUES = ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'PUBLISHED', 'ARCHIVED'] as const;
+/** Display labels the projects grid filters by, mirroring projectStatusLabel. */
+const PROJECT_STATUS_LABELS = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Published', 'Archived'] as const;
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD');
+
+/**
+ * Validated here because labelToProjectStatus falls back to DRAFT on an
+ * unrecognized label — an unchecked typo would quietly return the wrong set.
+ */
+const projectListQuery = z.object({
+  q: z.string().max(200).optional(),
+  search: z.string().max(200).optional(),
+  status: z.enum(['All', ...PROJECT_STATUS_LABELS]).optional(),
+  category: z.string().max(120).optional(),
+  priority: z.string().max(40).optional(),
+  member: z.string().max(200).optional(),
+  submittedFrom: isoDate.optional(),
+  submittedTo: isoDate.optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+/** A rejection must explain itself; every other note stays optional. */
+const rejectionNote = z.string().trim().min(service.REJECTION_NOTE_MIN, 'Explain the decision in at least 10 characters').max(4000);
+const projectRejectBody = z
+  .object({ reviewNotes: rejectionNote.optional(), reason: rejectionNote.optional() })
+  .refine((value) => Boolean(value.reviewNotes ?? value.reason), {
+    path: ['reviewNotes'],
+    message: 'Review notes are required when rejecting a project',
+  });
+
+const projectStatusBody = noteBody
+  .extend({ status: z.enum(PROJECT_STATUS_VALUES) })
+  .refine(
+    (value) => value.status !== 'REJECTED' || (value.reviewNotes ?? value.reason ?? '').trim().length >= service.REJECTION_NOTE_MIN,
+    { path: ['reviewNotes'], message: 'Review notes are required when rejecting a project' },
+  );
+
 const messageBody = z.object({ body: z.string().min(1).max(8000) });
 const inquiryReplyBody = z.object({ text: z.string().min(1).max(8000) });
 const eventBody = z.object({
@@ -74,7 +112,7 @@ router.post('/members/:id/reject', validate({ params: idParams, body: noteBody.e
   sendSuccess(res, await service.rejectMember(req.params.id!, req.user!.id, req.body.reason, req.body.reviewNotes), 'Application rejected');
 }));
 
-router.get('/projects', asyncHandler(async (req, res) => {
+router.get('/projects', validate({ query: projectListQuery }), asyncHandler(async (req, res) => {
   sendSuccess(res, await service.adminProjects(req), 'Projects list');
 }));
 
@@ -88,9 +126,9 @@ const transitionProject = (next: ProjectStatus, message: string) =>
   });
 
 router.post('/projects/:id/approve', validate({ params: idParams, body: noteBody }), transitionProject('APPROVED', 'Project approved'));
-router.post('/projects/:id/reject', validate({ params: idParams, body: noteBody }), transitionProject('REJECTED', 'Project rejected'));
-router.patch('/projects/:id/status', validate({ params: idParams, body: noteBody.extend({ status: z.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'PUBLISHED', 'ARCHIVED']) }) }), asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.transitionProject(req.params.id!, req.user!.id, req.body.status, req.body.reviewNotes), 'Project status updated');
+router.post('/projects/:id/reject', validate({ params: idParams, body: projectRejectBody }), transitionProject('REJECTED', 'Project rejected'));
+router.patch('/projects/:id/status', validate({ params: idParams, body: projectStatusBody }), asyncHandler(async (req, res) => {
+  sendSuccess(res, await service.transitionProject(req.params.id!, req.user!.id, req.body.status, req.body.reviewNotes ?? req.body.reason), 'Project status updated');
 }));
 
 router.get('/publications', asyncHandler(async (req, res) => {

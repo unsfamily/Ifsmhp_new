@@ -98,27 +98,56 @@ Never commit a real `.env`. See `backend/.env.example` and `frontend/.env.exampl
 
 ## MySQL Setup
 
-```bash
-mysql -u root -p
-CREATE DATABASE ifsmhp_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'ifsmhp'@'localhost' IDENTIFIED BY 'ifsmhp';
-GRANT ALL PRIVILEGES ON ifsmhp_platform.* TO 'ifsmhp'@'localhost';
-FLUSH PRIVILEGES;
+One command does the whole thing:
 
-# backend/.env
-DATABASE_URL="mysql://ifsmhp:ifsmhp@localhost:3306/ifsmhp_platform"
+```bash
+npm run db:setup
 ```
+
+It creates `backend/.env` from the template if you don't have one (generating a
+database password and JWT secrets), creates the database with the `utf8mb4` /
+`utf8mb4_unicode_ci` collation the migrations expect, creates the application
+user, applies migrations, generates the Prisma client, and seeds development
+data. Re-running it is safe: it only creates what is missing, applies pending
+migrations, and skips seeding when the database already has users.
+
+To create the database and user for you, give it an admin login — the
+application user deliberately has no privilege to do that itself:
+
+```bash
+# backend/.env — optional, only read by db:setup, never stored
+ADMIN_DATABASE_URL="mysql://root:<root-password>@localhost:3306"
+```
+
+Leave it unset if the database and user already exist; setup skips that step and
+carries on. If it cannot connect, it prints the exact SQL to run.
+
+| Command | What it does |
+|---|---|
+| `npm run db:setup` | Idempotent full setup |
+| `npm run db:setup -- --reset` | Drop and rebuild, then reseed. Development only |
+| `NODE_ENV=production npm run db:setup` | Migrate and generate only — refuses all DDL and seeding |
+
+> If a password contains URL-reserved characters it **must** be percent-encoded
+> in `DATABASE_URL`, or the driver reads an empty password. `db:setup` checks
+> for this and fails with a clear message rather than a confusing auth error.
 
 ## Prisma migrations
 
-The schema lives at `backend/database/prisma/schema.prisma`. The first MySQL migration is in `backend/database/prisma/migrations/20260828000000_init_mysql`.
+The schema lives at `backend/database/prisma/schema.prisma`, with migrations in
+`backend/database/prisma/migrations/`. `db:setup` runs these for you; the
+individual commands are:
 
 ```bash
-npm --prefix backend run db:generate
-npm --prefix backend run db:migrate
-npm --prefix backend run db:deploy
-npm --prefix backend run db:studio
+npm --prefix backend run db:generate   # regenerate the Prisma client
+npm --prefix backend run db:deploy     # apply pending migrations
+npm --prefix backend run db:studio     # browse the data
 ```
+
+Note that `db:migrate` (`prisma migrate dev`) needs permission to create a
+shadow database, which the application user does not have. To author a new
+migration, either grant that privilege or generate the SQL with
+`prisma migrate diff` and apply it with `db:deploy`.
 
 ## Seed data
 

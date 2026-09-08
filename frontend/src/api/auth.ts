@@ -10,6 +10,7 @@ export interface SessionUser {
   role: Role;
   status: Status;
   memberId?: string | null;
+  professionalType?: string | null;
   profile?: unknown;
 }
 
@@ -27,7 +28,25 @@ export interface RegisterPayload {
   credentials: string;
   education: string;
   researchInterests: string;
+  documents: RegistrationDocumentClaim[];
   agreeTerms: true;
+}
+
+export type RegistrationDocumentKind = 'CV' | 'CREDENTIAL';
+
+export interface RegistrationDocumentClaim {
+  kind: RegistrationDocumentKind;
+  fileId: string;
+  claimToken: string;
+}
+
+export interface RegistrationDocumentUpload {
+  id: string;
+  claimToken: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedAt: string;
 }
 
 export type OtpPurpose = 'REGISTER' | 'LOGIN';
@@ -65,6 +84,19 @@ export async function requestOtp(
 ) {
   const response = await apiClient.post<Envelope<OtpRequestResult>>('/auth/otp/request', input);
   return response.data.data;
+}
+
+export async function uploadRegistrationDocument(file: File) {
+  const body = new FormData();
+  body.append('file', file);
+  const response = await apiClient.post<Envelope<RegistrationDocumentUpload>>('/files/registration', body, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data.data;
+}
+
+export async function removeRegistrationDocument(payload: { id: string; claimToken: string }) {
+  await apiClient.delete('/files/registration/' + payload.id, { data: { claimToken: payload.claimToken } });
 }
 
 /**

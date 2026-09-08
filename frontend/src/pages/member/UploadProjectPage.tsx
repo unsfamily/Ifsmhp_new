@@ -9,14 +9,20 @@ import {
   Presentation,
   Link2,
   CheckCircle2,
+  Loader2,
+  X,
+  RefreshCw,
+  AlertCircle,
+  Save,
 } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput, FileInput } from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import { useForm } from 'react-hook-form';
-import { memberApi } from '../../api/member';
+import { memberApi, type UploadedFile, type ProjectResourceLinkInput } from '../../api/member';
 import { normalizeError } from '../../api/client';
+import { formatBytes } from '../../utils/formatBytes';
 
 interface FormData {
   title: string;
@@ -29,16 +35,184 @@ interface FormData {
   supportFunding: boolean;
 }
 
+/** Only these map to form inputs; anything else from the server stays in the banner. */
+const FIELD_LABELS: Record<string, string> = {
+  title: 'Project Title',
+  description: 'Project Description',
+  category: 'Research Category',
+  timeline: 'Project Timeline',
+  budget: 'Budget',
+};
+
+/**
+ * Mirrors the Zod schema on `POST /members/me/projects`. Kept in step with the
+ * server so short input is caught inline instead of coming back as a 422.
+ */
+const LIMITS = {
+  title: { min: 4, max: 220 },
+  category: { min: 2, max: 120 },
+  description: { min: 20, max: 15000 },
+  timeline: { max: 200 },
+  budget: { max: 120 },
+} as const;
+
+/** Matches MAX_UPLOAD_MB on the server; re-checked there with magic bytes. */
+const MAX_UPLOAD_MB = 25;
+const MAX_FILES = 10;
+const MAX_LINKS = 20;
+
+const DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx'];
+const PRESENTATION_EXTENSIONS = ['ppt', 'pptx', 'pdf'];
+
+/** One attachment as the UI tracks it, from selection through to an id. */
+interface Attachment {
+  /** Stable key; survives retry so React does not remount the row. */
+  key: string;
+  name: string;
+  sizeBytes: number;
+  status: 'uploading' | 'uploaded' | 'failed';
+  uploaded: UploadedFile | null;
+  error: string | null;
+  file: File;
+}
+
+function extensionOf(name: string) {
+  return name.split('.').pop()?.toLowerCase() ?? '';
+}
+
+/**
+ * Catches the obvious rejections before spending a round trip. The server still
+ * re-validates, including magic bytes, so this is convenience and not the gate.
+ */
+function localFileError(file: File, allowed: string[]) {
+  if (file.size <= 0) return 'That file is empty.';
+  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+    return `That file is ${formatBytes(file.size)}. The limit is ${MAX_UPLOAD_MB} MB.`;
+  }
+  if (!allowed.includes(extensionOf(file.name))) {
+    return `Choose a ${allowed.join(', ').toUpperCase()} file.`;
+  }
+  return null;
+}
+
+/** Accepts only absolute http(s) URLs; the server enforces the same rule. */
+function normalizeLink(raw: string) {
+  const value = raw.trim();
+  if (!value) return { error: 'Enter a URL.' };
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return { error: 'Enter a valid URL, including https://' };
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    return { error: 'Use an HTTP or HTTPS URL.' };
+  }
+  return { url: parsed.href };
+}
+
 export default function UploadProjectPage() {
   const [submitted, setSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
+    setError,
     formState: { isSubmitting, errors },
   } = useForm<FormData>();
 
-  const onSubmit = async (data: FormData) => {
+  const [documents, setDocuments] = useState<Attachment[]>([]);
+  const [presentation, setPresentation] = useState<Attachment | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [links, setLinks] = useState<ProjectResourceLinkInput[]>([]);
+  const [linkDraft, setLinkDraft] = useState('');
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [editingLink, setEditingLink] = useState<number | null>(null);
+
+  const attachments = [...documents, ...(presentation ? [presentation] : [])];
+  const uploadsBusy = attachments.some((a) => a.status === 'uploading');
+  const uploadsFailed = attachments.some((a) => a.status === 'failed');
+
+  /** Uploads one file, threading its progress back into the right slot. */
+  const runUpload = async (attachment: Attachment, slot: 'document' | 'presentation') => {
+    const patch = (next: Partial<Attachment>) => {
+      if (slot === 'presentation') {
+        setPresentation((current) => (current && current.key === attachment.key ? { ...current, ...next } : current));
+      } else {
+        setDocuments((current) => current.map((a) => (a.key === attachment.key ? { ...a, ...next } : a)));
+      }
+    };
+    try {
+      const uploaded = await memberApi.uploadFile(attachment.file);
+      patch({ status: 'uploaded', uploaded, error: null });
+    } catch (error) {
+      const normalized = normalizeError(error);
+      patch({ status: 'failed', uploaded: null, error: normalized.fieldErrors.file ?? normalized.message });
+    }
+  };
+
+  const addFiles = (fileList: FileList, slot: 'document' | 'presentation') => {
+    setFileError(null);
+    const allowed = slot === 'presentation' ? PRESENTATION_EXTENSIONS : DOCUMENT_EXTENSIONS;
+    const chosen = Array.from(fileList);
+
+    if (slot === 'document' && documents.length + chosen.length > MAX_FILES) {
+      setFileError(`Attach no more than ${MAX_FILES} documents.`);
+      return;
+    }
+
+    for (const file of chosen) {
+      const invalid = localFileError(file, allowed);
+      if (invalid) { setFileError(`${file.name}: ${invalid}`); continue; }
+
+      const attachment: Attachment = {
+        key: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: file.name,
+        sizeBytes: file.size,
+        status: 'uploading',
+        uploaded: null,
+        error: null,
+        file,
+      };
+      if (slot === 'presentation') setPresentation(attachment);
+      else setDocuments((current) => [...current, attachment]);
+      void runUpload(attachment, slot);
+      if (slot === 'presentation') break; // single slot
+    }
+  };
+
+  const removeAttachment = (key: string, slot: 'document' | 'presentation') => {
+    setFileError(null);
+    if (slot === 'presentation') setPresentation(null);
+    else setDocuments((current) => current.filter((a) => a.key !== key));
+  };
+
+  const retryAttachment = (attachment: Attachment, slot: 'document' | 'presentation') => {
+    const retrying = { ...attachment, status: 'uploading' as const, error: null };
+    if (slot === 'presentation') setPresentation(retrying);
+    else setDocuments((current) => current.map((a) => (a.key === attachment.key ? retrying : a)));
+    void runUpload(retrying, slot);
+  };
+
+  const commitLink = () => {
+    const result = normalizeLink(linkDraft);
+    if (result.error) { setLinkError(result.error); return; }
+    const url = result.url!;
+    const duplicate = links.some((link, index) => link.url === url && index !== editingLink);
+    if (duplicate) { setLinkError('That link has already been added.'); return; }
+    if (editingLink === null && links.length >= MAX_LINKS) {
+      setLinkError(`Add no more than ${MAX_LINKS} links.`);
+      return;
+    }
+    setLinks((current) => (editingLink === null
+      ? [...current, { url }]
+      : current.map((link, index) => (index === editingLink ? { url } : link))));
+    setLinkDraft('');
+    setLinkError(null);
+    setEditingLink(null);
+  };
+
+  const onSubmit = async (data: FormData, options: { submit: boolean } = { submit: true }) => {
     setErrorMsg(null);
     try {
       await memberApi.createProject({
@@ -52,11 +226,19 @@ export default function UploadProjectPage() {
           data.supportOfficial ? 'Official Support' : null,
           data.supportFunding ? 'Funding Support' : null,
         ].filter(Boolean),
-        submit: true,
+        fileIds: attachments.filter((a) => a.uploaded).map((a) => a.uploaded!.id),
+        resourceLinks: links,
+        submit: options.submit,
       });
       setSubmitted(true);
     } catch (error) {
-      setErrorMsg(normalizeError(error).message);
+      const normalized = normalizeError(error);
+      // Put server-side validation back on the field it belongs to, so a 422
+      // does not surface as a bare "Validation failed" banner.
+      const fields = Object.entries(normalized.fieldErrors)
+        .filter(([field]) => field in FIELD_LABELS) as [keyof FormData, string][];
+      for (const [field, message] of fields) setError(field, { type: 'server', message });
+      setErrorMsg(fields.length ? 'Please correct the highlighted fields.' : normalized.message);
     }
   };
 
@@ -118,7 +300,7 @@ export default function UploadProjectPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit((data) => onSubmit(data, { submit: true }))} className="space-y-6">
           {errorMsg && (
             <div className="rounded-lg border border-danger-600/20 bg-danger-100 p-4 text-sm text-danger-600">
               {errorMsg}
@@ -137,7 +319,11 @@ export default function UploadProjectPage() {
                 placeholder="Descriptive, specific title for your research"
                 required
                 error={errors.title?.message}
-                {...register('title', { required: 'Please enter a project title' })}
+                {...register('title', {
+                  required: 'Please enter a project title',
+                  minLength: { value: LIMITS.title.min, message: `Use at least ${LIMITS.title.min} characters` },
+                  maxLength: { value: LIMITS.title.max, message: `Use no more than ${LIMITS.title.max} characters` },
+                })}
               />
               <SelectInput
                 label="Research Category"
@@ -152,12 +338,16 @@ export default function UploadProjectPage() {
               </SelectInput>
               <TextArea
                 label="Project Description"
-                placeholder="Objectives, methodology, expected outputs, collaborators... (min 50 characters)"
+                placeholder={`Objectives, methodology, expected outputs, collaborators... (min ${LIMITS.description.min} characters)`}
                 rows={6}
                 required
                 hint="Include research questions, study design, and expected impact"
                 error={errors.description?.message}
-                {...register('description', { required: 'Please provide a project description' })}
+                {...register('description', {
+                  required: 'Please provide a project description',
+                  minLength: { value: LIMITS.description.min, message: `Use at least ${LIMITS.description.min} characters` },
+                  maxLength: { value: LIMITS.description.max, message: `Use no more than ${LIMITS.description.max} characters` },
+                })}
               />
               <div className="grid gap-5 sm:grid-cols-2">
                 <TextInput
@@ -165,13 +355,18 @@ export default function UploadProjectPage() {
                   placeholder="e.g. Jan 2026 – Dec 2026 (12 months)"
                   required
                   error={errors.timeline?.message}
-                  {...register('timeline', { required: 'Please specify the timeline' })}
+                  {...register('timeline', {
+                    required: 'Please specify the timeline',
+                    maxLength: { value: LIMITS.timeline.max, message: `Use no more than ${LIMITS.timeline.max} characters` },
+                  })}
                 />
                 <TextInput
                   label="Budget (if applicable)"
                   placeholder="Total budget in USD or N/A"
                   error={errors.budget?.message}
-                  {...register('budget')}
+                  {...register('budget', {
+                    maxLength: { value: LIMITS.budget.max, message: `Use no more than ${LIMITS.budget.max} characters` },
+                  })}
                 />
               </div>
             </CardContent>
@@ -197,17 +392,20 @@ export default function UploadProjectPage() {
                 return (
                   <label
                     key={s.key}
-                    className={`relative rounded-xl border p-5 cursor-pointer transition-all ${
-                      'peer-checked:border-forum-600 bg-paper hover:border-forum-200 border-paper-border'
-                    }`}
+                    /*
+                     * `has-[:checked]` rather than `peer-checked`: the input is a
+                     * descendant here, not a preceding sibling, so the sibling
+                     * combinator `peer-*` compiles to never matches.
+                     */
+                    className="group relative rounded-xl border p-5 cursor-pointer transition-all bg-paper border-paper-border hover:border-forum-200 has-[:checked]:border-forum-600 has-[:checked]:ring-2 has-[:checked]:ring-forum-600/20 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-forum-600"
                   >
                     <input
                       type="checkbox"
-                      className="sr-only peer"
+                      className="sr-only"
                       {...register(s.key as 'supportMoral' | 'supportOfficial' | 'supportFunding')}
                     />
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-forum-50 text-forum-700 peer-checked:bg-forum-600 peer-checked:text-white transition-colors">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-forum-50 text-forum-700 group-has-[:checked]:bg-forum-600 group-has-[:checked]:text-white transition-colors">
                         <Icon className="h-5 w-5" />
                       </div>
                       <div>
@@ -232,17 +430,55 @@ export default function UploadProjectPage() {
               </p>
             </CardHeader>
             <CardContent className="pt-0 grid gap-5 sm:grid-cols-2">
-              <FileInput
-                label="Project Documents"
-                accept=".pdf,.doc,.docx"
-                hint="PDF, DOC, DOCX — Protocol, IRB, manuscript drafts"
-              />
-              <FileInput
-                label="Presentation (optional)"
-                accept=".ppt,.pptx,.pdf"
-                hint="PPT, PPTX, PDF — Deck, poster, symposium materials"
-              />
-              <div className="sm:col-span-2">
+              <div className="min-w-0 space-y-3">
+                <FileInput
+                  label="Project Documents"
+                  accept=".pdf,.doc,.docx"
+                  multiple
+                  hint="PDF, DOC, DOCX — Protocol, IRB, manuscript drafts"
+                  onFiles={(files) => addFiles(files, 'document')}
+                  onChange={(event) => {
+                    if (event.target.files?.length) addFiles(event.target.files, 'document');
+                    event.target.value = ''; // allow re-picking the same file
+                  }}
+                />
+                {documents.map((attachment) => (
+                  <AttachmentRow
+                    key={attachment.key}
+                    attachment={attachment}
+                    onRemove={() => removeAttachment(attachment.key, 'document')}
+                    onRetry={() => retryAttachment(attachment, 'document')}
+                  />
+                ))}
+              </div>
+              <div className="min-w-0 space-y-3">
+                <FileInput
+                  label="Presentation (optional)"
+                  accept=".ppt,.pptx,.pdf"
+                  hint="PPT, PPTX, PDF — Deck, poster, symposium materials"
+                  onFiles={(files) => addFiles(files, 'presentation')}
+                  onChange={(event) => {
+                    if (event.target.files?.length) addFiles(event.target.files, 'presentation');
+                    event.target.value = '';
+                  }}
+                />
+                {presentation && (
+                  <AttachmentRow
+                    attachment={presentation}
+                    onRemove={() => removeAttachment(presentation.key, 'presentation')}
+                    onRetry={() => retryAttachment(presentation, 'presentation')}
+                  />
+                )}
+              </div>
+              {fileError && (
+                <p role="alert" className="sm:col-span-2 flex items-start gap-1.5 text-xs text-danger-600">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  {fileError}
+                </p>
+              )}
+              {/* min-w-0: grid items default to min-width:auto, so without it a
+                  long unbroken URL widens the whole column instead of truncating. */}
+              <div className="min-w-0 sm:col-span-2">
                 <label className="mb-1.5 block text-sm font-medium text-ink">
                   Additional Resources / Links
                 </label>
@@ -253,15 +489,80 @@ export default function UploadProjectPage() {
                         <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-subtle" />
                         <input
                           type="url"
+                          value={linkDraft}
+                          aria-label="Resource URL"
+                          aria-invalid={Boolean(linkError)}
+                          onChange={(event) => { setLinkDraft(event.target.value); setLinkError(null); }}
+                          onKeyDown={(event) => {
+                            // Enter must not submit the whole project form.
+                            if (event.key === 'Enter') { event.preventDefault(); commitLink(); }
+                          }}
                           placeholder="https://... (OSF preregistration, datasets, GitHub)"
-                          className="w-full rounded-md border border-paper-border bg-paper-raised pl-9 pr-3 py-2 text-sm focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600 focus:ring-offset-1 focus:ring-offset-paper"
+                          className={`w-full rounded-md border bg-paper-raised pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-paper ${
+                            linkError
+                              ? 'border-danger-600 focus:border-danger-600 focus:ring-danger-600'
+                              : 'border-paper-border focus:border-forum-600 focus:ring-forum-600'
+                          }`}
                         />
                       </div>
-                      <Button type="button" variant="outline" size="sm">Add</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={commitLink}>
+                        {editingLink === null ? 'Add' : 'Save'}
+                      </Button>
+                      {editingLink !== null && (
+                        <Button
+                          type="button" variant="ghost" size="sm"
+                          onClick={() => { setEditingLink(null); setLinkDraft(''); setLinkError(null); }}
+                        >
+                          Cancel
+                        </Button>
+                      )}
                     </div>
-                    <p className="text-xs text-ink-subtle pl-1">
-                      Paste any relevant URLs above (preregistrations, repositories, supplementary materials).
-                    </p>
+
+                    {linkError ? (
+                      <p role="alert" className="flex items-start gap-1.5 pl-1 text-xs text-danger-600">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        {linkError}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-ink-subtle pl-1">
+                        Paste any relevant URLs above (preregistrations, repositories, supplementary materials).
+                      </p>
+                    )}
+
+                    {links.length > 0 && (
+                      <ul className="space-y-1.5 pt-1">
+                        {links.map((link, index) => (
+                          <li
+                            key={link.url}
+                            className="flex items-center gap-2 rounded-md border border-paper-border bg-paper-raised px-3 py-2 text-sm"
+                          >
+                            <Link2 className="h-3.5 w-3.5 shrink-0 text-ink-subtle" />
+                            {/* min-w-0 so `truncate` can actually shrink inside the flex row. */}
+                            <span className="min-w-0 flex-1 truncate text-ink-muted" title={link.url}>{link.url}</span>
+                            <div className="ml-auto flex shrink-0 items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => { setEditingLink(index); setLinkDraft(link.url); setLinkError(null); }}
+                                className="rounded px-2 py-1 text-xs font-medium text-forum-700 hover:bg-forum-50"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Remove ${link.url}`}
+                                onClick={() => {
+                                  setLinks((current) => current.filter((_, i) => i !== index));
+                                  if (editingLink === index) { setEditingLink(null); setLinkDraft(''); }
+                                }}
+                                className="inline-flex h-6 w-6 items-center justify-center rounded text-ink-subtle hover:bg-danger-100 hover:text-danger-600"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
               </div>
@@ -269,12 +570,35 @@ export default function UploadProjectPage() {
           </Card>
 
           <div className="flex flex-col sm:flex-row justify-end gap-3">
-            <Button type="button" variant="outline" size="lg">
+            {uploadsBusy && (
+              <p className="flex items-center gap-1.5 text-xs text-ink-subtle sm:mr-auto sm:self-center">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Waiting for uploads to finish...
+              </p>
+            )}
+            {uploadsFailed && !uploadsBusy && (
+              <p className="flex items-center gap-1.5 text-xs text-danger-600 sm:mr-auto sm:self-center">
+                <AlertCircle className="h-3.5 w-3.5" />
+                Retry or remove the failed attachment.
+              </p>
+            )}
+            {/*
+              A failed attachment also blocks submit: the member believes the file
+              is attached, and submitting would silently drop it.
+            */}
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              disabled={isSubmitting || uploadsBusy || uploadsFailed}
+              onClick={handleSubmit((data) => onSubmit(data, { submit: false }))}
+            >
+              <Save className="h-4.5 w-4.5" />
               Save Draft
             </Button>
-            <Button type="submit" size="lg" disabled={isSubmitting}>
+            <Button type="submit" size="lg" disabled={isSubmitting || uploadsBusy || uploadsFailed}>
               <Send className="h-4.5 w-4.5" />
-              {isSubmitting ? 'Submitting...' : 'Submit Project'}
+              {isSubmitting ? 'Submitting...' : uploadsBusy ? 'Uploading...' : 'Submit Project'}
             </Button>
           </div>
         </form>
@@ -327,6 +651,59 @@ export default function UploadProjectPage() {
           </CardContent>
         </Card>
       </aside>
+    </div>
+  );
+}
+
+/** One attachment row: progress while uploading, size when done, retry on failure. */
+function AttachmentRow({ attachment, onRemove, onRetry }: {
+  attachment: Attachment;
+  onRemove: () => void;
+  onRetry: () => void;
+}) {
+  const failed = attachment.status === 'failed';
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+        failed ? 'border-danger-600/30 bg-danger-100' : 'border-paper-border bg-paper-raised'
+      }`}
+    >
+      {attachment.status === 'uploading'
+        ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-forum-600" />
+        : failed
+          ? <AlertCircle className="h-4 w-4 shrink-0 text-danger-600" />
+          : <CheckCircle2 className="h-4 w-4 shrink-0 text-success-600" />}
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-ink-muted" title={attachment.name}>{attachment.name}</p>
+        <p className={`text-xs ${failed ? 'text-danger-600' : 'text-ink-subtle'}`}>
+          {attachment.status === 'uploading'
+            ? 'Uploading...'
+            : failed
+              ? attachment.error
+              : formatBytes(attachment.sizeBytes)}
+        </p>
+      </div>
+
+      {failed && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs font-medium text-forum-700 hover:bg-forum-50"
+        >
+          <RefreshCw className="h-3 w-3" />
+          Retry
+        </button>
+      )}
+      <button
+        type="button"
+        aria-label={`Remove ${attachment.name}`}
+        onClick={onRemove}
+        disabled={attachment.status === 'uploading'}
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-subtle hover:bg-danger-100 hover:text-danger-600 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }

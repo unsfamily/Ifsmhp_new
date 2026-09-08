@@ -37,6 +37,11 @@ const registerSchema = z.object({
   researchInterests: z.string().min(10).max(5000),
   country: z.string().max(120).optional(),
   phone: z.string().max(40).optional(),
+  documents: z.array(z.object({
+    kind: z.enum(['CV', 'CREDENTIAL']),
+    fileId: z.string().min(1),
+    claimToken: z.string().min(20),
+  }).strict()).min(2, 'Upload both required documents'),
   agreeTerms: z.literal(true, { invalid_type_error: 'You must agree to the terms' }),
 }).strict();
 

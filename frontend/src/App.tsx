@@ -107,11 +107,9 @@ export default function App() {
         <Route path="events/:id/edit" element={<AdminEditEventPage />} />
         <Route path="events/:id" element={<AdminEditEventPage />} />
         <Route path="inquiries" element={<AdminInquiriesPage />} />
-        <Route path="notifications" element={<AdminAnnouncementsPage />} />
         <Route path="audit-log" element={<AdminAuditLogPage />} />
         <Route path="announcements" element={<AdminAnnouncementsPage />} />
         <Route path="reports" element={<AdminReportsPage />} />
-        <Route path="awards" element={<AdminReportsPage />} />
         <Route path="profile" element={<AdminProfilePage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
       </Route>

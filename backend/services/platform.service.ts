@@ -370,8 +370,12 @@ export async function memberProfile(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      memberProfile: { include: { education: true, interests: true } },
-      publications: { where: { status: 'PUBLISHED' }, take: 10, orderBy: { publishedAt: 'desc' } },
+      memberProfile: { include: { education: true, interests: true, credentials: { include: { file: true } } } },
+      membershipApplication: { select: { status: true } },
+      publications: {
+        where: { status: 'PUBLISHED' }, take: 10, orderBy: { publishedAt: 'desc' },
+        include: { files: { where: { file: { deletedAt: null } }, include: { file: true }, take: 1 } },
+      },
       _count: { select: { projects: true, publications: true, supportRequests: true } },
     },
   });
@@ -387,11 +391,52 @@ export async function memberProfile(userId: string) {
     institution: user.memberProfile.institution,
     country: user.memberProfile.country,
     biography: user.memberProfile.biography,
-    education: user.memberProfile.education,
+    status: user.status,
+    applicationStatus: user.membershipApplication?.status ?? null,
+    approvedAt: user.memberProfile.approvedAt,
+    websiteUrl: user.memberProfile.websiteUrl,
+    scholarUrl: user.memberProfile.scholarUrl,
+    orcid: user.memberProfile.orcid,
+    education: user.memberProfile.education.map(({ id, degree, institution, field, startYear, endYear, detail }) => ({
+      id, degree, institution, field, startYear, endYear, detail,
+    })),
+    credentials: user.memberProfile.credentials.filter((c) => !c.file?.deletedAt).map((c) => ({
+      id: c.id,
+      title: c.title,
+      issuer: c.issuer,
+      year: c.year,
+      referenceNumber: c.referenceNumber,
+      type: c.credentialType,
+      fileId: c.fileId,
+      fileName: c.file?.originalName ?? null,
+      mimeType: c.file?.mimeType ?? null,
+      sizeBytes: c.file?.sizeBytes ?? null,
+      fileSize: c.file ? c.file.sizeBytes < 1024 ? `${c.file.sizeBytes} B` : `${Math.round(c.file.sizeBytes / 1024)} KB` : 'No file',
+      uploadedAt: c.file?.createdAt ?? c.createdAt,
+    })),
     researchInterests: user.memberProfile.interests.map((i) => i.name),
     stats: user._count,
-    publications: user.publications,
+    publications: user.publications.map(({ id, title, venue, publishedAt, doi, files }) => ({
+      id, title, venue, publishedAt, doi,
+      fileId: files[0]?.fileId ?? null,
+      fileName: files[0]?.file.originalName ?? null,
+      mimeType: files[0]?.file.mimeType ?? null,
+    })),
   };
+}
+
+export async function updateMemberProfile(userId: string, input: {
+  phone?: string | null;
+  websiteUrl?: string | null;
+  scholarUrl?: string | null;
+  orcid?: string | null;
+}) {
+  const result = await prisma.memberProfile.updateMany({
+    where: { userId },
+    data: { phone: input.phone, websiteUrl: input.websiteUrl, scholarUrl: input.scholarUrl, orcid: input.orcid },
+  });
+  if (!result.count) throw ApiError.notFound('Profile not found');
+  return memberProfile(userId);
 }
 
 function serializeProject(project: Prisma.ProjectGetPayload<{ include: { supportTypes: true } }> & {
@@ -417,11 +462,15 @@ function serializeProject(project: Prisma.ProjectGetPayload<{ include: { support
 export async function memberProjects(userId: string, req: Request) {
   const pagination = parsePage(req);
   const status = String(req.query.status ?? 'All');
+  const support = String(req.query.support ?? 'All');
   const q = String(req.query.q ?? req.query.search ?? '').trim();
   const where: Prisma.ProjectWhereInput = {
     ownerId: userId,
     deletedAt: null,
     ...(status !== 'All' ? { status: labelToProjectStatus(status) } : {}),
+    // Filtered here rather than on the client so `total` counts the same rows
+    // the grid shows — a page-local filter would misreport the count.
+    ...(support !== 'All' ? { supportTypes: { some: { kind: labelToSupportKind(support) } } } : {}),
     ...(q ? { OR: [{ title: { contains: q } }, { category: { contains: q } }] } : {}),
   };
   const [items, total] = await Promise.all([
@@ -434,14 +483,35 @@ export async function memberProjects(userId: string, req: Request) {
 export async function memberProjectDetail(userId: string, id: string) {
   const project = await prisma.project.findFirst({
     where: { id, ownerId: userId, deletedAt: null },
-    include: { supportTypes: true, histories: true, files: { include: { file: true } } },
+    include: { supportTypes: true, histories: true, files: { include: { file: true } }, resourceLinks: true },
   });
   if (!project) throw ApiError.notFound('Project not found');
   return {
     ...serializeProject(project),
+    // Not in the list serializer, but the detail view and the edit form need them.
+    timeline: project.timeline,
+    budget: project.budget,
     files: project.files.map((f) => ({ id: f.fileId, name: f.file.originalName, kind: f.kind, size: f.file.sizeBytes })),
+    resourceLinks: project.resourceLinks.map((l) => ({ id: l.id, url: l.url, label: l.label })),
     history: project.histories,
   };
+}
+
+/**
+ * Confirms every id belongs to an upload the caller made themselves.
+ *
+ * Without this a member could attach someone else's fileId to their own project
+ * and gain download rights through the project-owner branch of the file ACL.
+ */
+async function assertOwnedFiles(userId: string, fileIds: string[]) {
+  if (!fileIds.length) return [];
+  const unique = [...new Set(fileIds)];
+  const owned = await prisma.fileObject.findMany({
+    where: { id: { in: unique }, uploaderId: userId, deletedAt: null },
+    select: { id: true },
+  });
+  if (owned.length !== unique.length) throw ApiError.notFound('Attachment not found');
+  return unique;
 }
 
 export async function createProject(userId: string, input: {
@@ -451,9 +521,12 @@ export async function createProject(userId: string, input: {
   timeline?: string;
   budget?: string;
   supportTypes?: string[];
+  fileIds?: string[];
+  resourceLinks?: { url: string; label?: string }[];
   submit?: boolean;
 }) {
   const status = input.submit ? 'SUBMITTED' : 'DRAFT';
+  const fileIds = await assertOwnedFiles(userId, input.fileIds ?? []);
   const project = await prisma.project.create({
     data: {
       ownerId: userId,
@@ -465,11 +538,92 @@ export async function createProject(userId: string, input: {
       status,
       submittedAt: input.submit ? new Date() : null,
       supportTypes: { create: (input.supportTypes ?? []).map((kind) => ({ kind: labelToSupportKind(kind) })) },
+      files: { create: fileIds.map((fileId) => ({ fileId, kind: 'PROJECT_DOCUMENT' })) },
+      resourceLinks: { create: (input.resourceLinks ?? []).map(({ url, label }) => ({ url, label: label ?? null })) },
       histories: { create: { toStatus: status, actorId: userId, note: input.submit ? 'Project submitted for review' : 'Project draft saved' } },
     },
     include: { supportTypes: true },
   });
   return serializeProject(project);
+}
+
+/**
+ * Statuses a member may still change themselves. Once the CRO has picked the
+ * project up, edits and deletes belong to the admin transition machine.
+ */
+const MEMBER_EDITABLE: ProjectStatus[] = ['DRAFT', 'SUBMITTED'];
+
+/** Loads a project the caller owns, or throws 404 — "not yours" must not leak (R5). */
+async function loadOwnedProject(userId: string, id: string) {
+  const project = await prisma.project.findFirst({
+    where: { id, ownerId: userId, deletedAt: null },
+    include: { supportTypes: true },
+  });
+  if (!project) throw ApiError.notFound('Project not found');
+  return project;
+}
+
+export async function updateMemberProject(userId: string, id: string, input: {
+  title?: string;
+  category?: string;
+  description?: string;
+  timeline?: string;
+  budget?: string;
+  supportTypes?: string[];
+  submit?: boolean;
+}) {
+  const existing = await loadOwnedProject(userId, id);
+  if (!MEMBER_EDITABLE.includes(existing.status)) {
+    throw ApiError.conflict('Projects under review can no longer be edited');
+  }
+
+  const promoting = input.submit === true && existing.status === 'DRAFT';
+  const scalars = {
+    ...(input.title !== undefined ? { title: input.title } : {}),
+    ...(input.category !== undefined ? { category: input.category } : {}),
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.timeline !== undefined ? { timeline: input.timeline } : {}),
+    ...(input.budget !== undefined ? { budget: input.budget } : {}),
+    ...(promoting ? { status: 'SUBMITTED' as const, submittedAt: new Date() } : {}),
+  };
+
+  const project = await prisma.$transaction(async (tx) => {
+    // @@unique([projectId, kind]) means the set has to be cleared before it is
+    // rewritten, so replacement happens in the same transaction as the update.
+    if (input.supportTypes) {
+      await tx.projectSupportType.deleteMany({ where: { projectId: id } });
+      const kinds = [...new Set(input.supportTypes.map(labelToSupportKind))];
+      if (kinds.length) {
+        await tx.projectSupportType.createMany({ data: kinds.map((kind) => ({ projectId: id, kind })) });
+      }
+    }
+    if (promoting) {
+      await tx.projectStatusHistory.create({
+        data: { projectId: id, fromStatus: existing.status, toStatus: 'SUBMITTED', actorId: userId, note: 'Project submitted for review' },
+      });
+    }
+    return tx.project.update({ where: { id }, data: scalars, include: { supportTypes: true } });
+  });
+
+  return serializeProject(project);
+}
+
+export async function deleteMemberProject(userId: string, id: string) {
+  const existing = await loadOwnedProject(userId, id);
+  if (!MEMBER_EDITABLE.includes(existing.status)) {
+    throw ApiError.conflict('Projects under review can no longer be deleted');
+  }
+
+  // Soft delete: every list query already filters on `deletedAt: null`, and the
+  // history row keeps the audit trail intact.
+  await prisma.$transaction([
+    prisma.project.update({ where: { id }, data: { deletedAt: new Date() } }),
+    prisma.projectStatusHistory.create({
+      data: { projectId: id, fromStatus: existing.status, toStatus: existing.status, actorId: userId, note: 'Project deleted by owner' },
+    }),
+  ]);
+
+  return { id };
 }
 
 export async function memberSupport(userId: string, req: Request) {
@@ -856,8 +1010,11 @@ export async function adminMemberDetail(id: string) {
       year: c.year,
       referenceNumber: c.referenceNumber,
       type: c.credentialType,
+      fileName: c.file?.originalName ?? null,
+      mimeType: c.file?.mimeType ?? null,
+      sizeBytes: c.file?.sizeBytes ?? null,
       fileSize: c.file ? `${Math.round(c.file.sizeBytes / 1024)} KB` : 'No file',
-      uploadedAt: c.createdAt,
+      uploadedAt: c.file?.createdAt ?? c.createdAt,
       fileId: c.fileId,
     })),
     // The free-text answers the applicant actually submitted at registration —
@@ -1055,26 +1212,163 @@ export async function rejectMember(id: string, actorId: string, reason: string, 
   return { status: 'REJECTED', reason };
 }
 
+/** Days a queued project may sit before the review SLA is considered breached. */
+const PROJECT_SLA_DAYS = 7;
+
+/** Shortest review note that counts as an explanation for a rejection. */
+export const REJECTION_NOTE_MIN = 10;
+
+/** Project outcomes worth notifying the owner about. */
+const MEMBER_VISIBLE_TRANSITIONS: ProjectStatus[] = ['UNDER_REVIEW', 'APPROVED', 'REJECTED', 'PUBLISHED'];
+
+/** Statuses that still count as waiting on the CRO. */
+const PROJECT_QUEUE_STATUSES: ProjectStatus[] = ['SUBMITTED', 'UNDER_REVIEW'];
+
+function optionalQuery(req: Request, key: string): string {
+  const value = req.query[key];
+  const text = String(value ?? '').trim();
+  return text && text !== 'All' ? text : '';
+}
+
+/**
+ * Headline counts for the admin projects screen. Deliberately computed over the
+ * whole table rather than the filtered page — these are standing KPIs, so they
+ * must not move when an admin narrows the grid.
+ */
+async function adminProjectCounts() {
+  const live: Prisma.ProjectWhereInput = { deletedAt: null };
+  const slaCutoff = new Date(Date.now() - PROJECT_SLA_DAYS * 86_400_000);
+
+  const [byStatus, slaBreach, urgent] = await Promise.all([
+    prisma.project.groupBy({ by: ['status'], where: live, _count: { _all: true } }),
+    prisma.project.count({
+      where: { ...live, status: { in: PROJECT_QUEUE_STATUSES }, submittedAt: { lte: slaCutoff } },
+    }),
+    prisma.project.count({ where: { ...live, priority: 'Urgent' } }),
+  ]);
+
+  const of = (status: ProjectStatus) => byStatus.find((row) => row.status === status)?._count._all ?? 0;
+
+  return {
+    total: byStatus.reduce((sum, row) => sum + row._count._all, 0),
+    inReview: of('SUBMITTED') + of('UNDER_REVIEW'),
+    approved: of('APPROVED'),
+    published: of('PUBLISHED'),
+    slaBreach,
+    urgent,
+  };
+}
+
 export async function adminProjects(req: Request) {
   const pagination = parsePage(req);
   const q = String(req.query.q ?? req.query.search ?? '').trim();
-  const rows = await prisma.project.findMany({
-    where: q ? { OR: [{ title: { contains: q } }, { category: { contains: q } }, { owner: { fullName: { contains: q } } }] } : {},
-    include: { supportTypes: true, owner: { include: { memberProfile: true } } },
-    orderBy: { updatedAt: 'desc' },
-    ...toSkipTake(pagination),
-  });
-  const total = await prisma.project.count();
-  return buildPaginatedResult(rows.map(serializeProject), total, pagination);
+  const status = optionalQuery(req, 'status');
+  const category = optionalQuery(req, 'category');
+  const priority = optionalQuery(req, 'priority');
+  const member = optionalQuery(req, 'member');
+  const submittedFrom = parseDateBound(optionalQuery(req, 'submittedFrom'));
+  const submittedTo = parseDateBound(optionalQuery(req, 'submittedTo'), true);
+
+  const where: Prisma.ProjectWhereInput = {
+    // Soft-deleted projects are gone as far as the member is concerned, so the
+    // review queue must not resurrect them either.
+    deletedAt: null,
+    ...(status ? { status: labelToProjectStatus(status) } : {}),
+    ...(category ? { category } : {}),
+    ...(priority ? { priority } : {}),
+    ...(member
+      ? {
+          owner: {
+            OR: [
+              { fullName: { contains: member } },
+              { memberProfile: { memberId: { contains: member } } },
+            ],
+          },
+        }
+      : {}),
+    ...(submittedFrom || submittedTo
+      ? { submittedAt: { ...(submittedFrom ? { gte: submittedFrom } : {}), ...(submittedTo ? { lte: submittedTo } : {}) } }
+      : {}),
+    ...(q
+      ? { OR: [{ title: { contains: q } }, { category: { contains: q } }, { owner: { fullName: { contains: q } } }] }
+      : {}),
+  };
+
+  // `total` has to use the same `where` as the rows, or the pager reports a
+  // page count for a result set the grid is not showing.
+  const [rows, total, counts, categories] = await Promise.all([
+    prisma.project.findMany({
+      where,
+      include: { supportTypes: true, owner: { include: { memberProfile: true } } },
+      orderBy: { updatedAt: 'desc' },
+      ...toSkipTake(pagination),
+    }),
+    prisma.project.count({ where }),
+    adminProjectCounts(),
+    prisma.project.findMany({
+      where: { deletedAt: null },
+      distinct: ['category'],
+      select: { category: true },
+      orderBy: { category: 'asc' },
+    }),
+  ]);
+
+  return {
+    ...buildPaginatedResult(rows.map(serializeProject), total, pagination),
+    counts,
+    categories: categories.map((row) => row.category),
+  };
+}
+
+/**
+ * Turns raw status-history rows into something a reviewer can read: display
+ * labels instead of enum values, and actor names instead of bare ids.
+ *
+ * `ProjectStatusHistory.actorId` has no FK relation to User, so the actors are
+ * resolved with one extra query rather than an `include`.
+ */
+async function serializeHistory(
+  histories: { id: string; fromStatus: ProjectStatus | null; toStatus: ProjectStatus; note: string | null; actorId: string | null; createdAt: Date }[],
+) {
+  const actorIds = [...new Set(histories.map((h) => h.actorId).filter((id): id is string => Boolean(id)))];
+  const actors = actorIds.length
+    ? await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, fullName: true } })
+    : [];
+  const nameById = new Map(actors.map((a) => [a.id, a.fullName]));
+
+  return histories.map((h) => ({
+    id: h.id,
+    from: h.fromStatus ? projectStatusLabel[h.fromStatus] : null,
+    to: projectStatusLabel[h.toStatus],
+    note: h.note,
+    actor: h.actorId ? nameById.get(h.actorId) ?? 'Unknown user' : 'System',
+    at: h.createdAt,
+  }));
 }
 
 export async function adminProjectDetail(id: string) {
-  const project = await prisma.project.findUnique({
-    where: { id },
-    include: { supportTypes: true, owner: { include: { memberProfile: true } }, histories: true, files: { include: { file: true } }, supportRequests: true },
+  const project = await prisma.project.findFirst({
+    where: { id, deletedAt: null },
+    include: {
+      supportTypes: true,
+      owner: { include: { memberProfile: true } },
+      histories: { orderBy: { createdAt: 'asc' } },
+      files: { include: { file: true } },
+      resourceLinks: true,
+      supportRequests: true,
+    },
   });
   if (!project) throw ApiError.notFound('Project not found');
-  return { ...serializeProject(project), files: project.files.map((f) => ({ id: f.fileId, name: f.file.originalName, kind: f.kind, size: f.file.sizeBytes })), history: project.histories, linkedSupport: project.supportRequests[0] ?? null };
+  return {
+    ...serializeProject(project),
+    // The review screen needs the same depth the member's own detail view has.
+    timeline: project.timeline,
+    budget: project.budget,
+    files: project.files.map((f) => ({ id: f.fileId, name: f.file.originalName, kind: f.kind, size: f.file.sizeBytes })),
+    resourceLinks: project.resourceLinks.map((l) => ({ id: l.id, url: l.url, label: l.label })),
+    history: await serializeHistory(project.histories),
+    linkedSupport: project.supportRequests[0] ?? null,
+  };
 }
 
 export async function transitionProject(id: string, actorId: string, next: ProjectStatus, note?: string) {
@@ -1087,15 +1381,44 @@ export async function transitionProject(id: string, actorId: string, next: Proje
     REJECTED: ['ARCHIVED', 'DRAFT'],
     ARCHIVED: [],
   };
-  const project = await prisma.project.findUnique({ where: { id } });
+  const project = await prisma.project.findFirst({ where: { id, deletedAt: null } });
   if (!project) throw ApiError.notFound('Project not found');
   if (!allowed[project.status].includes(next)) throw new ApiError(409, `Invalid transition from ${project.status} to ${next}`);
-  await prisma.$transaction([
+
+  // A rejection the member cannot act on is worse than no rejection at all, so
+  // the reason is required here and not only in the route schema.
+  const trimmedNote = note?.trim() ?? '';
+  if (next === 'REJECTED' && trimmedNote.length < REJECTION_NOTE_MIN) {
+    throw new ApiError(422, `A rejection needs at least ${REJECTION_NOTE_MIN} characters of review notes`, [
+      { field: 'reviewNotes', message: `Explain the decision in at least ${REJECTION_NOTE_MIN} characters` },
+    ]);
+  }
+
+  const label = projectStatusLabel[next];
+  const writes: Prisma.PrismaPromise<unknown>[] = [
     prisma.project.update({ where: { id }, data: { status: next, ...(next === 'PUBLISHED' ? { publishedAt: new Date() } : {}) } }),
-    prisma.projectStatusHistory.create({ data: { projectId: id, fromStatus: project.status, toStatus: next, actorId, note } }),
-    prisma.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'ProjectStatusChanged', entity: `Project ${id}`, severity: next === 'REJECTED' ? 'DANGER' : 'SUCCESS', description: note ?? `Project moved to ${next}` } }),
-  ]);
-  return { ok: true, to: projectStatusLabel[next] };
+    prisma.projectStatusHistory.create({ data: { projectId: id, fromStatus: project.status, toStatus: next, actorId, note: trimmedNote || null } }),
+    prisma.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'ProjectStatusChanged', entity: `Project ${id}`, severity: next === 'REJECTED' ? 'DANGER' : 'SUCCESS', description: trimmedNote || `Project moved to ${next}` } }),
+  ];
+
+  // Outcomes the owner should hear about. Housekeeping moves (ARCHIVED, or a
+  // reopen back to DRAFT) stay silent.
+  if (MEMBER_VISIBLE_TRANSITIONS.includes(next)) {
+    writes.push(
+      prisma.notification.create({
+        data: {
+          userId: project.ownerId,
+          title: `Project ${label.toLowerCase()}`,
+          body: trimmedNote || `Your project "${project.title}" is now ${label}.`,
+          type: 'project',
+          link: '/dashboard/projects',
+        },
+      }),
+    );
+  }
+
+  await prisma.$transaction(writes);
+  return { ok: true, to: label };
 }
 
 export async function adminPublications(req: Request) {
