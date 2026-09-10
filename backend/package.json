@@ -2,7 +2,7 @@
   "name": "ifsmhp-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "IFSMHP platform \u2014 REST API",
+  "description": "IFSMHP platform — REST API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch server.ts",
@@ -17,6 +17,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "db:backfill-support": "tsx scripts/backfill-support.ts",
+    "db:backfill-events": "tsx scripts/backfill-events.ts",
     "db:seed": "tsx database/prisma/seed.ts",
     "db:studio": "prisma studio"
   },
@@ -37,6 +39,7 @@
     "file-type": "^22.0.2",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.3",
+    "luxon": "^3.7.2",
     "multer": "^2.2.0",
     "nanoid": "^6.0.1",
     "nodemailer": "^9.0.6",
@@ -46,6 +49,7 @@
     "@types/cookie-parser": "^1.4.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/luxon": "^3.7.5",
     "@types/node": "^22.10.5",
     "@types/nodemailer": "^8.0.1",
     "@types/supertest": "^6.0.2",

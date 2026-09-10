@@ -333,6 +333,97 @@ async function main(): Promise<void> {
     },
   });
 
+  // A few more threads so both inboxes show unread pills, mixed statuses and
+  // enough back-and-forth for the response-time metrics to be meaningful.
+  const memberSender = 'Dr. Sarah Chen (IFSMHP-2026-000001)';
+  const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000);
+
+  const extraThreads: {
+    subject: string;
+    category: string;
+    status: string;
+    priority: string;
+    assignee?: string;
+    messages: { from: 'member' | 'admin'; body: string; minutesAgo: number }[];
+    /** Leave the member's lastReadAt here so some threads show as unread. */
+    memberReadMinutesAgo: number | null;
+  }[] = [
+    {
+      subject: 'Funding endorsement for the biomarker panel study',
+      category: 'Project Query',
+      status: 'Open',
+      priority: 'Escalated',
+      assignee: 'CRO Office (triage)',
+      memberReadMinutesAgo: null,
+      messages: [
+        { from: 'member', body: 'We are preparing the round 3 grant submission and need the IFSMHP endorsement letter. Is that something the CRO office can issue?', minutesAgo: 2880 },
+        { from: 'admin', body: 'Yes. Send us the protocol summary and the budget justification and we will draft the endorsement.', minutesAgo: 2760 },
+        { from: 'member', body: 'Both are attached to the project record now. Anything else you need from our side?', minutesAgo: 180 },
+      ],
+    },
+    {
+      subject: 'Credential document re-upload',
+      category: 'Credential Issue',
+      status: 'Awaiting Member',
+      priority: 'Standard',
+      assignee: 'CRO Office (triage)',
+      memberReadMinutesAgo: 60,
+      messages: [
+        { from: 'admin', body: 'Your practising certificate scan is unreadable on page 2. Could you re-upload a clearer copy?', minutesAgo: 1440 },
+        { from: 'member', body: 'Apologies — re-scanned and uploaded this morning.', minutesAgo: 900 },
+        { from: 'admin', body: 'Received, that one is legible. Nothing further needed.', minutesAgo: 840 },
+      ],
+    },
+    {
+      subject: 'Symposium abstract deadline',
+      category: 'Member Support',
+      status: 'Closed',
+      priority: 'Standard',
+      assignee: 'Publications Queue',
+      memberReadMinutesAgo: 10,
+      messages: [
+        { from: 'member', body: 'Has the abstract deadline for the autumn symposium moved?', minutesAgo: 20160 },
+        { from: 'admin', body: 'It moved to 15 October. The call for papers page has the updated schedule.', minutesAgo: 20100 },
+      ],
+    },
+  ];
+
+  for (const thread of extraThreads) {
+    const created = await prisma.conversation.create({
+      data: {
+        subject: thread.subject,
+        category: thread.category,
+        status: thread.status,
+        priority: thread.priority,
+        assignee: thread.assignee ?? null,
+        participants: {
+          create: [
+            {
+              userId: member.id,
+              roleLabel: 'Member',
+              lastReadAt: thread.memberReadMinutesAgo === null ? null : minutesAgo(thread.memberReadMinutesAgo),
+            },
+            { userId: admin.id, roleLabel: 'CRO Office' },
+          ],
+        },
+        messages: {
+          create: thread.messages.map((m) => ({
+            senderId: m.from === 'member' ? member.id : admin.id,
+            senderName: m.from === 'member' ? memberSender : 'CRO Office',
+            senderRole: m.from === 'member' ? 'MEMBER' : 'ADMIN',
+            body: m.body,
+            createdAt: minutesAgo(m.minutesAgo),
+          })),
+        },
+      },
+    });
+    // Sorting keys off the conversation row, so align it with the last message.
+    await prisma.conversation.update({
+      where: { id: created.id },
+      data: { updatedAt: minutesAgo(Math.min(...thread.messages.map((m) => m.minutesAgo))) },
+    });
+  }
+
   await prisma.contactInquiry.create({
     data: {
       name: 'Jordan Lee',

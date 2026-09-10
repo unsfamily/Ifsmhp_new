@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -24,147 +24,34 @@ import {
   Check,
   Download,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
-import { TextArea, Checkbox } from '../../components/common/Input';
+import { TextArea, Checkbox, SelectInput } from '../../components/common/Input';
+import { supportApi, supportDate, type SupportPriority } from '../../api/support';
+import { usePolledApiData } from '../../hooks/usePolledApiData';
+import { useApiData } from '../../hooks/useApiData';
+import { useAuth } from '../../context/AuthContext';
+import { normalizeError } from '../../api/client';
+import { downloadAttachment, openAttachmentInTab } from '../../api/messaging';
+import { formatBytes } from '../../utils/formatBytes';
+import SupportConversation from '../../components/support/SupportConversation';
 
 type SupportType = 'Moral Support' | 'Official Support' | 'Funding Support';
 
-interface Attachment {
-  name: string;
-  size: string;
-  type?: string;
-}
+type AdminStatus = 'Pending' | 'Under Review' | 'Approved' | 'Rejected' | 'Completed';
 
-interface LinkedRecord {
-  label: string;
-  id: string;
-  name: string;
-}
-
-interface MessageItem {
-  from: 'member' | 'admin' | 'system';
-  name: string;
-  at: string;
-  text: string;
-}
-
-interface HistoryEntry {
-  at: string;
-  by: string;
-  from: string | null;
-  to: string;
-  note: string;
-}
-
-interface MockSupport {
-  id: string;
-  subject: string;
-  member: string;
-  memberId: string;
-  institution: string;
-  project: string;
-  projectId: string;
-  requestType: SupportType;
-  requestedSupport: string[];
-  status: 'Pending' | 'Under Review' | 'Approved' | 'Rejected' | 'Completed';
-  priority: 'Urgent' | 'High' | 'Standard' | 'Low';
-  created: string;
-  SLA: string;
-  description: string;
-  attachments: Attachment[];
-  linked: LinkedRecord[];
-  messages: MessageItem[];
-  history: HistoryEntry[];
-}
-
-const mock: Record<string, MockSupport> = {
-  'sr-00240': {
-    id: 'SR-00240',
-    subject: 'Official letter of support for ethics submission (REC UK)',
-    member: 'Prof. M. Whitfield',
-    memberId: 'IFSMHP-2024-000045',
-    institution: 'UCL · Dept. of Clinical Neuroscience',
-    project: 'PA-00005 Psilocybin therapy protocol',
-    projectId: 'pa5',
-    requestType: 'Official Support',
-    requestedSupport: [
-      'Formal institutional support letter on IFSMHP letterhead',
-      'Explicit confirmation of IFSMHP endorsement of study design',
-      'Ethical clearance number issuance upon REC approval',
-    ],
-    status: 'Under Review',
-    priority: 'High',
-    created: 'Aug 19, 2026 at 09:12',
-    SLA: 'By Aug 26, 2026 (REC deadline)',
-    description:
-      'Dear CRO Office — The London-Cambridge Research Ethics Committee (REC) requires a formal institutional support letter from IFSMHP for our protocol: "Psilocybin-assisted therapy for existential distress in advanced palliative care (Protocol CRO-PEACE-4)." The committee needs explicit confirmation of endorsement, support of the study design, and that IFSMHP will issue the ethical clearance number upon approval. Letterhead template, protocol PDF, and the exact REC-requested clauses are attached.',
-    attachments: [
-      { name: 'REC-request-clauses.pdf', size: '340 KB', type: 'PDF' },
-      { name: 'Protocol_CRO-PEACE-4.pdf', size: '1.8 MB', type: 'PDF' },
-      { name: 'Proposed_Letterhead_Draft.docx', size: '92 KB', type: 'DOCX' },
-    ],
-    linked: [
-      { label: 'Project', id: 'pa5', name: 'PA-00005 Psilocybin therapy protocol' },
-      { label: 'Publication', id: 'pub5', name: 'Psilocybin protocol (pub #5)' },
-    ],
-    messages: [
-      { from: 'member', name: 'Prof. M. Whitfield', at: 'Aug 19, 09:12', text: 'Submitting the three required documents. Thank you for the quick turn-around given the August 26 deadline.' },
-      { from: 'system', name: 'System', at: 'Aug 19, 09:13', text: 'Auto-assigned to CRO queue. Cross-linked to Project PA-00005 and Publication PUB-00005.' },
-      { from: 'admin', name: 'CRO Office', at: 'Aug 19, 16:42', text: 'Legal review of the requested clauses in progress. Aim is to issue the letter within 48 hours if alignment.' },
-    ],
-    history: [
-      { at: 'Aug 19, 2026 09:12', by: 'Prof. M. Whitfield', from: null, to: 'Pending', note: 'Request submitted with 3 attachments, High priority' },
-      { at: 'Aug 19, 2026 09:13', by: 'System', from: 'Pending', to: 'Under Review', note: 'Triage: auto-flagged for expedited review (REC deadline). CRO Office notified.' },
-      { at: 'Aug 19, 2026 16:42', by: 'CRO Office', from: 'Under Review', to: 'Under Review', note: 'Admin note: Legal reviewing requested clauses (private). External counsel engaged.' },
-    ],
-  },
-  'sr-00241': {
-    id: 'SR-00241',
-    subject: 'Funding support for PTSD intervention study — 4th cohort extension',
-    member: 'Dr. A. Kapoor',
-    memberId: 'IFSMHP-2024-000176',
-    institution: 'NIMHANS Bangalore',
-    project: 'PTSD intervention study',
-    projectId: 'pa3',
-    requestType: 'Funding Support',
-    requestedSupport: [
-      'Bridge funding extension for 4th cohort (6 months)',
-      'Endorsement for supplementary grant application to ICMR',
-      'Budget review & variance justification letter',
-    ],
-    status: 'Pending',
-    priority: 'Urgent',
-    created: 'Aug 20, 2026 at 11:04',
-    SLA: 'Initial triage by Aug 22, 2026',
-    description:
-      'Enrollment rates for the PTSD intervention RCT exceeded our original target by 38%, making a 4th cohort statistically feasible and scientifically valuable. The site team has capacity to run the extension within current infrastructure, but requires 6 months of bridge funding until the main ICMR supplementary grant decision is rendered. Attached: enrollment report, budget variance, and draft ICMR supplementary application pre-review version.',
-    attachments: [
-      { name: 'Cohort-4-Enrollment-Report.xlsx', size: '210 KB', type: 'XLSX' },
-      { name: 'Budget-Variance-Cohort4.pdf', size: '480 KB', type: 'PDF' },
-      { name: 'ICMR-Supplementary-Draft.pdf', size: '1.3 MB', type: 'PDF' },
-    ],
-    linked: [{ label: 'Project', id: 'pa3', name: 'PTSD intervention study' }],
-    messages: [
-      { from: 'member', name: 'Dr. A. Kapoor', at: 'Aug 20, 11:04', text: 'Member: "Enrollment rates exceeded target; 4th cohort feasible if IFSMHP can endorse…"' },
-    ],
-    history: [
-      { at: 'Aug 20, 2026 11:04', by: 'Dr. A. Kapoor', from: null, to: 'Pending', note: 'Request submitted. Urgent priority — ICMR deadline Sep 05.' },
-    ],
-  },
-};
-
-const priorityMap: Record<MockSupport['priority'], 'danger' | 'warning' | 'default' | 'info'> = {
+const priorityMap: Record<SupportPriority, 'danger' | 'warning' | 'default' | 'info'> = {
   Urgent: 'danger',
   High: 'warning',
   Standard: 'default',
   Low: 'info',
 };
 
-const statusMap: Record<MockSupport['status'], { variant: 'success' | 'warning' | 'danger' | 'info' | 'default' | 'brass'; icon: typeof Clock }> = {
+const statusMap: Record<AdminStatus, { variant: 'success' | 'warning' | 'danger' | 'info' | 'default' | 'brass'; icon: typeof Clock }> = {
   Pending: { variant: 'info', icon: Clock },
   'Under Review': { variant: 'warning', icon: Eye },
   Approved: { variant: 'success', icon: CheckCircle2 },
@@ -186,24 +73,62 @@ const requestTypeVariant: Record<SupportType, 'brass' | 'info' | 'success'> = {
 
 export default function AdminSupportDetailPage() {
   const { id } = useParams();
-  const t = mock[id!] ?? mock['sr-00240']!;
-  const statusConfig = statusMap[t.status];
-  const SIcon = statusConfig.icon;
+  const { user } = useAuth();
+  return user && id ? <AdminSupportDetail key={`${user.id}:${id}`} id={id} /> : null;
+}
+
+function AdminSupportDetail({ id }: { id: string }) {
+  const location = useLocation();
+  const { data, initialLoading, error, refresh } = usePolledApiData(() => supportApi.detail(true, id), [id], 10000);
+  const admins = useApiData(supportApi.assignees, []);
 
   type ActionKind = null | 'start' | 'approve' | 'reject' | 'complete';
   const [action, setAction] = useState<ActionKind>(null);
   const [notes, setNotes] = useState('');
   const [confirmed, setConfirmed] = useState(false);
-  const [reply, setReply] = useState('');
+  const [pending, setPending] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  useEffect(() => {
+    if (data?.status === 'Pending' && location.hash === '#triage') setAction('start');
+    if (data?.status === 'Approved' && location.hash === '#complete') setAction('complete');
+  }, [data?.status, location.hash]);
+  const decide = async () => {
+    if (!data || !action || pending) return;
+    setPending(true); setActionError(null); setSuccess(null);
+    try {
+      await supportApi.decide(id, action === 'start' ? 'review' : action, notes, data.lastUpdate);
+      setAction(null); setNotes(''); setConfirmed(false); setSuccess('Decision saved.'); refresh();
+    } catch (failure) { setActionError(normalizeError(failure).message); refresh(); }
+    finally { setPending(false); }
+  };
+  const update = async (patch: { priority?: SupportPriority; assignedAdminId?: string | null }) => {
+    if (!data || pending) return;
+    setPending(true); setActionError(null); setSuccess(null);
+    try { await supportApi.update(id, { ...patch, expectedUpdatedAt: data.lastUpdate }); setSuccess('Request updated.'); refresh(); }
+    catch (failure) { setActionError(normalizeError(failure).message); refresh(); }
+    finally { setPending(false); }
+  };
 
   const notesRequired = action === 'start' || action === 'reject' || action === 'complete';
   const notesOptional = action === 'approve';
-  const canSubmit = (notesRequired ? notes.trim().length > 0 : true) && (action === 'reject' || action === 'approve' ? confirmed : true);
+  const canSubmit = !pending && (notesRequired ? notes.trim().length > 0 : true) && (action === 'reject' || action === 'approve' ? confirmed : true);
+
+  if (!data) return <Card><CardContent className="p-6">
+    <Link to={`/admin/support${location.search}`} className="text-sm text-forum-700">Back to Support Queue</Link>
+    <p role={error ? 'alert' : 'status'} className="mt-4 text-sm text-ink-muted">{initialLoading ? 'Loading support request...' : error ?? 'Support request not found'}</p>
+    {error && <Button variant="ghost" onClick={refresh}><RefreshCw className="h-4 w-4" />Retry</Button>}
+  </CardContent></Card>;
+  const t = { ...data, created: supportDate(data.submitted), SLA: data.requiredBy ? `Required by ${supportDate(data.requiredBy)}` : 'No deadline provided', requestedSupport: data.type.map((kind) => `${kind} Support`) };
+  const statusConfig = statusMap[t.status as AdminStatus];
+  const SIcon = statusConfig.icon;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ overflowWrap: 'anywhere' }}>
+      {(actionError || error) && <p role="alert" className="text-sm text-danger-600">{actionError || error} <Button size="sm" variant="ghost" onClick={refresh}><RefreshCw className="h-4 w-4" />Refresh</Button></p>}
+      {success && <p role="status" className="text-sm text-success-600">{success}</p>}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <Link to="/admin/support" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-forum-700">
+        <Link to={`/admin/support${location.search}`} className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-forum-700">
           <ArrowLeft className="h-4 w-4" />
           Back to Support Queue
         </Link>
@@ -221,10 +146,10 @@ export default function AdminSupportDetailPage() {
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <Badge variant={requestTypeVariant[t.requestType]} className="inline-flex items-center gap-1">
-                  {(() => { const CIcon = requestTypeIcon[t.requestType]; return <CIcon className="h-3 w-3 mr-1" />; })()}
-                  {t.requestType}
-                </Badge>
+                {t.type.map((kind) => <Badge key={kind} variant={requestTypeVariant[`${kind} Support`]} className="inline-flex items-center gap-1">
+                  {(() => { const CIcon = requestTypeIcon[`${kind} Support`]; return <CIcon className="h-3 w-3 mr-1" />; })()}
+                  {kind} Support
+                </Badge>)}
                 <Badge variant={statusConfig.variant}>
                   <SIcon className="h-2.5 w-2.5 mr-1" />
                   {t.status}
@@ -248,14 +173,14 @@ export default function AdminSupportDetailPage() {
                   <FileText className="h-4 w-4 text-forum-600 mt-0.5 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Member ID</p>
-                    <code className="font-mono text-xs bg-forum-50 text-forum-700 px-1.5 py-0.5 rounded">{t.memberId}</code>
+                    <code className="font-mono text-xs bg-forum-50 text-forum-700 px-1.5 py-0.5 rounded">{t.memberId ?? 'Not provided'}</code>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <FolderKanban className="h-4 w-4 text-forum-600 mt-0.5 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Project</p>
-                    <Link to={`/admin/projects/${t.projectId}`} className="font-medium text-forum-900 hover:text-forum-700 truncate block">
+                    <Link to={t.projectId ? `/admin/projects/${t.projectId}` : '#'} aria-disabled={!t.projectId} className="font-medium text-forum-900 hover:text-forum-700 truncate block">
                       {t.project}
                     </Link>
                   </div>
@@ -264,14 +189,14 @@ export default function AdminSupportDetailPage() {
                   <Headphones className="h-4 w-4 text-forum-600 mt-0.5 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Request Type</p>
-                    <p className="font-medium text-forum-900">{t.requestType}</p>
+                    <p className="font-medium text-forum-900">{t.requestedSupport.join(', ') || 'Not provided'}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <Building2 className="h-4 w-4 text-forum-600 mt-0.5 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Institution</p>
-                    <p className="font-medium text-forum-900 truncate">{t.institution}</p>
+                    <p className="font-medium text-forum-900 truncate">{t.institution ?? 'Not provided'}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
@@ -286,25 +211,25 @@ export default function AdminSupportDetailPage() {
 
             <div className="flex flex-wrap gap-2 shrink-0">
               {t.status === 'Pending' && (
-                <Button variant="primary" size="sm" onClick={() => { setAction('start'); setNotes(''); setConfirmed(false); }}>
+                <Button variant="primary" size="sm" disabled={pending} onClick={() => { setAction('start'); setNotes(''); setConfirmed(false); }}>
                   <Play className="h-4 w-4" />
                   Start Review
                 </Button>
               )}
               {(t.status === 'Pending' || t.status === 'Under Review') && (
                 <>
-                  <Button variant="primary" size="sm" onClick={() => { setAction('approve'); setNotes(''); setConfirmed(false); }}>
+                  <Button variant="primary" size="sm" disabled={pending} onClick={() => { setAction('approve'); setNotes(''); setConfirmed(false); }}>
                     <CheckCircle2 className="h-4 w-4" />
                     Approve
                   </Button>
-                  <Button variant="outline" size="sm" className="border-danger-600/30 text-danger-600 hover:bg-danger-100" onClick={() => { setAction('reject'); setNotes(''); setConfirmed(false); }}>
+                  <Button variant="outline" size="sm" className="border-danger-600/30 text-danger-600 hover:bg-danger-100" disabled={pending} onClick={() => { setAction('reject'); setNotes(''); setConfirmed(false); }}>
                     <XCircle className="h-4 w-4" />
                     Reject
                   </Button>
                 </>
               )}
               {t.status === 'Approved' && (
-                <Button size="sm" className="bg-brass-500 hover:bg-brass-700 focus-visible:ring-brass-500" onClick={() => { setAction('complete'); setNotes(''); setConfirmed(false); }}>
+                <Button size="sm" className="bg-brass-500 hover:bg-brass-700 focus-visible:ring-brass-500" disabled={pending} onClick={() => { setAction('complete'); setNotes(''); setConfirmed(false); }}>
                   <Check className="h-4 w-4" />
                   Mark Completed
                 </Button>
@@ -327,6 +252,7 @@ export default function AdminSupportDetailPage() {
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-subtle mb-2">Request Description</p>
                 <p className="text-sm text-ink leading-relaxed whitespace-pre-line">{t.description}</p>
+                {t.adminResponse && <div className="mt-4"><p className="mb-2 text-xs font-semibold text-ink-subtle">Latest Decision Response</p><p className="text-sm text-ink-muted whitespace-pre-wrap">{t.adminResponse}</p></div>}
               </div>
               <div className="border-t border-paper-border pt-5">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-subtle mb-3 flex items-center gap-1.5">
@@ -356,8 +282,9 @@ export default function AdminSupportDetailPage() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="grid sm:grid-cols-2 gap-2">
+                {t.attachments.length === 0 && <p className="text-sm text-ink-muted">No documents attached.</p>}
                 {t.attachments.map((a) => (
-                  <div key={a.name} className="flex items-center justify-between p-3.5 rounded-lg border border-paper-border hover:bg-forum-50/40 transition-colors">
+                  <div key={a.id} className="flex items-center justify-between p-3.5 rounded-lg border border-paper-border hover:bg-forum-50/40 transition-colors">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="h-10 w-10 shrink-0 flex items-center justify-center rounded-md bg-forum-50 text-forum-700 ring-1 ring-forum-100">
                         <FileText className="h-5 w-5" />
@@ -370,15 +297,15 @@ export default function AdminSupportDetailPage() {
                               {a.type}
                             </span>
                           )}
-                          <span className="text-[11px] text-ink-subtle">{a.size}</span>
+                          <span className="text-[11px] text-ink-subtle">{formatBytes(a.size)}{a.internal ? ' · Internal only' : ''}</span>
                         </div>
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <button className="p-2 rounded-md text-ink-muted hover:bg-paper hover:text-forum-700 transition-colors" aria-label="Preview">
+                      <button className="p-2 rounded-md text-ink-muted hover:bg-paper hover:text-forum-700 transition-colors" aria-label="Preview" title="Preview" disabled={a.type !== 'application/pdf' && !a.type.startsWith('image/')} onClick={() => void openAttachmentInTab(a.id).catch(() => setActionError('This document is unavailable.'))}>
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button className="p-2 rounded-md text-ink-muted hover:bg-paper hover:text-forum-700 transition-colors" aria-label="Download">
+                      <button className="p-2 rounded-md text-ink-muted hover:bg-paper hover:text-forum-700 transition-colors" aria-label="Download" title="Download" onClick={() => void downloadAttachment(a.id, a.name).catch(() => setActionError('This document is unavailable.'))}>
                         <Download className="h-4 w-4" />
                       </button>
                     </div>
@@ -426,7 +353,7 @@ export default function AdminSupportDetailPage() {
                     action === 'complete' ? 'Closing summary — delivered artifacts, signatories, outcome, and member follow-up (if any). Visible to member and audit.' :
                     'Required: specific, actionable reason the request is declined. Include guidance for re-submission (when applicable), re-scoping suggestions, and contact for appeal. Sent to member.'
                   }
-                  value={notes}
+                  value={notes} maxLength={4000} disabled={pending}
                   onChange={(e) => setNotes(e.target.value)}
                   hint={
                     action === 'start' ? 'These notes are internal — not sent to the member.' :
@@ -457,30 +384,30 @@ export default function AdminSupportDetailPage() {
                 )}
 
                 <div className="mt-5 flex flex-col sm:flex-row sm:justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => { setAction(null); setNotes(''); setConfirmed(false); }}>
+                  <Button variant="ghost" size="sm" disabled={pending} onClick={() => { setAction(null); setNotes(''); setConfirmed(false); }}>
                     <ChevronDown className="h-3.5 w-3.5" />
                     Cancel
                   </Button>
                   {action === 'start' && (
-                    <Button variant="primary" className="bg-slateteal-600 hover:bg-slateteal-600/90" disabled={!canSubmit}>
+                    <Button variant="primary" className="bg-slateteal-600 hover:bg-slateteal-600/90" disabled={!canSubmit} onClick={() => void decide()}>
                       <Eye className="h-4 w-4" />
                       Start Review
                     </Button>
                   )}
                   {action === 'approve' && (
-                    <Button variant="primary" className="bg-success-600 hover:bg-success-600/90" disabled={!canSubmit}>
+                    <Button variant="primary" className="bg-success-600 hover:bg-success-600/90" disabled={!canSubmit} onClick={() => void decide()}>
                       <Send className="h-4 w-4" />
                       Approve &amp; Send Response
                     </Button>
                   )}
                   {action === 'complete' && (
-                    <Button className="bg-brass-500 hover:bg-brass-700 focus-visible:ring-brass-500" disabled={!canSubmit}>
+                    <Button className="bg-brass-500 hover:bg-brass-700 focus-visible:ring-brass-500" disabled={!canSubmit} onClick={() => void decide()}>
                       <Check className="h-4 w-4" />
                       Mark Complete &amp; Notify
                     </Button>
                   )}
                   {action === 'reject' && (
-                    <Button variant="primary" className="bg-danger-600 hover:bg-danger-600/90" disabled={!canSubmit}>
+                    <Button variant="primary" className="bg-danger-600 hover:bg-danger-600/90" disabled={!canSubmit} onClick={() => void decide()}>
                       <Send className="h-4 w-4" />
                       Send Rejection Notice
                     </Button>
@@ -498,38 +425,7 @@ export default function AdminSupportDetailPage() {
               </h3>
             </CardHeader>
             <CardContent className="pt-0 space-y-4">
-              {t.messages.map((m, i) => (
-                <div key={i} className={`flex ${m.from === 'admin' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] ${
-                    m.from === 'system' ? 'bg-slateteal-100 text-slateteal-700 rounded-lg' :
-                    m.from === 'admin' ? 'bg-forum-600 text-white rounded-2xl rounded-br-md' :
-                    'bg-paper-raised border border-paper-border text-ink rounded-2xl rounded-bl-md'
-                  } px-4 py-3`}>
-                    <div className={`flex items-center gap-2 mb-1 ${m.from === 'admin' ? 'text-forum-200' : m.from === 'system' ? 'text-slateteal-700/70' : 'text-ink-subtle'}`}>
-                      <span className="text-xs font-semibold">{m.name}</span>
-                      <span className="text-[10px]">· {m.at}</span>
-                    </div>
-                    <p className="text-sm leading-relaxed">{m.text}</p>
-                  </div>
-                </div>
-              ))}
-              <div className="border-t border-paper-border pt-4 mt-6">
-                <TextArea
-                  rows={3}
-                  label="Send a message to the member"
-                  placeholder="Type your message here. Sent as CRO Office and visible in the audit trail."
-                  value={reply}
-                  onChange={(e) => setReply(e.target.value)}
-                  className="mb-3"
-                />
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                  <Badge variant="info" className="w-fit">Sent as CRO Office · logged in audit</Badge>
-                  <Button variant="primary">
-                    <Send className="h-4 w-4" />
-                    Send Message
-                  </Button>
-                </div>
-              </div>
+              <SupportConversation detail={data} admin onSent={refresh} />
             </CardContent>
           </Card>
 
@@ -571,7 +467,7 @@ export default function AdminSupportDetailPage() {
                             {h.to}
                           </Badge>
                         </p>
-                        <span className="text-[11px] text-ink-subtle">{h.at}</span>
+                        <span className="text-[11px] text-ink-subtle">{new Date(h.at).toLocaleString()}</span>
                       </div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-muted">
                         <span className="inline-flex items-center gap-1">
@@ -580,7 +476,7 @@ export default function AdminSupportDetailPage() {
                         </span>
                       </div>
                       <p className="text-sm text-ink-muted mt-1.5 leading-relaxed bg-paper/60 rounded-md border border-paper-border p-3">
-                        {h.note}
+                        {h.internal ? 'Internal: ' : ''}{h.note ?? 'Status updated'}
                       </p>
                     </li>
                   );
@@ -596,6 +492,14 @@ export default function AdminSupportDetailPage() {
               <h3 className="font-display text-base font-semibold text-forum-900">Decision Section</h3>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
+              <SelectInput label="Assigned Administrator" value={t.assignedAdminId ?? ''} disabled={pending || admins.loading} error={admins.error ?? undefined} onChange={(event) => void update({ assignedAdminId: event.target.value || null })}>
+                <option value="">Unassigned</option>
+                {(admins.data ?? []).map((admin) => <option key={admin.id} value={admin.id}>{admin.fullName}</option>)}
+              </SelectInput>
+              <SelectInput label="Priority" value={t.priority} disabled={pending} onChange={(event) => void update({ priority: event.target.value as SupportPriority })}>
+                {(['Standard', 'High', 'Urgent', 'Low'] as const).map((priority) => <option key={priority}>{priority}</option>)}
+              </SelectInput>
+              {pending && <p role="status" className="text-xs text-ink-muted">Saving...</p>}
               {t.status === 'Pending' && (
                 <div className="rounded-xl border border-info-500/30 bg-slateteal-50 p-4">
                   <p className="text-sm font-semibold text-slateteal-800 flex items-center gap-1.5">
@@ -650,34 +554,34 @@ export default function AdminSupportDetailPage() {
             </CardHeader>
             <CardContent className="pt-0 grid grid-cols-2 gap-2">
               {t.status === 'Pending' && (
-                <button onClick={() => { setAction('start'); setNotes(''); setConfirmed(false); }} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-slateteal-500/20 bg-slateteal-100/30 text-slateteal-700 hover:bg-slateteal-600 hover:text-white transition-colors">
+                <button disabled={pending} onClick={() => { setAction('start'); setNotes(''); setConfirmed(false); }} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-slateteal-500/20 bg-slateteal-100/30 text-slateteal-700 hover:bg-slateteal-600 hover:text-white transition-colors">
                   <Play className="h-5 w-5" />
                   <span className="text-xs font-semibold text-center leading-tight">Start Review</span>
                 </button>
               )}
               {(t.status === 'Pending' || t.status === 'Under Review') && (
                 <>
-                  <button onClick={() => { setAction('approve'); setNotes(''); setConfirmed(false); }} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-success-600/20 bg-success-100/30 text-success-600 hover:bg-success-600 hover:text-white transition-colors">
+                  <button disabled={pending} onClick={() => { setAction('approve'); setNotes(''); setConfirmed(false); }} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-success-600/20 bg-success-100/30 text-success-600 hover:bg-success-600 hover:text-white transition-colors">
                     <CheckCircle2 className="h-5 w-5" />
                     <span className="text-xs font-semibold text-center leading-tight">Approve</span>
                   </button>
-                  <button onClick={() => { setAction('reject'); setNotes(''); setConfirmed(false); }} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-danger-600/20 bg-danger-100/30 text-danger-600 hover:bg-danger-600 hover:text-white transition-colors">
+                  <button disabled={pending} onClick={() => { setAction('reject'); setNotes(''); setConfirmed(false); }} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-danger-600/20 bg-danger-100/30 text-danger-600 hover:bg-danger-600 hover:text-white transition-colors">
                     <XCircle className="h-5 w-5" />
                     <span className="text-xs font-semibold text-center leading-tight">Decline</span>
                   </button>
                 </>
               )}
               {t.status === 'Approved' && (
-                <button onClick={() => { setAction('complete'); setNotes(''); setConfirmed(false); }} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-brass-500/20 bg-brass-100/30 text-brass-700 hover:bg-brass-500 hover:text-white transition-colors col-span-2">
+                <button disabled={pending} onClick={() => { setAction('complete'); setNotes(''); setConfirmed(false); }} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-brass-500/20 bg-brass-100/30 text-brass-700 hover:bg-brass-500 hover:text-white transition-colors col-span-2">
                   <Check className="h-5 w-5" />
                   <span className="text-xs font-semibold text-center leading-tight">Mark Completed</span>
                 </button>
               )}
-              <button className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-brass-500/20 bg-brass-100/30 text-brass-700 hover:bg-brass-500 hover:text-white transition-colors">
+              <button aria-disabled="true" disabled title="Letter generation is not available" className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-brass-500/20 bg-brass-100/30 text-brass-700 hover:bg-brass-500 hover:text-white transition-colors">
                 <FileText className="h-5 w-5" />
                 <span className="text-xs font-semibold text-center leading-tight">Generate Letter</span>
               </button>
-              <button className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-slateteal-500/20 bg-slateteal-100/30 text-slateteal-700 hover:bg-slateteal-500 hover:text-white transition-colors">
+              <button aria-disabled="true" disabled title="SAB escalation is not available" className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-slateteal-500/20 bg-slateteal-100/30 text-slateteal-700 hover:bg-slateteal-500 hover:text-white transition-colors">
                 <MessageSquare className="h-5 w-5" />
                 <span className="text-xs font-semibold text-center leading-tight">Escalate to SAB</span>
               </button>
@@ -689,6 +593,7 @@ export default function AdminSupportDetailPage() {
               <h3 className="font-display text-base font-semibold text-forum-900">Linked Records</h3>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
+              {t.linked.length === 0 && <p className="text-sm text-ink-muted">No linked records.</p>}
               {t.linked.map((l) => (
                 <Link to={`/admin/${l.label.toLowerCase()}s/${l.id}`} key={l.id} className="block">
                   <div className="flex items-center justify-between p-3 rounded-lg border border-paper-border hover:bg-forum-50/40 transition-colors">
@@ -716,28 +621,28 @@ export default function AdminSupportDetailPage() {
               </h3>
             </CardHeader>
             <CardContent className="pt-0">
-              <Link to={`/admin/members/lookup?mid=${t.memberId}`} className="block">
+              <Link to={`/admin/members/${t.requesterId}`} className="block">
                 <div className="flex items-center gap-3 p-3 rounded-lg border border-paper-border hover:bg-forum-50/40 transition-colors">
                   <div className="h-10 w-10 rounded-full bg-gradient-to-br from-forum-600 to-slateteal-500 text-white text-xs font-bold flex items-center justify-center shrink-0">
                     {t.member.split(' ').slice(1, 2).concat(t.member.split(' ').slice(-1)).map((n: string) => n[0]).join('')}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-forum-900 truncate">{t.member}</p>
-                    <p className="text-[11px] text-ink-subtle font-mono truncate">{t.memberId}</p>
+                    <p className="text-[11px] text-ink-subtle font-mono truncate">{t.memberId ?? 'Not provided'}</p>
                   </div>
                 </div>
               </Link>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                 <div className="p-2 rounded-md bg-paper">
-                  <p className="font-display text-lg font-bold text-forum-900">7</p>
+                  <p className="font-display text-lg font-bold text-forum-900">{t.memberSummary?.previous ?? 0}</p>
                   <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Previous SRs</p>
                 </div>
                 <div className="p-2 rounded-md bg-paper">
-                  <p className="font-display text-lg font-bold text-success-600">6</p>
+                  <p className="font-display text-lg font-bold text-success-600">{t.memberSummary?.approved ?? 0}</p>
                   <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Approved</p>
                 </div>
                 <div className="p-2 rounded-md bg-paper">
-                  <p className="font-display text-lg font-bold text-danger-600">1</p>
+                  <p className="font-display text-lg font-bold text-danger-600">{t.memberSummary?.rejected ?? 0}</p>
                   <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Rejected</p>
                 </div>
               </div>

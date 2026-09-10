@@ -27,6 +27,7 @@ import DocumentExchangePage from './pages/member/DocumentExchangePage';
 import MemberPublicationsPage from './pages/member/MemberPublicationsPage';
 import CommunityPage from './pages/member/CommunityPage';
 import SupportRequestsPage from './pages/member/SupportRequestsPage';
+import SupportRequestDetailPage from './pages/member/SupportRequestDetailPage';
 import MemberGalleryPage from './pages/member/MemberGalleryPage';
 
 import AdminHomePage from './pages/admin/AdminHomePage';
@@ -85,6 +86,7 @@ export default function App() {
         <Route path="gallery" element={<MemberGalleryPage />} />
         <Route path="community" element={<CommunityPage />} />
         <Route path="support" element={<SupportRequestsPage />} />
+        <Route path="support/:id" element={<SupportRequestDetailPage />} />
       </Route>
 
       <Route path="admin" element={<RequireAuth role="ADMIN"><AdminLayout /></RequireAuth>}>

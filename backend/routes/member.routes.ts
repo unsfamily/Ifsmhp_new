@@ -9,6 +9,7 @@ import {
 import { z } from 'zod';
 import { validate } from '../middleware/validate';
 import * as service from '../services/platform.service';
+import * as supportService from '../services/support.service';
 
 const router = Router({ mergeParams: true });
 
@@ -55,17 +56,36 @@ const projectUpdateSchema = projectSchema
   .strict()
   .refine((value) => Object.values(value).some((field) => field !== undefined), 'Provide at least one field to update');
 
-const supportSchema = z.object({
-  projectId: z.string().optional(),
-  subject: z.string().min(4).max(220),
-  description: z.string().min(10).max(10000),
-  priority: z.string().max(40).optional(),
-  types: z.array(z.string()).min(1),
-  requiredBy: z.string().optional(),
-}).strict();
+const supportSchema = supportService.createBody;
+
+/**
+ * What may ride along with a message. `.url()` alone accepts ftp: and other
+ * schemes, so the refine is the guard against a javascript:/data: URL in a chip
+ * the recipient will click.
+ */
+const messageExtras = {
+  /** Ids from POST /files/upload. Ownership is re-checked in the service. */
+  fileIds: z.array(z.string()).max(5, 'Attach no more than 5 files').default([]),
+  links: z.array(z.object({
+    url: z.string().max(2048).url('Enter a valid URL').refine(
+      (value) => /^https?:\/\//i.test(value),
+      'Use an HTTP or HTTPS URL',
+    ),
+    label: z.string().max(200).optional(),
+  })).max(5, 'Add no more than 5 links').default([]),
+};
 
 const messageSchema = z.object({
-  body: z.string().min(1).max(10000),
+  body: z.string().trim().min(1).max(10000),
+  ...messageExtras,
+}).strict();
+
+/** A member opening a new thread with the CRO. */
+const newConversationSchema = z.object({
+  subject: z.string().trim().min(4).max(220),
+  category: z.string().trim().min(2).max(120),
+  body: z.string().trim().min(1).max(10000),
+  ...messageExtras,
 }).strict();
 
 const optionalText = (schema: z.ZodType<string>) => z.preprocess(
@@ -147,10 +167,30 @@ router.get(
   '/me/conversations',
   asyncHandler(async (req, res) => sendSuccess(res, await service.memberConversations(req.user!.id, req), 'My conversations'))
 );
+router.get(
+  '/me/conversations/:id',
+  // Scoped to the caller: a thread they do not take part in reads as 404, and
+  // internal CRO notes are filtered out entirely.
+  asyncHandler(async (req, res) =>
+    sendSuccess(
+      res,
+      await service.adminConversationDetail(req.params.id!, req.user!.id, { includeInternal: false }),
+      'Conversation detail',
+    ))
+);
+router.post(
+  '/me/conversations',
+  validate({ body: newConversationSchema }),
+  asyncHandler(async (req, res) => sendSuccess(res, await service.createMemberConversation(req.user!.id, req.body), 'Conversation started', 201))
+);
 router.post(
   '/me/conversations/:id/messages',
   validate({ body: messageSchema }),
-  asyncHandler(async (req, res) => sendSuccess(res, await service.postMemberMessage(req.user!.id, req.params.id!, req.body.body), 'Message sent'))
+  asyncHandler(async (req, res) => sendSuccess(res, await service.postMemberMessage(req.user!.id, req.params.id!, req.body), 'Message sent'))
+);
+router.post(
+  '/me/conversations/:id/read',
+  asyncHandler(async (req, res) => sendSuccess(res, await service.markConversationRead(req.user!.id, req.params.id!), 'Conversation marked read'))
 );
 
 /** Support Requests (Members own their tickets) */
@@ -163,6 +203,14 @@ router.post(
   validate({ body: supportSchema }),
   asyncHandler(async (req, res) => sendSuccess(res, await service.createSupport(req.user!.id, req.body), 'Support request created', 201))
 );
+
+router.get('/me/support/:id', asyncHandler(async (req, res) => {
+  sendSuccess(res, await supportService.supportDetail(req.params.id!, req.user!.id), 'Support request');
+}));
+router.post('/me/support/:id/messages', validate({ body: messageSchema }), asyncHandler(async (req, res) => {
+  const conversationId = await supportService.conversationForSupport(req.params.id!, req.user!.id);
+  sendSuccess(res, await service.postMemberMessage(req.user!.id, conversationId, req.body), 'Reply sent', 201);
+}));
 
 /** Document Exchange — members only access their own authorized documents */
 router.get(

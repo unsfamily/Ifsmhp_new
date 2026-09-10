@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { Request } from 'express';
+import * as supportService from './support.service';
 import type {
   ApplicationStatus,
   Prisma,
@@ -24,13 +25,6 @@ const projectStatusLabel: Record<ProjectStatus, string> = {
   ARCHIVED: 'Archived',
 };
 
-const supportStatusLabel: Record<SupportStatus, string> = {
-  PENDING: 'Open',
-  UNDER_REVIEW: 'In Review',
-  APPROVED: 'Approved',
-  REJECTED: 'Rejected',
-  COMPLETED: 'Closed',
-};
 
 const publicationStatusLabel: Record<PublicationStatus, string> = {
   DRAFT: 'Draft',
@@ -210,6 +204,7 @@ export async function publicEvents(req: Request) {
   const pagination = parsePage(req);
   const q = String(req.query.q ?? '').trim();
   const where: Prisma.EventWhereInput = {
+    deletedAt: null,
     status: { in: ['PUBLISHED', 'PAST'] },
     audience: { in: ['Public', 'All Members'] },
     ...(q ? { title: { contains: q } } : {}),
@@ -247,7 +242,7 @@ export async function publicEvents(req: Request) {
 
 export async function eventDetail(slugOrId: string) {
   const event = await prisma.event.findFirst({
-    where: { OR: [{ id: slugOrId }, { slug: slugOrId }], status: { in: ['PUBLISHED', 'PAST'] } },
+    where: { deletedAt: null, OR: [{ id: slugOrId }, { slug: slugOrId }], status: { in: ['PUBLISHED', 'PAST'] }, audience: { in: ['Public', 'All Members'] } },
     include: { speakers: true, tags: true, registrations: true, resources: true },
   });
   if (!event) throw ApiError.notFound('Event not found');
@@ -331,7 +326,7 @@ export async function memberDashboard(userId: string) {
     prisma.project.groupBy({ by: ['status'], where: { ownerId: userId }, _count: true }),
     prisma.publication.groupBy({ by: ['status'], where: { authorId: userId }, _count: true }),
     prisma.supportRequest.groupBy({ by: ['status'], where: { requesterId: userId }, _count: true }),
-    prisma.event.findMany({ where: { status: 'PUBLISHED' }, orderBy: { date: 'asc' }, take: 3 }),
+    prisma.event.findMany({ where: { deletedAt: null, status: 'PUBLISHED' }, orderBy: { date: 'asc' }, take: 3 }),
   ]);
   if (!user) throw new ApiError(401, 'Invalid session');
   const count = <T extends string>(rows: Array<{ status: T; _count: number }>, status: T) =>
@@ -358,7 +353,7 @@ export async function memberDashboard(userId: string) {
       projects: { total: projects.reduce((a, b) => a + b._count, 0), approved: count(projects, 'APPROVED'), inReview: count(projects, 'UNDER_REVIEW'), draft: count(projects, 'DRAFT') },
       publications: { total: publications.reduce((a, b) => a + b._count, 0), published: count(publications, 'PUBLISHED'), inReview: count(publications, 'UNDER_REVIEW') },
       supportTickets: { open: count(support, 'PENDING') + count(support, 'UNDER_REVIEW'), resolved: count(support, 'COMPLETED') },
-      unreadMessages: 0,
+      unreadMessages: await unreadMessageTotal(userId),
     },
     recentProjects: recentProjects.map(serializeProject),
     recentMessages,
@@ -627,61 +622,11 @@ export async function deleteMemberProject(userId: string, id: string) {
 }
 
 export async function memberSupport(userId: string, req: Request) {
-  const pagination = parsePage(req);
-  const rows = await prisma.supportRequest.findMany({
-    where: { requesterId: userId },
-    include: { types: true, project: true },
-    orderBy: { updatedAt: 'desc' },
-    ...toSkipTake(pagination),
-  });
-  const total = await prisma.supportRequest.count({ where: { requesterId: userId } });
-  return buildPaginatedResult(rows.map(serializeSupport), total, pagination);
+  return supportService.listSupport(req, userId);
 }
 
-export async function createSupport(userId: string, input: {
-  projectId?: string;
-  subject: string;
-  description: string;
-  priority?: string;
-  types: string[];
-  requiredBy?: string;
-}) {
-  const support = await prisma.supportRequest.create({
-    data: {
-      requesterId: userId,
-      projectId: input.projectId || null,
-      subject: input.subject,
-      description: input.description,
-      priority: input.priority ?? 'Standard',
-      requiredBy: input.requiredBy ? new Date(input.requiredBy) : null,
-      types: { create: input.types.map((kind) => ({ kind: labelToSupportKind(kind) })) },
-      histories: { create: { toStatus: 'PENDING', actorId: userId, note: 'Support request submitted' } },
-    },
-    include: { types: true, project: true },
-  });
-  return serializeSupport(support);
-}
-
-function serializeSupport(row: Prisma.SupportRequestGetPayload<{ include: { types: true; project: true } }> & {
-  requester?: { fullName: string; memberProfile?: { memberId: string | null } | null };
-}) {
-  return {
-    id: row.id,
-    subject: row.subject,
-    project: row.project?.title ?? 'Not project-linked',
-    type: row.types.map((t) => `${t.kind[0]}${t.kind.slice(1).toLowerCase()}`),
-    supportType: row.types[0] ? `${row.types[0].kind[0]}${row.types[0].kind.slice(1).toLowerCase()} Support` : 'Moral Support',
-    submitted: row.createdAt,
-    lastUpdate: row.updatedAt,
-    status: supportStatusLabel[row.status],
-    priority: row.priority,
-    messages: 0,
-    queueDays: daysSince(row.createdAt),
-    member: row.requester?.fullName,
-    memberId: row.requester?.memberProfile?.memberId,
-    assignedAdmin: row.assignedAdmin ?? 'Unassigned',
-    lastMessage: row.adminResponse ?? row.description,
-  };
+export async function createSupport(userId: string, input: unknown) {
+  return supportService.createSupport(userId, supportService.createBody.parse(input));
 }
 
 export async function memberPublications(userId: string, req: Request) {
@@ -695,53 +640,316 @@ export async function memberPublications(userId: string, req: Request) {
 
 export async function memberDocuments(userId: string, req: Request) {
   const pagination = parsePage(req);
-  const messages = await prisma.message.findMany({
-    where: { conversation: { participants: { some: { userId } } }, attachments: { some: {} } },
-    include: { attachments: { include: { file: true } } },
-    orderBy: { createdAt: 'desc' },
-    ...toSkipTake(pagination),
-  });
-  const items = messages.flatMap((message) =>
-    message.attachments.map((a) => ({
-      id: a.fileId,
-      name: a.file.originalName,
-      type: a.file.mimeType,
-      size: a.file.sizeBytes,
-      sender: message.senderName,
-      direction: message.senderId === userId ? 'outgoing' : 'incoming',
-      date: message.createdAt,
-      note: message.body,
-    })),
-  );
-  return buildPaginatedResult(items, items.length, pagination);
+  // Paginate over attachments, not messages: one message can carry several, so
+  // paging the parent overflows the requested limit and reports a total that
+  // counts the wrong thing. `internal: false` matters most — without it this
+  // route hands the member the body of every admin-only note that has a file.
+  const where: Prisma.MessageAttachmentWhereInput = {
+    file: { deletedAt: null },
+    message: {
+      internal: false,
+      conversation: { participants: { some: { userId } } },
+    },
+  };
+
+  const [rows, total] = await Promise.all([
+    prisma.messageAttachment.findMany({
+      where,
+      include: { file: true, message: true },
+      orderBy: { message: { createdAt: 'desc' } },
+      ...toSkipTake(pagination),
+    }),
+    prisma.messageAttachment.count({ where }),
+  ]);
+
+  const items = rows.map((a) => ({
+    id: a.fileId,
+    name: a.file.originalName,
+    type: a.file.mimeType,
+    size: a.file.sizeBytes,
+    sender: a.message.senderName,
+    direction: a.message.senderId === userId ? 'outgoing' : 'incoming',
+    date: a.message.createdAt,
+    note: a.message.body,
+  }));
+  return buildPaginatedResult(items, total, pagination);
 }
 
 export async function memberConversations(userId: string, req: Request) {
   const pagination = parsePage(req);
-  const rows = await prisma.conversation.findMany({
-    where: { participants: { some: { userId } } },
-    include: { participants: { include: { user: { include: { memberProfile: true } } } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
-    orderBy: { updatedAt: 'desc' },
-    ...toSkipTake(pagination),
-  });
-  const total = await prisma.conversation.count({ where: { participants: { some: { userId } } } });
-  return buildPaginatedResult(rows.map(serializeConversation), total, pagination);
+  const where = { participants: { some: { userId } } };
+  const [rows, total] = await Promise.all([
+    prisma.conversation.findMany({
+      where,
+      include: conversationListInclude,
+      orderBy: { updatedAt: 'desc' },
+      ...toSkipTake(pagination),
+    }),
+    prisma.conversation.count({ where }),
+  ]);
+  const unread = await unreadCountsFor(userId, rows.map((r) => r.id));
+  return buildPaginatedResult(rows.map((r) => serializeConversation(r, unread)), total, pagination);
 }
 
-export async function postMemberMessage(userId: string, conversationId: string, body: string) {
-  const conversation = await prisma.conversation.findFirst({ where: { id: conversationId, participants: { some: { userId } } } });
-  if (!conversation) throw ApiError.notFound('Conversation not found');
-  const user = await prisma.user.findUnique({ where: { id: userId }, include: { memberProfile: true } });
-  if (!user) throw new ApiError(401, 'Invalid session');
-  return prisma.message.create({
-    data: {
-      conversationId,
-      senderId: userId,
-      senderName: memberName(user),
-      senderRole: user.role,
-      body,
+/**
+ * Unread messages per conversation for one reader.
+ *
+ * Each participant row carries its own `lastReadAt`, so this cannot be a single
+ * shared cutoff — it becomes one OR clause per conversation, which still runs as
+ * a single grouped query for the page being rendered. Your own messages never
+ * count as unread, and internal admin notes are invisible to members.
+ */
+async function unreadCountsFor(userId: string, conversationIds: string[]): Promise<Map<string, number>> {
+  if (!conversationIds.length) return new Map();
+
+  const participants = await prisma.conversationParticipant.findMany({
+    where: { userId, conversationId: { in: conversationIds } },
+    select: { conversationId: true, lastReadAt: true },
+  });
+  if (!participants.length) return new Map();
+
+  const groups = await prisma.message.groupBy({
+    by: ['conversationId'],
+    where: {
+      OR: participants.map((p) => ({
+        conversationId: p.conversationId,
+        senderId: { not: userId },
+        internal: false,
+        ...(p.lastReadAt ? { createdAt: { gt: p.lastReadAt } } : {}),
+      })),
+    },
+    _count: { _all: true },
+  });
+
+  return new Map(groups.map((g) => [g.conversationId, g._count._all]));
+}
+
+/** Total unread across every thread this user takes part in — the sidebar badge. */
+export async function unreadMessageTotal(userId: string) {
+  const participants = await prisma.conversationParticipant.findMany({
+    where: { userId },
+    select: { conversationId: true, lastReadAt: true },
+  });
+  if (!participants.length) return 0;
+  return prisma.message.count({
+    where: {
+      OR: participants.map((p) => ({
+        conversationId: p.conversationId,
+        senderId: { not: userId },
+        internal: false,
+        ...(p.lastReadAt ? { createdAt: { gt: p.lastReadAt } } : {}),
+      })),
     },
   });
+}
+
+/** Marks everything in a thread read for one participant. */
+export async function markConversationRead(userId: string, conversationId: string) {
+  const participant = await prisma.conversationParticipant.findUnique({
+    where: { conversationId_userId: { conversationId, userId } },
+    select: { id: true },
+  });
+  if (!participant) throw ApiError.notFound('Conversation not found');
+  await prisma.conversationParticipant.update({
+    where: { id: participant.id },
+    data: { lastReadAt: new Date() },
+  });
+  return { ok: true };
+}
+
+/**
+ * Writes a message and everything that must move with it.
+ *
+ * Creating a Message does not touch the Conversation row, so `@updatedAt` never
+ * fires on its own — without the explicit touch here both inboxes stay sorted by
+ * creation order and a reply never lifts its thread to the top.
+ */
+async function writeMessage(opts: {
+  conversationId: string;
+  sender: { id: string; fullName: string; role: string; memberProfile: { memberId: string | null } | null };
+  body: string;
+  internal: boolean;
+  subject: string;
+  recipientIds: string[];
+  /** Already ownership-checked and de-duplicated by assertOwnedFiles. */
+  fileIds?: string[];
+  links?: { url: string; label?: string }[];
+}) {
+  const { conversationId, sender, body, internal, subject, recipientIds } = opts;
+  const fileIds = opts.fileIds ?? [];
+  const links = opts.links ?? [];
+  const senderName = memberName(sender);
+  const linkedSupport = await prisma.supportRequest.findUnique({ where: { conversationId } });
+  const recipients = await prisma.user.findMany({ where: { id: { in: recipientIds }, status: 'ACTIVE', deletedAt: null }, select: { id: true, role: true } });
+
+  const writes: Prisma.PrismaPromise<unknown>[] = [
+    prisma.message.create({
+      data: {
+        conversationId,
+        senderId: sender.id,
+        senderName,
+        senderRole: sender.role,
+        body,
+        internal,
+        // Nested rather than separate entries: this $transaction takes an array
+        // of promises, which cannot see the new message's id.
+        attachments: { create: fileIds.map((fileId) => ({ fileId })) },
+        sharedLinks: { create: links.map(({ url, label }) => ({ url, label: label ?? null })) },
+      },
+    }),
+    prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }),
+    // You have read what you just wrote.
+    prisma.conversationParticipant.updateMany({
+      where: { conversationId, userId: sender.id },
+      data: { lastReadAt: new Date() },
+    }),
+  ];
+
+  // Internal notes are admin-only and must never surface to the member.
+  if (!internal) {
+    if (linkedSupport) writes.push(prisma.supportRequest.update({ where: { id: linkedSupport.id }, data: { updatedAt: new Date() } }));
+    for (const recipient of recipients) {
+      const userId = recipient.id;
+      writes.push(
+        prisma.notification.create({
+          data: {
+            userId,
+            title: `New message from ${sender.fullName}`,
+            body: body.length > 160 ? `${body.slice(0, 157)}...` : body,
+            type: 'message',
+            link: linkedSupport ? `${recipient.role === 'ADMIN' ? '/admin' : '/dashboard'}/support/${linkedSupport.id}` : recipient.role === 'ADMIN' ? `/admin/messages/${conversationId}` : '/dashboard/messages',
+          },
+        }),
+      );
+    }
+  }
+
+  if (linkedSupport) writes.push(prisma.auditLog.create({ data: {
+    actorId: sender.id, actorLabel: sender.fullName, actorRole: sender.role,
+    action: internal ? 'SupportInternalNoteAdded' : 'SupportReplySent', entity: `SupportRequest ${linkedSupport.id}`,
+    severity: 'INFO', description: internal ? 'Internal note added' : 'Reply sent',
+  } }));
+
+  await prisma.$transaction(writes);
+  return { conversationId, subject, senderName };
+}
+
+async function loadSender(userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, include: { memberProfile: true } });
+  if (!user) throw new ApiError(401, 'Invalid session');
+  return user;
+}
+
+/** What a caller may attach to a message. */
+export interface MessagePayload {
+  body: string;
+  fileIds?: string[];
+  links?: { url: string; label?: string }[];
+}
+
+export async function postMemberMessage(userId: string, conversationId: string, input: MessagePayload) {
+  const conversation = await prisma.conversation.findFirst({
+    where: { id: conversationId, participants: { some: { userId } } },
+    include: { participants: { select: { userId: true } } },
+  });
+  if (!conversation) throw ApiError.notFound('Conversation not found');
+  const sender = await loadSender(userId);
+  // Throws 404 if any id is not an upload this caller made, and returns the
+  // de-duplicated set — the only guard against duplicate attachment rows, since
+  // MessageAttachment has no unique index.
+  const fileIds = await assertOwnedFiles(userId, input.fileIds ?? []);
+  return writeMessage({
+    conversationId,
+    sender,
+    body: input.body,
+    internal: false,
+    subject: conversation.subject,
+    recipientIds: conversation.participants.map((p) => p.userId).filter((id) => id !== userId),
+    fileIds,
+    links: input.links,
+  });
+}
+
+/**
+ * Admin reply. Unlike the member path this does not require prior membership of
+ * the thread — any CRO can pick up any conversation — so the admin is added as a
+ * participant on first reply. The @@unique([conversationId, userId]) makes that
+ * an upsert rather than a duplicate.
+ */
+export async function postAdminMessage(
+  adminId: string,
+  conversationId: string,
+  input: MessagePayload & { internal?: boolean },
+) {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: { participants: { select: { userId: true } } },
+  });
+  if (!conversation) throw ApiError.notFound('Conversation not found');
+
+  const sender = await loadSender(adminId);
+  // Same rule as the member path: you may only attach your own uploads.
+  const fileIds = await assertOwnedFiles(adminId, input.fileIds ?? []);
+
+  await prisma.conversationParticipant.upsert({
+    where: { conversationId_userId: { conversationId, userId: adminId } },
+    create: { conversationId, userId: adminId, roleLabel: 'CRO Office' },
+    update: {},
+  });
+
+  return writeMessage({
+    conversationId,
+    sender,
+    body: input.body,
+    internal: input.internal ?? false,
+    subject: conversation.subject,
+    recipientIds: conversation.participants.map((p) => p.userId).filter((id) => id !== adminId),
+    fileIds,
+    links: input.links,
+  });
+}
+
+/** Members open threads with the CRO; every active admin joins so any can reply. */
+export async function createMemberConversation(
+  userId: string,
+  input: MessagePayload & { subject: string; category: string },
+) {
+  const sender = await loadSender(userId);
+  // Checked before the conversation is created: this function and writeMessage
+  // are not one transaction, so a late throw would leave an empty thread.
+  const fileIds = await assertOwnedFiles(userId, input.fileIds ?? []);
+  const admins = await prisma.user.findMany({
+    where: { role: 'ADMIN', status: 'ACTIVE', deletedAt: null },
+    select: { id: true },
+  });
+
+  const conversation = await prisma.conversation.create({
+    data: {
+      subject: input.subject,
+      category: input.category,
+      status: 'Open',
+      priority: 'Standard',
+      participants: {
+        create: [
+          { userId, roleLabel: 'Member' },
+          ...admins.map((a) => ({ userId: a.id, roleLabel: 'CRO Office' })),
+        ],
+      },
+    },
+  });
+
+  await writeMessage({
+    conversationId: conversation.id,
+    sender,
+    body: input.body,
+    internal: false,
+    subject: conversation.subject,
+    recipientIds: admins.map((a) => a.id),
+    fileIds,
+    links: input.links,
+  });
+
+  return { id: conversation.id, subject: conversation.subject, category: conversation.category };
 }
 
 export async function memberCommunity(req: Request) {
@@ -782,6 +990,19 @@ export async function memberCommunity(req: Request) {
   };
 }
 
+/**
+ * Threads whose newest visible message came from a member — i.e. the CRO owes a
+ * reply. The previous version counted every non-internal message ever sent, so
+ * the sidebar badge only ever grew.
+ */
+export async function conversationsAwaitingReply() {
+  const rows = await prisma.conversation.findMany({
+    where: { status: { not: 'Closed' } },
+    select: { messages: { where: { internal: false }, orderBy: { createdAt: 'desc' }, take: 1, select: { senderRole: true } } },
+  });
+  return rows.filter((r) => r.messages[0]?.senderRole === 'MEMBER').length;
+}
+
 export async function adminStats() {
   const [totalMembers, directoryTotal, applications, projects, publications, support, messages, events, inquiries] = await Promise.all([
     prisma.user.count({ where: { role: 'MEMBER', status: 'ACTIVE' } }),
@@ -792,8 +1013,8 @@ export async function adminStats() {
     prisma.project.count({ where: { status: { in: ['SUBMITTED', 'UNDER_REVIEW'] } } }),
     prisma.publication.count({ where: { status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'] } } }),
     prisma.supportRequest.count({ where: { status: { in: ['PENDING', 'UNDER_REVIEW'] } } }),
-    prisma.message.count({ where: { internal: false } }),
-    prisma.event.count({ where: { status: 'PUBLISHED', date: { gte: new Date() } } }),
+    conversationsAwaitingReply(),
+    prisma.event.count({ where: { deletedAt: null, status: 'PUBLISHED', date: { gte: new Date() } } }),
     prisma.contactInquiry.count({ where: { status: 'NEW' } }),
   ]);
   return {
@@ -1490,39 +1711,44 @@ export async function transitionPublication(id: string, actorId: string, next: P
 }
 
 export async function adminSupport(req: Request) {
-  const pagination = parsePage(req);
-  const rows = await prisma.supportRequest.findMany({
-    include: { types: true, project: true, requester: { include: { memberProfile: true } } },
-    orderBy: { updatedAt: 'desc' },
-    ...toSkipTake(pagination),
-  });
-  const total = await prisma.supportRequest.count();
-  return buildPaginatedResult(rows.map(serializeSupport), total, pagination);
+  return supportService.listSupport(req);
 }
 
-export async function transitionSupport(id: string, actorId: string, next: SupportStatus, response?: string) {
-  const support = await prisma.supportRequest.findUnique({ where: { id } });
-  if (!support) throw ApiError.notFound('Support request not found');
-  await prisma.$transaction([
-    prisma.supportRequest.update({ where: { id }, data: { status: next, adminResponse: response ?? support.adminResponse } }),
-    prisma.supportRequestHistory.create({ data: { requestId: id, fromStatus: support.status, toStatus: next, actorId, note: response } }),
-    prisma.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'SupportRequestStatusChanged', entity: `SupportRequest ${id}`, severity: next === 'REJECTED' ? 'DANGER' : 'SUCCESS', description: response ?? `Support moved to ${next}` } }),
+export async function transitionSupport(id: string, actorId: string, next: SupportStatus, response?: string, expectedUpdatedAt?: string) {
+  return supportService.transitionSupport(id, actorId, next, response, expectedUpdatedAt);
+}
+
+/** Shared shape for both inboxes: newest message for the preview, plus a true message count. */
+const conversationListInclude = {
+  participants: { include: { user: { include: { memberProfile: true } } } },
+  messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+  _count: { select: { messages: true } },
+} satisfies Prisma.ConversationInclude;
+
+export async function adminConversations(userId: string, req: Request) {
+  const pagination = parsePage(req);
+  const [rows, total] = await Promise.all([
+    prisma.conversation.findMany({
+      include: conversationListInclude,
+      orderBy: { updatedAt: 'desc' },
+      ...toSkipTake(pagination),
+    }),
+    prisma.conversation.count(),
   ]);
-  return { ok: true, to: supportStatusLabel[next] };
+  const unread = await unreadCountsFor(userId, rows.map((r) => r.id));
+  return buildPaginatedResult(rows.map((r) => serializeConversation(r, unread)), total, pagination);
 }
 
-export async function adminConversations(req: Request) {
-  const pagination = parsePage(req);
-  const rows = await prisma.conversation.findMany({
-    include: { participants: { include: { user: { include: { memberProfile: true } } } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
-    orderBy: { updatedAt: 'desc' },
-    ...toSkipTake(pagination),
-  });
-  const total = await prisma.conversation.count();
-  return buildPaginatedResult(rows.map(serializeConversation), total, pagination);
-}
-
-function serializeConversation(row: Prisma.ConversationGetPayload<{ include: { participants: { include: { user: { include: { memberProfile: true } } } }; messages: true } }>) {
+function serializeConversation(
+  row: Prisma.ConversationGetPayload<{
+    include: {
+      participants: { include: { user: { include: { memberProfile: true } } } };
+      messages: true;
+      _count: { select: { messages: true } };
+    };
+  }>,
+  unread?: Map<string, number>,
+) {
   const member = row.participants.find((p) => p.user.role === 'MEMBER')?.user;
   return {
     id: row.id,
@@ -1531,52 +1757,102 @@ function serializeConversation(row: Prisma.ConversationGetPayload<{ include: { p
     memberId: member?.memberProfile?.memberId ?? '',
     category: row.category,
     lastActivity: row.updatedAt,
-    unreadCount: 0,
+    unreadCount: unread?.get(row.id) ?? 0,
     participantCount: row.participants.length,
-    totalMessages: row.messages.length,
+    // From _count, not row.messages — the list query truncates to one message.
+    totalMessages: row._count.messages,
     lastPreview: row.messages[0]?.body ?? '',
     status: row.status,
     priority: row.priority,
   };
 }
 
-export async function adminConversationDetail(id: string, userId?: string) {
+/**
+ * Turnaround metrics for one thread. A "response" is a message whose sender role
+ * differs from the previous one — i.e. an actual reply rather than a follow-up
+ * from the same side.
+ */
+function conversationAnalytics(messages: { createdAt: Date; senderRole: string }[]) {
+  const gaps: number[] = [];
+  for (let i = 1; i < messages.length; i++) {
+    const prev = messages[i - 1]!;
+    const current = messages[i]!;
+    if (prev.senderRole !== current.senderRole) {
+      gaps.push((current.createdAt.getTime() - prev.createdAt.getTime()) / 60_000);
+    }
+  }
+  const round = (value: number) => Math.round(value * 10) / 10;
+  return {
+    firstResponseMinutes: gaps.length ? round(gaps[0]!) : null,
+    avgResponseMinutes: gaps.length ? round(gaps.reduce((a, b) => a + b, 0) / gaps.length) : null,
+    responseCount: gaps.length,
+  };
+}
+
+/**
+ * One thread in full.
+ *
+ * `viewerId` scopes access: pass it for a member (a non-participant gets 404,
+ * never 403 — R5) and omit it for an admin, who may read any thread.
+ * `includeInternal` keeps admin-only notes away from members.
+ */
+export async function adminConversationDetail(
+  id: string,
+  viewerId?: string,
+  options: { includeInternal?: boolean } = {},
+) {
+  const includeInternal = options.includeInternal ?? true;
   const row = await prisma.conversation.findUnique({
     where: { id },
     include: {
       participants: { include: { user: { include: { memberProfile: true } } } },
-      messages: { include: { attachments: { include: { file: true } }, sharedLinks: true }, orderBy: { createdAt: 'asc' } },
+      messages: {
+        where: includeInternal ? {} : { internal: false },
+        include: { attachments: { include: { file: true } }, sharedLinks: true },
+        orderBy: { createdAt: 'asc' },
+      },
       linkedRecords: true,
+      _count: { select: { messages: true } },
     },
   });
   if (!row) throw ApiError.notFound('Conversation not found');
-  const hasAccess = !userId || row.participants.some((p) => p.userId === userId);
-  if (userId && !hasAccess) throw ApiError.notFound('Conversation not found');
+  if (viewerId && !row.participants.some((p) => p.userId === viewerId)) {
+    throw ApiError.notFound('Conversation not found');
+  }
+
   const member = row.participants.find((p) => p.user.role === 'MEMBER')?.user;
+  const unread = viewerId ? await unreadCountsFor(viewerId, [row.id]) : undefined;
+
   return {
-    ...serializeConversation({ ...row, messages: row.messages }),
+    ...serializeConversation({ ...row, messages: row.messages }, unread),
+    // The list serializer counts every message; a member must not learn that
+    // internal notes exist from a count that does not match what they can see.
+    totalMessages: includeInternal ? row._count.messages : row.messages.length,
     fromName: member?.fullName,
     fromEmail: member?.email,
     fromMemberId: member?.memberProfile?.memberId,
     fromInstitution: member?.memberProfile?.institution,
+    assignee: row.assignee,
+    createdAt: row.createdAt,
     participants: row.participants.map((p) => ({ name: p.user.fullName, role: p.roleLabel ?? p.user.role, joinedAt: p.joinedAt, email: p.user.email })),
-    messages: row.messages.map((m) => ({ id: m.id, who: m.senderRole.toLowerCase(), name: m.senderName, at: m.createdAt, text: m.body, internal: m.internal, attachments: m.attachments.map((a) => ({ id: a.fileId, name: a.file.originalName, size: a.file.sizeBytes, type: a.file.mimeType })) })),
+    messages: row.messages.map((m) => ({
+      id: m.id,
+      who: m.senderRole.toLowerCase(),
+      name: m.senderName,
+      at: m.createdAt,
+      text: m.body,
+      internal: m.internal,
+      attachments: m.attachments.map((a) => ({ id: a.fileId, name: a.file.originalName, size: a.file.sizeBytes, type: a.file.mimeType })),
+      links: m.sharedLinks.map((l) => ({ id: l.id, url: l.url, label: l.label })),
+    })),
     linkedRecords: row.linkedRecords,
+    analytics: {
+      ...conversationAnalytics(row.messages),
+      participantCount: row.participants.length,
+      linkedRecordCount: row.linkedRecords.length,
+      lastActivityAt: row.updatedAt,
+    },
   };
-}
-
-export async function adminEvents(req: Request) {
-  const pagination = parsePage(req);
-  const rows = await prisma.event.findMany({ include: { tags: true, registrations: true }, orderBy: { date: 'asc' }, ...toSkipTake(pagination) });
-  const total = await prisma.event.count();
-  return buildPaginatedResult(rows.map((e) => ({ ...e, tags: e.tags.map((t) => t.name), attendees: e.registrations.length })), total, pagination);
-}
-
-export async function upsertEvent(input: Prisma.EventCreateInput, id?: string) {
-  if (id) {
-    return prisma.event.update({ where: { id }, data: input });
-  }
-  return prisma.event.create({ data: input });
 }
 
 export async function adminInquiries(req: Request) {

@@ -14,7 +14,6 @@ import {
   Plus,
   Trash2,
   Link as LinkIcon,
-  Sparkles,
   Eye,
   Send,
   CalendarClock,
@@ -25,178 +24,30 @@ import {
   Edit3,
   RefreshCw,
 } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { TextInput, FileInput, SelectInput, TextArea, Checkbox } from '../../components/common/Input';
-import type { EventFormState } from './AdminNewEventPage';
-import { validate as eventValidate } from './AdminNewEventPage';
-
-type Format = 'In-Person' | 'Hybrid' | 'Virtual';
-type Audience = 'All Members' | 'CRO Invite' | 'Public';
-type EventTag =
-  | 'Symposium' | 'Workshop' | 'Town Hall' | 'Lecture'
-  | 'Moral Support' | 'Grants' | 'Publications' | 'Wellness'
-  | 'Chapter' | 'Networking' | 'SAB' | 'Training';
-
-const EVENT_TAGS: EventTag[] = [
-  'Symposium', 'Workshop', 'Town Hall', 'Lecture',
-  'Moral Support', 'Grants', 'Publications', 'Wellness',
-  'Chapter', 'Networking', 'SAB', 'Training',
-];
-
-interface EventRecordPopulate {
-  id: string;
-  title: string;
-  date: string;
-  timeStart: string;
-  timeEnd: string;
-  timezone: string;
-  location: string;
-  format: Format;
-  audience: Audience;
-  capacity: string;
-  externalUrl: string;
-  organizer: string;
-  organizerEmail: string;
-  shortDescription: string;
-  longDescription: string;
-  speakers: string[];
-  tags: EventTag[];
-  status: 'Published' | 'Draft' | 'Past' | 'Cancelled';
-  attendees: number;
-  featured: boolean;
-}
-
-const eventsById: Record<string, EventRecordPopulate> = {
-  'ev-2026-09': {
-    id: 'ev-2026-09',
-    title: 'IFSMHP 2026 Annual Scientific Symposium',
-    date: '2026-09-18',
-    timeStart: '09:00',
-    timeEnd: '17:30',
-    timezone: 'Europe/Stockholm (CET)',
-    location: 'Stockholm, Sweden · Karolinska Congress Hall + Virtual',
-    format: 'Hybrid',
-    audience: 'All Members',
-    capacity: '250',
-    externalUrl: 'https://ifsmhp.example/events/symposium-2026',
-    organizer: 'CRO Office',
-    organizerEmail: 'events@ifsmhp.example',
-    shortDescription: 'Keynotes on biomarkers, digital therapeutics and the global mental health workforce crisis. Three-day scientific program with plenary sessions, working group breakouts, poster hall, and community social events. Scientific Advisory Board (SAB) meeting the day before.',
-    longDescription:
-      '## About the Symposium\n\nThe 2026 IFSMHP Annual Scientific Symposium brings together members across our seven professional tracks for three days of keynotes, working group sessions, poster presentations and community building.\n\n## Agenda (draft)\n\n- Day 0 (Thu Sept 17) — SAB Meeting + Early Career Workshop\n- Day 1 (Fri Sept 18) — Opening Plenary: Biomarkers in Clinical Practice\n  - Session 1A: Digital therapeutics — evidence base 2026\n  - Session 1B: Workforce crisis — a global view from LMIC programs\n- Day 2 (Sat Sept 19) — Parallel tracks\n  - Track A: Scientists — novel biomarkers\n  - Track B: Clinicians — culturally adapted CBT\n  - Track C: Policy & Public Health — service design\n- Day 3 (Sun Sept 20) — Closing + members assembly\n\n## SAB & Invited Speakers\n\nConfirmed keynoters include Prof. Lindberg (Karolinska) and Dr. E. Whitfield (CRO Lead).',
-    speakers: [
-      'Prof. H. Lindberg — Karolinska Institutet, SAB Chair',
-      'Dr. E. Whitfield — IFSMHP CRO Lead',
-      'Prof. M. Chen — Stanford, Biomarkers Track',
-      'Dr. K. Asante — University of Ghana, Public Health Track',
-    ],
-    tags: ['Symposium', 'SAB', 'Networking'],
-    status: 'Published',
-    attendees: 142,
-    featured: true,
-  },
-  'ev-2026-09-08': {
-    id: 'ev-2026-09-08',
-    title: 'Workshop: Writing Project Proposals for CRO Funding',
-    date: '2026-09-08',
-    timeStart: '14:00',
-    timeEnd: '16:30',
-    timezone: 'UTC',
-    location: 'Zoom — RSVP required',
-    format: 'Virtual',
-    audience: 'All Members',
-    capacity: '200',
-    externalUrl: 'https://ifsmhp-example.zoom.us/webinar/register/WN_ZGAXq',
-    organizer: 'Grants Office',
-    organizerEmail: 'grants@ifsmhp.example',
-    shortDescription: 'A 2.5-hour guided workshop covering project scope, budget justification, reviewer pitfalls, and the IFSMHP-specific sections of CRO grant applications. Participants leave with a structured outline and an SAB Q&A.',
-    longDescription:
-      '## Workshop goals\n\nBy the end of the workshop, participants will:\n\n1. Understand the 4 sections reviewers score highest\n2. Have a structured outline for an IFSMHP CRO grant\n3. Have asked questions of the SAB Grants Subcommittee\n\n## Who should attend?\n\nMembers considering a CRO project grant submission in the October or January round. Postdocs and early-career researchers especially welcome.',
-    speakers: [
-      'Dr. N. Hargrove — Grants Office Director',
-      'Prof. R. Mehta — SAB Grants Subcommittee',
-    ],
-    tags: ['Grants', 'Workshop'],
-    status: 'Published',
-    attendees: 78,
-    featured: false,
-  },
-  'ev-2026-10-12': {
-    id: 'ev-2026-10-12',
-    title: 'Moral Support Program: Monthly Members Peer Group',
-    date: '2026-10-12',
-    timeStart: '19:00',
-    timeEnd: '20:30',
-    timezone: 'UTC',
-    location: 'Private Video Room',
-    format: 'Virtual',
-    audience: 'CRO Invite',
-    capacity: '24',
-    externalUrl: '',
-    organizer: 'Wellness Committee',
-    organizerEmail: 'wellness@ifsmhp.example',
-    shortDescription: 'Chatham House Rules, 90-minute facilitated peer discussion. Not recorded. Topics pre-circulated via membership email. New attendees welcome.',
-    longDescription: 'Monthly peer group for members. Facilitated by the Wellness Committee. All content confidential and not recorded.',
-    speakers: ['Wellness Committee (facilitated)'],
-    tags: ['Moral Support', 'Wellness'],
-    status: 'Draft',
-    attendees: 14,
-    featured: false,
-  },
-};
-
-interface Errors {
-  [k: string]: string | undefined;
-  title?: string; shortDescription?: string; date?: string; timeStart?: string; timeEnd?: string;
-  location?: string; organizer?: string; organizerEmail?: string; longDescription?: string;
-  capacity?: string; externalUrl?: string;
-}
-
-function validate(form: EventFormState): Errors {
-  return eventValidate(form);
-}
+import { EVENT_TAGS, TIMEZONES, validateEvent as validate, type EventFormState } from '../../api/events';
+import { useEventEditor } from '../../hooks/useEventEditor';
+type Format = EventFormState['format'];
+type Audience = EventFormState['audience'];
+type EventTag = string;
+type Errors = Record<string, string | undefined>;
 
 export default function AdminEditEventPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const ev = eventsById[id ?? ''] ?? eventsById['ev-2026-09']!;
-
-  const [form, setForm] = useState<EventFormState>(() => ({
-    title: ev.title,
-    shortDescription: ev.shortDescription,
-    date: ev.date,
-    timeStart: ev.timeStart,
-    timeEnd: ev.timeEnd,
-    timezone: ev.timezone,
-    location: ev.location,
-    format: ev.format,
-    audience: ev.audience,
-    capacity: ev.capacity,
-    externalUrl: ev.externalUrl,
-    organizer: ev.organizer,
-    organizerEmail: ev.organizerEmail,
-    longDescription: ev.longDescription,
-    agenda: '',
-    speakers: ev.speakers.length > 0 ? [...ev.speakers] : [''],
-    tags: ev.tags.length > 0 ? [...ev.tags] : [],
-    registrationRequired: true,
-    waitlistEnabled: true,
-    sendReminder: true,
-    reminderDays: '1',
-    recordingProvided: ev.format !== 'In-Person',
-    publishImmediately: ev.status === 'Published',
-    scheduledPublishDate: '',
-    featured: ev.featured,
-  }));
-
-  const [errors, setErrors] = useState<Errors>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [status, setStatus] = useState<EventRecordPopulate['status']>(ev.status);
+  const route = useLocation();
+  const readOnly = !route.pathname.endsWith('/edit');
+  const { form, setForm, ev, errors, setErrors, touched, setTouched, loading, loadError, retry, busy, message, requestError, coverUrl, coverName, chooseCover, save, cancel, refreshDelivery } = useEventEditor(id);
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [saved, setSaved] = useState<null | 'ok' | 'published'>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [emailAttendees, setEmailAttendees] = useState(true);
+  const [previewVersion, setPreviewVersion] = useState(0);
+  const status = ev?.displayStatus === 'PAST' ? 'Past' : ev?.status === 'PUBLISHED' ? 'Published' : ev?.status === 'CANCELLED' ? 'Cancelled' : 'Draft';
+  const saved = message ? (message.includes('published') ? 'published' : 'ok') : null;
 
   const allErrors = useMemo(() => validate(form), [form]);
   const isValid = Object.keys(allErrors).length === 0;
@@ -205,6 +56,7 @@ export default function AdminEditEventPage() {
   const update = <K extends keyof EventFormState>(k: K, v: EventFormState[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
     setTouched((t) => ({ ...t, [k]: true }));
+    setErrors(e => ({ ...e, [k]: undefined }));
   };
 
   const toggleTag = (tag: EventTag) => {
@@ -220,55 +72,48 @@ export default function AdminEditEventPage() {
   const addSpeaker = () => setForm((f) => ({ ...f, speakers: [...f.speakers, ''] }));
   const removeSpeaker = (idx: number) => setForm((f) => ({ ...f, speakers: f.speakers.filter((_, i) => i !== idx) }));
 
-  const save = (publishMode: 'draft' | 'publish' = 'draft') => {
-    setErrors(allErrors);
-    if (publishMode === 'publish') {
-      const allTouched: Record<string, boolean> = {};
-      Object.keys(form).forEach((k) => { allTouched[k] = true; });
-      setTouched(allTouched);
-    }
-    if (publishMode === 'publish' && !isValid) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    if (publishMode === 'publish') setStatus('Published');
-    setSaved(publishMode === 'publish' ? 'published' : 'ok');
-    setTimeout(() => setSaved(null), 3500);
-  };
+  if (loading) return <div role="status" className="py-12 text-center text-ink-muted">Loading event...</div>;
+  if (loadError || !ev) return <div role="alert" className="space-y-4 py-12 text-center"><p>{loadError || 'Event not found.'}</p><Button onClick={retry}>Retry</Button><Button as="link" to="/admin/events" variant="outline">Back to events</Button></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div className="flex-1 max-w-3xl">
           <div className="flex flex-wrap items-center gap-2 text-xs text-ink-subtle mb-2">
-            <Badge variant="brass"><Sparkles className="h-2.5 w-2.5 mr-1" />[DEMO DATA — API pending]</Badge>
+
             <Link to="/admin/events" className="inline-flex items-center gap-1 text-forum-700 font-medium hover:underline">
               <ArrowLeft className="h-3 w-3" /> Back to events
             </Link>
             <Badge variant={status === 'Published' ? 'success' : status === 'Cancelled' ? 'danger' : status === 'Draft' ? 'warning' : 'default'}>
-              <Edit3 className="h-3 w-3 mr-1" />Editing · {status}
+              <Edit3 className="h-3 w-3 mr-1" />{readOnly ? 'Viewing' : 'Editing'} · {status}
             </Badge>
           </div>
-          <h1 className="font-display text-2xl sm:text-3xl font-semibold text-forum-900 leading-tight">Edit Event</h1>
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold text-forum-900 leading-tight">{readOnly ? 'View Event' : 'Edit Event'}</h1>
           <p className="mt-1.5 text-ink-muted text-base leading-relaxed">
             Updating <code className="font-mono text-[11px] bg-forum-50 text-forum-700 px-1.5 py-0.5 rounded">{ev.id}</code> — {ev.title || 'Untitled event'}.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
+          {readOnly && <Button as="link" to={`/admin/events/${ev.id}/edit`}><Edit3 className="h-4 w-4" />Edit Event</Button>}
+          {!readOnly && <>
           {status === 'Published' && (
             <Button variant="outline" size="sm" className="border-danger-600/30 text-danger-600 hover:bg-danger-100" onClick={() => setConfirmCancel(true)}>
               <AlertCircle className="h-3.5 w-3.5" /> Cancel Event
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => save('draft')}>
+          <Button variant="outline" size="sm" onClick={() => setPreviewVersion(v => v + 1)}>
             <RefreshCw className="h-3.5 w-3.5" /> Refresh preview
           </Button>
-          <Button variant="outline" size="sm" onClick={() => save('draft')}>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => { void save('submit'); }}>
             {saved === 'ok' ? <><CheckCircle2 className="h-3.5 w-3.5 text-success-600" />Saved</> : <><Save className="h-3.5 w-3.5" /> Save Changes</>}
           </Button>
+          </>}
         </div>
       </div>
 
+      {requestError && <div role="alert" className="rounded-lg border border-danger-600/30 bg-danger-50 p-4 text-danger-800">{requestError}</div>}
+      {Object.values(errors).some(Boolean) && <div role="alert" className="rounded-lg border border-danger-600/30 bg-danger-50 p-4 text-sm text-danger-800">{Object.values(errors).filter(Boolean).join(' ')}</div>}
+      {route.state?.message && !message && <p role="status" className="text-success-700">{route.state.message}</p>}
       {saved && (
         <div className={`rounded-lg border p-3.5 flex items-start gap-2.5 ${
           saved === 'published' ? 'border-success-600/20 bg-success-50' : 'border-brass-500/30 bg-brass-50'
@@ -276,10 +121,10 @@ export default function AdminEditEventPage() {
           <CheckCircle2 className={`h-4.5 w-4.5 shrink-0 mt-0.5 ${saved === 'published' ? 'text-success-600' : 'text-brass-700'}`} />
           <div>
             <p className={`text-sm font-semibold ${saved === 'published' ? 'text-success-800' : 'text-brass-800'}`}>
-              {saved === 'published' ? 'Event published' : 'Saved successfully'}
+              {message}
             </p>
             <p className={`text-xs ${saved === 'published' ? 'text-success-700/90' : 'text-brass-700/90'} mt-0.5`}>
-              {saved === 'published' ? 'Changes are live on the calendar and registered attendees have been notified.' : 'Draft saved. Continue editing or publish when ready.'}
+              Your changes have been saved to the event record.
             </p>
           </div>
         </div>
@@ -309,7 +154,7 @@ export default function AdminEditEventPage() {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
+        <fieldset disabled={readOnly || busy} className="lg:col-span-2 space-y-6 min-w-0">
           <Card>
             <CardHeader>
               <h3 className="font-display text-lg font-semibold text-forum-900 flex items-center gap-2">
@@ -323,7 +168,7 @@ export default function AdminEditEventPage() {
                 <div className="sm:col-span-2 lg:col-span-1"><TextInput label="Date" type="date" value={form.date} onChange={(e) => update('date', e.target.value)} error={fieldError('date')} icon={<Calendar className="h-4 w-4 text-ink-subtle" />} /></div>
                 <TextInput label="Start" type="time" value={form.timeStart} onChange={(e) => update('timeStart', e.target.value)} error={fieldError('timeStart')} icon={<Clock className="h-4 w-4 text-ink-subtle" />} />
                 <TextInput label="End" type="time" value={form.timeEnd} onChange={(e) => update('timeEnd', e.target.value)} error={fieldError('timeEnd')} icon={<Clock className="h-4 w-4 text-ink-subtle" />} />
-                <TextInput label="Timezone" value={form.timezone} onChange={(e) => update('timezone', e.target.value)} />
+                <SelectInput label="Timezone" value={form.timezone} error={fieldError('timezone')} onChange={e => update('timezone', e.target.value)}>{[...new Set([...TIMEZONES, form.timezone])].map(tz => <option key={tz}>{tz}</option>)}</SelectInput>
               </div>
               <TextInput label="Location / Virtual Room" value={form.location} onChange={(e) => update('location', e.target.value)} error={fieldError('location')} icon={<MapPin className="h-4 w-4 text-ink-subtle" />} />
               <div className="grid gap-4 sm:grid-cols-3">
@@ -379,11 +224,12 @@ export default function AdminEditEventPage() {
               </h3>
             </CardHeader>
             <CardContent className="pt-0 space-y-4">
-              <FileInput label="Event Cover Image" accept="image/*" hint="Current: banner_ifsmhp2026_stockholm.jpg (recommended: 1600×900)" />
+              <FileInput label="Event Cover Image" accept="image/jpeg,image/png,image/webp" onChange={e => chooseCover(e.target.files?.[0])} onFiles={files => { if (!readOnly && !busy) chooseCover(files[0]); }} hint={coverName || 'Landscape 16:9 recommended.'} />
+              {coverUrl && <img src={coverUrl} alt="Event cover" className="w-full aspect-video object-cover rounded-lg" />}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-2 block">Tags</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {EVENT_TAGS.map((t) => {
+                  {[...new Set([...EVENT_TAGS, ...form.tags])].map((t) => {
                     const active = form.tags.includes(t);
                     return (
                       <button
@@ -427,7 +273,8 @@ export default function AdminEditEventPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-forum-50 to-brass-50/60 border-brass-500/30">
+          {!form.publishImmediately && status !== 'Cancelled' && <TextInput label="Schedule publish date & time" type="datetime-local" value={form.scheduledPublishDate} error={fieldError('scheduledPublishDate')} hint={`Timezone: ${form.timezone}`} onChange={e => update('scheduledPublishDate', e.target.value)} />}
+          {!readOnly && <Card className="bg-gradient-to-br from-forum-50 to-brass-50/60 border-brass-500/30">
             <CardContent className="pt-6 flex flex-col-reverse sm:flex-row sm:justify-between items-center gap-3">
               <Button variant="ghost" type="button" onClick={() => navigate('/admin/events')}>
                 <X className="h-4 w-4" /> Back to events (discard unsaved)
@@ -436,21 +283,21 @@ export default function AdminEditEventPage() {
                 <Button variant="outline" type="button" onClick={() => save('draft')}>
                   <Save className="h-4 w-4" /> Save Draft
                 </Button>
-                <Button type="button" disabled={!isValid} onClick={() => save('publish')}>
+                <Button type="button" disabled={busy} onClick={() => save('publish')}>
                   {saved === 'published' ? <><CheckCircle2 className="h-4 w-4" />Published</> : isValid ? <><Send className="h-4 w-4" /> Update &amp; Publish</> : <><AlertCircle className="h-4 w-4" />{Object.keys(allErrors).length} issue{Object.keys(allErrors).length > 1 ? 's' : ''} — fix to publish</>}
                 </Button>
               </div>
             </CardContent>
-          </Card>
-        </div>
+          </Card>}
+        </fieldset>
 
-        <aside className="space-y-5">
+        <aside key={previewVersion} className="space-y-5 min-w-0">
           <Card>
             <CardHeader><h3 className="font-display text-lg font-semibold text-forum-900">Preview Card</h3></CardHeader>
             <CardContent className="pt-0">
               <div className="rounded-2xl border border-paper-border overflow-hidden bg-gradient-to-br from-forum-50 via-paper to-brass-50/40">
                 <div className="h-28 bg-gradient-to-br from-forum-600 via-slateteal-500 to-brass-500 flex items-center justify-center text-white/90 text-xs">
-                  <Image className="h-6 w-6 mr-2" />Existing cover banner
+                  {coverUrl ? <img src={coverUrl} alt="Cover preview" className="h-full w-full object-cover" /> : <><Image className="h-6 w-6 mr-2" />No cover image</>}
                 </div>
                 <div className="p-4 space-y-3">
                   <div className="flex flex-wrap gap-1.5">
@@ -485,9 +332,10 @@ export default function AdminEditEventPage() {
               <div className="flex justify-between"><span className="text-ink-subtle">Ready to publish</span><span className={isValid ? 'text-success-600 font-semibold inline-flex items-center gap-1' : 'text-danger-600 font-semibold inline-flex items-center gap-1'}>{isValid ? <><CheckCircle2 className="h-3.5 w-3.5" />Yes</> : <><AlertCircle className="h-3.5 w-3.5" />No — {Object.keys(allErrors).length}</>}</span></div>
               <div className="flex justify-between"><span className="text-ink-subtle">Speakers</span><span className="font-medium text-ink">{form.speakers.filter((s) => s.trim()).length}</span></div>
               <div className="flex justify-between"><span className="text-ink-subtle">Tags</span><span className="font-medium text-ink">{form.tags.length}</span></div>
-              <div className="flex justify-between"><span className="text-ink-subtle">Last edited</span><span className="font-medium text-ink">Just now</span></div>
+              <div className="flex justify-between"><span className="text-ink-subtle">Last edited</span><span className="font-medium text-ink">{new Date(ev.updatedAt).toLocaleString()}</span></div>
             </CardContent>
           </Card>
+          {ev.delivery?.length > 0 && <Card><CardHeader><h3 className="font-display text-lg font-semibold text-forum-900">Delivery Status</h3></CardHeader><CardContent className="space-y-2 text-xs">{ev.delivery.map(d => <p key={d.status}>{d.status}: {d.count}</p>)}{ev.failures.map(f => <p key={f.id} className="text-danger-600">{f.kind}: {f.error}</p>)}<Button variant="outline" size="sm" onClick={() => { void refreshDelivery(); }}>Refresh status</Button></CardContent></Card>}
         </aside>
       </div>
 
@@ -505,17 +353,18 @@ export default function AdminEditEventPage() {
               <button onClick={() => setConfirmCancel(false)} className="p-1.5 rounded-md text-ink-muted hover:bg-forum-50"><X className="h-5 w-5" /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
+              {requestError && <p role="alert" className="text-sm text-danger-600">{requestError}</p>}
               <div className="rounded-lg border border-danger-600/30 bg-danger-50 p-3.5 text-xs text-danger-700 space-y-1">
                 <p className="font-semibold uppercase tracking-wider">This cancels the event publicly:</p>
-                <ul className="ml-4 list-disc space-y-0.5"><li>Status set to Cancelled</li><li>Registered attendees emailed</li><li>Removed from Featured banner</li></ul>
+                <ul className="ml-4 list-disc space-y-0.5"><li>Status set to Cancelled</li><li>Cancellation notices queued when selected</li><li>Removed from Featured banner</li></ul>
               </div>
-              <TextArea rows={3} label="Reason for cancellation (sent to attendees)" placeholder="E.g. speaker illness, insufficient enrollment, rescheduling." />
-              <Checkbox id="email-cancel" name="email-cancel" label="Email cancellation notice to registered attendees." defaultChecked />
-              <Checkbox id="refund-offer" name="refund-offer" label="Offer a refund or reschedule credit (if paid event)." />
+              <TextArea value={cancelReason} onChange={e => setCancelReason(e.target.value)} rows={3} label="Reason for cancellation (sent to attendees)" placeholder="E.g. speaker illness, insufficient enrollment, rescheduling." />
+              <Checkbox id="email-cancel" name="email-cancel" label="Email cancellation notice to registered attendees." checked={emailAttendees} onChange={e => setEmailAttendees(e.target.checked)} />
+              <Checkbox id="refund-offer" name="refund-offer" label="Refunds and credits are unavailable: event payments are not configured." disabled />
             </div>
             <div className="border-t border-paper-border px-5 py-3.5 flex flex-col-reverse sm:flex-row justify-end gap-2 bg-paper/60 rounded-b-2xl">
               <Button variant="ghost" size="sm" onClick={() => setConfirmCancel(false)}>Cancel</Button>
-              <Button variant="primary" size="sm" className="bg-danger-600 hover:bg-danger-600/90" onClick={() => { setStatus('Cancelled'); setConfirmCancel(false); }}>
+              <Button variant="primary" size="sm" className="bg-danger-600 hover:bg-danger-600/90" disabled={busy} onClick={async () => { if (await cancel(cancelReason, emailAttendees)) setConfirmCancel(false); }}>
                 <X className="h-4 w-4" /> Confirm Cancel Event
               </Button>
             </div>

@@ -6,6 +6,9 @@ import { validate } from '../middleware/validate';
 import { sendSuccess } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import * as service from '../services/platform.service';
+import * as supportService from '../services/support.service';
+import * as events from '../services/events.service';
+import { eventFields } from '../domain/event-input';
 
 const router = Router({ mergeParams: true });
 
@@ -54,23 +57,26 @@ const projectStatusBody = noteBody
     { path: ['reviewNotes'], message: 'Review notes are required when rejecting a project' },
   );
 
-const messageBody = z.object({ body: z.string().min(1).max(8000) });
+/**
+ * Matches the member-side limit; bodies render as text, never HTML. `.strict()`
+ * so an unsupported key is a 422 rather than being silently dropped — this one
+ * used to swallow fileIds without a word.
+ */
+const messageBody = z.object({
+  body: z.string().trim().min(1).max(10000),
+  /** Admin-only note, never shown to the member. */
+  internal: z.boolean().optional(),
+  /** Ids from POST /files/upload. Ownership is re-checked in the service. */
+  fileIds: z.array(z.string()).max(5, 'Attach no more than 5 files').default([]),
+  links: z.array(z.object({
+    url: z.string().max(2048).url('Enter a valid URL').refine(
+      (value) => /^https?:\/\//i.test(value),
+      'Use an HTTP or HTTPS URL',
+    ),
+    label: z.string().max(200).optional(),
+  })).max(5, 'Add no more than 5 links').default([]),
+}).strict();
 const inquiryReplyBody = z.object({ text: z.string().min(1).max(8000) });
-const eventBody = z.object({
-  title: z.string().min(2),
-  slug: z.string().optional(),
-  shortDescription: z.string().optional(),
-  description: z.string().optional(),
-  date: z.coerce.date(),
-  timeStart: z.string().default('09:00'),
-  timeEnd: z.string().default('10:00'),
-  timezone: z.string().default('UTC'),
-  location: z.string().default('Online'),
-  format: z.string().default('Virtual'),
-  audience: z.string().default('All Members'),
-  capacity: z.coerce.number().int().positive().optional(),
-  status: z.enum(['DRAFT', 'PUBLISHED', 'PAST', 'CANCELLED']).default('DRAFT'),
-});
 const announcementBody = z.object({
   subject: z.string().min(2).max(220),
   body: z.string().min(2).max(20000),
@@ -155,39 +161,62 @@ router.get('/support', asyncHandler(async (req, res) => {
 
 const transitionSupport = (next: SupportStatus, message: string) =>
   asyncHandler(async (req, res) => {
-    sendSuccess(res, await service.transitionSupport(req.params.id!, req.user!.id, next, req.body?.response ?? req.body?.reason), message);
+    sendSuccess(res, await service.transitionSupport(req.params.id!, req.user!.id, next, req.body?.response ?? req.body?.reason ?? req.body?.reviewNotes, req.body?.expectedUpdatedAt), message);
   });
 
-router.post('/support/:id/approve', validate({ params: idParams, body: noteBody }), transitionSupport('APPROVED', 'Support approved'));
-router.post('/support/:id/reject', validate({ params: idParams, body: noteBody }), transitionSupport('REJECTED', 'Support declined'));
-router.post('/support/:id/complete', validate({ params: idParams, body: noteBody }), transitionSupport('COMPLETED', 'Support resolved'));
+router.get('/support/assignees', asyncHandler(async (_req, res) => sendSuccess(res, await supportService.assignableAdmins(), 'Administrators')));
+router.get('/support/:id', asyncHandler(async (req, res) => sendSuccess(res, await supportService.supportDetail(req.params.id!), 'Support request')));
+router.patch('/support/:id', validate({ body: supportService.updateBody }), asyncHandler(async (req, res) => sendSuccess(res, await supportService.updateSupport(req.params.id!, req.user!.id, req.body), 'Request updated')));
+router.post('/support/:id/messages', validate({ body: messageBody }), asyncHandler(async (req, res) => {
+  const conversationId = await supportService.conversationForSupport(req.params.id!);
+  sendSuccess(res, await service.postAdminMessage(req.user!.id, conversationId, req.body), 'Reply sent', 201);
+}));
+router.post('/support/:id/review', validate({ params: idParams, body: supportService.decisionBody }), transitionSupport('UNDER_REVIEW', 'Review started'));
+router.post('/support/:id/approve', validate({ params: idParams, body: supportService.decisionBody }), transitionSupport('APPROVED', 'Support approved'));
+router.post('/support/:id/reject', validate({ params: idParams, body: supportService.decisionBody }), transitionSupport('REJECTED', 'Support declined'));
+router.post('/support/:id/complete', validate({ params: idParams, body: supportService.decisionBody }), transitionSupport('COMPLETED', 'Support resolved'));
 
 router.get('/conversations', asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.adminConversations(req), 'Conversations list');
+  sendSuccess(res, await service.adminConversations(req.user!.id, req), 'Conversations list');
 }));
 
 router.get('/conversations/:id', validate({ params: idParams }), asyncHandler(async (req, res) => {
+  // No viewer id: an admin may read any thread, internal notes included.
   sendSuccess(res, await service.adminConversationDetail(req.params.id!), 'Conversation detail');
 }));
 
 router.post('/conversations/:id/messages', validate({ params: idParams, body: messageBody }), asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.postMemberMessage(req.user!.id, req.params.id!, req.body.body), 'CRO reply posted');
+  sendSuccess(res, await service.postAdminMessage(req.user!.id, req.params.id!, req.body), 'CRO reply posted');
 }));
 
-router.get('/events', asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.adminEvents(req), 'Events list');
+router.post('/conversations/:id/read', validate({ params: idParams }), asyncHandler(async (req, res) => {
+  sendSuccess(res, await service.markConversationRead(req.user!.id, req.params.id!), 'Conversation marked read');
 }));
 
-router.post('/events', validate({ body: eventBody }), asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.upsertEvent(req.body), 'Event created', 201);
+router.get('/events', validate({ query: events.eventQuery }), asyncHandler(async (req, res) => {
+  sendSuccess(res, await events.listEvents(events.eventQuery.parse(req.query)), 'Events list');
+}));
+
+router.post('/events', validate({ body: eventFields.partial() }), asyncHandler(async (req, res) => {
+  sendSuccess(res, await events.saveEvent(req.user!.id, req.body), 'Event created', 201);
 }));
 
 router.get('/events/:id', validate({ params: idParams }), asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.eventDetail(req.params.id!), 'Event detail');
+  sendSuccess(res, await events.adminEventDetail(req.params.id!), 'Event detail');
 }));
 
-router.patch('/events/:id', validate({ params: idParams, body: eventBody.partial() }), asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.upsertEvent(req.body, req.params.id!), 'Event updated');
+router.patch('/events/:id', validate({ params: idParams, body: eventFields.partial() }), asyncHandler(async (req, res) => {
+  sendSuccess(res, await events.saveEvent(req.user!.id, req.body, req.params.id!), 'Event updated');
+}));
+
+router.post('/events/:id/publish', validate({ params: idParams }), asyncHandler(async (req, res) => {
+  sendSuccess(res, await events.publishEvent(req.user!.id, req.params.id!), 'Event published');
+}));
+router.post('/events/:id/cancel', validate({ params: idParams, body: events.cancelBody }), asyncHandler(async (req, res) => {
+  sendSuccess(res, await events.cancelEvent(req.params.id!, req.body), 'Event cancelled');
+}));
+router.delete('/events/:id', validate({ params: idParams }), asyncHandler(async (req, res) => {
+  sendSuccess(res, await events.deleteEvent(req.params.id!), 'Event deleted');
 }));
 
 router.get('/inquiries', asyncHandler(async (req, res) => {

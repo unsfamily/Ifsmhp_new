@@ -21,13 +21,15 @@ import {
 import Badge from '../components/common/Badge';
 import logoImg from '../assets/images/logo.png';
 import { useAuth } from '../context/AuthContext';
+import { memberApi } from '../api/member';
+import { useApiData } from '../hooks/useApiData';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/dashboard/profile', label: 'My Profile', icon: User },
   { to: '/dashboard/projects', label: 'My Projects', icon: FolderKanban },
   { to: '/dashboard/projects/upload', label: 'Upload New Project', icon: Upload },
-  { to: '/dashboard/messages', label: 'Messages from CRO', icon: MessageSquare, badge: 3 },
+  { to: '/dashboard/messages', label: 'Messages from CRO', icon: MessageSquare, badgeKey: 'unreadMessages' as const },
   { to: '/dashboard/documents', label: 'Document Exchange', icon: FileText },
   { to: '/dashboard/publications', label: 'Published Works', icon: FileText },
   { to: '/dashboard/gallery', label: 'Media Gallery', icon: Images },
@@ -38,6 +40,13 @@ const navItems = [
 export default function MemberLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout } = useAuth();
+  // Real unread count; a failure just leaves the badge off rather than showing
+  // a number that contradicts the inbox.
+  const { data: dashboard } = useApiData<{ stats: { unreadMessages: number } }>(
+    () => memberApi.dashboard() as Promise<{ stats: { unreadMessages: number } }>,
+    [],
+  );
+  const badgeCounts = { unreadMessages: dashboard?.stats.unreadMessages ?? 0 };
   const loc = useLocation();
   const currentPage = navItems.find((n) =>
     n.end ? loc.pathname === n.to : loc.pathname.startsWith(n.to)
@@ -151,11 +160,11 @@ export default function MemberLayout() {
               >
                 <Icon className="h-4.5 w-4.5 shrink-0" />
                 <span className="flex-1">{item.label}</span>
-                {item.badge && (
+                {item.badgeKey && badgeCounts[item.badgeKey] ? (
                   <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brass-500 px-1.5 text-[11px] font-semibold text-white">
-                    {item.badge}
+                    {badgeCounts[item.badgeKey]}
                   </span>
-                )}
+                ) : null}
                 <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 lg:hidden" />
               </NavLink>
             );

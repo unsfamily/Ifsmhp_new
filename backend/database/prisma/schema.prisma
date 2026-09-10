@@ -129,6 +129,7 @@ model User {
   uploadedFiles           FileObject[]             @relation("UploadedFiles")
   projects                Project[]                @relation("ProjectOwner")
   supportRequests         SupportRequest[]         @relation("SupportRequester")
+  assignedSupportRequests SupportRequest[]         @relation("SupportAssignee")
   publications            Publication[]            @relation("PublicationAuthor")
   sentMessages            Message[]                @relation("MessageSender")
   conversations           ConversationParticipant[]
@@ -417,10 +418,14 @@ model SupportRequest {
   currency        String?
   adminResponse   String?                 @db.Text
   assignedAdmin   String?
+  assignedAdminId String?
+  conversationId String? @unique
   requiredBy      DateTime?
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
   requester       User                    @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  assignee        User?                   @relation("SupportAssignee", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  conversation    Conversation?           @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   project         Project?                @relation(fields: [projectId], references: [id])
   types           SupportRequestType[]
   histories       SupportRequestHistory[]
@@ -444,6 +449,7 @@ model SupportRequestHistory {
   fromStatus SupportStatus?
   toStatus   SupportStatus
   note       String?        @db.Text
+  internal   Boolean        @default(true)
   actorId    String?
   createdAt  DateTime       @default(now())
   request    SupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
@@ -559,6 +565,7 @@ model Conversation {
   participants  ConversationParticipant[]
   messages      Message[]
   linkedRecords LinkedRecord[]
+  supportRequest SupportRequest?
 
   @@index([status, priority])
 }
@@ -624,7 +631,15 @@ model Event {
   slug                 String              @unique
   shortDescription     String              @db.Text
   longDescription      String              @db.LongText
-  date                 DateTime
+  date                 DateTime?
+  startsAt             DateTime?
+  endsAt               DateTime?
+  scheduledPublishAt   DateTime?
+  sendReminder         Boolean             @default(false)
+  reminderDays         Int                 @default(1)
+  cancellationReason   String?             @db.Text
+  deletedAt            DateTime?
+  revision             Int                 @default(0)
   timeStart            String
   timeEnd              String
   timezone             String
@@ -648,8 +663,31 @@ model Event {
   tags                 EventTag[]
   registrations        EventRegistration[]
   resources            EventResource[]
+  jobs                 EventJob[]
 
   @@index([status, date])
+  @@index([deletedAt, status, endsAt])
+}
+
+model EventJob {
+  id          String   @id @default(cuid())
+  eventId     String
+  kind        String
+  key         String   @unique
+  recipient   String?
+  status      String   @default("QUEUED")
+  dueAt       DateTime
+  attempts    Int      @default(0)
+  lockedAt    DateTime?
+  claimToken  String?
+  sentAt      DateTime?
+  error       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([status, dueAt])
+  @@index([eventId, kind])
 }
 
 model EventSpeaker {

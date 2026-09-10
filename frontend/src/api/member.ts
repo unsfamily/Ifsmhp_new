@@ -1,4 +1,7 @@
 import { apiClient } from './client';
+import type { ConversationDetail, ConversationsResult, MessageExtras } from './messaging';
+
+export type * from './messaging';
 
 interface Envelope<T> {
   success: true;
@@ -126,6 +129,23 @@ export interface MemberProjectUpdate {
   submit: boolean;
 }
 
+/**
+ * One file exchanged in a conversation. The Document Exchange page is fed
+ * entirely by message attachments, so this is a flattened view of them.
+ */
+export interface MemberDocument {
+  /** The FileObject id — what the download route takes. */
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  sender: string;
+  direction: 'incoming' | 'outgoing';
+  date: string;
+  /** The body of the message it arrived on. */
+  note: string;
+}
+
 /** Members may only edit or delete a project the CRO has not picked up yet. */
 export const MEMBER_EDITABLE_STATUSES: ProjectStatusLabel[] = ['Draft', 'Submitted'];
 export function isMemberEditable(status: ProjectStatusLabel) {
@@ -158,8 +178,17 @@ export const memberApi = {
   support: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/members/me/support', { params })).data.data,
   createSupport: async (payload: unknown) => (await apiClient.post<Envelope<unknown>>('/members/me/support', payload)).data.data,
   publications: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/members/me/publications', { params })).data.data,
-  conversations: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/members/me/conversations', { params })).data.data,
-  sendMessage: async (conversationId: string, body: string) => (await apiClient.post<Envelope<unknown>>(`/members/me/conversations/${conversationId}/messages`, { body })).data.data,
-  documents: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/members/me/documents', { params })).data.data,
+  conversations: async (params?: Record<string, unknown>) =>
+    (await apiClient.get<Envelope<ConversationsResult>>('/members/me/conversations', { params })).data.data,
+  conversation: async (id: string) =>
+    (await apiClient.get<Envelope<ConversationDetail>>(`/members/me/conversations/${id}`)).data.data,
+  createConversation: async (payload: { subject: string; category: string; body: string } & MessageExtras) =>
+    (await apiClient.post<Envelope<{ id: string; subject: string; category: string }>>('/members/me/conversations', payload)).data.data,
+  sendMessage: async (conversationId: string, body: string, extras: MessageExtras = {}) =>
+    (await apiClient.post<Envelope<unknown>>(`/members/me/conversations/${conversationId}/messages`, { body, ...extras })).data.data,
+  markConversationRead: async (conversationId: string) =>
+    (await apiClient.post<Envelope<{ ok: boolean }>>(`/members/me/conversations/${conversationId}/read`, {})).data.data,
+  documents: async (params?: Record<string, unknown>) =>
+    (await apiClient.get<Envelope<Paginated<MemberDocument>>>('/members/me/documents', { params })).data.data,
   community: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/members/me/community', { params })).data.data,
 };

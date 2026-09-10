@@ -1,7 +1,9 @@
 import { apiClient } from './client';
-import type { ProjectStatusLabel, SupportKindLabel } from './member';
+import type { ProjectStatusLabel, SupportKindLabel, UploadedFile } from './member';
+import type { ConversationDetail, ConversationsResult, MessageExtras } from './messaging';
 
 export type { ProjectStatusLabel, SupportKindLabel };
+export type * from './messaging';
 
 interface Envelope<T> {
   success: true;
@@ -205,9 +207,20 @@ export const adminApi = {
   publishPublication: (id: string) => post(`/admin/publications/${id}/publish`),
   support: (params?: Record<string, unknown>) => get('/admin/support', params),
   completeSupport: (id: string, response?: string) => post(`/admin/support/${id}/complete`, { response }),
-  conversations: (params?: Record<string, unknown>) => get('/admin/conversations', params),
-  conversation: (id: string) => get(`/admin/conversations/${id}`),
-  sendMessage: (id: string, body: string) => post(`/admin/conversations/${id}/messages`, { body }),
+  conversations: (params?: Record<string, unknown>) => get('/admin/conversations', params) as Promise<ConversationsResult>,
+  conversation: (id: string) => get(`/admin/conversations/${id}`) as Promise<ConversationDetail>,
+  /** `internal: true` posts a CRO-only note the member never sees. */
+  sendMessage: (id: string, body: string, internal = false, extras: MessageExtras = {}) =>
+    post(`/admin/conversations/${id}/messages`, { body, internal, ...extras }),
+  /** Same endpoint the member uses — it is auth-gated, not role-gated. */
+  uploadFile: async (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return (await apiClient.post<Envelope<UploadedFile>>('/files/upload', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })).data.data;
+  },
+  markConversationRead: (id: string) => post(`/admin/conversations/${id}/read`),
   events: (params?: Record<string, unknown>) => get('/admin/events', params),
   createEvent: (payload: unknown) => post('/admin/events', payload),
   updateEvent: (id: string, payload: unknown) => patch(`/admin/events/${id}`, payload),

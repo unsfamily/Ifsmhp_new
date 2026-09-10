@@ -21,6 +21,9 @@ function getTransport(): Transporter {
       port: env.SMTP_PORT ?? 587,
       // 465 is implicit TLS; 587 upgrades via STARTTLS.
       secure: (env.SMTP_PORT ?? 587) === 465,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
       auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
     });
   }
@@ -176,4 +179,13 @@ export async function sendApprovalEmail(
   `.trim();
 
   await deliver({ to: email, subject, text, html }, `approval email for ${email} (${memberId})`);
+}
+
+export async function sendEventEmail(email: string, event: { title: string; date: Date | null; timeStart: string; timeEnd: string; timezone: string; location: string; cancellationReason: string | null }, cancelled: boolean): Promise<boolean> {
+  if (!env.mailConfigured) return false;
+  const subject = `${cancelled ? 'Event cancelled' : 'Event reminder'}: ${event.title}`;
+  const text = [subject, `${event.date?.toISOString().slice(0, 10) ?? ''} ${event.timeStart} - ${event.timeEnd} (${event.timezone})`, event.location, cancelled ? event.cancellationReason || 'Please contact the organizer for further details.' : 'We look forward to seeing you.'].join('\n\n');
+  const escaped = text.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+  await getTransport().sendMail({ from: env.mailFrom, to: email, subject, text, html: `<div style="white-space:pre-wrap;font-family:system-ui">${escaped}</div>` });
+  return true;
 }

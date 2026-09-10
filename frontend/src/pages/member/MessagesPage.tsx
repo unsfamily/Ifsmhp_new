@@ -1,309 +1,446 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  MessageSquare,
-  Send,
-  FileText,
-  Video,
-  Download,
-  Paperclip,
-  Calendar,
   Inbox,
-  User,
+  Send,
   Search,
-  Bell,
-  ChevronRight,
   Clock,
+  Bell,
+  User,
+  MessageSquare,
   Building2,
-  PlayCircle,
+  ChevronRight,
+  Loader2,
+  RotateCcw,
+  AlertCircle,
+  CheckCircle2,
+  Hash,
 } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
-import { TextArea } from '../../components/common/Input';
+import { SelectInput, TextArea, TextInput } from '../../components/common/Input';
+import { memberApi } from '../../api/member';
+import type { ConversationDetail, ConversationMessage, ConversationsResult } from '../../api/messaging';
+import { formatRelative, formatResponseTime, openAttachmentInTab } from '../../api/messaging';
+import { normalizeError } from '../../api/client';
+import { usePolledApiData } from '../../hooks/usePolledApiData';
+import { useAttachments } from '../../hooks/useAttachments';
+import { MessageThread } from '../../components/messaging/MessageThread';
+import { ComposerAttachments } from '../../components/messaging/ComposerAttachments';
 
-interface Message {
-  id: string;
-  from: string;
-  role: string;
-  subject: string;
-  preview: string;
-  time: string;
-  unread: boolean;
-  type: 'message' | 'document' | 'video' | 'announcement';
-  files?: { name: string; size: string }[];
-  videoLink?: string;
-}
+const LIST_POLL_MS = 30_000;
+const THREAD_POLL_MS = 10_000;
 
-const inbox: Message[] = [
-  {
-    id: 'm1',
-    from: 'Chief Research Officer',
-    role: 'CRO Office',
-    subject: 'Re: Biomarker Panel Study — Funding Endorsement',
-    preview: 'Dear Dr. Chen — great news. Your biomarker project has passed the initial review and the committee has approved an official endorsement letter for the NIH R01...',
-    time: '2 hours ago',
-    unread: true,
-    type: 'document',
-    files: [
-      { name: 'IFSMHP-Endorsement-Chen-Biomarker-2026.pdf', size: '284 KB' },
-      { name: 'Reviewer-Comments-Summary.docx', size: '42 KB' },
-    ],
-  },
-  {
-    id: 'm2',
-    from: 'CRO Events Office',
-    role: 'Symposia Committee',
-    subject: 'Invitation: Keynote Speaker — Digital Mental Health Symposium',
-    preview: 'On behalf of the program committee, it is our pleasure to formally invite you to deliver a keynote presentation at the upcoming IFSMHP Symposium on Digital Mental Health Tools...',
-    time: 'Yesterday',
-    unread: true,
-    type: 'announcement',
-    videoLink: 'https://youtu.be/symposium-preview-2026',
-  },
-  {
-    id: 'm3',
-    from: 'Chief Research Officer',
-    role: 'CRO Office',
-    subject: 'Congratulations — CBT Paper Published!',
-    preview: 'I am delighted to share that your paper, "Cognitive Behavioral Therapy Outcomes in Digital Mental Health Platforms" has been officially published on the IFSMHP platform...',
-    time: '3 days ago',
-    unread: false,
-    type: 'message',
-  },
-  {
-    id: 'm4',
-    from: 'Grants Office',
-    role: 'Funding Support Team',
-    subject: 'Matching Grant Opportunity — Mental Health Disparities',
-    preview: 'A new matched-funding opportunity has been added to the portal. Projects focused on underserved populations are eligible for up to $50,000 in matching funds...',
-    time: '1 week ago',
-    unread: false,
-    type: 'announcement',
-    files: [{ name: 'Grant-Guidelines-2026-Round3.pdf', size: '1.1 MB' }],
-  },
-  {
-    id: 'm5',
-    from: 'Chief Research Officer',
-    role: 'CRO Office',
-    subject: 'CRO Monthly Office Hours — August Recording',
-    preview: 'Hi all — sharing the recording and key takeaways from our monthly member Q&A. Topics this month: navigating IRB renewals, publication strategy for early-career...',
-    time: '2 weeks ago',
-    unread: false,
-    type: 'video',
-    videoLink: 'https://youtu.be/cro-office-hours-aug-2026',
-  },
-];
+/** Matches the categories the CRO inbox filters by. */
+const CATEGORIES = ['Member Support', 'Project Query', 'Credential Issue', 'Publication Problem', 'Billing', 'Report Content'];
 
 export default function MessagesPage() {
-  const initialId = inbox.length > 0 ? inbox[0]!.id : null;
-  const [selected, setSelected] = useState<string | null>(initialId);
-  const current = inbox.find((m) => m.id === selected) ?? (inbox.length > 0 ? inbox[0]! : null);
-  const [tab, setTab] = useState<'inbox' | 'send'>('inbox');
+  const [tab, setTab] = useState<'inbox' | 'compose'>('inbox');
+  const [search, setSearch] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reply, setReply] = useState('');
+  const [sending, setSending] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // New-thread form.
+  const [subject, setSubject] = useState('');
+  const [category, setCategory] = useState(CATEGORIES[0]!);
+  const [firstMessage, setFirstMessage] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [created, setCreated] = useState(false);
+
+  const {
+    data,
+    initialLoading,
+    error,
+    refresh,
+  } = usePolledApiData<ConversationsResult>(() => memberApi.conversations({ limit: 100 }), [], LIST_POLL_MS);
+
+  const conversations = useMemo(() => data?.items ?? [], [data]);
+
+  useEffect(() => {
+    if (!conversations.length) {
+      setSelectedId(null);
+      return;
+    }
+    setSelectedId((current) => (current && conversations.some((c) => c.id === current) ? current : conversations[0]!.id));
+  }, [conversations]);
+
+  const {
+    data: thread,
+    initialLoading: threadLoading,
+    error: threadError,
+    refresh: refreshThread,
+  } = usePolledApiData<ConversationDetail>(
+    () => (selectedId ? memberApi.conversation(selectedId) : Promise.resolve(null as unknown as ConversationDetail)),
+    [selectedId],
+    THREAD_POLL_MS,
+    { enabled: Boolean(selectedId) && tab === 'inbox' },
+  );
+
+  // Opening a thread clears its unread badge, here and in the sidebar count.
+  useEffect(() => {
+    if (!selectedId) return;
+    memberApi.markConversationRead(selectedId).then(refresh).catch(() => undefined);
+  }, [selectedId]);
+
+  const filtered = conversations.filter((c) => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return c.subject.toLowerCase().includes(s) || c.lastPreview.toLowerCase().includes(s);
+  });
+
+  const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+  const selected = conversations.find((c) => c.id === selectedId) ?? null;
+
+  const replyFiles = useAttachments({ upload: memberApi.uploadFile });
+  const composeFiles = useAttachments({ upload: memberApi.uploadFile });
+
+  const sendReply = async () => {
+    if (!selectedId || !reply.trim()) return;
+    setSending(true);
+    setActionError(null);
+    try {
+      await memberApi.sendMessage(selectedId, reply.trim(), {
+        fileIds: replyFiles.fileIds(),
+        links: replyFiles.linkPayload(),
+      });
+      setReply('');
+      replyFiles.reset();
+      refreshThread();
+      refresh();
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not send that message.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const startConversation = async () => {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const conversation = await memberApi.createConversation({
+        subject: subject.trim(),
+        category,
+        body: firstMessage.trim(),
+        fileIds: composeFiles.fileIds(),
+        links: composeFiles.linkPayload(),
+      });
+      setSubject('');
+      setFirstMessage('');
+      composeFiles.reset();
+      setCreated(true);
+      refresh();
+      setSelectedId(conversation.id);
+      setTab('inbox');
+    } catch (err) {
+      setCreateError(normalizeError(err).message || 'Could not start that conversation.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const openAttachment = async (attachment: ConversationMessage['attachments'][number]) => {
+    setActionError(null);
+    try {
+      await openAttachmentInTab(attachment.id);
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not open that attachment.');
+    }
+  };
+
+  // A failed upload blocks send: the member believes the file is attached, and
+  // sending would silently drop it.
+  const canCreate = subject.trim().length >= 4 && firstMessage.trim().length > 0 && !composeFiles.blocked;
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="font-display text-2xl font-semibold text-forum-900">Messages from CRO</h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          Your conversations with the Chief Research Office. Replies usually arrive within a working day.
+        </p>
+      </div>
+
+      {created && (
+        <div className="rounded-lg border border-success-600/30 bg-success-100 p-3.5 flex items-start gap-2.5">
+          <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5 text-success-600" />
+          <div className="text-sm">
+            <p className="font-semibold text-success-600">Message sent to the CRO</p>
+            <p className="text-xs text-success-600/90 mt-0.5">You will get a notification here as soon as they reply.</p>
+          </div>
+          <button onClick={() => setCreated(false)} className="ml-auto p-1 rounded-md text-ink-muted hover:bg-white/60 self-start">×</button>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="rounded-lg border border-danger-600/20 bg-danger-100 p-4">
+          <p className="text-sm text-danger-600">{actionError}</p>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-2 overflow-hidden">
+        <Card className="lg:col-span-2">
           <CardContent className="p-0">
             <div className="flex border-b border-paper-border">
               <button
-                type="button"
                 onClick={() => setTab('inbox')}
-                className={`flex-1 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                  tab === 'inbox' ? 'border-forum-600 text-forum-900 bg-forum-50/40' : 'border-transparent text-ink-muted hover:text-ink'
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                  tab === 'inbox' ? 'border-b-2 border-forum-600 bg-forum-50/40 text-forum-900' : 'text-ink-muted hover:text-forum-900'
                 }`}
               >
-                <Inbox className="h-4 w-4 inline mr-1.5" />
+                <Inbox className="h-4 w-4" />
                 Inbox
-                <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brass-500 px-1.5 text-[11px] font-semibold text-white">
-                  {inbox.filter((m) => m.unread).length}
-                </span>
+                {totalUnread > 0 && (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brass-500 px-1.5 text-[11px] font-semibold text-white">
+                    {totalUnread}
+                  </span>
+                )}
               </button>
               <button
-                type="button"
-                onClick={() => setTab('send')}
-                className={`flex-1 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                  tab === 'send' ? 'border-forum-600 text-forum-900 bg-forum-50/40' : 'border-transparent text-ink-muted hover:text-ink'
+                onClick={() => setTab('compose')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                  tab === 'compose' ? 'border-b-2 border-forum-600 bg-forum-50/40 text-forum-900' : 'text-ink-muted hover:text-forum-900'
                 }`}
               >
-                <Send className="h-4 w-4 inline mr-1.5" />
+                <Send className="h-4 w-4" />
                 Send to CRO
               </button>
             </div>
 
-            <div className="p-3 border-b border-paper-border">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
-                <input
-                  type="text"
-                  placeholder="Search messages..."
-                  className="w-full rounded-md border border-paper-border bg-paper pl-9 pr-3 py-2 text-sm focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600 focus:ring-offset-1 focus:ring-offset-paper"
-                />
-              </div>
-            </div>
-
-            <div className="divide-y divide-paper-border max-h-[600px] overflow-y-auto">
-              {inbox.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setSelected(m.id)}
-                  className={`w-full text-left p-4 transition-colors ${
-                    selected === m.id
-                      ? 'bg-forum-50/60 border-l-4 border-l-forum-600 pl-3'
-                      : 'hover:bg-forum-50/30 border-l-4 border-l-transparent'
-                  } ${m.unread ? 'bg-brass-100/20' : ''}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${m.unread ? 'bg-brass-500 text-white' : 'bg-forum-100 text-forum-700'}`}>
-                      {m.unread ? <Bell className="h-4 w-4" /> : <User className="h-4 w-4" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className={`text-sm truncate ${m.unread ? 'font-semibold text-forum-900' : 'font-medium text-ink'}`}>
-                          {m.from}
-                        </p>
-                        <span className="text-[11px] text-ink-subtle whitespace-nowrap flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {m.time}
-                        </span>
-                      </div>
-                      <p className={`text-sm mt-0.5 truncate ${m.unread ? 'text-forum-900 font-medium' : 'text-ink-muted'}`}>
-                        {m.subject}
-                      </p>
-                      <div className="mt-1 flex items-center gap-2">
-                        {m.type === 'document' && <Badge variant="default"><FileText className="h-2.5 w-2.5 mr-1" />Document</Badge>}
-                        {m.type === 'video' && <Badge variant="info"><Video className="h-2.5 w-2.5 mr-1" />Video</Badge>}
-                        {m.type === 'announcement' && <Badge variant="brass"><Calendar className="h-2.5 w-2.5 mr-1" />Announcement</Badge>}
-                        {m.unread && <span className="h-1.5 w-1.5 rounded-full bg-brass-500" />}
-                      </div>
-                    </div>
+            {tab === 'inbox' ? (
+              <>
+                <div className="border-b border-paper-border p-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+                    <TextInput
+                      placeholder="Search messages..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="[&>input]:pl-9"
+                    />
                   </div>
-                </button>
-              ))}
-            </div>
+                </div>
+
+                <div className="divide-y divide-paper-border max-h-[600px] overflow-y-auto">
+                  {initialLoading ? (
+                    <div className="p-10 flex flex-col items-center gap-3">
+                      <Loader2 className="h-7 w-7 animate-spin text-forum-600" />
+                      <p className="text-sm text-ink-muted">Loading messages…</p>
+                    </div>
+                  ) : error ? (
+                    <div className="p-10 flex flex-col items-center gap-3 text-center">
+                      <div className="h-12 w-12 flex items-center justify-center rounded-full bg-danger-100 text-danger-600"><AlertCircle className="h-6 w-6" /></div>
+                      <p className="text-sm font-semibold text-forum-900">Couldn't load your messages</p>
+                      <p className="text-xs text-ink-muted max-w-xs">{error}</p>
+                      <Button size="sm" variant="outline" onClick={refresh}><RotateCcw className="h-3.5 w-3.5" />Try again</Button>
+                    </div>
+                  ) : filtered.length === 0 ? (
+                    <div className="p-10 flex flex-col items-center gap-3 text-center">
+                      <div className="h-12 w-12 flex items-center justify-center rounded-full bg-forum-50 text-forum-700"><Inbox className="h-6 w-6" /></div>
+                      <p className="text-sm font-semibold text-forum-900">
+                        {conversations.length === 0 ? 'No messages yet' : 'No messages match your search'}
+                      </p>
+                      {conversations.length === 0 && (
+                        <>
+                          <p className="text-xs text-ink-muted max-w-xs">Start a conversation and the CRO office will pick it up.</p>
+                          <Button size="sm" variant="primary" onClick={() => setTab('compose')}>
+                            <Send className="h-3.5 w-3.5" />Send to CRO
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ) : filtered.map((c) => {
+                    const isSel = c.id === selectedId;
+                    const unread = c.unreadCount > 0;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => setSelectedId(c.id)}
+                        className={`w-full p-4 text-left transition-colors ${
+                          isSel ? 'bg-forum-50/60 border-l-4 border-l-forum-600 pl-3' : `border-l-4 border-transparent hover:bg-forum-50/40 ${unread ? 'bg-brass-100/20' : ''}`
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center ${unread ? 'bg-brass-500 text-white' : 'bg-forum-100 text-forum-700'}`}>
+                            {unread ? <Bell className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className={`text-sm truncate ${unread ? 'font-bold text-forum-900' : 'font-medium text-ink'}`}>CRO Office</p>
+                              <span className="inline-flex items-center gap-1 shrink-0 text-[11px] text-ink-subtle">
+                                <Clock className="h-3 w-3" />{formatRelative(c.lastActivity)}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 truncate text-sm text-ink-muted">{c.subject}</p>
+                            <p className="mt-1 line-clamp-2 text-xs text-ink-subtle">{c.lastPreview}</p>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                              <Badge variant="default" className="!text-[10px]">{c.category}</Badge>
+                              <span className="inline-flex items-center gap-1 text-[11px] text-ink-subtle">
+                                <Hash className="h-3 w-3" />{c.totalMessages} msgs
+                              </span>
+                              {unread && <span className="h-1.5 w-1.5 rounded-full bg-brass-500" />}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="p-4 space-y-4">
+                <p className="text-sm text-ink-muted">
+                  Write to the Chief Research Office. Your message opens a new conversation the CRO team can reply to.
+                </p>
+                {createError && (
+                  <div className="rounded-lg border border-danger-600/20 bg-danger-100 p-3">
+                    <p className="text-sm text-danger-600">{createError}</p>
+                  </div>
+                )}
+                <TextInput
+                  label="Subject"
+                  placeholder="What is this about?"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  hint="At least 4 characters."
+                />
+                <SelectInput label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
+                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </SelectInput>
+                <TextArea
+                  label="Message"
+                  rows={6}
+                  placeholder="Write your message to the CRO office…"
+                  value={firstMessage}
+                  onChange={(e) => setFirstMessage(e.target.value)}
+                />
+                <ComposerAttachments
+                  attachments={composeFiles.attachments}
+                  fileError={composeFiles.fileError}
+                  links={composeFiles.links}
+                  disabled={creating}
+                  onAddFiles={composeFiles.addFiles}
+                  onRemoveFile={composeFiles.remove}
+                  onRetryFile={composeFiles.retry}
+                  onAddLink={composeFiles.addLink}
+                  onRemoveLink={composeFiles.removeLink}
+                />
+                <Button className="w-full" variant="primary" disabled={!canCreate || creating} onClick={() => void startConversation()}>
+                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Send to CRO
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card className="lg:col-span-3 flex flex-col">
-          {current ? (
+          {selected ? (
             <>
-          <CardHeader className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-forum-600 text-white font-semibold">
-                CRO
-              </div>
-              <div>
-                <h3 className="font-semibold text-forum-900">{current.subject}</h3>
-                <div className="mt-0.5 flex items-center gap-2 text-xs text-ink-subtle flex-wrap">
-                  <span className="flex items-center gap-1">
-                    <Building2 className="h-3.5 w-3.5" />
-                    {current.from} · {current.role}
-                  </span>
-                  <span>·</span>
-                  <span>{current.time}</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              {current.files?.map((f) => (
-                <Button key={f.name} size="sm" variant="outline" title={f.name}>
-                  <Download className="h-4 w-4" />
-                  <span className="hidden sm:inline">Download</span>
-                </Button>
-              ))}
-              {current.videoLink && (
-                <Button size="sm" variant="secondary">
-                  <PlayCircle className="h-4 w-4" />
-                  Watch
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0 flex-1">
-            <div className="prose prose-sm max-w-none">
-              <p className="text-sm text-ink-muted leading-relaxed">
-                {current.preview}
-              </p>
-              <p className="mt-4 text-sm text-ink-muted leading-relaxed">
-                Please feel free to reach out with any questions. The support team remains at your disposal for clarifications, additional documentation, or to schedule a discussion at your convenience.
-              </p>
-              <p className="mt-4 text-sm font-medium text-forum-900">
-                Best regards,<br />
-                Office of the Chief Research Officer<br />
-                IFSMHP
-              </p>
-            </div>
-
-            {(current.files || current.videoLink) && (
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {current.files?.map((f) => (
-                  <div key={f.name} className="flex items-center gap-3 rounded-lg border border-paper-border bg-paper p-3.5 hover:border-forum-200 transition-colors">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-forum-50 text-forum-700 shrink-0">
-                      <FileText className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-forum-900 truncate">{f.name}</p>
-                      <p className="text-xs text-ink-subtle">{f.size}</p>
-                    </div>
-                    <button type="button" className="text-forum-700 hover:text-forum-900 shrink-0">
-                      <Download className="h-4.5 w-4.5" />
-                    </button>
+              <CardHeader className="border-b border-paper-border">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-forum-600 text-xs font-bold text-white">
+                    CRO
                   </div>
-                ))}
-                {current.videoLink && (
-                  <div className="rounded-lg border border-paper-border bg-gradient-to-br from-slateteal-100 to-forum-50 p-3.5 flex items-center gap-3 hover:border-slateteal-500/30 transition-colors sm:col-span-2">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slateteal-500 text-white shrink-0">
-                      <Video className="h-5 w-5" />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-display text-lg font-semibold text-forum-900">{selected.subject}</h3>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted">
+                      <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />Chief Research Office</span>
+                      <span className="inline-flex items-center gap-1"><Hash className="h-3.5 w-3.5" />{selected.category}</span>
+                      <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{formatRelative(selected.lastActivity)}</span>
+                      <Badge variant="info" className="!text-[10px]">{selected.status}</Badge>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-forum-900 truncate">{current.videoLink}</p>
-                      <p className="text-xs text-ink-subtle">Shared video link</p>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="flex-1 p-0">
+                {threadLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-16 text-sm text-ink-muted">
+                    <Loader2 className="h-5 w-5 animate-spin text-forum-600" />
+                    Loading conversation…
+                  </div>
+                ) : threadError ? (
+                  <div className="flex flex-col items-center gap-3 py-12 text-center">
+                    <div className="h-12 w-12 flex items-center justify-center rounded-full bg-danger-100 text-danger-600"><AlertCircle className="h-6 w-6" /></div>
+                    <p className="text-sm text-ink-muted max-w-xs">{threadError}</p>
+                    <Button size="sm" variant="outline" onClick={refreshThread}><RotateCcw className="h-3.5 w-3.5" />Try again</Button>
+                  </div>
+                ) : (
+                  <MessageThread
+                    messages={thread?.messages ?? []}
+                    conversationId={selected.id}
+                    className="max-h-[460px]"
+                    onOpenAttachment={openAttachment}
+                  />
+                )}
+
+                {thread && thread.analytics.avgResponseMinutes !== null && (
+                  <div className="mx-4 mb-2 grid grid-cols-3 gap-2 rounded-lg bg-paper p-2 text-center">
+                    <div>
+                      <p className="font-display text-base font-bold text-forum-900">{thread.totalMessages}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Messages</p>
                     </div>
-                    <Button size="sm" variant="secondary">
-                      <PlayCircle className="h-4 w-4" />
-                      Open
-                    </Button>
+                    <div>
+                      <p className="font-display text-base font-bold text-brass-700">{formatResponseTime(thread.analytics.avgResponseMinutes)}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Avg. reply</p>
+                    </div>
+                    <div>
+                      <p className="font-display text-base font-bold text-slateteal-700">{formatRelative(thread.analytics.lastActivityAt)}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-ink-subtle">Last activity</p>
+                    </div>
                   </div>
                 )}
-              </div>
-            )}
 
-            <div className="mt-8 pt-6 border-t border-paper-border">
-              <p className="font-semibold text-forum-900 text-sm mb-3 flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-forum-600" />
-                Reply
-              </p>
-              <div className="space-y-3">
-                <TextArea placeholder="Write your reply..." rows={4} />
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <button type="button" className="inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-forum-700 transition-colors rounded-md px-2.5 py-1.5 hover:bg-forum-50">
-                      <Paperclip className="h-4 w-4" />
-                      Attach File
-                    </button>
-                    <button type="button" className="inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-forum-700 transition-colors rounded-md px-2.5 py-1.5 hover:bg-forum-50">
-                      <Video className="h-4 w-4" />
-                      Share Video Link
-                    </button>
-                    <button type="button" className="inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-forum-700 transition-colors rounded-md px-2.5 py-1.5 hover:bg-forum-50">
-                      <Calendar className="h-4 w-4" />
-                      Request Meeting
-                    </button>
+                <div className="border-t border-paper-border p-4 sm:p-5">
+                  <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-forum-900">
+                    <MessageSquare className="h-4 w-4 text-forum-600" />
+                    Reply
+                  </p>
+                  <TextArea
+                    rows={4}
+                    placeholder="Write your reply..."
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                  />
+                  <div className="mt-3">
+                    <ComposerAttachments
+                      attachments={replyFiles.attachments}
+                      fileError={replyFiles.fileError}
+                      links={replyFiles.links}
+                      disabled={sending}
+                      onAddFiles={replyFiles.addFiles}
+                      onRemoveFile={replyFiles.remove}
+                      onRetryFile={replyFiles.retry}
+                      onAddLink={replyFiles.addLink}
+                      onRemoveLink={replyFiles.removeLink}
+                    />
                   </div>
-                  <Button>
-                    <Send className="h-4 w-4" />
-                    Send Reply
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="mt-3 flex items-center justify-end gap-3">
+                    {replyFiles.blocked && (
+                      <p className="text-xs text-ink-subtle">
+                        {replyFiles.busy ? 'Waiting for uploads to finish…' : 'Retry or remove the failed attachment.'}
+                      </p>
+                    )}
+                    <Button
+                      variant="primary"
+                      disabled={!reply.trim() || sending || replyFiles.blocked}
+                      onClick={() => void sendReply()}
+                    >
+                      {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      Send Reply
+                      {!sending && <ChevronRight className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </CardContent>
+              </CardContent>
             </>
           ) : (
-            <CardContent className="p-10 text-center text-ink-subtle text-sm">
-              Select a message to view details.
+            <CardContent className="flex flex-1 items-center justify-center p-10 text-center text-sm text-ink-subtle">
+              {initialLoading ? 'Loading…' : 'Select a conversation to read it.'}
             </CardContent>
           )}
         </Card>

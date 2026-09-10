@@ -1,263 +1,283 @@
 import { useState } from 'react';
 import {
   FileText,
-  Upload,
-  Download,
-  Send,
-  Video,
-  Link2,
+  FileSpreadsheet,
+  Image as ImageIcon,
   Search,
   Filter,
-  Folder,
+  Download,
+  Eye,
   Inbox,
   ArrowUpCircle,
-  Calendar,
-  User,
+  ArrowDownCircle,
   Clock,
-  Eye,
+  Loader2,
+  RotateCcw,
+  AlertCircle,
   MessageSquare,
 } from 'lucide-react';
 import { Card, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
-import { SelectInput, TextArea, TextInput } from '../../components/common/Input';
+import { SelectInput } from '../../components/common/Input';
+import { memberApi, type MemberDocument } from '../../api/member';
+import { downloadAttachment, openAttachmentInTab } from '../../api/messaging';
+import { normalizeError } from '../../api/client';
+import { useApiData } from '../../hooks/useApiData';
+import { formatBytes } from '../../utils/formatBytes';
 
-interface Doc {
-  id: string;
-  name: string;
-  type: 'PDF' | 'DOC' | 'PPT' | 'Video' | 'Link';
-  size: string;
-  sender: string;
-  direction: 'incoming' | 'outgoing';
-  date: string;
-  project?: string;
-  note?: string;
+/** Buckets the raw MIME type into the categories the filter offers. */
+function docKind(mimeType: string, name: string): 'PDF' | 'DOC' | 'SHEET' | 'SLIDES' | 'IMAGE' | 'FILE' {
+  const extension = name.split('.').pop()?.toLowerCase() ?? '';
+  if (mimeType === 'application/pdf' || extension === 'pdf') return 'PDF';
+  if (mimeType.startsWith('image/')) return 'IMAGE';
+  if (['doc', 'docx'].includes(extension)) return 'DOC';
+  if (['xls', 'xlsx', 'csv'].includes(extension)) return 'SHEET';
+  if (['ppt', 'pptx'].includes(extension)) return 'SLIDES';
+  return 'FILE';
 }
 
-const documents: Doc[] = [
-  { id: 'd1', name: 'IFSMHP-Endorsement-Chen-Biomarker-2026.pdf', type: 'PDF', size: '284 KB', sender: 'CRO Office', direction: 'incoming', date: 'Aug 15, 2026', project: 'Biomarker Panels for MDD', note: 'Official endorsement letter' },
-  { id: 'd2', name: 'Reviewer-Comments-Summary.docx', type: 'DOC', size: '42 KB', sender: 'CRO Office', direction: 'incoming', date: 'Aug 15, 2026', project: 'Biomarker Panels for MDD' },
-  { id: 'd3', name: 'CRO-Office-Hours-August-2026.mp4', type: 'Video', size: '284 MB', sender: 'Chief Research Officer', direction: 'incoming', date: 'Aug 03, 2026', note: 'Monthly Q&A recording' },
-  { id: 'd4', name: 'Biomarker-Study-Full-Proposal-v3.pdf', type: 'PDF', size: '4.2 MB', sender: 'Dr. Sarah Chen (You)', direction: 'outgoing', date: 'Jul 08, 2026', project: 'Biomarker Panels for MDD' },
-  { id: 'd5', name: 'Wearable-EEG-Validation-Presentation.pptx', type: 'PPT', size: '7.8 MB', sender: 'Dr. Sarah Chen (You)', direction: 'outgoing', date: 'Jun 30, 2026', project: 'EEG Device Validation' },
-  { id: 'd6', name: 'Symposium-Preview-2026 (YouTube Link)', type: 'Link', size: '—', sender: 'CRO Events Office', direction: 'incoming', date: 'Aug 14, 2026', note: 'Keynote invitation preview' },
-  { id: 'd7', name: 'Grant-Guidelines-2026-Round3.pdf', type: 'PDF', size: '1.1 MB', sender: 'Grants Office', direction: 'incoming', date: 'Aug 08, 2026', note: 'New matched-funding opportunity' },
-];
+const kindIcon = {
+  PDF: FileText,
+  DOC: FileText,
+  SHEET: FileSpreadsheet,
+  SLIDES: FileText,
+  IMAGE: ImageIcon,
+  FILE: FileText,
+} as const;
 
-const typeIcon = { PDF: FileText, DOC: FileText, PPT: FileText, Video: Video, Link: Link2 };
-const typeColor = {
-  PDF: 'bg-danger-100 text-danger-600',
+const kindColor = {
+  PDF: 'bg-brass-100 text-brass-700',
   DOC: 'bg-forum-50 text-forum-700',
-  PPT: 'bg-brass-100 text-brass-700',
-  Video: 'bg-slateteal-100 text-slateteal-700',
-  Link: 'bg-forum-50 text-forum-700',
-};
+  SHEET: 'bg-success-100 text-success-600',
+  SLIDES: 'bg-slateteal-100 text-slateteal-700',
+  IMAGE: 'bg-slateteal-100 text-slateteal-700',
+  FILE: 'bg-forum-50 text-forum-700',
+} as const;
+
+function formatDate(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+}
 
 export default function DocumentExchangePage() {
-  const [tab, setTab] = useState<'inbox' | 'send'>('inbox');
-  const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('All');
+  const [direction, setDirection] = useState<'all' | 'incoming' | 'outgoing'>('all');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // Fed entirely by chat attachments — the server builds this from the messages
+  // the member takes part in, excluding admin-only internal notes.
+  const { data, loading, error } = useApiData(() => memberApi.documents({ limit: 100 }), [reloadKey]);
+  const documents: MemberDocument[] = data?.items ?? [];
+
+  const refresh = () => setReloadKey((k) => k + 1);
 
   const filtered = documents.filter((d) => {
-    if (tab === 'inbox' && d.direction !== 'incoming') return false;
-    if (tab === 'send' && d.direction !== 'outgoing') return false;
-    if (filter !== 'All' && d.type !== filter) return false;
-    if (search && !d.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (direction !== 'all' && d.direction !== direction) return false;
+    if (filter !== 'All' && docKind(d.type, d.name) !== filter) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      return d.name.toLowerCase().includes(s) || d.note.toLowerCase().includes(s) || d.sender.toLowerCase().includes(s);
+    }
     return true;
   });
 
+  const incoming = documents.filter((d) => d.direction === 'incoming').length;
+
+  const run = async (doc: MemberDocument, action: 'view' | 'download') => {
+    setBusyId(doc.id);
+    setActionError(null);
+    try {
+      if (action === 'view') await openAttachmentInTab(doc.id);
+      else await downloadAttachment(doc.id, doc.name);
+    } catch (err) {
+      setActionError(normalizeError(err).message || `Could not ${action} that file.`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden">
+      <div>
+        <h1 className="font-display text-2xl font-semibold text-forum-900">Document Exchange</h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          Every file exchanged with the Chief Research Office, gathered from your conversations.
+        </p>
+      </div>
+
+      {actionError && (
+        <div className="rounded-lg border border-danger-600/20 bg-danger-100 p-4">
+          <p className="text-sm text-danger-600">{actionError}</p>
+        </div>
+      )}
+
+      <Card>
         <CardContent className="p-0">
           <div className="flex border-b border-paper-border">
             <button
               type="button"
-              onClick={() => setTab('inbox')}
+              onClick={() => setDirection(direction === 'incoming' ? 'all' : 'incoming')}
               className={`flex-1 px-4 sm:px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors ${
-                tab === 'inbox' ? 'border-forum-600 text-forum-900 bg-forum-50/40' : 'border-transparent text-ink-muted hover:text-ink'
+                direction === 'incoming' ? 'border-forum-600 text-forum-900 bg-forum-50/40' : 'border-transparent text-ink-muted hover:text-ink'
               }`}
             >
               <Inbox className="h-4 w-4 inline mr-1.5" />
-              Inbox from CRO
-              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brass-500 px-1.5 text-[11px] font-semibold text-white">
-                {documents.filter((d) => d.direction === 'incoming').length}
-              </span>
+              From CRO
+              {incoming > 0 && (
+                <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brass-500 px-1.5 text-[11px] font-semibold text-white">
+                  {incoming}
+                </span>
+              )}
             </button>
             <button
               type="button"
-              onClick={() => setTab('send')}
+              onClick={() => setDirection(direction === 'outgoing' ? 'all' : 'outgoing')}
               className={`flex-1 px-4 sm:px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors ${
-                tab === 'send' ? 'border-forum-600 text-forum-900 bg-forum-50/40' : 'border-transparent text-ink-muted hover:text-ink'
+                direction === 'outgoing' ? 'border-forum-600 text-forum-900 bg-forum-50/40' : 'border-transparent text-ink-muted hover:text-ink'
               }`}
             >
               <ArrowUpCircle className="h-4 w-4 inline mr-1.5" />
-              Send to CRO
+              Sent by you
             </button>
           </div>
 
-          {tab === 'inbox' ? (
-            <div className="p-5 sm:p-6 space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-ink-subtle" />
-                  <input
-                    type="text"
-                    placeholder="Search documents..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full rounded-md border border-paper-border bg-paper pl-9 pr-3 py-2 text-sm focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600 focus:ring-offset-1 focus:ring-offset-paper"
-                  />
-                </div>
-                <SelectInput
-                  label={<span className="flex items-center gap-1.5"><Filter className="h-3.5 w-3.5" />Type</span>}
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                  className="sm:mb-0"
-                >
-                  <option value="All">All Types</option>
-                  <option value="PDF">PDF</option>
-                  <option value="DOC">DOC / DOCX</option>
-                  <option value="PPT">PPT / PPTX</option>
-                  <option value="Video">Video</option>
-                  <option value="Link">Links</option>
-                </SelectInput>
+          <div className="p-5 sm:p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-ink-subtle" />
+                <input
+                  type="text"
+                  placeholder="Search documents..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full rounded-md border border-paper-border bg-paper pl-9 pr-3 py-2 text-sm focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600 focus:ring-offset-1 focus:ring-offset-paper"
+                />
               </div>
+              <SelectInput
+                label={<span className="flex items-center gap-1.5"><Filter className="h-3.5 w-3.5" />Type</span>}
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="sm:mb-0"
+              >
+                <option value="All">All Types</option>
+                <option value="PDF">PDF</option>
+                <option value="DOC">DOC / DOCX</option>
+                <option value="SHEET">Spreadsheets</option>
+                <option value="SLIDES">Presentations</option>
+                <option value="IMAGE">Images</option>
+              </SelectInput>
+            </div>
 
+            {loading ? (
+              <div className="py-16 flex flex-col items-center gap-3">
+                <Loader2 className="h-7 w-7 animate-spin text-forum-600" />
+                <p className="text-sm text-ink-muted">Loading documents…</p>
+              </div>
+            ) : error ? (
+              <div className="py-16 flex flex-col items-center gap-3 text-center">
+                <div className="h-12 w-12 flex items-center justify-center rounded-full bg-danger-100 text-danger-600"><AlertCircle className="h-6 w-6" /></div>
+                <p className="text-sm font-semibold text-forum-900">Couldn't load your documents</p>
+                <p className="text-xs text-ink-muted max-w-sm">{error}</p>
+                <Button size="sm" variant="outline" onClick={refresh}><RotateCcw className="h-3.5 w-3.5" />Try again</Button>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="py-16 flex flex-col items-center gap-3 text-center">
+                <div className="h-14 w-14 flex items-center justify-center rounded-2xl bg-forum-50 text-forum-700"><FileText className="h-7 w-7" /></div>
+                <p className="text-base font-semibold text-forum-900">
+                  {documents.length === 0 ? 'No documents yet' : 'No documents match your filters'}
+                </p>
+                <p className="text-sm text-ink-muted max-w-sm">
+                  {documents.length === 0
+                    ? 'Files appear here once you or the CRO attach them to a message.'
+                    : 'Try clearing the search or type filter.'}
+                </p>
+                {documents.length === 0 && (
+                  <Button as="link" to="/dashboard/messages" size="sm" variant="primary">
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Go to Messages
+                  </Button>
+                )}
+              </div>
+            ) : (
               <div className="divide-y divide-paper-border rounded-xl border border-paper-border">
                 {filtered.map((d) => {
-                  const TIcon = typeIcon[d.type];
+                  const kind = docKind(d.type, d.name);
+                  const TIcon = kindIcon[kind];
+                  const busy = busyId === d.id;
                   return (
-                    <div key={d.id} className="p-4 sm:p-5 hover:bg-forum-50/30 transition-colors">
+                    <div key={`${d.id}-${d.date}`} className="p-4 sm:p-5 hover:bg-forum-50/30 transition-colors">
                       <div className="flex items-start gap-3 sm:gap-4">
-                        <div className={`h-11 w-11 shrink-0 flex items-center justify-center rounded-lg ${typeColor[d.type]}`}>
+                        <div className={`h-11 w-11 shrink-0 flex items-center justify-center rounded-lg ${kindColor[kind]}`}>
                           <TIcon className="h-5.5 w-5.5" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant={d.type === 'Video' ? 'info' : d.type === 'Link' ? 'default' : d.type === 'PDF' ? 'brass' : 'default'}>
-                                  {d.type}
+                                <Badge variant={kind === 'PDF' ? 'brass' : kind === 'IMAGE' ? 'info' : 'default'}>{kind}</Badge>
+                                <span className="text-xs text-ink-subtle">{formatBytes(d.size)}</span>
+                                <Badge variant={d.direction === 'incoming' ? 'info' : 'default'} className="!text-[10px]">
+                                  {d.direction === 'incoming'
+                                    ? <><ArrowDownCircle className="h-2.5 w-2.5 mr-1" />From CRO</>
+                                    : <><ArrowUpCircle className="h-2.5 w-2.5 mr-1" />Sent</>}
                                 </Badge>
-                                <span className="text-xs text-ink-subtle">{d.size}</span>
                               </div>
-                              <p className="mt-1.5 font-medium text-forum-900 truncate">{d.name}</p>
+                              <p className="mt-1.5 font-medium text-forum-900 truncate" title={d.name}>{d.name}</p>
+                              <p className="mt-0.5 text-xs text-ink-muted line-clamp-2">{d.note}</p>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px] text-ink-subtle">
+                                <span>{d.sender}</span>
+                                <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />{formatDate(d.date)}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-muted hover:bg-forum-50 hover:text-forum-700 transition-colors" title="Preview">
-                                <Eye className="h-4 w-4" />
+                            <div className="flex shrink-0 gap-1.5">
+                              <button
+                                type="button"
+                                aria-label={`Preview ${d.name}`}
+                                disabled={busy}
+                                onClick={() => void run(d, 'view')}
+                                className="rounded-md p-2 text-ink-muted hover:bg-forum-50 hover:text-forum-700 disabled:opacity-50"
+                              >
+                                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
                               </button>
-                              <button className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-muted hover:bg-forum-50 hover:text-forum-700 transition-colors" title="Download">
+                              <button
+                                type="button"
+                                aria-label={`Download ${d.name}`}
+                                disabled={busy}
+                                onClick={() => void run(d, 'download')}
+                                className="rounded-md p-2 text-ink-muted hover:bg-forum-50 hover:text-forum-700 disabled:opacity-50"
+                              >
                                 <Download className="h-4 w-4" />
                               </button>
-                              <Button size="sm" variant="ghost">
-                                <Download className="h-4 w-4" />
-                                <span className="hidden sm:inline">Download</span>
-                              </Button>
                             </div>
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-subtle">
-                            <span className="inline-flex items-center gap-1.5">
-                              <User className="h-3.5 w-3.5" />
-                              From: {d.sender}
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <Calendar className="h-3.5 w-3.5" />
-                              {d.date}
-                            </span>
-                            {d.project && (
-                              <span className="inline-flex items-center gap-1.5">
-                                <Folder className="h-3.5 w-3.5" />
-                                {d.project}
-                              </span>
-                            )}
-                          </div>
-                          {d.note && (
-                            <p className="mt-2 text-xs text-ink-muted bg-paper rounded-md border border-paper-border px-3 py-2">
-                              <MessageSquare className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5" />
-                              {d.note}
-                            </p>
-                          )}
                         </div>
                       </div>
                     </div>
                   );
                 })}
-                {filtered.length === 0 && (
-                  <div className="p-10 text-center text-sm text-ink-subtle">
-                    <Folder className="mx-auto h-10 w-10 mb-3" />
-                    No documents match your filters.
-                  </div>
-                )}
               </div>
-            </div>
-          ) : (
-            <div className="p-5 sm:p-6 space-y-5">
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <SelectInput label="Send to" defaultValue="cro">
-                    <option value="cro">Chief Research Officer (CRO)</option>
-                    <option value="grants">Grants Office</option>
-                    <option value="events">Events & Symposia Office</option>
-                    <option value="publications">Publications Committee</option>
-                    <option value="support">Member Support Team</option>
-                  </SelectInput>
-                </div>
-                <div className="sm:col-span-2">
-                  <TextInput label="Subject / Reference" placeholder="e.g. Biomarker Study — Revised IRB Documentation" />
-                </div>
-                <div className="sm:col-span-2">
-                  <TextArea label="Message (optional)" placeholder="Include any context, questions, or instructions for the recipient..." rows={4} />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="mb-1.5 block text-sm font-medium text-ink">Attachments</label>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border-2 border-dashed border-forum-600/30 bg-forum-50/40 p-5 text-center">
-                      <Upload className="h-7 w-7 text-forum-700 mx-auto" />
-                      <p className="mt-2 text-xs font-medium text-forum-900">Documents</p>
-                      <p className="mt-0.5 text-[11px] text-ink-subtle">PDF, DOC, DOCX</p>
-                    </div>
-                    <div className="rounded-xl border-2 border-dashed border-paper-border bg-paper p-5 text-center hover:border-brass-500/30 transition-colors cursor-pointer">
-                      <Folder className="h-7 w-7 text-ink-subtle mx-auto" />
-                      <p className="mt-2 text-xs font-medium text-ink-muted">Presentations</p>
-                      <p className="mt-0.5 text-[11px] text-ink-subtle">PPT, PPTX</p>
-                    </div>
-                    <div className="rounded-xl border-2 border-dashed border-paper-border bg-paper p-5 text-center hover:border-slateteal-500/30 transition-colors cursor-pointer">
-                      <Link2 className="h-7 w-7 text-ink-subtle mx-auto" />
-                      <p className="mt-2 text-xs font-medium text-ink-muted">Video / Links</p>
-                      <p className="mt-0.5 text-[11px] text-ink-subtle">YouTube, Vimeo, URLs</p>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs text-ink-subtle">
-                    Or drag and drop files here. Max 50MB per file.
-                  </p>
-                </div>
-              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-              <div className="rounded-lg border border-paper-border bg-paper p-4">
-                <h4 className="font-semibold text-sm text-forum-900 flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-brass-700" />
-                  Response Times
-                </h4>
-                <ul className="mt-2 grid gap-1.5 text-xs text-ink-muted sm:grid-cols-3">
-                  <li>• Documents: within 2 business days</li>
-                  <li>• Video links: within 3 business days</li>
-                  <li>• Urgent: mark subject line [URGENT]</li>
-                </ul>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <Button variant="outline" size="lg">
-                  Save Draft
-                </Button>
-                <Button size="lg">
-                  <Send className="h-4.5 w-4.5" />
-                  Send to CRO
-                </Button>
-              </div>
-            </div>
-          )}
+      <Card>
+        <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-5">
+          <div>
+            <p className="text-sm font-semibold text-forum-900">Need to send a file to the CRO?</p>
+            <p className="mt-0.5 text-xs text-ink-muted">
+              Attach it to a message — every file exchanged in a conversation shows up on this page.
+            </p>
+          </div>
+          <Button as="link" to="/dashboard/messages" variant="primary" size="sm">
+            <MessageSquare className="h-4 w-4" />
+            Go to Messages
+          </Button>
         </CardContent>
       </Card>
     </div>

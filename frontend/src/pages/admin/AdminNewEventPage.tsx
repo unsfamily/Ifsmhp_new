@@ -14,7 +14,6 @@ import {
   Plus,
   Trash2,
   Link as LinkIcon,
-  Sparkles,
   Eye,
   Send,
   CalendarClock,
@@ -29,135 +28,17 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { TextInput, FileInput, SelectInput, TextArea, Checkbox } from '../../components/common/Input';
 
-type Format = 'In-Person' | 'Hybrid' | 'Virtual';
-type Audience = 'All Members' | 'CRO Invite' | 'Public';
-type EventTag =
-  | 'Symposium' | 'Workshop' | 'Town Hall' | 'Lecture'
-  | 'Moral Support' | 'Grants' | 'Publications' | 'Wellness'
-  | 'Chapter' | 'Networking' | 'SAB' | 'Training';
-
-const EVENT_TAGS: EventTag[] = [
-  'Symposium', 'Workshop', 'Town Hall', 'Lecture',
-  'Moral Support', 'Grants', 'Publications', 'Wellness',
-  'Chapter', 'Networking', 'SAB', 'Training',
-];
-
-export interface EventFormState {
-  title: string;
-  shortDescription: string;
-  date: string;
-  timeStart: string;
-  timeEnd: string;
-  timezone: string;
-  location: string;
-  format: Format;
-  audience: Audience;
-  capacity: string;
-  externalUrl: string;
-  organizer: string;
-  organizerEmail: string;
-  longDescription: string;
-  agenda: string;
-  speakers: string[];
-  tags: EventTag[];
-  registrationRequired: boolean;
-  waitlistEnabled: boolean;
-  sendReminder: boolean;
-  reminderDays: string;
-  recordingProvided: boolean;
-  publishImmediately: boolean;
-  scheduledPublishDate: string;
-  featured: boolean;
-}
-
-const EMPTY: EventFormState = {
-  title: '',
-  shortDescription: '',
-  date: '',
-  timeStart: '',
-  timeEnd: '',
-  timezone: 'UTC',
-  location: '',
-  format: 'Virtual',
-  audience: 'All Members',
-  capacity: '',
-  externalUrl: '',
-  organizer: 'CRO Office',
-  organizerEmail: 'events@ifsmhp.example',
-  longDescription: '',
-  agenda: '',
-  speakers: [''],
-  tags: [],
-  registrationRequired: true,
-  waitlistEnabled: true,
-  sendReminder: true,
-  reminderDays: '1',
-  recordingProvided: false,
-  publishImmediately: true,
-  scheduledPublishDate: '',
-  featured: false,
-};
-
-interface Errors {
-  [k: string]: string | undefined;
-  title?: string;
-  shortDescription?: string;
-  date?: string;
-  timeStart?: string;
-  timeEnd?: string;
-  location?: string;
-  organizer?: string;
-  organizerEmail?: string;
-  longDescription?: string;
-  capacity?: string;
-  externalUrl?: string;
-}
-
-export function validate(form: EventFormState): Errors {
-  const e: Errors = {};
-  if (!form.title.trim()) e.title = 'Event title is required.';
-  else if (form.title.length < 6) e.title = 'Title must be at least 6 characters.';
-  else if (form.title.length > 140) e.title = 'Title must be ≤ 140 characters.';
-
-  if (!form.shortDescription.trim()) e.shortDescription = 'Short description is required.';
-  else if (form.shortDescription.length < 20) e.shortDescription = 'Short description must be at least 20 characters.';
-  else if (form.shortDescription.length > 300) e.shortDescription = 'Short description must be ≤ 300 characters.';
-
-  if (!form.date) e.date = 'A date is required.';
-
-  if (!form.timeStart) e.timeStart = 'Start time is required.';
-  if (!form.timeEnd) e.timeEnd = 'End time is required.';
-  if (form.timeStart && form.timeEnd && form.timeStart >= form.timeEnd) {
-    e.timeEnd = 'End time must be after start time.';
-  }
-
-  if (!form.location.trim()) e.location = 'Location or virtual room is required.';
-
-  if (!form.organizer.trim()) e.organizer = 'Organizer is required.';
-  if (!form.organizerEmail.trim()) e.organizerEmail = 'Organizer email is required.';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.organizerEmail)) e.organizerEmail = 'Please enter a valid email address.';
-
-  if (!form.longDescription.trim()) e.longDescription = 'Long description / agenda is required.';
-  else if (form.longDescription.length < 50) e.longDescription = 'Long description must be ≥ 50 characters.';
-
-  if (form.capacity && (isNaN(Number(form.capacity)) || Number(form.capacity) < 0 || Number(form.capacity) > 100000)) {
-    e.capacity = 'Capacity must be a valid number between 0 and 100,000 (or leave blank for unlimited).';
-  }
-
-  if (form.externalUrl && !/^https?:\/\/.{3,}/.test(form.externalUrl)) {
-    e.externalUrl = 'External URL must start with http:// or https:// and be a valid address.';
-  }
-
-  return e;
-}
-
+import { EVENT_TAGS, TIMEZONES, validateEvent as validate, type EventFormState } from '../../api/events';
+import { useEventEditor } from '../../hooks/useEventEditor';
+type Format = EventFormState['format'];
+type Audience = EventFormState['audience'];
+type EventTag = string;
+type Errors = Record<string, string | undefined>;
 export default function AdminNewEventPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState<EventFormState>(EMPTY);
-  const [errors, setErrors] = useState<Errors>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [showPreview, setShowPreview] = useState(false);
-  const [savedAsDraft, setSavedAsDraft] = useState(false);
+  const { form, setForm, errors, setErrors, touched, setTouched, busy, message, requestError, coverUrl, coverName, chooseCover, save } = useEventEditor();
+  const [showPreview, setShowPreview] = useState(true);
+  const savedAsDraft = message.includes('Draft');
 
   const allErrors = useMemo(() => validate(form), [form]);
   const isValid = Object.keys(allErrors).length === 0;
@@ -167,6 +48,7 @@ export default function AdminNewEventPage() {
   const update = <K extends keyof EventFormState>(k: K, v: EventFormState[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
     setTouched((t) => ({ ...t, [k]: true }));
+    setErrors(e => ({ ...e, [k]: undefined }));
   };
 
   const toggleTag = (tag: EventTag) => {
@@ -186,23 +68,8 @@ export default function AdminNewEventPage() {
   const addSpeaker = () => setForm((f) => ({ ...f, speakers: [...f.speakers, ''] }));
   const removeSpeaker = (idx: number) => setForm((f) => ({ ...f, speakers: f.speakers.filter((_, i) => i !== idx) }));
 
-  const saveDraft = () => {
-    setSavedAsDraft(true);
-    setTimeout(() => setSavedAsDraft(false), 3000);
-  };
-
-  const publish = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrors(allErrors);
-    const allTouched: Record<string, boolean> = {};
-    Object.keys(EMPTY).forEach((k) => { allTouched[k] = true; });
-    setTouched(allTouched);
-    if (isValid) {
-      setTimeout(() => navigate('/admin/events'), 600);
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
+  const saveDraft = () => { void save('draft'); };
+  const publish = (e: React.FormEvent) => { e.preventDefault(); void save('submit'); };
 
   const speakerList = form.speakers.filter((s) => s.trim().length > 0);
 
@@ -211,7 +78,7 @@ export default function AdminNewEventPage() {
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div className="flex-1 max-w-3xl">
           <div className="flex flex-wrap items-center gap-2 text-xs text-ink-subtle mb-2">
-            <Badge variant="brass"><Sparkles className="h-2.5 w-2.5 mr-1" />[DEMO DATA — API pending]</Badge>
+
             <Link to="/admin/events" className="inline-flex items-center gap-1 text-forum-700 font-medium hover:underline">
               <ArrowLeft className="h-3 w-3" /> Back to events
             </Link>
@@ -226,7 +93,7 @@ export default function AdminNewEventPage() {
             <Eye className="h-3.5 w-3.5" />
             {showPreview ? 'Hide Preview' : 'Live Preview'}
           </Button>
-          <Button variant="outline" size="sm" onClick={saveDraft} disabled={savedAsDraft}>
+          <Button variant="outline" size="sm" onClick={saveDraft} disabled={busy}>
             {savedAsDraft ? (
               <><CheckCircle2 className="h-3.5 w-3.5 text-success-600" /> Saved Draft</>
             ) : (
@@ -236,6 +103,7 @@ export default function AdminNewEventPage() {
         </div>
       </div>
 
+      {requestError && <div role="alert" className="rounded-lg border border-danger-600/30 bg-danger-50 p-4 text-sm text-danger-800">{requestError}</div>}
       {savedAsDraft && (
         <div className="rounded-lg border border-success-600/20 bg-success-50 p-3.5 flex items-start gap-2.5">
           <CheckCircle2 className="h-4.5 w-4.5 text-success-600 shrink-0 mt-0.5" />
@@ -259,7 +127,8 @@ export default function AdminNewEventPage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <form className="lg:col-span-2 space-y-6" onSubmit={publish} noValidate>
+        <form id="event-form" className="lg:col-span-2 space-y-6" onSubmit={publish} noValidate aria-busy={busy}>
+          <fieldset disabled={busy} className="space-y-6 min-w-0">
           <Card>
             <CardHeader>
               <h3 className="font-display text-lg font-semibold text-forum-900 flex items-center gap-2">
@@ -325,7 +194,7 @@ export default function AdminNewEventPage() {
                   value={form.timezone}
                   onChange={(e) => update('timezone', e.target.value)}
                 >
-                  {['UTC', 'Europe/London (BST/GMT)', 'Europe/Stockholm (CET)', 'Europe/Berlin', 'America/New_York (ET)', 'America/Los_Angeles (PT)', 'Asia/Kolkata (IST)', 'Asia/Tokyo (JST)', 'Australia/Sydney (AEST)', 'Pacific/Auckland'].map((tz) => <option key={tz}>{tz}</option>)}
+                  {TIMEZONES.map((tz) => <option key={tz}>{tz}</option>)}
                 </SelectInput>
               </div>
 
@@ -449,7 +318,8 @@ export default function AdminNewEventPage() {
               </h3>
             </CardHeader>
             <CardContent className="pt-0 space-y-4">
-              <FileInput label="Event Cover Image (optional — recommended)" accept="image/*" hint="Landscape 16:9, at least 1600×900 px for banners." />
+              <FileInput label="Event Cover Image (optional)" accept="image/jpeg,image/png,image/webp" onChange={e => chooseCover(e.target.files?.[0])} onFiles={files => chooseCover(files[0])} hint={coverName || 'Landscape 16:9 recommended.'} />
+              {coverUrl && <img src={coverUrl} alt="Event cover" className="w-full aspect-video object-cover rounded-lg" />}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-2 block flex items-center gap-1.5">
                   Tags &amp; Classification
@@ -543,6 +413,8 @@ export default function AdminNewEventPage() {
                   <TextInput
                     label="Schedule publish date & time"
                     type="datetime-local"
+                    error={fieldError('scheduledPublishDate')}
+                    hint={`Timezone: ${form.timezone}`}
                     value={form.scheduledPublishDate}
                     onChange={(e) => update('scheduledPublishDate', e.target.value)}
                     icon={<CalendarClock className="h-4 w-4 text-ink-subtle" />}
@@ -556,7 +428,7 @@ export default function AdminNewEventPage() {
             <CardHeader>
               <h3 className="font-display text-lg font-semibold text-forum-900">Review &amp; Publish</h3>
               <p className="text-xs text-ink-subtle mt-0.5">
-                Publishing sends the event to the calendar and — for public audiences — schedules a newsletter announcement.
+                Published events are available to their selected audience.
               </p>
             </CardHeader>
             <CardContent className="pt-0 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
@@ -566,19 +438,20 @@ export default function AdminNewEventPage() {
               <Button variant="outline" type="button" onClick={saveDraft}>
                 <Save className="h-4 w-4" /> Save Draft Only
               </Button>
-              <Button type="submit" disabled={!isValid}>
+              <Button form="event-form" type="submit" disabled={busy}>
                 {isValid ? (
-                  <><Calendar className="h-4 w-4" /> Publish Event</>
+                  <><Calendar className="h-4 w-4" /> {busy ? 'Saving...' : form.publishImmediately ? 'Publish Event' : form.scheduledPublishDate ? 'Schedule Event' : 'Save Draft'}</>
                 ) : (
                   <><AlertCircle className="h-4 w-4" /> Please correct {Object.keys(allErrors).length} issue{Object.keys(allErrors).length > 1 ? 's' : ''}</>
                 )}
               </Button>
             </CardContent>
           </Card>
+          </fieldset>
         </form>
 
-        <aside className="space-y-5">
-          <Card>
+        <aside className="space-y-5 min-w-0">
+          {showPreview && <Card>
             <CardHeader>
               <h3 className="font-display text-lg font-semibold text-forum-900">Live Preview</h3>
               <p className="text-xs text-ink-subtle mt-0.5">How this event appears in the events listing.</p>
@@ -586,8 +459,7 @@ export default function AdminNewEventPage() {
             <CardContent className="pt-0">
               <div className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-50 via-paper to-brass-50/40 overflow-hidden">
                 <div className="h-28 bg-gradient-to-br from-forum-600 via-slateteal-500 to-brass-500 flex items-center justify-center text-white/90 text-xs">
-                  <Image className="h-6 w-6 mr-2" />
-                  {form.title ? 'Cover banner preview' : 'Add cover image (optional)'}
+                  {coverUrl ? <img src={coverUrl} alt="Cover preview" className="h-full w-full object-cover" /> : <><Image className="h-6 w-6 mr-2" />No cover image</>}
                 </div>
                 <div className="p-4 space-y-3">
                   <div className="flex flex-wrap gap-1.5">
@@ -635,7 +507,7 @@ export default function AdminNewEventPage() {
                 </div>
               </div>
             </CardContent>
-          </Card>
+          </Card>}
 
           <Card>
             <CardHeader>
@@ -658,8 +530,8 @@ export default function AdminNewEventPage() {
               <Button variant="outline" size="sm" className="justify-start" onClick={() => setShowPreview((v) => !v)}>
                 <Eye className="h-4 w-4" /> {showPreview ? 'Hide preview card' : 'Show full page preview'}
               </Button>
-              <Button type="submit" variant="primary" className="justify-start bg-success-600 hover:bg-success-600/90" disabled={!isValid}>
-                <Send className="h-4 w-4" /> Publish now
+              <Button form="event-form" type="submit" variant="primary" className="justify-start bg-success-600 hover:bg-success-600/90" disabled={busy}>
+                <Send className="h-4 w-4" /> {busy ? 'Saving...' : form.publishImmediately ? 'Publish now' : form.scheduledPublishDate ? 'Schedule Event' : 'Save Draft'}
               </Button>
             </CardContent>
           </Card>

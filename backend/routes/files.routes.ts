@@ -269,7 +269,13 @@ router.get(
       file.credentials.some((item) => item.profile.userId === user.id) ||
       file.projectFiles.some((item) => item.project.ownerId === user.id) ||
       file.publicationFiles.some((item) => item.publication.authorId === user.id) ||
-      file.messageAttachments.some((item) => item.message.conversation.participants.some((p) => p.userId === user.id));
+      // Attaching a file to a message is what grants the other participants
+      // download rights — but an internal note is admin-only, so a file on one
+      // must not become readable by the member through this branch. Admins
+      // still reach it via the role check above.
+      file.messageAttachments.some(
+        (item) => !item.message.internal && item.message.conversation.participants.some((p) => p.userId === user.id),
+      );
 
     if (!allowed) throw ApiError.notFound('File not found');
 
