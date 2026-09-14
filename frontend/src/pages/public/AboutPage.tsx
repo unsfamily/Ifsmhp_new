@@ -108,69 +108,6 @@ export default function AboutPage() {
         </div>
       </Section>
 
-      <Section bg="forum">
-        <div className="grid gap-12 items-center lg:grid-cols-2 lg:gap-16">
-          <div>
-            <span className="text-sm font-semibold uppercase tracking-wider text-slateteal-700">
-              Our Story
-            </span>
-            <h2 className="mt-3 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">
-              Every researcher deserves support
-            </h2>
-            <div className="mt-6 space-y-5 text-ink-muted leading-relaxed">
-              <p>
-                IFSMHP was founded with a simple yet powerful conviction:{' '}
-                <strong className="text-ink">
-                  every researcher deserves support
-                </strong>{' '}
-                — moral, official, and financial — to pursue groundbreaking work that
-                benefits humanity.
-              </p>
-              <p>
-                Too often, brilliant ideas remain unrealized not for lack of merit,
-                but for lack of a community to nurture them, credentials to validate
-                them, or funding to sustain them.
-              </p>
-              <p>
-                We bridge that gap by creating a unified global platform where
-                scientists and mental health professionals can connect, collaborate,
-                and contribute to real-world impact — together.
-              </p>
-            </div>
-          </div>
-          <div className="relative">
-            <div className="aspect-[4/3] rounded-2xl bg-gradient-to-br from-forum-600 to-forum-900 p-1 shadow-lg">
-              <div className="flex h-full w-full items-center justify-center rounded-2xl bg-forum-900/50">
-                <div className="text-center px-8">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brass-500 text-white">
-                    <Users className="h-8 w-8" />
-                  </div>
-                  <p className="mt-5 font-display text-2xl font-semibold text-white">
-                    277 Members
-                  </p>
-                  <p className="mt-1 text-forum-100/70">
-                    across multiple continents
-                  </p>
-                  <div className="mt-6 flex items-center justify-center gap-1.5">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`h-2.5 w-2.5 rounded-full ${
-                          i < 2 ? 'bg-brass-500' : 'bg-white/15'
-                        }`}
-                      />
-                    ))}
-                    <span className="ml-2 text-xs text-forum-100/60">
-                      28% toward 2027 goal
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Section>
-
       <Section bg="raised">
         <div className="text-center max-w-2xl mx-auto">
           <span className="text-sm font-semibold uppercase tracking-wider text-forum-700">
@@ -210,6 +147,91 @@ export default function AboutPage() {
               the resources, recognition, and platform needed to make a difference.
             </p>
           </div>
+        </div>
+      </Section>
+
+    <Section bg="forum">
+        <div className="grid gap-12 items-center lg:grid-cols-2 lg:gap-16">
+          <div>
+            <span className="text-sm font-semibold uppercase tracking-wider text-slateteal-700">
+              Our Story
+            </span>
+            <h2 className="mt-3 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">
+              Every researcher deserves support
+            </h2>
+            <div className="mt-6 space-y-5 text-ink-muted leading-relaxed">
+              {/* <p>
+                IFSMHP was founded with a simple yet powerful conviction:{' '}
+                <strong className="text-ink">
+                  every researcher deserves support
+                </strong>{' '}
+                — moral, official, and financial — to pursue groundbreaking work that
+                benefits humanity.
+              </p> */}
+              <p>
+                Founded with the vision of creating a unified global platform for scientists and mental health professionals, IFSMHP bridges the gap between research and real-world impact. We believe that every researcher deserves support—moral, official, and financial—to pursue groundbreaking work that benefits humanity.
+              </p>
+              {/* <p>
+                We bridge that gap by creating a unified global platform where
+                scientists and mental health professionals can connect, collaborate,
+                and contribute to real-world impact — together.
+              </p> */}
+            </div>
+          </div>
+          {/* <div className="relative">
+            <div className="aspect-[4/3] rounded-2xl bg-gradient-to-br from-forum-600 to-forum-900 p-1 shadow-lg">
+              <div className="flex h-full w-full items-center justify-center rounded-2xl bg-forum-900/50">
+                <div className="text-center px-8">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brass-500 text-white">
+                    <Users className="h-8 w-8" />
+                  </div>
+                  <p className="mt-5 font-display text-2xl font-semibold text-white">
+                    277 Members
+                  </p>
+                  <p className="mt-1 text-forum-100/70">
+                    across multiple continents
+                  </p>
+                  <div className="mt-6 flex items-center justify-center gap-1.5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          i < 2 ? 'bg-brass-500' : 'bg-white/15'
+                        }`}
+                      />
+                    ))}
+                    <span className="ml-2 text-xs text-forum-100/60">
+                      28% toward 2027 goal
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div> */}
+        </div>
+      </Section>
+
+
+      <Section bg="raised">
+        <div className="grid gap-12 items-center lg:grid-cols-1 lg:gap-16 text-center max-w-2xl mx-auto">
+          <div>
+            <span className="text-sm font-semibold uppercase tracking-wider text-slateteal-700">
+              Our Impact
+            </span>
+            <h2 className="mt-3 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">
+              277 Current Members Worldwide
+            </h2>
+            <div className="mt-6 space-y-5 text-ink-muted leading-relaxed">
+              <p>
+                Research Projects Supported<br/>
+                Papers Published<br/>
+                Funding Grants Awarded<br/>
+                Target: 1,000 Members by End of 2027
+              </p>
+              
+            </div>
+          </div>
+          
         </div>
       </Section>
 

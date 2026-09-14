@@ -604,7 +604,7 @@ export default function UploadProjectPage() {
         </form>
       </div>
 
-      <aside className="space-y-6">
+      {/* <aside className="space-y-6">
         <Card>
           <CardHeader>
             <h3 className="font-semibold text-forum-900 flex items-center gap-2">
@@ -650,7 +650,7 @@ export default function UploadProjectPage() {
             ))}
           </CardContent>
         </Card>
-      </aside>
+      </aside> */}
     </div>
   );
 }

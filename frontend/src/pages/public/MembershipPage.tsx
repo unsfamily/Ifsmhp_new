@@ -245,7 +245,7 @@ export default function MembershipPage() {
               </Button> */}
             </div>
           </div>
-          <div className="rounded-2xl border border-forum-200 bg-forum-50/50 p-6 sm:p-8">
+          {/* <div className="rounded-2xl border border-forum-200 bg-forum-50/50 p-6 sm:p-8">
             <h3 className="text-lg font-semibold text-forum-900">
               After you register
             </h3>
@@ -263,7 +263,7 @@ export default function MembershipPage() {
                 </li>
               ))}
             </ul>
-          </div>
+          </div> */}
         </div>
       </Section>
     </>

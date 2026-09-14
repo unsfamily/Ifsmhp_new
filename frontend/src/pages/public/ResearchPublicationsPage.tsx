@@ -52,10 +52,13 @@ export default function ResearchPublicationsPage() {
   const [category, setCategory] = useState<Category>('All');
   const [researchType, setResearchType] = useState<string>('All');
   const [search, setSearch] = useState('');
+  const [author, setAuthor] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const { data, loading, error } = useApiData<{ items: Publication[] }>(
-    () => publicApi.publications({ category, researchType, q: search }) as Promise<{ items: Publication[] }>,
-    [category, researchType, search],
+    () => publicApi.publications({ category, researchType, q: search, author: author || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }) as Promise<{ items: Publication[] }>,
+    [category, researchType, search, author, dateFrom, dateTo],
   );
 
   const filtered = data?.items ?? [];
@@ -107,7 +110,7 @@ export default function ResearchPublicationsPage() {
             </button>
           </div>
 
-          <div className={`mt-4 grid gap-4 sm:grid-cols-2 ${showFilters ? 'block' : 'hidden lg:grid'}`}>
+          <div className={`mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${showFilters ? 'block' : 'hidden lg:grid'}`}>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-subtle">
                 Category
@@ -143,6 +146,39 @@ export default function ResearchPublicationsPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-subtle">
+                Author
+              </label>
+              <input
+                type="text"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                placeholder="Search by author..."
+                className="w-full rounded-md border border-paper-border bg-paper px-3 py-2 text-sm shadow-sm transition-colors focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600 focus:ring-offset-1 focus:ring-offset-paper"
+              />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-subtle">
+                Date Published
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  placeholder="From"
+                  className="flex-1 rounded-md border border-paper-border bg-paper px-3 py-2 text-sm shadow-sm transition-colors focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600 focus:ring-offset-1 focus:ring-offset-paper"
+                />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  placeholder="To"
+                  className="flex-1 rounded-md border border-paper-border bg-paper px-3 py-2 text-sm shadow-sm transition-colors focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600 focus:ring-offset-1 focus:ring-offset-paper"
+                />
+              </div>
             </div>
           </div>
         </div>
