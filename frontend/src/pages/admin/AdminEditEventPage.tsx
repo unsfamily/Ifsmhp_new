@@ -51,6 +51,7 @@ export default function AdminEditEventPage() {
 
   const allErrors = useMemo(() => validate(form), [form]);
   const isValid = Object.keys(allErrors).length === 0;
+  const publishIssueCount = Object.keys(validate(form, 'publish')).length;
   const fieldError = (name: keyof Errors) => (touched[name] || errors[name]) ? (errors[name] ?? allErrors[name]) : undefined;
 
   const update = <K extends keyof EventFormState>(k: K, v: EventFormState[K]) => {
@@ -329,7 +330,7 @@ export default function AdminEditEventPage() {
           <Card>
             <CardHeader><h3 className="font-display text-lg font-semibold text-forum-900">Form Validity</h3></CardHeader>
             <CardContent className="pt-0 space-y-2 text-xs">
-              <div className="flex justify-between"><span className="text-ink-subtle">Ready to publish</span><span className={isValid ? 'text-success-600 font-semibold inline-flex items-center gap-1' : 'text-danger-600 font-semibold inline-flex items-center gap-1'}>{isValid ? <><CheckCircle2 className="h-3.5 w-3.5" />Yes</> : <><AlertCircle className="h-3.5 w-3.5" />No — {Object.keys(allErrors).length}</>}</span></div>
+              <div className="flex justify-between"><span className="text-ink-subtle">Ready to publish</span><span className={publishIssueCount === 0 ? 'text-success-600 font-semibold inline-flex items-center gap-1' : 'text-danger-600 font-semibold inline-flex items-center gap-1'}>{publishIssueCount === 0 ? <><CheckCircle2 className="h-3.5 w-3.5" />Yes</> : <><AlertCircle className="h-3.5 w-3.5" />No — {publishIssueCount}</>}</span></div>
               <div className="flex justify-between"><span className="text-ink-subtle">Speakers</span><span className="font-medium text-ink">{form.speakers.filter((s) => s.trim()).length}</span></div>
               <div className="flex justify-between"><span className="text-ink-subtle">Tags</span><span className="font-medium text-ink">{form.tags.length}</span></div>
               <div className="flex justify-between"><span className="text-ink-subtle">Last edited</span><span className="font-medium text-ink">{new Date(ev.updatedAt).toLocaleString()}</span></div>

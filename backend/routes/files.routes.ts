@@ -10,6 +10,7 @@ import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
 import { sendSuccess } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
+import { assertSafePath, uploadRoot } from '../utils/fileStorage';
 import { writeAudit } from '../services/audit.service';
 import {
   createRegistrationClaimToken,
@@ -19,9 +20,6 @@ import {
 } from '../services/registration-documents.service';
 
 const router = Router();
-
-const uploadRoot = path.resolve(process.cwd(), env.UPLOAD_STORAGE_PATH);
-fs.mkdirSync(uploadRoot, { recursive: true });
 
 const allowedMimeTypes = new Set([
   'application/pdf',
@@ -58,14 +56,6 @@ const registrationUpload = multer({
 async function detectedMime(filePath: string): Promise<string | undefined> {
   const { fileTypeFromFile } = await import('file-type');
   return (await fileTypeFromFile(filePath))?.mime;
-}
-
-function assertSafePath(storageKey: string): string {
-  const absolute = path.resolve(uploadRoot, storageKey);
-  if (!absolute.startsWith(`${uploadRoot}${path.sep}`)) {
-    throw new ApiError(400, 'Invalid file path');
-  }
-  return absolute;
 }
 
 function parseMulter(uploadMiddleware: RequestHandler): RequestHandler {

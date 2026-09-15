@@ -471,6 +471,17 @@ model Publication {
   featured      Boolean                    @default(false)
   viewCount     Int                        @default(0)
   downloadCount Int                        @default(0)
+  // Submission metadata captured by the member "Submit New Paper" form. All
+  // nullable: publications seeded or created before this form existed have none.
+  authors             String?              @db.Text
+  correspondingAuthor String?
+  correspondingEmail  String?
+  orcid               String?
+  keywords            String?              @db.Text
+  funding             String?              @db.Text
+  conflicts           String?              @db.Text
+  ethicsApproval      String?              @db.Text
+  coverLetter         String?              @db.Text
   submittedAt   DateTime?
   approvedAt    DateTime?
   publishedAt   DateTime?
@@ -496,6 +507,8 @@ model PublicationFile {
   createdAt     DateTime    @default(now())
   publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
   file          FileObject  @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([publicationId, fileId])
 }
 
 model PublicationReview {

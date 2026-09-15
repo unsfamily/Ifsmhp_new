@@ -59,6 +59,39 @@ const projectUpdateSchema = projectSchema
 const supportSchema = supportService.createBody;
 
 /**
+ * A manuscript sent through the member "Submit New Paper" form.
+ *
+ * Mirrors the client-side rules so a member never gets a surprise rejection
+ * after a long upload, and the declarations are `literal(true)` rather than
+ * booleans — an unticked box has to fail here, not just in the browser.
+ */
+const publicationSchema = z.object({
+  title: z.string().trim().min(4, 'Paper title is required.').max(300),
+  category: z.enum(service.PUBLICATION_CATEGORIES, { errorMap: () => ({ message: 'Select a category.' }) }),
+  researchType: z.enum(service.PUBLICATION_RESEARCH_TYPES, { errorMap: () => ({ message: 'Select an article type.' }) }),
+  venue: z.string().trim().min(2, 'Select a preferred journal.').max(220),
+  authors: z.string().trim().min(2, 'Enter all author names.').max(2000),
+  correspondingAuthor: z.string().trim().min(2, 'Corresponding author is required.').max(200),
+  correspondingEmail: z.string().trim().email('Enter a valid email address.').max(200),
+  orcid: z.string().trim().regex(/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/, 'Enter an ORCID as 0000-0000-0000-0000.').optional(),
+  abstract: z.string().trim().min(100, 'Abstract must contain at least 100 characters.').max(4000),
+  keywords: z.string().trim().min(2, 'Enter at least three keywords.').max(500),
+  funding: z.string().trim().max(4000).optional(),
+  conflicts: z.string().trim().min(1, 'Enter a conflict-of-interest statement or "None".').max(4000),
+  ethicsApproval: z.string().trim().max(4000).optional(),
+  coverLetter: z.string().trim().max(4000).optional(),
+  /** Ids from POST /files/upload. Ownership is re-checked in the service. */
+  manuscriptFileId: z.string().min(1, 'Upload the manuscript PDF.'),
+  supplementaryFileId: z.string().min(1).optional(),
+  confirmOriginal: z.literal(true, {
+    errorMap: () => ({ message: 'Confirm that this is original work.' }),
+  }),
+  confirmPolicy: z.literal(true, {
+    errorMap: () => ({ message: 'Accept the publication policy.' }),
+  }),
+}).strict();
+
+/**
  * What may ride along with a message. `.url()` alone accepts ftp: and other
  * schemes, so the refine is the guard against a javascript:/data: URL in a chip
  * the recipient will click.
@@ -161,6 +194,17 @@ router.delete(
 
 /** Own publications — members see their own draft/submitted work */
 router.get('/me/publications', asyncHandler(async (req, res) => sendSuccess(res, await service.memberPublications(req.user!.id, req), 'My publications')));
+
+/**
+ * Submit a manuscript. The author is always the caller — there is no ownership
+ * field in the body, so a member cannot file a paper under someone else's name.
+ */
+router.post(
+  '/me/publications',
+  validate({ body: publicationSchema }),
+  asyncHandler(async (req, res) =>
+    sendSuccess(res, await service.createPublication(req.user!.id, req.body), 'Paper submitted for review', 201))
+);
 
 /** Own messages / conversations */
 router.get(

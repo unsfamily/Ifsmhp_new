@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type { ConversationDetail, ConversationsResult, MessageExtras } from './messaging';
+import type { PublicationBase, PublicationDecision } from './publications';
 
 export type * from './messaging';
 
@@ -130,6 +131,53 @@ export interface MemberProjectUpdate {
 }
 
 /**
+ * Publication types live in `./publications`, which both this module and the
+ * admin client import. Re-exported here so existing member-side imports keep
+ * working unchanged.
+ */
+export type { PublicationStatusLabel, PublicationFile, PublicationDecision } from './publications';
+export { manuscriptOf, PUBLICATION_CATEGORIES } from './publications';
+
+/** A publication as its own author sees it. */
+export interface MemberPublication extends PublicationBase {
+  /** The most recent editorial decision, or null until an editor has acted. */
+  decisionNote: PublicationDecision | null;
+}
+
+export interface MemberPublicationStats {
+  total: number;
+  published: number;
+  views: number;
+  downloads: number;
+  /** Signed % change in views, last 30 days vs the 30 before. Null with no prior window. */
+  readershipTrend: number | null;
+}
+
+export type MemberPublicationsResult = Paginated<MemberPublication> & { stats: MemberPublicationStats };
+
+/** The payload POST /members/me/publications accepts. */
+export interface NewPublication {
+  title: string;
+  category: string;
+  researchType: string;
+  venue: string;
+  authors: string;
+  correspondingAuthor: string;
+  correspondingEmail: string;
+  orcid?: string;
+  abstract: string;
+  keywords: string;
+  funding?: string;
+  conflicts: string;
+  ethicsApproval?: string;
+  coverLetter?: string;
+  manuscriptFileId: string;
+  supplementaryFileId?: string;
+  confirmOriginal: true;
+  confirmPolicy: true;
+}
+
+/**
  * One file exchanged in a conversation. The Document Exchange page is fed
  * entirely by message attachments, so this is a flattened view of them.
  */
@@ -177,7 +225,10 @@ export const memberApi = {
     (await apiClient.delete<Envelope<{ id: string }>>(`/members/me/projects/${id}`)).data.data,
   support: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/members/me/support', { params })).data.data,
   createSupport: async (payload: unknown) => (await apiClient.post<Envelope<unknown>>('/members/me/support', payload)).data.data,
-  publications: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/members/me/publications', { params })).data.data,
+  publications: async (params?: Record<string, unknown>) =>
+    (await apiClient.get<Envelope<MemberPublicationsResult>>('/members/me/publications', { params })).data.data,
+  createPublication: async (payload: NewPublication) =>
+    (await apiClient.post<Envelope<MemberPublication>>('/members/me/publications', payload)).data.data,
   conversations: async (params?: Record<string, unknown>) =>
     (await apiClient.get<Envelope<ConversationsResult>>('/members/me/conversations', { params })).data.data,
   conversation: async (id: string) =>

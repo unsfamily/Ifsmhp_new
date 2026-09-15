@@ -122,7 +122,9 @@ export async function publicPublications(req: Request) {
       where,
       ...toSkipTake(pagination),
       orderBy: [{ featured: 'desc' }, { publishedAt: 'desc' }],
-      include: { author: { include: { memberProfile: true } } },
+      // `files` only to answer "is there a manuscript" — selecting the ids
+      // alone keeps this cheap for a 20-card page.
+      include: { author: { include: { memberProfile: true } }, files: { select: { kind: true } } },
     }),
     prisma.publication.count({ where }),
   ]);
@@ -136,16 +138,58 @@ export async function publicPublications(req: Request) {
       category: p.category,
       researchType: p.researchType,
       abstract: p.abstract,
-      fullText: p.fullText,
+      // `fullText` is deliberately absent: it is a LongText column and the
+      // listing only ever renders the abstract. Read it from the detail route.
       views: p.viewCount,
       downloads: p.downloadCount,
       doi: p.doi,
       featured: p.featured,
       slug: p.slug,
+      /** Lets a card offer a PDF action without loading every attachment. */
+      hasManuscript: p.files.some((f) => f.kind === MANUSCRIPT_KIND),
     })),
     total,
     pagination,
   );
+}
+
+/** The attachment kind the member submission form stores the paper itself under. */
+const MANUSCRIPT_KIND = 'MANUSCRIPT';
+
+/**
+ * Locates the downloadable manuscript of a *published* paper.
+ *
+ * Publishing is what makes a manuscript public — the FileObject itself stays
+ * PRIVATE and the authenticated `/files/:id/download` ACL is untouched. Anything
+ * unpublished, unknown, or without a manuscript returns null so the caller can
+ * 404 uniformly: whether a paper exists but is unpublished must not be
+ * inferable from the response.
+ */
+export async function publicPublicationManuscript(slugOrId: string) {
+  const publication = await prisma.publication.findFirst({
+    where: { status: 'PUBLISHED', OR: [{ id: slugOrId }, { slug: slugOrId }] },
+    select: {
+      id: true,
+      files: {
+        where: { kind: MANUSCRIPT_KIND },
+        include: { file: true },
+        orderBy: { createdAt: 'asc' },
+        take: 1,
+      },
+    },
+  });
+
+  const attachment = publication?.files[0];
+  if (!attachment || attachment.file.deletedAt) return null;
+
+  return { publicationId: publication!.id, file: attachment.file };
+}
+
+/** Records that a published paper's manuscript was served. */
+export async function recordPublicationDownload(publicationId: string) {
+  await prisma.publication
+    .update({ where: { id: publicationId }, data: { downloadCount: { increment: 1 } } })
+    .catch(() => undefined);
 }
 
 export async function publicPublicationDetail(slugOrId: string, req: Request) {
@@ -176,12 +220,20 @@ export async function publicPublicationDetail(slugOrId: string, req: Request) {
     views: publication.viewCount,
     downloads: publication.downloadCount,
     doi: publication.doi,
-    files: publication.files.map((f) => ({
-      id: f.fileId,
-      kind: f.kind,
-      name: f.file.originalName,
-      sizeBytes: f.file.sizeBytes,
-    })),
+    // The raw FileObject id used to be exposed here, but it only addresses the
+    // authenticated download route — a reference an anonymous reader could not
+    // follow. `url` points at the public route that will actually serve it.
+    files: publication.files
+      .filter((f) => !f.file.deletedAt)
+      .map((f) => ({
+        kind: f.kind,
+        name: f.file.originalName,
+        sizeBytes: f.file.sizeBytes,
+        mimeType: f.file.mimeType,
+        url: f.kind === MANUSCRIPT_KIND
+          ? `/public/publications/${publication.slug ?? publication.id}/file`
+          : null,
+      })),
   };
 }
 
@@ -631,11 +683,209 @@ export async function createSupport(userId: string, input: unknown) {
 
 export async function memberPublications(userId: string, req: Request) {
   const pagination = parsePage(req);
-  const [items, total] = await Promise.all([
-    prisma.publication.findMany({ where: { authorId: userId }, orderBy: { updatedAt: 'desc' }, ...toSkipTake(pagination) }),
-    prisma.publication.count({ where: { authorId: userId } }),
+  const status = String(req.query.status ?? 'All');
+  const category = String(req.query.category ?? 'All');
+  const q = String(req.query.q ?? req.query.search ?? '').trim();
+
+  const where: Prisma.PublicationWhereInput = {
+    authorId: userId,
+    ...(status !== 'All' ? { status: labelToPublicationStatus(status) } : {}),
+    ...(category !== 'All' ? { category } : {}),
+    // Filtered here rather than on the client so `total` counts the same rows
+    // the list shows — a page-local filter would misreport the count.
+    ...(q
+      ? {
+          OR: [
+            { title: { contains: q } },
+            { venue: { contains: q } },
+            { doi: { contains: q } },
+            { authors: { contains: q } },
+          ],
+        }
+      : {}),
+  };
+
+  const [items, total, stats] = await Promise.all([
+    prisma.publication.findMany({
+      where,
+      // serializePublication reads all three; without the includes the author,
+      // member id and attachment list come back undefined. `reviews` is what
+      // carries the editor's decision back to the person who submitted.
+      include: {
+        author: { include: { memberProfile: true } },
+        files: { include: { file: true } },
+        reviews: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+      orderBy: { updatedAt: 'desc' },
+      ...toSkipTake(pagination),
+    }),
+    prisma.publication.count({ where }),
+    memberPublicationStats(userId),
   ]);
-  return buildPaginatedResult(items.map(serializePublication), total, pagination);
+
+  const rows = items.map((row) => ({
+    ...serializePublication(row),
+    // The most recent editorial decision, so a rejected author sees why rather
+    // than a bare red badge. Null until an editor has acted.
+    decisionNote: row.reviews[0]
+      ? {
+          decision: publicationStatusLabel[row.reviews[0].decision as PublicationStatus] ?? row.reviews[0].decision,
+          comment: row.reviews[0].comment,
+          at: row.reviews[0].createdAt,
+        }
+      : null,
+  }));
+
+  return { ...buildPaginatedResult(rows, total, pagination), stats };
+}
+
+/**
+ * Headline counters for the Published Works page.
+ *
+ * Deliberately unfiltered: these are totals for the member, so the cards stay
+ * still while the list below them is filtered. Scoping them to the active
+ * filter would make "Total Views" mean something different on every keystroke.
+ */
+async function memberPublicationStats(userId: string) {
+  const now = Date.now();
+  const last30 = new Date(now - 30 * 86_400_000);
+  const previous30 = new Date(now - 60 * 86_400_000);
+  const mine = { publication: { authorId: userId } };
+
+  const [total, published, totals, recentViews, priorViews] = await Promise.all([
+    prisma.publication.count({ where: { authorId: userId } }),
+    prisma.publication.count({ where: { authorId: userId, status: 'PUBLISHED' } }),
+    prisma.publication.aggregate({
+      where: { authorId: userId },
+      _sum: { viewCount: true, downloadCount: true },
+    }),
+    prisma.publicationView.count({ where: { ...mine, viewedAt: { gte: last30 } } }),
+    prisma.publicationView.count({ where: { ...mine, viewedAt: { gte: previous30, lt: last30 } } }),
+  ]);
+
+  return {
+    total,
+    published,
+    views: totals._sum.viewCount ?? 0,
+    downloads: totals._sum.downloadCount ?? 0,
+    // Null rather than +100% when there is no prior window to compare against —
+    // a percentage change from zero is not a number the member can act on.
+    readershipTrend: priorViews === 0 ? null : Math.round(((recentViews - priorViews) / priorViews) * 100),
+  };
+}
+
+/**
+ * Categories and article types the member submission form offers. Kept as the
+ * single source of truth so the route's zod enum and any future admin filter
+ * agree with what the page can actually produce.
+ */
+export const PUBLICATION_CATEGORIES = [
+  'Mental Health',
+  'Scientific Research',
+  'Product Reviews',
+  'Service Analysis',
+] as const;
+
+export const PUBLICATION_RESEARCH_TYPES = [
+  'Original Research',
+  'Review Article',
+  'Systematic Review / Meta-analysis',
+  'Case Study',
+  'Short Communication',
+  'Commentary',
+] as const;
+
+export interface CreatePublicationInput {
+  title: string;
+  category: string;
+  researchType: string;
+  venue: string;
+  authors: string;
+  correspondingAuthor: string;
+  correspondingEmail: string;
+  orcid?: string;
+  abstract: string;
+  keywords: string;
+  funding?: string;
+  conflicts: string;
+  ethicsApproval?: string;
+  coverLetter?: string;
+  manuscriptFileId: string;
+  supplementaryFileId?: string;
+}
+
+/**
+ * Submits a new manuscript on behalf of its author.
+ *
+ * Goes straight to SUBMITTED — the form has no "save as draft" affordance, and
+ * a member-visible DRAFT that nothing can move on would just look stuck. The
+ * CRO queue picks it up from there via `transitionPublication`.
+ */
+export async function createPublication(userId: string, input: CreatePublicationInput) {
+  // Re-checks that both uploads belong to the caller. Without this a member
+  // could attach someone else's fileId and gain download rights through the
+  // publication-author branch of the file ACL.
+  const manuscript = (await assertOwnedFiles(userId, [input.manuscriptFileId]))[0]!;
+  const supplementary = input.supplementaryFileId
+    ? (await assertOwnedFiles(userId, [input.supplementaryFileId]))[0]
+    : undefined;
+
+  // Double-submits are the common case here: a slow upload, an impatient
+  // second click. The client disables the button, but only the server can
+  // catch a retry that arrives on a fresh request.
+  const duplicate = await prisma.publication.findFirst({
+    where: { authorId: userId, title: input.title.trim(), status: { not: 'REJECTED' } },
+    select: { id: true },
+  });
+  if (duplicate) {
+    throw ApiError.conflict('You have already submitted a paper with this title.');
+  }
+
+  const files = [{ fileId: manuscript, kind: 'MANUSCRIPT' }];
+  // A member may pick the same file for both slots; @@unique would reject the
+  // second row, so collapse it to one attachment instead of failing the submit.
+  if (supplementary && supplementary !== manuscript) {
+    files.push({ fileId: supplementary, kind: 'SUPPLEMENTARY' });
+  }
+
+  const publication = await prisma.publication.create({
+    data: {
+      authorId: userId,
+      title: input.title.trim(),
+      category: input.category,
+      researchType: input.researchType,
+      venue: input.venue,
+      abstract: input.abstract,
+      authors: input.authors,
+      correspondingAuthor: input.correspondingAuthor,
+      correspondingEmail: input.correspondingEmail,
+      orcid: input.orcid ?? null,
+      keywords: input.keywords,
+      funding: input.funding ?? null,
+      conflicts: input.conflicts,
+      ethicsApproval: input.ethicsApproval ?? null,
+      coverLetter: input.coverLetter ?? null,
+      status: 'SUBMITTED',
+      submittedAt: new Date(),
+      files: { create: files },
+      histories: { create: { toStatus: 'SUBMITTED', actorId: userId, note: 'Manuscript submitted for review' } },
+    },
+    include: { author: { include: { memberProfile: true } }, files: { include: { file: true } } },
+  });
+
+  // Written here rather than through `transitionPublication`, which hardcodes
+  // actorRole ADMIN and would misattribute a member's own submission.
+  await writeAudit({
+    actorId: userId,
+    actorLabel: userId,
+    actorRole: 'MEMBER',
+    action: 'PublicationSubmitted',
+    entity: `Publication ${publication.id}`,
+    severity: 'SUCCESS',
+    description: `Submitted "${publication.title}" for review`,
+  });
+
+  return serializePublication(publication);
 }
 
 export async function memberDocuments(userId: string, req: Request) {
@@ -1642,20 +1892,135 @@ export async function transitionProject(id: string, actorId: string, next: Proje
   return { ok: true, to: label };
 }
 
+/**
+ * Statuses still waiting on an editorial decision. `APPROVED` counts as worked
+ * rather than queued — it is done being reviewed and is waiting to be published.
+ */
+const PUBLICATION_QUEUE_STATUSES: PublicationStatus[] = ['SUBMITTED', 'UNDER_REVIEW'];
+
+/** The three tabs on the admin queue, expressed as publication statuses. */
+const PUBLICATION_QUEUES: Record<string, PublicationStatus[]> = {
+  review: ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'],
+  published: ['PUBLISHED'],
+};
+
+/**
+ * Shortest editorial note that counts as an explanation for rejecting a paper.
+ *
+ * Publication-owned on purpose: the projects module has its own threshold, and
+ * one review policy must not silently move because the other changed.
+ */
+export const PUBLICATION_REJECTION_NOTE_MIN = 10;
+
+/** Outcomes the author should hear about. Excludes the DRAFT/SUBMITTED moves they make themselves. */
+const PUBLICATION_AUTHOR_VISIBLE: PublicationStatus[] = ['UNDER_REVIEW', 'APPROVED', 'REJECTED', 'PUBLISHED'];
+
 export async function adminPublications(req: Request) {
   const pagination = parsePage(req);
-  const rows = await prisma.publication.findMany({
-    include: { author: { include: { memberProfile: true } }, files: { include: { file: true } } },
-    orderBy: { updatedAt: 'desc' },
-    ...toSkipTake(pagination),
-  });
-  const total = await prisma.publication.count();
-  return buildPaginatedResult(rows.map(serializePublication), total, pagination);
+  const q = String(req.query.q ?? req.query.search ?? '').trim();
+  const status = optionalQuery(req, 'status');
+  const category = optionalQuery(req, 'category');
+  const member = optionalQuery(req, 'member');
+  const queue = PUBLICATION_QUEUES[String(req.query.queue ?? '')];
+
+  const where: Prisma.PublicationWhereInput = {
+    // An explicit status filter is narrower than the tab, so it wins.
+    ...(status ? { status: labelToPublicationStatus(status) } : queue ? { status: { in: queue } } : {}),
+    ...(category ? { category } : {}),
+    ...(member
+      ? {
+          author: {
+            OR: [
+              { fullName: { contains: member } },
+              { memberProfile: { memberId: { contains: member } } },
+            ],
+          },
+        }
+      : {}),
+    // Searches the manuscript's own identifiers plus its author, which is what
+    // an editor actually has to hand when chasing a paper.
+    ...(q
+      ? {
+          OR: [
+            { title: { contains: q } },
+            { venue: { contains: q } },
+            { doi: { contains: q } },
+            { authors: { contains: q } },
+            { author: { fullName: { contains: q } } },
+            { author: { memberProfile: { memberId: { contains: q } } } },
+          ],
+        }
+      : {}),
+  };
+
+  // `total` has to use the same `where` as the rows, or the pager reports a
+  // page count for a result set the grid is not showing.
+  const [rows, total, counts, categories] = await Promise.all([
+    prisma.publication.findMany({
+      where,
+      include: { author: { include: { memberProfile: true } }, files: { include: { file: true } } },
+      orderBy: { updatedAt: 'desc' },
+      ...toSkipTake(pagination),
+    }),
+    prisma.publication.count({ where }),
+    adminPublicationCounts(),
+    prisma.publication.findMany({ distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' } }),
+  ]);
+
+  return {
+    ...buildPaginatedResult(rows.map(serializePublication), total, pagination),
+    counts,
+    categories: categories.map((row) => row.category),
+  };
+}
+
+/**
+ * Headline figures for the publications queue.
+ *
+ * Deliberately computed over the whole table rather than the filtered page —
+ * these are standing editorial KPIs and must not move when an admin narrows
+ * the grid. Every metric is publication-specific: a manuscript's public
+ * readership and the time it spends in review have no project equivalent.
+ */
+async function adminPublicationCounts() {
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [byStatus, publishedThisMonth, views, decided] = await Promise.all([
+    prisma.publication.groupBy({ by: ['status'], _count: { _all: true } }),
+    prisma.publication.count({ where: { status: 'PUBLISHED', publishedAt: { gte: monthStart } } }),
+    prisma.publication.aggregate({ _sum: { viewCount: true }, where: { status: 'PUBLISHED' } }),
+    prisma.publication.findMany({
+      where: { submittedAt: { not: null }, approvedAt: { not: null } },
+      select: { submittedAt: true, approvedAt: true },
+    }),
+  ]);
+
+  const of = (status: PublicationStatus) => byStatus.find((row) => row.status === status)?._count._all ?? 0;
+
+  // Mean days from submission to the approval decision. Null rather than 0 when
+  // nothing has been decided — "no data yet" is not a 0-day review time.
+  const reviewDays = decided.map((p) => (p.approvedAt!.getTime() - p.submittedAt!.getTime()) / 86_400_000);
+  const avgReviewDays = reviewDays.length
+    ? Math.round((reviewDays.reduce((sum, d) => sum + d, 0) / reviewDays.length) * 10) / 10
+    : null;
+
+  return {
+    total: byStatus.reduce((sum, row) => sum + row._count._all, 0),
+    inReview: PUBLICATION_QUEUE_STATUSES.reduce((sum, status) => sum + of(status), 0),
+    approved: of('APPROVED'),
+    published: of('PUBLISHED'),
+    rejected: of('REJECTED'),
+    publishedThisMonth,
+    totalViews: views._sum.viewCount ?? 0,
+    avgReviewDays,
+  };
 }
 
 function serializePublication(row: Prisma.PublicationGetPayload<object> & {
   author?: { fullName: string; memberProfile?: { memberId: string | null } | null };
-  files?: Array<{ file: { sizeBytes: number } }>;
+  files?: Array<{ fileId: string; kind: string; file: { originalName: string; sizeBytes: number } }>;
 }) {
   return {
     id: row.id,
@@ -1676,16 +2041,87 @@ function serializePublication(row: Prisma.PublicationGetPayload<object> & {
     fullText: row.fullText,
     venue: row.venue,
     doi: row.doi,
+    // Submission metadata — only set on manuscripts sent through the member
+    // form, so every one of these may legitimately be null.
+    authors: row.authors,
+    correspondingAuthor: row.correspondingAuthor,
+    correspondingEmail: row.correspondingEmail,
+    orcid: row.orcid,
+    keywords: row.keywords,
+    funding: row.funding,
+    conflicts: row.conflicts,
+    ethicsApproval: row.ethicsApproval,
+    coverLetter: row.coverLetter,
+    // Absent unless the caller included `files`; an empty array would claim the
+    // publication has no attachments, which is a different statement.
+    files: row.files?.map((f) => ({
+      id: f.fileId,
+      name: f.file.originalName,
+      kind: f.kind,
+      size: f.file.sizeBytes,
+    })),
   };
+}
+
+/**
+ * Turns publication status history into something a reviewer can read.
+ *
+ * The projects module has its own version of this; they are not interchangeable
+ * — that one is typed to `ProjectStatus` and maps through `projectStatusLabel`,
+ * which carries an `ARCHIVED` state publications do not have.
+ */
+async function serializePublicationHistory(
+  histories: { id: string; fromStatus: PublicationStatus | null; toStatus: PublicationStatus; note: string | null; actorId: string | null; createdAt: Date }[],
+) {
+  const actorIds = [...new Set(histories.map((h) => h.actorId).filter((id): id is string => Boolean(id)))];
+  const actors = actorIds.length
+    ? await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, fullName: true } })
+    : [];
+  const nameById = new Map(actors.map((a) => [a.id, a.fullName]));
+
+  return histories.map((h) => ({
+    id: h.id,
+    from: h.fromStatus ? publicationStatusLabel[h.fromStatus] : null,
+    to: publicationStatusLabel[h.toStatus],
+    note: h.note,
+    actor: h.actorId ? nameById.get(h.actorId) ?? 'Unknown user' : 'System',
+    at: h.createdAt,
+  }));
 }
 
 export async function adminPublicationDetail(id: string) {
   const pub = await prisma.publication.findFirst({
     where: { OR: [{ id }, { slug: id }] },
-    include: { author: { include: { memberProfile: true } }, files: { include: { file: true } }, reviews: true, histories: true },
+    include: {
+      author: { include: { memberProfile: true } },
+      files: { include: { file: true } },
+      reviews: { orderBy: { createdAt: 'desc' } },
+      histories: { orderBy: { createdAt: 'asc' } },
+    },
   });
   if (!pub) throw ApiError.notFound('Publication not found');
-  return { ...serializePublication(pub), files: pub.files.map((f) => ({ id: f.fileId, name: f.file.originalName, kind: f.kind, size: f.file.sizeBytes })), reviews: pub.reviews, history: pub.histories };
+
+  const reviewerIds = [...new Set(pub.reviews.map((r) => r.reviewerId).filter((v): v is string => Boolean(v)))];
+  const reviewers = reviewerIds.length
+    ? await prisma.user.findMany({ where: { id: { in: reviewerIds } }, select: { id: true, fullName: true } })
+    : [];
+  const reviewerName = new Map(reviewers.map((r) => [r.id, r.fullName]));
+
+  return {
+    ...serializePublication(pub),
+    // The review screen shows where the author works, which the list serializer
+    // has no reason to carry.
+    institution: pub.author?.memberProfile?.institution ?? null,
+    files: pub.files.map((f) => ({ id: f.fileId, name: f.file.originalName, kind: f.kind, size: f.file.sizeBytes })),
+    reviews: pub.reviews.map((r) => ({
+      id: r.id,
+      decision: publicationStatusLabel[r.decision as PublicationStatus] ?? r.decision,
+      comment: r.comment,
+      by: r.reviewerId ? reviewerName.get(r.reviewerId) ?? 'Unknown user' : 'System',
+      at: r.createdAt,
+    })),
+    history: await serializePublicationHistory(pub.histories),
+  };
 }
 
 export async function transitionPublication(id: string, actorId: string, next: PublicationStatus, comment?: string) {
@@ -1700,14 +2136,44 @@ export async function transitionPublication(id: string, actorId: string, next: P
     PUBLISHED: ['APPROVED'],
   };
   if (!allowed[pub.status].includes(next)) throw new ApiError(409, `Invalid transition from ${pub.status} to ${next}`);
+
+  // A rejection the author cannot act on is worse than no rejection at all, so
+  // the reason is required here and not only in the route schema.
+  const note = comment?.trim() ?? '';
+  if (next === 'REJECTED' && note.length < PUBLICATION_REJECTION_NOTE_MIN) {
+    throw new ApiError(422, `A rejection needs at least ${PUBLICATION_REJECTION_NOTE_MIN} characters of reviewer notes`, [
+      { field: 'comment', message: `Explain the decision in at least ${PUBLICATION_REJECTION_NOTE_MIN} characters` },
+    ]);
+  }
+
+  const label = publicationStatusLabel[next];
   const slug = next === 'PUBLISHED' && !pub.slug ? slugify(pub.title) : pub.slug;
-  await prisma.$transaction([
+
+  const writes: Prisma.PrismaPromise<unknown>[] = [
     prisma.publication.update({ where: { id }, data: { status: next, slug, ...(next === 'APPROVED' ? { approvedAt: new Date() } : {}), ...(next === 'PUBLISHED' ? { publishedAt: new Date() } : {}) } }),
-    prisma.publicationStatusHistory.create({ data: { publicationId: id, fromStatus: pub.status, toStatus: next, actorId, note: comment } }),
-    prisma.publicationReview.create({ data: { publicationId: id, reviewerId: actorId, decision: next, comment: comment ?? `Moved to ${next}` } }),
-    prisma.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: `Publication${next}`, entity: `Publication ${id}`, severity: next === 'REJECTED' ? 'DANGER' : 'SUCCESS', description: comment ?? `Publication moved to ${next}` } }),
-  ]);
-  return { ok: true, to: publicationStatusLabel[next], slug };
+    prisma.publicationStatusHistory.create({ data: { publicationId: id, fromStatus: pub.status, toStatus: next, actorId, note: note || null } }),
+    prisma.publicationReview.create({ data: { publicationId: id, reviewerId: actorId, decision: next, comment: note || `Moved to ${label}` } }),
+    prisma.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: `Publication${next}`, entity: `Publication ${id}`, severity: next === 'REJECTED' ? 'DANGER' : 'SUCCESS', description: note || `Publication moved to ${label}` } }),
+  ];
+
+  // Editorial outcomes the author should hear about. The moves they make
+  // themselves (submitting, resubmitting) are not news to them.
+  if (PUBLICATION_AUTHOR_VISIBLE.includes(next)) {
+    writes.push(
+      prisma.notification.create({
+        data: {
+          userId: pub.authorId,
+          title: `Publication ${label.toLowerCase()}`,
+          body: note || `Your paper "${pub.title}" is now ${label}.`,
+          type: 'publication',
+          link: '/dashboard/publications',
+        },
+      }),
+    );
+  }
+
+  await prisma.$transaction(writes);
+  return { ok: true, to: label, slug };
 }
 
 export async function adminSupport(req: Request) {
@@ -1928,6 +2394,11 @@ export async function adminSettings() {
 function labelToProjectStatus(label: string): ProjectStatus {
   const found = Object.entries(projectStatusLabel).find(([, value]) => value === label);
   return (found?.[0] ?? 'DRAFT') as ProjectStatus;
+}
+
+function labelToPublicationStatus(label: string): PublicationStatus {
+  const found = Object.entries(publicationStatusLabel).find(([, value]) => value === label);
+  return (found?.[0] ?? 'DRAFT') as PublicationStatus;
 }
 
 function labelToSupportKind(label: string) {

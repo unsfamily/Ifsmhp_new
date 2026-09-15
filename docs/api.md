@@ -56,7 +56,8 @@ All member routes require an active `MEMBER` session. Admins may pass member rou
 | `GET` | `/members/me/projects/:projectId` | Owned project detail |
 | `GET` | `/members/me/support` | Owned support requests |
 | `POST` | `/members/me/support` | Create support request |
-| `GET` | `/members/me/publications` | Member manuscripts/publications |
+| `GET` | `/members/me/publications` | Member manuscripts/publications, with `status`, `category` and `q` filters plus unfiltered `stats` |
+| `POST` | `/members/me/publications` | Submit a manuscript for review (goes straight to `SUBMITTED`) |
 | `GET` | `/members/me/conversations` | Participating conversations |
 | `POST` | `/members/me/conversations/:id/messages` | Add a message |
 | `GET` | `/members/me/documents` | Attachments visible to the member |

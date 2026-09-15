@@ -45,6 +45,45 @@ export interface LoginInput {
 /** Statuses that may never start a session, whatever the credential. */
 const BLOCKED_STATUSES = ['REJECTED', 'SUSPENDED', 'DEACTIVATED'];
 
+/**
+ * Where a soft-deleted account's address is parked so a new signup can reclaim
+ * the real one. `.invalid` is reserved by RFC 2606 and can never be delivered to.
+ */
+const DELETED_EMAIL_DOMAIN = 'deleted.invalid';
+
+/**
+ * The single "no such account" response.
+ *
+ * Deliberately one factory rather than a message repeated at each call site:
+ * the request and verify paths used to word this differently, so a client that
+ * matched on the text rendered the second step as something else entirely.
+ */
+const noSuchAccount = () =>
+  new ApiError(404, 'No account found with this email. Register to join IFSMHP.', [
+    { field: 'email', message: 'This email is not registered.' },
+  ]);
+
+/**
+ * Finds a live account by address.
+ *
+ * Soft-deleted rows read as absent. `requireAuth` already refuses them, so
+ * without this the login paths would hand out a code and a session for an
+ * account that 401s on its very next request.
+ */
+async function findLiveUser(email: string) {
+  const user = await prisma.user.findUnique({ where: { email } });
+  return user?.deletedAt ? null : user;
+}
+
+/** As `findLiveUser`, with the relations `publicUser` needs to build a session. */
+async function findLiveUserForSession(email: string) {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { memberProfile: true, membershipApplication: true },
+  });
+  return user?.deletedAt ? null : user;
+}
+
 function jsonPayload(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
@@ -117,9 +156,9 @@ async function issueSession(
 }
 
 export async function registerApplicant(input: RegisterInput, req: Request) {
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeEmail(input.email);
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
+  if (existing && !existing.deletedAt) {
     throw new ApiError(409, 'An account with this email already exists', [
       { field: 'email', message: 'Use a different email or sign in.' },
     ]);
@@ -133,6 +172,17 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
     .slice(0, 20);
 
   const result = await prisma.$transaction(async (tx) => {
+    // `email` is UNIQUE, so a soft-deleted row still occupies the address even
+    // though every auth path treats it as gone. Park it on a tombstone address
+    // instead of deleting it — the row still anchors that person's projects,
+    // messages and audit trail through real foreign keys.
+    if (existing?.deletedAt) {
+      await tx.user.update({
+        where: { id: existing.id },
+        data: { email: `deleted+${existing.id}@${DELETED_EMAIL_DOMAIN}` },
+      });
+    }
+
     const documents = await resolveRegistrationDocuments(input.documents, tx);
     const user = await tx.user.create({
       data: {
@@ -219,11 +269,8 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
 }
 
 export async function login(input: LoginInput, req: Request, res: Response) {
-  const email = input.email.trim().toLowerCase();
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: { memberProfile: true, membershipApplication: true },
-  });
+  const email = normalizeEmail(input.email);
+  const user = await findLiveUserForSession(email);
 
   // Password sign-in is retained for administrators only. Members and
   // applicants authenticate with an emailed one-time code.
@@ -253,7 +300,10 @@ export async function login(input: LoginInput, req: Request, res: Response) {
 export async function requestRegistrationOtp(input: RegisterInput, req: Request) {
   const email = normalizeEmail(input.email);
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  // Only a live account blocks the address. A soft-deleted one must not hold it
+  // hostage: the row is invisible to every auth path, so refusing here would
+  // make the address permanently unclaimable by anyone, its owner included.
+  const existing = await findLiveUser(email);
   if (existing) {
     throw new ApiError(409, 'An account with this email already exists. Sign in instead.', [
       { field: 'email', message: 'This email is already registered.' },
@@ -279,12 +329,10 @@ export async function requestRegistrationOtp(input: RegisterInput, req: Request)
  */
 export async function requestLoginOtp(email: string, req: Request) {
   const normalized = normalizeEmail(email);
-  const user = await prisma.user.findUnique({ where: { email: normalized } });
+  const user = await findLiveUser(normalized);
 
   if (!user) {
-    throw new ApiError(404, 'No account found with this email. Register to join IFSMHP.', [
-      { field: 'email', message: 'This email is not registered.' },
-    ]);
+    throw noSuchAccount();
   }
   if (user.role === 'ADMIN') {
     throw new ApiError(400, 'Administrator accounts sign in with a password.', [
@@ -315,10 +363,15 @@ export async function resendOtp(email: string, purpose: 'REGISTER' | 'LOGIN', re
   const normalized = normalizeEmail(email);
 
   if (purpose === 'LOGIN') {
-    const user = await prisma.user.findUnique({ where: { email: normalized } });
+    const user = await findLiveUser(normalized);
     if (!user) {
-      throw new ApiError(404, 'No account found with this email. Register to join IFSMHP.', [
-        { field: 'email', message: 'This email is not registered.' },
+      throw noSuchAccount();
+    }
+    // Mirrors requestLoginOtp: the checks that gate the first code have to gate
+    // the resend too, or the resend becomes a way around them.
+    if (user.role === 'ADMIN') {
+      throw new ApiError(400, 'Administrator accounts sign in with a password.', [
+        { field: 'email', message: 'Use password sign-in for this account.' },
       ]);
     }
     if (BLOCKED_STATUSES.includes(user.status)) {
@@ -369,11 +422,8 @@ export async function verifyRegistrationOtp(
 export async function verifyLoginOtp(email: string, code: string, req: Request, res: Response) {
   const verified = await otpService.verifyOtp(email, 'LOGIN', code);
 
-  const user = await prisma.user.findUnique({
-    where: { email: verified.email },
-    include: { memberProfile: true, membershipApplication: true },
-  });
-  if (!user) throw new ApiError(404, 'No account found with this email.');
+  const user = await findLiveUserForSession(verified.email);
+  if (!user) throw noSuchAccount();
   if (BLOCKED_STATUSES.includes(user.status)) {
     throw new ApiError(403, 'This account cannot sign in. Contact IFSMHP support.');
   }
@@ -389,7 +439,7 @@ export async function refresh(req: Request, res: Response) {
     where: { tokenHash: sha256(refreshToken) },
     include: { user: { include: { memberProfile: true, membershipApplication: true } } },
   });
-  if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+  if (!session || session.revokedAt || session.expiresAt <= new Date() || session.user.deletedAt) {
     throw new ApiError(401, 'Invalid or expired refresh token');
   }
   if (session.user.status !== 'ACTIVE' && session.user.role !== 'APPLICANT') {
@@ -433,7 +483,7 @@ export async function me(userId: string) {
 }
 
 export async function forgotPassword(email: string) {
-  const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  const user = await findLiveUser(normalizeEmail(email));
   if (user) {
     await prisma.passwordResetToken.create({
       data: {

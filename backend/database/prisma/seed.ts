@@ -64,9 +64,49 @@ async function clearDevelopmentData() {
   await prisma.user.deleteMany();
 }
 
+/** The accounts this script owns. Anything else is somebody's real signup. */
+const SEEDED_EMAILS = [
+  process.env.SEED_ADMIN_EMAIL ?? 'admin@ifsmhp.local',
+  'member@ifsmhp.local',
+  'applicant@ifsmhp.local',
+];
+
+/**
+ * Refuses to wipe a database that holds accounts this script did not create.
+ *
+ * `clearDevelopmentData` truncates every table, users included. A dev database
+ * accumulates real signups — people register through the running app to try it —
+ * and reseeding destroys them along with their projects, files and audit trail.
+ * NODE_ENV alone does not catch that, because this is a development database.
+ */
+async function assertSafeToWipe(): Promise<void> {
+  const strangers = await prisma.user.findMany({
+    where: { email: { notIn: SEEDED_EMAILS } },
+    select: { email: true, role: true, createdAt: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (!strangers.length) return;
+
+  const listed = strangers
+    .slice(0, 10)
+    .map((u) => `  - ${u.email} (${u.role}, registered ${u.createdAt.toISOString().slice(0, 10)})`)
+    .join('\n');
+  const more = strangers.length > 10 ? `\n  ...and ${strangers.length - 10} more` : '';
+
+  throw new Error(
+    `Refusing to seed: this database holds ${strangers.length} account(s) the seed did not create.\n` +
+    `${listed}${more}\n\n` +
+    'Seeding deletes every row in every table, these accounts included.\n' +
+    'Back up first, then re-run with SEED_FORCE=1 if you really mean to wipe them.',
+  );
+}
+
 async function main(): Promise<void> {
   if (process.env.NODE_ENV === 'production') {
     throw new Error('Refusing to seed development data in production.');
+  }
+  if (process.env.SEED_FORCE !== '1') {
+    await assertSafeToWipe();
   }
 
   await prisma.emailOtp.deleteMany();
@@ -196,10 +236,17 @@ async function main(): Promise<void> {
       slug: 'ethical-evaluation-digital-peer-support-models',
       abstract: 'Development-only abstract for public research and admin publication workflows.',
       fullText: 'Development-only full text. Replace with editorially reviewed content in production.',
-      venue: 'IFSMHP Research Notes',
-      category: 'Clinical Research',
-      researchType: 'Review',
+      venue: 'IFSMHP Journal of Clinical Mental Health',
+      // Categories and researchTypes match the member submission form's option
+      // lists, so seeded rows are reachable by the dashboard's own filters.
+      category: 'Scientific Research',
+      researchType: 'Review Article',
       status: 'PUBLISHED',
+      authors: 'A. Seed, B. Fixture',
+      correspondingAuthor: 'A. Seed',
+      correspondingEmail: 'member@ifsmhp.test',
+      keywords: 'peer support, digital ethics, evaluation',
+      conflicts: 'None',
       doi: '10.0000/ifsmhp.seed.001',
       featured: true,
       viewCount: 1840,
@@ -216,12 +263,29 @@ async function main(): Promise<void> {
       authorId: member.id,
       title: 'Cross-Cultural Supervision Patterns in Community Clinics',
       abstract: 'Development-only manuscript waiting for admin approval.',
-      category: 'Policy',
+      venue: 'IFSMHP Psychology of Well-Being',
+      category: 'Mental Health',
       researchType: 'Original Research',
       status: 'SUBMITTED',
+      authors: 'A. Seed',
+      correspondingAuthor: 'A. Seed',
+      correspondingEmail: 'member@ifsmhp.test',
+      keywords: 'supervision, community clinics, culture',
+      conflicts: 'None',
       submittedAt: new Date('2026-08-20T08:00:00Z'),
       histories: { create: { toStatus: 'SUBMITTED', actorId: member.id, note: 'Development seed manuscript.' } },
     },
+  });
+
+  // Views spread across the last 60 days so the member dashboard's readership
+  // trend (last 30 days vs the 30 before) has two non-empty windows to compare.
+  await prisma.publicationView.createMany({
+    data: Array.from({ length: 45 }, (_, index) => ({
+      publicationId: publishedPublication.id,
+      // Weighted towards the recent window, so the seeded trend reads positive.
+      visitorHash: `seed-view-${index}`,
+      viewedAt: new Date(Date.now() - (index < 30 ? index : (index - 30) * 2 + 31) * 86_400_000),
+    })),
   });
 
   await prisma.productReview.create({

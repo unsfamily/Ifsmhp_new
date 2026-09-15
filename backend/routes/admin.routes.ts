@@ -137,7 +137,47 @@ router.patch('/projects/:id/status', validate({ params: idParams, body: projectS
   sendSuccess(res, await service.transitionProject(req.params.id!, req.user!.id, req.body.status, req.body.reviewNotes ?? req.body.reason), 'Project status updated');
 }));
 
-router.get('/publications', asyncHandler(async (req, res) => {
+/**
+ * Publications review — its own schemas throughout. The projects block above
+ * validates `reviewNotes`; these routes read `comment`, and the two modules
+ * have different status sets and different review policies.
+ */
+const PUBLICATION_STATUS_VALUES = ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'PUBLISHED'] as const;
+/** Display labels the publications grid filters by, mirroring publicationStatusLabel. */
+const PUBLICATION_STATUS_LABELS = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Published'] as const;
+
+/**
+ * Validated because labelToPublicationStatus falls back to DRAFT on an
+ * unrecognized label — an unchecked typo would quietly return the wrong set.
+ */
+const publicationListQuery = z.object({
+  q: z.string().max(200).optional(),
+  search: z.string().max(200).optional(),
+  status: z.enum(['All', ...PUBLICATION_STATUS_LABELS]).optional(),
+  category: z.string().max(120).optional(),
+  member: z.string().max(200).optional(),
+  queue: z.enum(['review', 'published', 'all']).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+/** A rejected manuscript must say why; every other editorial note stays optional. */
+const publicationRejectBody = z.object({
+  comment: z
+    .string()
+    .trim()
+    .min(service.PUBLICATION_REJECTION_NOTE_MIN, `Explain the decision in at least ${service.PUBLICATION_REJECTION_NOTE_MIN} characters`)
+    .max(4000),
+});
+
+const publicationStatusBody = z
+  .object({ status: z.enum(PUBLICATION_STATUS_VALUES), comment: z.string().max(4000).optional() })
+  .refine(
+    (value) => value.status !== 'REJECTED' || (value.comment ?? '').trim().length >= service.PUBLICATION_REJECTION_NOTE_MIN,
+    { path: ['comment'], message: 'Reviewer notes are required when rejecting a publication' },
+  );
+
+router.get('/publications', validate({ query: publicationListQuery }), asyncHandler(async (req, res) => {
   sendSuccess(res, await service.adminPublications(req), 'Publications list');
 }));
 
@@ -151,9 +191,18 @@ const transitionPublication = (next: PublicationStatus, message: string) =>
   });
 
 router.post('/publications/:id/approve', validate({ params: idParams, body: noteBody }), transitionPublication('APPROVED', 'Publication approved'));
-router.post('/publications/:id/reject', validate({ params: idParams, body: noteBody }), transitionPublication('REJECTED', 'Publication rejected'));
+router.post('/publications/:id/reject', validate({ params: idParams, body: publicationRejectBody }), transitionPublication('REJECTED', 'Publication rejected'));
 router.post('/publications/:id/publish', validate({ params: idParams, body: noteBody }), transitionPublication('PUBLISHED', 'Publication published'));
 router.post('/publications/:id/unpublish', validate({ params: idParams, body: noteBody }), transitionPublication('APPROVED', 'Publication removed from public listing'));
+
+/**
+ * Any other legal move in the publication state machine — in practice starting
+ * a review (Submitted → Under Review), which the four named routes above do not
+ * cover even though the service has always permitted it.
+ */
+router.patch('/publications/:id/status', validate({ params: idParams, body: publicationStatusBody }), asyncHandler(async (req, res) => {
+  sendSuccess(res, await service.transitionPublication(req.params.id!, req.user!.id, req.body.status, req.body.comment), 'Publication status updated');
+}));
 
 router.get('/support', asyncHandler(async (req, res) => {
   sendSuccess(res, await service.adminSupport(req), 'Support tickets');

@@ -42,6 +42,7 @@ export default function AdminNewEventPage() {
 
   const allErrors = useMemo(() => validate(form), [form]);
   const isValid = Object.keys(allErrors).length === 0;
+  const publishIssueCount = Object.keys(validate(form, 'publish')).length;
 
   const fieldError = (name: keyof Errors) => (touched[name] || errors[name]) ? (errors[name] ?? allErrors[name]) : undefined;
 
@@ -514,8 +515,8 @@ export default function AdminNewEventPage() {
               <h3 className="font-display text-lg font-semibold text-forum-900">Summary</h3>
             </CardHeader>
             <CardContent className="pt-0 space-y-2 text-xs">
-              <div className="flex justify-between"><span className="text-ink-subtle">Form validity</span><span className={isValid ? 'text-success-600 font-semibold inline-flex items-center gap-1' : 'text-danger-600 font-semibold inline-flex items-center gap-1'}>
-                {isValid ? <><CheckCircle2 className="h-3.5 w-3.5" />Ready to publish</> : <><AlertCircle className="h-3.5 w-3.5" />{Object.keys(allErrors).length} issue{Object.keys(allErrors).length > 1 ? 's' : ''}</>}
+              <div className="flex justify-between"><span className="text-ink-subtle">Form validity</span><span className={publishIssueCount === 0 ? 'text-success-600 font-semibold inline-flex items-center gap-1' : 'text-danger-600 font-semibold inline-flex items-center gap-1'}>
+                {publishIssueCount === 0 ? <><CheckCircle2 className="h-3.5 w-3.5" />Ready to publish</> : <><AlertCircle className="h-3.5 w-3.5" />{publishIssueCount} issue{publishIssueCount > 1 ? 's' : ''}</>}
               </span></div>
               <div className="flex justify-between"><span className="text-ink-subtle">Publish schedule</span><span className="font-medium text-ink">{form.publishImmediately ? 'Immediately' : form.scheduledPublishDate || 'Draft only'}</span></div>
               <div className="flex justify-between"><span className="text-ink-subtle">Registration</span><span className="font-medium text-ink">{form.registrationRequired ? 'Required' : 'Walk-in / open'}</span></div>

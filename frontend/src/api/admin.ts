@@ -1,8 +1,15 @@
 import { apiClient } from './client';
 import type { ProjectStatusLabel, SupportKindLabel, UploadedFile } from './member';
 import type { ConversationDetail, ConversationsResult, MessageExtras } from './messaging';
+import type {
+  PublicationBase,
+  PublicationFile,
+  PublicationStatusLabel,
+  PublicationStatusValue,
+} from './publications';
 
 export type { ProjectStatusLabel, SupportKindLabel };
+export type { PublicationStatusLabel, PublicationStatusValue, PublicationFile };
 export type * from './messaging';
 
 interface Envelope<T> {
@@ -179,6 +186,66 @@ export interface AdminProjectDetail extends AdminProjectRow {
   linkedSupport: { id: string; status: string } | null;
 }
 
+/** One row of the publication review queue, as `GET /admin/publications` returns it. */
+export interface AdminPublicationRow extends PublicationBase {
+  /** The submitting member's name and id — the list serializer includes both. */
+  author?: string;
+  memberId?: string | null;
+}
+
+/** Standing editorial KPIs, computed over every publication rather than the filtered page. */
+export interface AdminPublicationCounts {
+  total: number;
+  inReview: number;
+  approved: number;
+  published: number;
+  rejected: number;
+  publishedThisMonth: number;
+  totalViews: number;
+  /** Mean days from submission to approval, or null when nothing has been decided. */
+  avgReviewDays: number | null;
+}
+
+export interface AdminPublicationsResult {
+  items: AdminPublicationRow[];
+  pagination: { page: number; limit: number; total: number; pages: number };
+  counts: AdminPublicationCounts;
+  /** Distinct categories actually present in the data. */
+  categories: string[];
+}
+
+export interface AdminPublicationHistoryEntry {
+  id: string;
+  from: PublicationStatusLabel | null;
+  to: PublicationStatusLabel;
+  note: string | null;
+  actor: string;
+  at: string;
+}
+
+/** One recorded editorial decision. Publications keep a review trail projects do not. */
+export interface AdminPublicationReview {
+  id: string;
+  decision: string;
+  comment: string;
+  by: string;
+  at: string;
+}
+
+export interface AdminPublicationDetail extends AdminPublicationRow {
+  /** Where the author works — only the detail payload carries it. */
+  institution: string | null;
+  fullText: string | null;
+  orcid: string | null;
+  funding: string | null;
+  conflicts: string | null;
+  ethicsApproval: string | null;
+  coverLetter: string | null;
+  files: PublicationFile[];
+  reviews: AdminPublicationReview[];
+  history: AdminPublicationHistoryEntry[];
+}
+
 const get = async (url: string, params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>(url, { params })).data.data;
 const post = async (url: string, payload?: unknown) => (await apiClient.post<Envelope<unknown>>(url, payload ?? {})).data.data;
 const patch = async (url: string, payload?: unknown) => (await apiClient.patch<Envelope<unknown>>(url, payload ?? {})).data.data;
@@ -202,9 +269,21 @@ export const adminApi = {
   approveProject: (id: string, reviewNotes?: string) => post(`/admin/projects/${id}/approve`, { reviewNotes }),
   /** Notes are mandatory — the server refuses a rejection under 10 characters. */
   rejectProject: (id: string, reviewNotes: string) => post(`/admin/projects/${id}/reject`, { reviewNotes }),
-  publications: (params?: Record<string, unknown>) => get('/admin/publications', params),
-  publication: (id: string) => get(`/admin/publications/${id}`),
-  publishPublication: (id: string) => post(`/admin/publications/${id}/publish`),
+  publications: (params?: Record<string, unknown>) =>
+    get('/admin/publications', params) as Promise<AdminPublicationsResult>,
+  publication: (id: string) => get(`/admin/publications/${id}`) as Promise<AdminPublicationDetail>,
+  /**
+   * Publication transitions take `comment`, not the projects module's
+   * `reviewNotes` — the routes read `comment ?? reason`, so the other key
+   * validates fine and then silently loses the note.
+   */
+  transitionPublication: (id: string, status: PublicationStatusValue, comment?: string) =>
+    patch(`/admin/publications/${id}/status`, { status, comment }),
+  approvePublication: (id: string, comment?: string) => post(`/admin/publications/${id}/approve`, { comment }),
+  /** Notes are mandatory — the server refuses a rejection under the publication minimum. */
+  rejectPublication: (id: string, comment: string) => post(`/admin/publications/${id}/reject`, { comment }),
+  publishPublication: (id: string, comment?: string) => post(`/admin/publications/${id}/publish`, { comment }),
+  unpublishPublication: (id: string, comment?: string) => post(`/admin/publications/${id}/unpublish`, { comment }),
   support: (params?: Record<string, unknown>) => get('/admin/support', params),
   completeSupport: (id: string, response?: string) => post(`/admin/support/${id}/complete`, { response }),
   conversations: (params?: Record<string, unknown>) => get('/admin/conversations', params) as Promise<ConversationsResult>,
