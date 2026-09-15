@@ -178,6 +178,98 @@ export interface NewPublication {
 }
 
 /**
+ * Mirrors the server's `DISCUSSION_TITLE_MIN` / `_MAX`. The form enforces the
+ * same bounds so a title that would be refused can never be submitted.
+ */
+export const DISCUSSION_TITLE_MIN = 8;
+export const DISCUSSION_TITLE_MAX = 220;
+
+/** Where the caller stands with another member, from their point of view. */
+export type ConnectionStatus = 'none' | 'requested' | 'connected';
+
+/**
+ * One row of the member directory. Connections are keyed on `id` (the profile),
+ * direct messages on `userId` — the two id spaces are not interchangeable.
+ */
+export interface CommunityMember {
+  id: string;
+  userId: string;
+  name: string;
+  title: string;
+  institution: string;
+  country: string | null;
+  type: string;
+  interests: string[];
+  projects: number;
+  pubs: number;
+  connectionStatus: ConnectionStatus;
+}
+
+export interface CommunityGroup {
+  id: string;
+  name: string;
+  members: number;
+  tag: string;
+  joined: boolean;
+}
+
+export interface CommunityThread {
+  id: string;
+  title: string;
+  replies: number;
+  lastPost: string;
+  category: string;
+  author: string;
+}
+
+export interface CommunityStats {
+  totalMembers: number;
+  countries: number;
+  groups: number;
+  /** Members who signed in within the last 15 minutes — the closest thing to presence. */
+  online: number;
+}
+
+export interface CommunityResult {
+  members: Paginated<CommunityMember>;
+  groups: CommunityGroup[];
+  threads: CommunityThread[];
+  stats: CommunityStats;
+}
+
+export interface CommunityReply {
+  id: string;
+  body: string;
+  author: string;
+  at: string;
+  mine: boolean;
+}
+
+export interface CommunityThreadDetail {
+  id: string;
+  title: string;
+  category: string;
+  author: string;
+  lastPost: string;
+  replies: CommunityReply[];
+}
+
+export interface DirectMessage {
+  id: string;
+  body: string;
+  author: string;
+  at: string;
+  mine: boolean;
+}
+
+export interface DirectConversation {
+  peer: { id: string; fullName: string };
+  /** Null until the first message starts the thread. */
+  conversationId: string | null;
+  messages: DirectMessage[];
+}
+
+/**
  * One file exchanged in a conversation. The Document Exchange page is fed
  * entirely by message attachments, so this is a flattened view of them.
  */
@@ -241,5 +333,27 @@ export const memberApi = {
     (await apiClient.post<Envelope<{ ok: boolean }>>(`/members/me/conversations/${conversationId}/read`, {})).data.data,
   documents: async (params?: Record<string, unknown>) =>
     (await apiClient.get<Envelope<Paginated<MemberDocument>>>('/members/me/documents', { params })).data.data,
-  community: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/members/me/community', { params })).data.data,
+  community: async (params?: Record<string, unknown>) =>
+    (await apiClient.get<Envelope<CommunityResult>>('/members/me/community', { params })).data.data,
+  /** Sends a request, or accepts one the other member already sent. */
+  connect: async (profileId: string) =>
+    (await apiClient.post<Envelope<{ status: ConnectionStatus }>>('/members/me/community/connections', { profileId })).data.data,
+  /** Cancels a pending request or removes an existing connection, either direction. */
+  disconnect: async (profileId: string) =>
+    (await apiClient.delete<Envelope<{ status: ConnectionStatus }>>(`/members/me/community/connections/${profileId}`)).data.data,
+  joinGroup: async (groupId: string) =>
+    (await apiClient.post<Envelope<{ joined: boolean }>>(`/members/me/community/groups/${groupId}/join`, {})).data.data,
+  leaveGroup: async (groupId: string) =>
+    (await apiClient.delete<Envelope<{ joined: boolean }>>(`/members/me/community/groups/${groupId}/join`)).data.data,
+  createThread: async (title: string) =>
+    (await apiClient.post<Envelope<{ id: string }>>('/members/me/community/threads', { title })).data.data,
+  thread: async (threadId: string) =>
+    (await apiClient.get<Envelope<CommunityThreadDetail>>(`/members/me/community/threads/${threadId}`)).data.data,
+  replyToThread: async (threadId: string, body: string) =>
+    (await apiClient.post<Envelope<CommunityThreadDetail>>(`/members/me/community/threads/${threadId}/replies`, { body })).data.data,
+  /** The direct thread with one member; `conversationId` is null before the first send. */
+  directMessages: async (memberUserId: string) =>
+    (await apiClient.get<Envelope<DirectConversation>>(`/members/me/community/messages/${memberUserId}`)).data.data,
+  sendDirectMessage: async (memberUserId: string, body: string) =>
+    (await apiClient.post<Envelope<DirectConversation>>(`/members/me/community/messages/${memberUserId}`, { body })).data.data,
 };

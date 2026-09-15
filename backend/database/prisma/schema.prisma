@@ -109,34 +109,36 @@ enum OtpPurpose {
 }
 
 model User {
-  id                      String                   @id @default(cuid())
-  email                   String                   @unique
+  id                      String                    @id @default(cuid())
+  email                   String                    @unique
   // Nullable: members authenticate by emailed OTP and never set a password.
   // Admins still sign in with a password, so existing hashes are preserved.
   passwordHash            String?
   fullName                String
-  role                    UserRole                 @default(APPLICANT)
-  status                  UserStatus               @default(PENDING)
+  role                    UserRole                  @default(APPLICANT)
+  status                  UserStatus                @default(PENDING)
   lastLoginAt             DateTime?
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
   deletedAt               DateTime?
   sessions                Session[]
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
   memberProfile           MemberProfile?
   membershipApplication   MembershipApplication?
-  uploadedFiles           FileObject[]             @relation("UploadedFiles")
-  projects                Project[]                @relation("ProjectOwner")
-  supportRequests         SupportRequest[]         @relation("SupportRequester")
-  assignedSupportRequests SupportRequest[]         @relation("SupportAssignee")
-  publications            Publication[]            @relation("PublicationAuthor")
-  sentMessages            Message[]                @relation("MessageSender")
+  uploadedFiles           FileObject[]              @relation("UploadedFiles")
+  projects                Project[]                 @relation("ProjectOwner")
+  supportRequests         SupportRequest[]          @relation("SupportRequester")
+  assignedSupportRequests SupportRequest[]          @relation("SupportAssignee")
+  publications            Publication[]             @relation("PublicationAuthor")
+  sentMessages            Message[]                 @relation("MessageSender")
   conversations           ConversationParticipant[]
   notifications           Notification[]
-  auditEntries            AuditLog[]               @relation("AuditActor")
-  createdEvents           Event[]                  @relation("EventCreator")
-  announcements           Announcement[]           @relation("AnnouncementAuthor")
+  auditEntries            AuditLog[]                @relation("AuditActor")
+  createdEvents           Event[]                   @relation("EventCreator")
+  announcements           Announcement[]            @relation("AnnouncementAuthor")
+  discussionThreads       DiscussionThread[]        @relation("ThreadAuthor")
+  discussionReplies       DiscussionReply[]         @relation("ReplyAuthor")
 
   @@index([role, status])
 }
@@ -224,6 +226,7 @@ model MemberProfile {
   interests         ResearchInterest[]
   connectionsFrom   MemberConnection[]       @relation("ConnectionFrom")
   connectionsTo     MemberConnection[]       @relation("ConnectionTo")
+  groupMemberships  InterestGroupMember[]
 
   @@index([memberId])
   @@index([professionalType])
@@ -231,30 +234,30 @@ model MemberProfile {
 }
 
 model MembershipApplication {
-  id              String                     @id @default(cuid())
-  applicationCode String                     @unique
-  userId          String                     @unique
-  profileId       String                     @unique
-  status          ApplicationStatus          @default(PENDING)
-  priority        String                     @default("Standard")
-  credentialsText String                     @db.Text
-  educationText   String                     @db.Text
-  researchText    String                     @db.Text
-  reviewNotes     String?                    @db.Text
-  rejectionReason String?                    @db.Text
-  reviewedById    String?
-  reviewedAt      DateTime?
+  id                    String                     @id @default(cuid())
+  applicationCode       String                     @unique
+  userId                String                     @unique
+  profileId             String                     @unique
+  status                ApplicationStatus          @default(PENDING)
+  priority              String                     @default("Standard")
+  credentialsText       String                     @db.Text
+  educationText         String                     @db.Text
+  researchText          String                     @db.Text
+  reviewNotes           String?                    @db.Text
+  rejectionReason       String?                    @db.Text
+  reviewedById          String?
+  reviewedAt            DateTime?
   /// Approval acknowledgement delivery. Set only on a successful send, so it
   /// doubles as the duplicate guard: a retry is refused once this is non-null.
   approvalEmailSentAt   DateTime?
   /// Last delivery failure, kept so an admin can see why nothing arrived.
-  approvalEmailError    String?               @db.Text
-  approvalEmailAttempts Int                   @default(0)
-  submittedAt     DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
-  user            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  profile         MemberProfile              @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  histories       ApplicationStatusHistory[]
+  approvalEmailError    String?                    @db.Text
+  approvalEmailAttempts Int                        @default(0)
+  submittedAt           DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  user                  User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile               MemberProfile              @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  histories             ApplicationStatusHistory[]
 }
 
 model ApplicationStatusHistory {
@@ -419,7 +422,7 @@ model SupportRequest {
   adminResponse   String?                 @db.Text
   assignedAdmin   String?
   assignedAdminId String?
-  conversationId String? @unique
+  conversationId  String?                 @unique
   requiredBy      DateTime?
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
@@ -456,43 +459,43 @@ model SupportRequestHistory {
 }
 
 model Publication {
-  id            String                     @id @default(cuid())
-  authorId      String
-  projectId     String?
-  title         String
-  slug          String?                    @unique
-  abstract      String                     @db.Text
-  fullText      String?                    @db.LongText
-  venue         String?
-  category      String
-  researchType  String
-  status        PublicationStatus          @default(DRAFT)
-  doi           String?
-  featured      Boolean                    @default(false)
-  viewCount     Int                        @default(0)
-  downloadCount Int                        @default(0)
+  id                  String                     @id @default(cuid())
+  authorId            String
+  projectId           String?
+  title               String
+  slug                String?                    @unique
+  abstract            String                     @db.Text
+  fullText            String?                    @db.LongText
+  venue               String?
+  category            String
+  researchType        String
+  status              PublicationStatus          @default(DRAFT)
+  doi                 String?
+  featured            Boolean                    @default(false)
+  viewCount           Int                        @default(0)
+  downloadCount       Int                        @default(0)
   // Submission metadata captured by the member "Submit New Paper" form. All
   // nullable: publications seeded or created before this form existed have none.
-  authors             String?              @db.Text
+  authors             String?                    @db.Text
   correspondingAuthor String?
   correspondingEmail  String?
   orcid               String?
-  keywords            String?              @db.Text
-  funding             String?              @db.Text
-  conflicts           String?              @db.Text
-  ethicsApproval      String?              @db.Text
-  coverLetter         String?              @db.Text
-  submittedAt   DateTime?
-  approvedAt    DateTime?
-  publishedAt   DateTime?
-  createdAt     DateTime                   @default(now())
-  updatedAt     DateTime                   @updatedAt
-  author        User                       @relation("PublicationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  project       Project?                   @relation(fields: [projectId], references: [id])
-  files         PublicationFile[]
-  reviews       PublicationReview[]
-  histories     PublicationStatusHistory[]
-  views         PublicationView[]
+  keywords            String?                    @db.Text
+  funding             String?                    @db.Text
+  conflicts           String?                    @db.Text
+  ethicsApproval      String?                    @db.Text
+  coverLetter         String?                    @db.Text
+  submittedAt         DateTime?
+  approvedAt          DateTime?
+  publishedAt         DateTime?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  author              User                       @relation("PublicationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  project             Project?                   @relation(fields: [projectId], references: [id])
+  files               PublicationFile[]
+  reviews             PublicationReview[]
+  histories           PublicationStatusHistory[]
+  views               PublicationView[]
 
   @@index([authorId, status])
   @@index([status, publishedAt])
@@ -567,17 +570,21 @@ model ProductReview {
 }
 
 model Conversation {
-  id            String                    @id @default(cuid())
-  subject       String
-  category      String
-  status        String                    @default("Open")
-  priority      String                    @default("Standard")
-  assignee      String?
-  createdAt     DateTime                  @default(now())
-  updatedAt     DateTime                  @updatedAt
-  participants  ConversationParticipant[]
-  messages      Message[]
-  linkedRecords LinkedRecord[]
+  id             String                    @id @default(cuid())
+  subject        String
+  category       String
+  /// 'CRO' for member↔office threads, 'DIRECT' for member↔member messages.
+  /// The CRO queue lists only 'CRO', so a direct message never reaches an admin
+  /// inbox. Defaulted so every pre-existing thread keeps its current behaviour.
+  kind           String                    @default("CRO")
+  status         String                    @default("Open")
+  priority       String                    @default("Standard")
+  assignee       String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  participants   ConversationParticipant[]
+  messages       Message[]
+  linkedRecords  LinkedRecord[]
   supportRequest SupportRequest?
 
   @@index([status, priority])
@@ -665,9 +672,9 @@ model Event {
   organizerEmail       String
   status               EventStatus         @default(DRAFT)
   featured             Boolean             @default(false)
-  registrationRequired Boolean              @default(true)
-  waitlistEnabled      Boolean              @default(true)
-  recordingProvided    Boolean              @default(false)
+  registrationRequired Boolean             @default(true)
+  waitlistEnabled      Boolean             @default(true)
+  recordingProvided    Boolean             @default(false)
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
   creator              User?               @relation("EventCreator", fields: [creatorId], references: [id])
@@ -683,21 +690,21 @@ model Event {
 }
 
 model EventJob {
-  id          String   @id @default(cuid())
-  eventId     String
-  kind        String
-  key         String   @unique
-  recipient   String?
-  status      String   @default("QUEUED")
-  dueAt       DateTime
-  attempts    Int      @default(0)
-  lockedAt    DateTime?
-  claimToken  String?
-  sentAt      DateTime?
-  error       String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  eventId    String
+  kind       String
+  key        String    @unique
+  recipient  String?
+  status     String    @default("QUEUED")
+  dueAt      DateTime
+  attempts   Int       @default(0)
+  lockedAt   DateTime?
+  claimToken String?
+  sentAt     DateTime?
+  error      String?   @db.Text
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  event      Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([status, dueAt])
   @@index([eventId, kind])
@@ -732,21 +739,21 @@ model EventRegistration {
 }
 
 model EventResource {
-  id      String @id @default(cuid())
+  id      String  @id @default(cuid())
   eventId String
   title   String
   kind    String
   url     String? @db.Text
   fileId  String?
-  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
 model GalleryAlbum {
-  id            String         @id @default(cuid())
-  key           String         @unique
+  id            String          @id @default(cuid())
+  key           String          @unique
   label         String
   coverGradient String
-  visibility    FileVisibility @default(PUBLIC)
+  visibility    FileVisibility  @default(PUBLIC)
   items         GalleryItem[]
   banners       GalleryBanner[]
 }
@@ -808,8 +815,10 @@ model InterestGroupMember {
   groupId   String
   profileId String
   group     InterestGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  profile   MemberProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, profileId])
+  @@index([profileId])
 }
 
 model DiscussionThread {
@@ -821,7 +830,11 @@ model DiscussionThread {
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
   group     InterestGroup?    @relation(fields: [groupId], references: [id])
+  author    User?             @relation("ThreadAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   replies   DiscussionReply[]
+
+  @@index([updatedAt])
+  @@index([authorId])
 }
 
 model DiscussionReply {
@@ -831,6 +844,9 @@ model DiscussionReply {
   body      String           @db.Text
   createdAt DateTime         @default(now())
   thread    DiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author    User?            @relation("ReplyAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([authorId])
 }
 
 model MemberConnection {
@@ -843,6 +859,9 @@ model MemberConnection {
   addressee   MemberProfile @relation("ConnectionTo", fields: [addresseeId], references: [id], onDelete: Cascade)
 
   @@unique([requesterId, addresseeId])
+  // The composite unique is requesterId-leading, so "requests addressed to me"
+  // would otherwise be a full scan.
+  @@index([addresseeId])
 }
 
 model ContactInquiry {

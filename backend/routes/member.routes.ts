@@ -268,6 +268,72 @@ router.get(
 router.get('/me/profile', asyncHandler(async (req, res) => sendSuccess(res, await service.memberProfile(req.user!.id), 'My profile')));
 router.patch('/me/profile', validate({ body: profileSchema }), asyncHandler(async (req, res) => sendSuccess(res, await service.updateMemberProfile(req.user!.id, req.body), 'Profile updated')));
 
-router.get('/me/community', asyncHandler(async (req, res) => sendSuccess(res, await service.memberCommunity(req), 'Member community')));
+/**
+ * Community — the member directory, interest groups, discussions and
+ * member-to-member messages. Everything below is scoped to `req.user!.id`; a
+ * member may only ever act as themselves.
+ */
+const connectionBody = z.object({ profileId: z.string().min(1) }).strict();
+const threadBody = z.object({
+  // States the rule rather than gesturing at it — a caller that is not the
+  // Community form has to be able to act on this message.
+  title: z
+    .string()
+    .trim()
+    .min(service.DISCUSSION_TITLE_MIN, `Give the discussion a title of at least ${service.DISCUSSION_TITLE_MIN} characters`)
+    .max(service.DISCUSSION_TITLE_MAX, `Keep the title under ${service.DISCUSSION_TITLE_MAX} characters`),
+}).strict();
+const replyBody = z.object({
+  body: z.string().trim().min(1, 'Write a reply before posting').max(10000),
+}).strict();
+const directMessageBody = z.object({
+  body: z.string().trim().min(1, 'Write a message before sending').max(10000),
+}).strict();
+
+router.get('/me/community', asyncHandler(async (req, res) => sendSuccess(res, await service.memberCommunity(req.user!.id, req), 'Member community')));
+
+router.post(
+  '/me/community/connections',
+  validate({ body: connectionBody }),
+  asyncHandler(async (req, res) => sendSuccess(res, await service.requestConnection(req.user!.id, req.body.profileId), 'Connection updated'))
+);
+router.delete(
+  '/me/community/connections/:profileId',
+  asyncHandler(async (req, res) => sendSuccess(res, await service.removeConnection(req.user!.id, req.params.profileId!), 'Connection removed'))
+);
+
+router.post(
+  '/me/community/groups/:groupId/join',
+  asyncHandler(async (req, res) => sendSuccess(res, await service.joinGroup(req.user!.id, req.params.groupId!), 'Joined group'))
+);
+router.delete(
+  '/me/community/groups/:groupId/join',
+  asyncHandler(async (req, res) => sendSuccess(res, await service.leaveGroup(req.user!.id, req.params.groupId!), 'Left group'))
+);
+
+router.post(
+  '/me/community/threads',
+  validate({ body: threadBody }),
+  asyncHandler(async (req, res) => sendSuccess(res, await service.createDiscussionThread(req.user!.id, req.body), 'Discussion started', 201))
+);
+router.get(
+  '/me/community/threads/:threadId',
+  asyncHandler(async (req, res) => sendSuccess(res, await service.threadDetail(req.user!.id, req.params.threadId!), 'Discussion detail'))
+);
+router.post(
+  '/me/community/threads/:threadId/replies',
+  validate({ body: replyBody }),
+  asyncHandler(async (req, res) => sendSuccess(res, await service.replyToThread(req.user!.id, req.params.threadId!, req.body.body), 'Reply posted', 201))
+);
+
+router.get(
+  '/me/community/messages/:memberId',
+  asyncHandler(async (req, res) => sendSuccess(res, await service.directConversation(req.user!.id, req.params.memberId!), 'Direct conversation'))
+);
+router.post(
+  '/me/community/messages/:memberId',
+  validate({ body: directMessageBody }),
+  asyncHandler(async (req, res) => sendSuccess(res, await service.sendDirectMessage(req.user!.id, req.params.memberId!, req.body.body), 'Message sent', 201))
+);
 
 export default router;

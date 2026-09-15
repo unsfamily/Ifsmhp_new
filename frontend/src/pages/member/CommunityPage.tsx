@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AlertCircle,
   Award,
@@ -22,109 +22,147 @@ import {
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
+import {
+  DISCUSSION_TITLE_MAX,
+  DISCUSSION_TITLE_MIN,
+  memberApi,
+  type CommunityGroup,
+  type CommunityMember,
+  type CommunityResult,
+  type CommunityThread,
+  type CommunityThreadDetail,
+  type DirectConversation,
+} from '../../api/member';
+import { normalizeError } from '../../api/client';
+import { useApiData } from '../../hooks/useApiData';
 
-type ConnectionStatus = 'none' | 'requested' | 'connected';
-type GroupStatus = 'not-joined' | 'requested' | 'joined';
+type Member = CommunityMember;
+type InterestGroup = CommunityGroup;
 
-interface Member {
-  id: string;
-  name: string;
-  title: string;
-  institution: string;
-  country: string;
-  type: string;
-  interests: string[];
-  projects: number;
-  pubs: number;
+const PAGE_SIZE = 4;
+
+/**
+ * The error banner, rendered inside whichever modal is open.
+ *
+ * The page-level one sits behind the modal backdrop, so an action that failed
+ * from inside a dialog used to look like it simply did nothing.
+ */
+function ModalError({ message }: { message: string | null }) {
+  if (!message) return null;
+  return (
+    <div role="alert" className="mt-4 flex items-start gap-3 rounded-lg border border-danger-600/20 bg-danger-100 p-3">
+      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-danger-600" />
+      <p className="text-sm text-danger-600">{message}</p>
+    </div>
+  );
 }
-
-interface InterestGroup {
-  id: string;
-  name: string;
-  members: number;
-  active: string;
-  tag: 'Trending' | 'Active' | 'New';
-  isPrivate?: boolean;
-}
-
-const members: Member[] = [
-  { id: 'm1', name: 'Prof. Marcus Whitfield', title: 'Professor of Psychiatry', institution: 'Oxford University', country: 'UK', type: 'Scientist', interests: ['Depression', 'Pharmacology'], projects: 11, pubs: 48 },
-  { id: 'm2', name: 'Dr. Amara Patel', title: 'Neuroimaging Researcher', institution: 'NIMHANS', country: 'India', type: 'Scientist', interests: ['EEG', 'Neurotech'], projects: 5, pubs: 19 },
-  { id: 'm3', name: 'Dr. James Okafor', title: 'Clinical Psychologist', institution: 'Lagos State University', country: 'Nigeria', type: 'Professional', interests: ['Global MH', 'Service Delivery'], projects: 7, pubs: 14 },
-  { id: 'm4', name: 'Dr. Elena Rodriguez', title: 'Mindfulness Research Lead', institution: 'Universidad de Barcelona', country: 'Spain', type: 'Scientist', interests: ['Mindfulness', 'RCTs'], projects: 6, pubs: 22 },
-  { id: 'm5', name: 'Prof. Naomi Hargrove', title: 'AI Safety Researcher', institution: 'MIT', country: 'USA', type: 'Scientist', interests: ['AI Safety', 'Chatbots'], projects: 9, pubs: 31 },
-  { id: 'm6', name: 'Dr. Liam Sutherland', title: 'Youth Mental Health', institution: 'University of Melbourne', country: 'Australia', type: 'Professional', interests: ['Youth', 'Health Policy'], projects: 8, pubs: 27 },
-];
-
-const interestGroups: InterestGroup[] = [
-  { id: 'g1', name: 'Digital Mental Health Tech', members: 62, active: '12 online', tag: 'Trending' },
-  { id: 'g2', name: 'Treatment-Resistant Depression', members: 48, active: '8 online', tag: 'Active', isPrivate: true },
-  { id: 'g3', name: 'Global Health Disparities', members: 35, active: '5 online', tag: 'New' },
-  { id: 'g4', name: 'Psychedelic Research', members: 29, active: '6 online', tag: 'Trending' },
-  { id: 'g5', name: 'Telehealth Policy & Ethics', members: 41, active: '4 online', tag: 'Active' },
-  { id: 'g6', name: 'Youth & Adolescent MH', members: 53, active: '9 online', tag: 'Active' },
-];
-
-const discussionThreads = [
-  { id: 'd1', title: 'Best practices for IRB applications across multiple countries?', replies: 14, lastPost: '1h ago', category: 'Methodology', author: 'Dr. Rodriguez' },
-  { id: 'd2', title: 'Open-access publication funding sources for low-income researchers', replies: 22, lastPost: '4h ago', category: 'Funding', author: 'Dr. Okafor' },
-  { id: 'd3', title: 'Wearable device validity: which EEG products do you trust?', replies: 37, lastPost: 'Yesterday', category: 'Technology', author: 'Dr. Patel' },
-  { id: 'd4', title: 'Symposium 2026 submission deadline extension request', replies: 5, lastPost: '2d ago', category: 'Events', author: 'Prof. Whitfield' },
-];
 
 function initials(name: string) {
   return name.replace(/^(Prof\.|Dr\.)\s+/, '').split(' ').slice(0, 2).map((part) => part[0]).join('').toUpperCase();
 }
 
+/** "1h ago" / "Yesterday" / a date, matching what the cards used to show. */
+function relativeTime(value: string) {
+  const then = new Date(value).getTime();
+  const minutes = Math.round((Date.now() - then) / 60_000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  if (hours < 48) return 'Yesterday';
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export default function CommunityPage() {
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [interest, setInterest] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(4);
-  const [connections, setConnections] = useState<Record<string, ConnectionStatus>>({});
-  const [groups, setGroups] = useState<Record<string, GroupStatus>>({});
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [reloadKey, setReloadKey] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; run: () => void } | null>(null);
   const [newDiscussionOpen, setNewDiscussionOpen] = useState(false);
   const [discussionTitle, setDiscussionTitle] = useState('');
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<InterestGroup | null>(null);
-  const [selectedThread, setSelectedThread] = useState<(typeof discussionThreads)[number] | null>(null);
+  const [selectedThread, setSelectedThread] = useState<CommunityThread | null>(null);
+  const [threadDetail, setThreadDetail] = useState<CommunityThreadDetail | null>(null);
   const [messageMember, setMessageMember] = useState<Member | null>(null);
   const [messageText, setMessageText] = useState('');
-  const [sentMessages, setSentMessages] = useState<Record<string, string[]>>({});
+  const [conversation, setConversation] = useState<DirectConversation | null>(null);
   const [replyText, setReplyText] = useState('');
 
+  // One request per pause in typing, not one per keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(id);
+  }, [query]);
+
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [debouncedQuery, interest]);
+
+  const { data, loading, error } = useApiData<CommunityResult>(
+    () => memberApi.community({
+      q: debouncedQuery || undefined,
+      interest: interest || undefined,
+      limit: 50,
+    }),
+    [debouncedQuery, interest, reloadKey],
+  );
+
+  const members = data?.members.items ?? [];
+  const groupList = data?.groups ?? [];
+  const threads = data?.threads ?? [];
+  const stats = data?.stats ?? null;
+  const firstLoad = loading && !data;
+
+  const refresh = () => setReloadKey((key) => key + 1);
+
+  const trimmedTitle = discussionTitle.trim();
+  const titleShortBy = DISCUSSION_TITLE_MIN - trimmedTitle.length;
+  const titleValid = titleShortBy <= 0;
+  // A dialog covers the page banner, so its errors have to render inside it.
+  const modalOpen = Boolean(newDiscussionOpen || selectedThread || messageMember);
+
   const notify = (message: string) => {
+    setActionError(null);
     setToast(message);
     window.setTimeout(() => setToast(null), 2800);
   };
 
-  const filteredMembers = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return members.filter((member) => {
-      const matchesText = !term || [member.name, member.title, member.institution, member.country, member.type, ...member.interests]
-        .some((value) => value.toLowerCase().includes(term));
-      const matchesInterest = !interest || member.interests.includes(interest);
-      return matchesText && matchesInterest;
-    });
-  }, [query, interest]);
-
-  const runBusyAction = (key: string, action: () => void) => {
+  /**
+   * Runs one community action, then reloads so what renders is what was stored
+   * rather than an optimistic guess.
+   */
+  const runBusyAction = async (key: string, action: () => Promise<unknown>, success: string, failure: string) => {
     setBusy(key);
-    window.setTimeout(() => {
-      action();
+    setActionError(null);
+    try {
+      await action();
+      notify(success);
+      refresh();
+      return true;
+    } catch (err) {
+      setActionError(normalizeError(err).message || failure);
+      setToast(null);
+      return false;
+    } finally {
       setBusy(null);
-    }, 450);
+    }
   };
 
   const handleConnect = (member: Member) => {
-    const status = connections[member.id] ?? 'none';
+    const status = member.connectionStatus;
     if (status === 'none') {
-      runBusyAction(`connect-${member.id}`, () => {
-        setConnections((current) => ({ ...current, [member.id]: 'requested' }));
-        notify(`Connection request sent to ${member.name}.`);
-      });
+      void runBusyAction(
+        `connect-${member.id}`,
+        () => memberApi.connect(member.id),
+        `Connection request sent to ${member.name}.`,
+        'Could not send that connection request.',
+      );
       return;
     }
 
@@ -133,55 +171,100 @@ export default function CommunityPage() {
       message: status === 'requested'
         ? `Cancel the request sent to ${member.name}?`
         : `Remove ${member.name} from your connections?`,
-      run: () => runBusyAction(`connect-${member.id}`, () => {
-        setConnections((current) => ({ ...current, [member.id]: 'none' }));
-        notify(status === 'requested' ? 'Connection request cancelled.' : 'Connection removed.');
-      }),
+      run: () => void runBusyAction(
+        `connect-${member.id}`,
+        () => memberApi.disconnect(member.id),
+        status === 'requested' ? 'Connection request cancelled.' : 'Connection removed.',
+        'Could not update that connection.',
+      ),
     });
   };
 
-  const handleMessage = (member: Member) => {
+  const handleMessage = async (member: Member) => {
     setMessageMember(member);
     setMessageText('');
+    setConversation(null);
+    setActionError(null);
+    try {
+      setConversation(await memberApi.directMessages(member.userId));
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not open that conversation.');
+    }
   };
 
-  const sendMessage = () => {
-    if (!messageMember || !messageText.trim()) return;
-    setSentMessages((current) => ({
-      ...current,
-      [messageMember.id]: [...(current[messageMember.id] ?? []), messageText.trim()],
-    }));
-    setMessageText('');
-    notify(`Message sent to ${messageMember.name}.`);
+  const sendMessage = async () => {
+    if (!messageMember || !messageText.trim() || busy) return;
+    setBusy('message');
+    setActionError(null);
+    try {
+      setConversation(await memberApi.sendDirectMessage(messageMember.userId, messageText.trim()));
+      setMessageText('');
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not send that message.');
+    } finally {
+      setBusy(null);
+    }
   };
+
+  const openThread = async (thread: CommunityThread) => {
+    setSelectedThread(thread);
+    setThreadDetail(null);
+    setReplyText('');
+    setActionError(null);
+    try {
+      setThreadDetail(await memberApi.thread(thread.id));
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not open that discussion.');
+    }
+  };
+
+  const postReply = async () => {
+    if (!selectedThread || !replyText.trim() || busy) return;
+    setBusy('reply');
+    setActionError(null);
+    try {
+      setThreadDetail(await memberApi.replyToThread(selectedThread.id, replyText.trim()));
+      setReplyText('');
+      notify('Your reply was posted.');
+      refresh();
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not post that reply.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const publishDiscussion = () =>
+    void runBusyAction(
+      'new-discussion',
+      async () => {
+        await memberApi.createThread(discussionTitle.trim());
+        setDiscussionTitle('');
+        setNewDiscussionOpen(false);
+      },
+      'Discussion created successfully.',
+      'Could not start that discussion.',
+    );
 
   const handleGroupAction = (group: InterestGroup) => {
-    const status = groups[group.id] ?? 'not-joined';
-    if (status === 'not-joined') {
-      runBusyAction(`group-${group.id}`, () => {
-        setGroups((current) => ({ ...current, [group.id]: group.isPrivate ? 'requested' : 'joined' }));
-        notify(group.isPrivate ? 'Your request to join was sent.' : `You joined ${group.name}.`);
-      });
-      return;
-    }
-    if (status === 'requested') {
-      setConfirmAction({
-        title: 'Cancel join request?',
-        message: `Cancel your request to join ${group.name}?`,
-        run: () => {
-          setGroups((current) => ({ ...current, [group.id]: 'not-joined' }));
-          notify('Join request cancelled.');
-        },
-      });
+    if (!group.joined) {
+      void runBusyAction(
+        `group-${group.id}`,
+        () => memberApi.joinGroup(group.id),
+        `You joined ${group.name}.`,
+        'Could not join that group.',
+      );
       return;
     }
     setConfirmAction({
       title: 'Leave this group?',
       message: `Are you sure you want to leave ${group.name}?`,
-      run: () => {
-        setGroups((current) => ({ ...current, [group.id]: 'not-joined' }));
-        notify(`You left ${group.name}.`);
-      },
+      run: () => void runBusyAction(
+        `group-${group.id}`,
+        () => memberApi.leaveGroup(group.id),
+        `You left ${group.name}.`,
+        'Could not leave that group.',
+      ),
     });
   };
 
@@ -195,12 +278,19 @@ export default function CommunityPage() {
         </div>
       )}
 
+      {actionError && !modalOpen && (
+        <div role="alert" className="flex items-start gap-3 rounded-lg border border-danger-600/20 bg-danger-100 p-4">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-danger-600" />
+          <p className="text-sm text-danger-600">{actionError}</p>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: 'Total Members', value: '277', icon: Users, bg: 'bg-forum-50 text-forum-700' },
-          { label: 'Countries', value: '34', icon: Globe2, bg: 'bg-slateteal-100 text-slateteal-700' },
-          { label: 'Interest Groups', value: '18', icon: Sparkles, bg: 'bg-brass-100 text-brass-700' },
-          { label: 'Online Now', value: '42', icon: TrendingUp, bg: 'bg-forum-50 text-forum-700' },
+          { label: 'Total Members', value: stats ? stats.totalMembers.toLocaleString() : '—', icon: Users, bg: 'bg-forum-50 text-forum-700' },
+          { label: 'Countries', value: stats ? stats.countries.toString() : '—', icon: Globe2, bg: 'bg-slateteal-100 text-slateteal-700' },
+          { label: 'Interest Groups', value: stats ? stats.groups.toString() : '—', icon: Sparkles, bg: 'bg-brass-100 text-brass-700' },
+          { label: 'Online Now', value: stats ? stats.online.toString() : '—', icon: TrendingUp, bg: 'bg-forum-50 text-forum-700' },
         ].map(({ label, value, icon: Icon, bg }) => (
           <Card key={label}>
             <CardContent className="p-5">
@@ -239,15 +329,32 @@ export default function CommunityPage() {
                 <button onClick={() => setInterest(null)} className="inline-flex items-center gap-1 rounded-full bg-forum-50 px-3 py-1 text-forum-700 hover:bg-forum-100">{interest}<X className="h-3 w-3" /></button>
               </div>
             )}
-            {filteredMembers.length === 0 ? (
+            {firstLoad ? (
+              <div className="space-y-3" aria-busy="true" aria-label="Loading members">
+                {[0, 1, 2].map((key) => <div key={key} className="h-28 animate-pulse rounded-xl border border-paper-border bg-paper" />)}
+              </div>
+            ) : error ? (
+              <div className="rounded-xl border border-dashed border-paper-border px-6 py-12 text-center">
+                <AlertCircle className="mx-auto h-8 w-8 text-danger-600" />
+                <p className="mt-3 font-medium text-forum-900">Couldn&apos;t load the directory</p>
+                <p className="mt-1 text-sm text-ink-muted">{error}</p>
+                <Button className="mt-4" variant="outline" onClick={refresh}>Try again</Button>
+              </div>
+            ) : members.length === 0 ? (
               <div className="rounded-xl border border-dashed border-paper-border px-6 py-12 text-center">
                 <AlertCircle className="mx-auto h-8 w-8 text-ink-subtle" />
-                <p className="mt-3 font-medium text-forum-900">No members found</p>
-                <p className="mt-1 text-sm text-ink-muted">Try a different name, institution or interest.</p>
-                <Button className="mt-4" variant="outline" onClick={() => { setQuery(''); setInterest(null); }}>Clear filters</Button>
+                <p className="mt-3 font-medium text-forum-900">
+                  {query || interest ? 'No members found' : 'No other members yet'}
+                </p>
+                <p className="mt-1 text-sm text-ink-muted">
+                  {query || interest
+                    ? 'Try a different name, institution or interest.'
+                    : 'Approved members appear here as the community grows.'}
+                </p>
+                {(query || interest) && <Button className="mt-4" variant="outline" onClick={() => { setQuery(''); setInterest(null); }}>Clear filters</Button>}
               </div>
-            ) : filteredMembers.slice(0, visibleCount).map((member) => {
-              const status = connections[member.id] ?? 'none';
+            ) : members.slice(0, visibleCount).map((member) => {
+              const status = member.connectionStatus;
               const isBusy = busy === `connect-${member.id}`;
               return (
                 <div key={member.id} className="flex flex-col gap-4 rounded-xl border border-paper-border p-4 transition-colors hover:border-forum-200 hover:bg-forum-50/30 sm:flex-row sm:items-center">
@@ -273,12 +380,12 @@ export default function CommunityPage() {
                       {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : status === 'connected' ? <Check className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
                       {status === 'none' ? 'Connect' : status === 'requested' ? 'Requested' : 'Connected'}
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleMessage(member)}><MessageCircle className="h-3.5 w-3.5" />Message</Button>
+                    <Button size="sm" variant="ghost" onClick={() => void handleMessage(member)}><MessageCircle className="h-3.5 w-3.5" />Message</Button>
                   </div>
                 </div>
               );
             })}
-            {visibleCount < filteredMembers.length && <Button variant="ghost" className="w-full justify-center" onClick={() => setVisibleCount((count) => count + 4)}>Load More Members<ChevronRight className="h-4 w-4" /></Button>}
+            {visibleCount < members.length && <Button variant="ghost" className="w-full justify-center" onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}>Load More Members<ChevronRight className="h-4 w-4" /></Button>}
           </CardContent>
         </Card>
 
@@ -288,21 +395,23 @@ export default function CommunityPage() {
             <p className="mt-0.5 text-xs text-ink-subtle">Join focused discussions</p>
           </CardHeader>
           <CardContent className="space-y-2.5 pt-0">
-            {interestGroups.map((group) => {
-              const status = groups[group.id] ?? 'not-joined';
+            {groupList.length === 0 && !firstLoad && (
+              <p className="rounded-xl border border-dashed border-paper-border px-4 py-8 text-center text-sm text-ink-muted">No interest groups yet.</p>
+            )}
+            {groupList.map((group) => {
               return (
                 <div key={group.id} className="rounded-xl border border-paper-border p-3.5 transition-colors hover:border-forum-300 hover:bg-forum-50/40">
                   <button onClick={() => setSelectedGroup(group)} className="flex w-full items-center gap-3 text-left">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slateteal-100 text-slateteal-700"><Users className="h-5 w-5" /></div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2"><p className="truncate text-sm font-medium text-forum-900">{group.name}</p><Badge variant={group.tag === 'Trending' ? 'brass' : group.tag === 'New' ? 'warning' : 'info'}>{group.tag}</Badge></div>
-                      <div className="mt-0.5 flex items-center gap-3 text-[11px] text-ink-subtle"><span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{group.members + (status === 'joined' ? 1 : 0)}</span><span className="inline-flex items-center gap-1 text-success-600"><span className="h-1.5 w-1.5 rounded-full bg-success-600" />{group.active}</span></div>
+                      <div className="mt-0.5 flex items-center gap-3 text-[11px] text-ink-subtle"><span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{group.members} {group.members === 1 ? 'member' : 'members'}</span>{group.joined && <span className="inline-flex items-center gap-1 text-success-600"><span className="h-1.5 w-1.5 rounded-full bg-success-600" />Joined</span>}</div>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle" />
                   </button>
-                  <Button size="sm" variant={status === 'joined' ? undefined : 'ghost'} className="mt-2 w-full justify-center" disabled={busy === `group-${group.id}`} onClick={() => handleGroupAction(group)}>
+                  <Button size="sm" variant={group.joined ? undefined : 'ghost'} className="mt-2 w-full justify-center" disabled={busy === `group-${group.id}`} onClick={() => handleGroupAction(group)}>
                     {busy === `group-${group.id}` && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    {status === 'joined' ? 'Joined' : status === 'requested' ? 'Requested' : group.isPrivate ? 'Request to Join' : 'Join Group'}
+                    {group.joined ? 'Joined' : 'Join Group'}
                   </Button>
                 </div>
               );
@@ -317,15 +426,18 @@ export default function CommunityPage() {
           <Button onClick={() => setNewDiscussionOpen(true)}><MessageCircle className="h-4 w-4" />Start Discussion</Button>
         </CardHeader>
         <CardContent className="divide-y divide-paper-border pt-0">
-          {discussionThreads.map((thread) => (
+          {!firstLoad && threads.length === 0 && (
+            <p className="py-10 text-center text-sm text-ink-muted">No discussions yet. Start the first one.</p>
+          )}
+          {threads.map((thread) => (
             <div key={thread.id} className="-mx-4 flex flex-col items-start gap-4 rounded-lg px-4 py-4 transition-colors hover:bg-forum-50/30 sm:flex-row">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-forum-50 font-semibold text-forum-700">{initials(thread.author)}</div>
-              <button onClick={() => setSelectedThread(thread)} className="min-w-0 flex-1 text-left">
+              <button onClick={() => void openThread(thread)} className="min-w-0 flex-1 text-left">
                 <div className="flex flex-wrap items-center gap-2"><Badge variant={thread.category === 'Funding' ? 'brass' : thread.category === 'Events' ? 'warning' : thread.category === 'Technology' ? 'info' : 'default'}>{thread.category}</Badge><span className="text-[11px] text-ink-subtle">Started by <span className="font-medium text-ink-muted">{thread.author}</span></span></div>
                 <h4 className="mt-1.5 font-medium text-forum-900 hover:text-forum-700 hover:underline">{thread.title}</h4>
-                <div className="mt-1.5 flex items-center gap-4 text-xs text-ink-subtle"><span className="inline-flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" />{thread.replies} replies</span><span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{thread.lastPost}</span></div>
+                <div className="mt-1.5 flex items-center gap-4 text-xs text-ink-subtle"><span className="inline-flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" />{thread.replies} replies</span><span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{relativeTime(thread.lastPost)}</span></div>
               </button>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedThread(thread)}>View Thread<ChevronRight className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="sm" onClick={() => void openThread(thread)}>View Thread<ChevronRight className="h-3.5 w-3.5" /></Button>
             </div>
           ))}
         </CardContent>
@@ -344,10 +456,15 @@ export default function CommunityPage() {
       {newDiscussionOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="discussion-title">
           <div className="w-full max-w-lg rounded-xl bg-paper p-6 shadow-2xl">
-            <div className="flex items-center justify-between"><h3 id="discussion-title" className="font-display text-lg font-semibold text-forum-900">Start a Discussion</h3><button aria-label="Close" onClick={() => setNewDiscussionOpen(false)}><X className="h-5 w-5" /></button></div>
+            <div className="flex items-center justify-between"><h3 id="discussion-title" className="font-display text-lg font-semibold text-forum-900">Start a Discussion</h3><button aria-label="Close" onClick={() => { setNewDiscussionOpen(false); setActionError(null); }}><X className="h-5 w-5" /></button></div>
             <label className="mt-5 block text-sm font-medium text-forum-900" htmlFor="new-discussion">Discussion title</label>
-            <textarea id="new-discussion" value={discussionTitle} onChange={(event) => setDiscussionTitle(event.target.value)} rows={4} placeholder="What would you like to discuss?" className="mt-2 w-full rounded-lg border border-paper-border bg-paper p-3 text-sm focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600" />
-            <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setNewDiscussionOpen(false)}>Cancel</Button><Button disabled={!discussionTitle.trim()} onClick={() => { notify('Discussion created successfully.'); setDiscussionTitle(''); setNewDiscussionOpen(false); }}>Publish Discussion</Button></div>
+            <textarea id="new-discussion" value={discussionTitle} onChange={(event) => setDiscussionTitle(event.target.value)} rows={4} maxLength={DISCUSSION_TITLE_MAX} placeholder="What would you like to discuss?" className="mt-2 w-full rounded-lg border border-paper-border bg-paper p-3 text-sm focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600" />
+            <div className="mt-1.5 flex justify-between text-xs">
+              <span className="text-danger-600">{trimmedTitle.length > 0 && !titleValid ? `${titleShortBy} more character${titleShortBy === 1 ? '' : 's'} needed` : ''}</span>
+              <span className="text-ink-subtle">{discussionTitle.length}/{DISCUSSION_TITLE_MAX}</span>
+            </div>
+            <ModalError message={actionError} />
+            <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => { setNewDiscussionOpen(false); setActionError(null); }}>Cancel</Button><Button disabled={!titleValid || busy === 'new-discussion'} onClick={publishDiscussion}>{busy === 'new-discussion' && <Loader2 className="h-4 w-4 animate-spin" />}Publish Discussion</Button></div>
           </div>
         </div>
       )}
@@ -369,7 +486,7 @@ export default function CommunityPage() {
               <p className="flex items-center gap-2 text-ink-muted"><Award className="h-4 w-4" />{selectedMember.projects} projects</p>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">{selectedMember.interests.map((item) => <button key={item} onClick={() => { setInterest(item); setSelectedMember(null); }} className="rounded-full border border-paper-border px-3 py-1 text-xs text-ink-muted hover:border-forum-300">{item}</button>)}</div>
-            <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => handleConnect(selectedMember)}><UserPlus className="h-4 w-4" />{(connections[selectedMember.id] ?? 'none') === 'none' ? 'Connect' : (connections[selectedMember.id] ?? 'none') === 'requested' ? 'Requested' : 'Connected'}</Button><Button onClick={() => { setSelectedMember(null); handleMessage(selectedMember); }}><MessageCircle className="h-4 w-4" />Message</Button></div>
+            <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => { handleConnect(selectedMember); setSelectedMember(null); }}><UserPlus className="h-4 w-4" />{selectedMember.connectionStatus === 'none' ? 'Connect' : selectedMember.connectionStatus === 'requested' ? 'Requested' : 'Connected'}</Button><Button onClick={() => { setSelectedMember(null); void handleMessage(selectedMember); }}><MessageCircle className="h-4 w-4" />Message</Button></div>
           </div>
         </div>
       )}
@@ -377,11 +494,12 @@ export default function CommunityPage() {
       {messageMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="message-title">
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-paper p-6 shadow-2xl">
-            <div className="flex items-center justify-between"><div><h3 id="message-title" className="font-display text-lg font-semibold text-forum-900">Message {messageMember.name}</h3><p className="text-xs text-ink-subtle">Direct community conversation</p></div><button aria-label="Close message" onClick={() => setMessageMember(null)}><X className="h-5 w-5" /></button></div>
+            <div className="flex items-center justify-between"><div><h3 id="message-title" className="font-display text-lg font-semibold text-forum-900">Message {messageMember.name}</h3><p className="text-xs text-ink-subtle">Direct community conversation</p></div><button aria-label="Close message" onClick={() => { setMessageMember(null); setActionError(null); }}><X className="h-5 w-5" /></button></div>
             <div className="my-5 min-h-32 flex-1 space-y-2 overflow-y-auto rounded-xl bg-forum-50/60 p-4">
-              {(sentMessages[messageMember.id] ?? []).length === 0 ? <p className="py-8 text-center text-sm text-ink-subtle">No messages yet. Start the conversation.</p> : (sentMessages[messageMember.id] ?? []).map((message, index) => <div key={`${message}-${index}`} className="ml-auto max-w-[80%] rounded-xl rounded-br-sm bg-forum-700 px-3 py-2 text-sm text-white">{message}</div>)}
+              {!conversation ? <p className="py-8 text-center text-sm text-ink-subtle">Loading conversation...</p> : conversation.messages.length === 0 ? <p className="py-8 text-center text-sm text-ink-subtle">No messages yet. Start the conversation.</p> : conversation.messages.map((message) => <div key={message.id} className={message.mine ? 'ml-auto max-w-[80%] rounded-xl rounded-br-sm bg-forum-700 px-3 py-2 text-sm text-white' : 'mr-auto max-w-[80%] rounded-xl rounded-bl-sm bg-paper-raised px-3 py-2 text-sm text-ink ring-1 ring-paper-border'}>{message.body}</div>)}
             </div>
-            <div className="flex gap-2"><input value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') sendMessage(); }} placeholder="Type your message..." className="min-w-0 flex-1 rounded-lg border border-paper-border bg-paper px-3 py-2 text-sm focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600" /><Button disabled={!messageText.trim()} onClick={sendMessage}>Send</Button></div>
+            <ModalError message={actionError} />
+            <div className="mt-3 flex gap-2"><input value={messageText} onChange={(event) => setMessageText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void sendMessage(); }} placeholder="Type your message..." className="min-w-0 flex-1 rounded-lg border border-paper-border bg-paper px-3 py-2 text-sm focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600" /><Button disabled={!messageText.trim() || busy === 'message'} onClick={() => void sendMessage()}>{busy === 'message' && <Loader2 className="h-4 w-4 animate-spin" />}Send</Button></div>
           </div>
         </div>
       )}
@@ -391,9 +509,9 @@ export default function CommunityPage() {
           <div className="w-full max-w-lg rounded-xl bg-paper p-6 shadow-2xl">
             <div className="flex items-start justify-between"><div><Badge variant={selectedGroup.tag === 'Trending' ? 'brass' : selectedGroup.tag === 'New' ? 'warning' : 'info'}>{selectedGroup.tag}</Badge><h3 id="group-title" className="mt-2 font-display text-xl font-semibold text-forum-900">{selectedGroup.name}</h3></div><button aria-label="Close group" onClick={() => setSelectedGroup(null)}><X className="h-5 w-5" /></button></div>
             <p className="mt-3 text-sm text-ink-muted">A focused community space for members to exchange research, professional experience and practical resources.</p>
-            <div className="mt-5 flex gap-6 rounded-xl bg-forum-50/60 p-4 text-sm"><span><strong className="text-forum-900">{selectedGroup.members + ((groups[selectedGroup.id] ?? 'not-joined') === 'joined' ? 1 : 0)}</strong> members</span><span className="text-success-600">● {selectedGroup.active}</span></div>
+            <div className="mt-5 flex gap-6 rounded-xl bg-forum-50/60 p-4 text-sm"><span><strong className="text-forum-900">{groupList.find((g) => g.id === selectedGroup.id)?.members ?? selectedGroup.members}</strong> members</span>{(groupList.find((g) => g.id === selectedGroup.id)?.joined ?? selectedGroup.joined) && <span className="text-success-600">● You are a member</span>}</div>
             <div className="mt-5"><h4 className="font-medium text-forum-900">Group rules</h4><ul className="mt-2 list-inside list-disc space-y-1 text-sm text-ink-muted"><li>Keep discussions professional and relevant.</li><li>Respect member privacy and research ownership.</li><li>Do not post promotional spam.</li></ul></div>
-            <div className="mt-6 flex justify-end gap-2"><Button variant="ghost" onClick={() => setSelectedGroup(null)}>Close</Button><Button onClick={() => handleGroupAction(selectedGroup)}>{(groups[selectedGroup.id] ?? 'not-joined') === 'joined' ? 'Leave Group' : (groups[selectedGroup.id] ?? 'not-joined') === 'requested' ? 'Cancel Request' : selectedGroup.isPrivate ? 'Request to Join' : 'Join Group'}</Button></div>
+            <div className="mt-6 flex justify-end gap-2"><Button variant="ghost" onClick={() => setSelectedGroup(null)}>Close</Button><Button onClick={() => { handleGroupAction(groupList.find((g) => g.id === selectedGroup.id) ?? selectedGroup); setSelectedGroup(null); }}>{(groupList.find((g) => g.id === selectedGroup.id)?.joined ?? selectedGroup.joined) ? 'Leave Group' : 'Join Group'}</Button></div>
           </div>
         </div>
       )}
@@ -401,10 +519,22 @@ export default function CommunityPage() {
       {selectedThread && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="thread-title">
           <div className="w-full max-w-2xl rounded-xl bg-paper p-6 shadow-2xl">
-            <div className="flex items-start justify-between gap-4"><div><Badge variant="default">{selectedThread.category}</Badge><h3 id="thread-title" className="mt-2 font-display text-xl font-semibold text-forum-900">{selectedThread.title}</h3><p className="mt-1 text-xs text-ink-subtle">Started by {selectedThread.author} · {selectedThread.lastPost}</p></div><button aria-label="Close discussion" onClick={() => setSelectedThread(null)}><X className="h-5 w-5" /></button></div>
-            <p className="mt-6 rounded-xl bg-forum-50/60 p-4 text-sm leading-6 text-ink-muted">This discussion is open to the community. Members can share relevant experience, references and constructive recommendations here.</p>
+            <div className="flex items-start justify-between gap-4"><div><Badge variant="default">{selectedThread.category}</Badge><h3 id="thread-title" className="mt-2 font-display text-xl font-semibold text-forum-900">{selectedThread.title}</h3><p className="mt-1 text-xs text-ink-subtle">Started by {selectedThread.author} · {relativeTime(selectedThread.lastPost)}</p></div><button aria-label="Close discussion" onClick={() => { setSelectedThread(null); setThreadDetail(null); setActionError(null); }}><X className="h-5 w-5" /></button></div>
+            <div className="mt-6 max-h-72 space-y-2 overflow-y-auto rounded-xl bg-forum-50/60 p-4">
+              {!threadDetail ? (
+                <p className="py-6 text-center text-sm text-ink-subtle">Loading discussion...</p>
+              ) : threadDetail.replies.length === 0 ? (
+                <p className="py-6 text-center text-sm text-ink-subtle">No replies yet. Be the first to respond.</p>
+              ) : threadDetail.replies.map((reply) => (
+                <div key={reply.id} className="rounded-lg bg-paper p-3 ring-1 ring-paper-border">
+                  <p className="text-[11px] text-ink-subtle"><span className="font-medium text-ink-muted">{reply.author}</span> · {relativeTime(reply.at)}</p>
+                  <p className="mt-1 whitespace-pre-line text-sm leading-6 text-ink">{reply.body}</p>
+                </div>
+              ))}
+            </div>
             <div className="mt-5"><label htmlFor="thread-reply" className="text-sm font-medium text-forum-900">Add your reply</label><textarea id="thread-reply" value={replyText} onChange={(event) => setReplyText(event.target.value)} rows={3} placeholder="Write a constructive reply..." className="mt-2 w-full rounded-lg border border-paper-border bg-paper p-3 text-sm focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600" /></div>
-            <div className="mt-4 flex items-center justify-between"><span className="text-sm text-ink-subtle">{selectedThread.replies} replies</span><Button disabled={!replyText.trim()} onClick={() => { notify('Your reply was posted.'); setReplyText(''); }}><MessageCircle className="h-4 w-4" />Post Reply</Button></div>
+            <ModalError message={actionError} />
+            <div className="mt-4 flex items-center justify-between"><span className="text-sm text-ink-subtle">{threadDetail ? threadDetail.replies.length : selectedThread.replies} replies</span><Button disabled={!replyText.trim() || busy === 'reply'} onClick={() => void postReply()}>{busy === 'reply' ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}Post Reply</Button></div>
           </div>
         </div>
       )}

@@ -1202,42 +1202,388 @@ export async function createMemberConversation(
   return { id: conversation.id, subject: conversation.subject, category: conversation.category };
 }
 
-export async function memberCommunity(req: Request) {
+/** How recently a sign-in still counts as "online" on the community page. */
+const ONLINE_WINDOW_MINUTES = 15;
+
+/** Category given to threads started from the page, which has no category control. */
+const DEFAULT_THREAD_CATEGORY = 'General';
+
+/**
+ * Shortest discussion title worth putting in front of the community.
+ *
+ * Exported so the route schema and the form enforce one number: when only the
+ * server knew it, the Publish button stayed enabled below the limit and every
+ * short title became a 422 the member could not see or predict.
+ */
+export const DISCUSSION_TITLE_MIN = 8;
+export const DISCUSSION_TITLE_MAX = 220;
+
+/**
+ * Resolves the caller's member profile — the id space connections and group
+ * memberships are keyed on. A member always has one; the throw is a guard
+ * against an ADMIN reaching member routes through the role bypass.
+ */
+async function loadMemberProfile(userId: string) {
+  const profile = await prisma.memberProfile.findUnique({ where: { userId }, select: { id: true } });
+  if (!profile) throw ApiError.notFound('Member profile not found');
+  return profile;
+}
+
+export async function memberCommunity(userId: string, req: Request) {
   const pagination = parsePage(req);
   const q = String(req.query.q ?? '').trim();
-  const [profiles, total, groups, threads] = await Promise.all([
+  const interest = String(req.query.interest ?? '').trim();
+  const me = await loadMemberProfile(userId);
+
+  const where: Prisma.MemberProfileWhereInput = {
+    user: { status: 'ACTIVE', role: 'MEMBER' },
+    // You are not a peer to connect with, so you never appear in your own directory.
+    id: { not: me.id },
+    ...(interest ? { interests: { some: { name: interest } } } : {}),
+    ...(q
+      ? {
+          OR: [
+            { user: { fullName: { contains: q } } },
+            { institution: { contains: q } },
+            { country: { contains: q } },
+            { professionalType: { contains: q } },
+            { professionalTitle: { contains: q } },
+            { interests: { some: { name: { contains: q } } } },
+          ],
+        }
+      : {}),
+  };
+
+  const onlineSince = new Date(Date.now() - ONLINE_WINDOW_MINUTES * 60_000);
+
+  const [profiles, total, groups, threads, connections, stats] = await Promise.all([
     prisma.memberProfile.findMany({
-      where: {
-        user: { status: 'ACTIVE', role: 'MEMBER' },
-        ...(q ? { OR: [{ user: { fullName: { contains: q } } }, { institution: { contains: q } }, { interests: { some: { name: { contains: q } } } }] } : {}),
+      where,
+      include: {
+        user: { select: { id: true, fullName: true, _count: { select: { projects: true, publications: true } } } },
+        interests: true,
       },
-      include: { user: true, interests: true, _count: { select: { credentials: true } } },
       ...toSkipTake(pagination),
       orderBy: { approvedAt: 'desc' },
     }),
-    prisma.memberProfile.count({ where: { user: { status: 'ACTIVE', role: 'MEMBER' } } }),
-    prisma.interestGroup.findMany({ include: { members: true }, take: 12 }),
-    prisma.discussionThread.findMany({ include: { replies: true }, orderBy: { updatedAt: 'desc' }, take: 8 }),
+    // Same `where` as the rows: counting the unfiltered table reported a page
+    // count for a result set the directory was not showing.
+    prisma.memberProfile.count({ where }),
+    prisma.interestGroup.findMany({
+      include: { _count: { select: { members: true } }, members: { where: { profileId: me.id }, select: { id: true } } },
+      orderBy: { createdAt: 'asc' },
+      take: 12,
+    }),
+    prisma.discussionThread.findMany({
+      include: { _count: { select: { replies: true } }, author: { select: { fullName: true } } },
+      orderBy: { updatedAt: 'desc' },
+      take: 8,
+    }),
+    // Every connection touching me, in either direction — the button's state
+    // depends on who asked whom.
+    prisma.memberConnection.findMany({
+      where: { OR: [{ requesterId: me.id }, { addresseeId: me.id }] },
+      select: { requesterId: true, addresseeId: true, status: true },
+    }),
+    communityStats(onlineSince),
   ]);
+
+  const statusFor = (profileId: string): 'none' | 'requested' | 'connected' => {
+    const row = connections.find(
+      (c) =>
+        (c.requesterId === me.id && c.addresseeId === profileId)
+        || (c.addresseeId === me.id && c.requesterId === profileId),
+    );
+    if (!row) return 'none';
+    return row.status === 'Accepted' ? 'connected' : 'requested';
+  };
+
   return {
     members: buildPaginatedResult(
       profiles.map((p) => ({
+        // Connections are keyed on the profile; direct messages on the user.
+        // The page needs both, so both are named rather than overloading `id`.
         id: p.id,
+        userId: p.user.id,
         name: p.user.fullName,
         title: p.professionalTitle ?? p.professionalType,
         institution: p.institution,
         country: p.country,
         type: p.professionalType,
         interests: p.interests.map((i) => i.name),
-        projects: 0,
-        pubs: 0,
+        projects: p.user._count.projects,
+        pubs: p.user._count.publications,
+        connectionStatus: statusFor(p.id),
       })),
       total,
       pagination,
     ),
-    groups: groups.map((g) => ({ name: g.name, members: g.members.length, active: '0 online', tag: g.tag })),
-    threads: threads.map((t) => ({ title: t.title, replies: t.replies.length, lastPost: t.updatedAt, category: t.category, author: 'Member' })),
+    // `id` and `joined` are what let the UI address a group at all — the
+    // previous payload carried neither.
+    groups: groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      members: g._count.members,
+      tag: g.tag,
+      joined: g.members.length > 0,
+    })),
+    threads: threads.map((t) => ({
+      id: t.id,
+      title: t.title,
+      replies: t._count.replies,
+      lastPost: t.updatedAt,
+      category: t.category,
+      author: t.author?.fullName ?? 'Former member',
+    })),
+    stats,
   };
+}
+
+/** Headline counters for the community page, computed over the whole platform. */
+async function communityStats(onlineSince: Date) {
+  const activeMember = { status: 'ACTIVE' as const, role: 'MEMBER' as const };
+  const [totalMembers, countries, groups, online] = await Promise.all([
+    prisma.user.count({ where: activeMember }),
+    prisma.memberProfile.findMany({
+      where: { user: activeMember, country: { not: null } },
+      distinct: ['country'],
+      select: { country: true },
+    }),
+    prisma.interestGroup.count(),
+    // There is no presence tracking on the platform; a recent sign-in is the
+    // closest honest proxy.
+    prisma.user.count({ where: { ...activeMember, lastLoginAt: { gte: onlineSince } } }),
+  ]);
+  return { totalMembers, countries: countries.length, groups, online };
+}
+
+/**
+ * Requests a connection, or completes one.
+ *
+ * The page has no accept/decline inbox, so a connection forms when both people
+ * have asked for it: the reverse request flips the pair to Accepted. The unique
+ * index is directional, so the mirrored row has to be caught here.
+ */
+export async function requestConnection(userId: string, profileId: string) {
+  const me = await loadMemberProfile(userId);
+  if (profileId === me.id) throw new ApiError(422, 'You cannot connect with yourself');
+
+  const target = await prisma.memberProfile.findFirst({
+    where: { id: profileId, user: { status: 'ACTIVE', role: 'MEMBER' } },
+    select: { id: true },
+  });
+  if (!target) throw ApiError.notFound('Member not found');
+
+  const existing = await prisma.memberConnection.findFirst({
+    where: {
+      OR: [
+        { requesterId: me.id, addresseeId: profileId },
+        { requesterId: profileId, addresseeId: me.id },
+      ],
+    },
+  });
+
+  if (existing?.requesterId === me.id) {
+    throw ApiError.conflict('You have already sent this member a request');
+  }
+
+  if (existing) {
+    // They asked first; this request is the acceptance.
+    await prisma.memberConnection.update({ where: { id: existing.id }, data: { status: 'Accepted' } });
+    return { status: 'connected' as const };
+  }
+
+  await prisma.memberConnection.create({ data: { requesterId: me.id, addresseeId: profileId, status: 'Pending' } });
+  return { status: 'requested' as const };
+}
+
+/** Cancels a pending request or removes an existing connection, either direction. */
+export async function removeConnection(userId: string, profileId: string) {
+  const me = await loadMemberProfile(userId);
+  const { count } = await prisma.memberConnection.deleteMany({
+    where: {
+      OR: [
+        { requesterId: me.id, addresseeId: profileId },
+        { requesterId: profileId, addresseeId: me.id },
+      ],
+    },
+  });
+  if (!count) throw ApiError.notFound('Connection not found');
+  return { status: 'none' as const };
+}
+
+export async function joinGroup(userId: string, groupId: string) {
+  const me = await loadMemberProfile(userId);
+  const group = await prisma.interestGroup.findUnique({ where: { id: groupId }, select: { id: true } });
+  if (!group) throw ApiError.notFound('Group not found');
+
+  // Idempotent: joining a group twice is the same as being in it once.
+  await prisma.interestGroupMember
+    .create({ data: { groupId, profileId: me.id } })
+    .catch(() => undefined);
+  return { joined: true };
+}
+
+export async function leaveGroup(userId: string, groupId: string) {
+  const me = await loadMemberProfile(userId);
+  const { count } = await prisma.interestGroupMember.deleteMany({ where: { groupId, profileId: me.id } });
+  if (!count) throw ApiError.notFound('You are not a member of this group');
+  return { joined: false };
+}
+
+export async function createDiscussionThread(userId: string, input: { title: string; category?: string }) {
+  await loadMemberProfile(userId);
+  const thread = await prisma.discussionThread.create({
+    data: {
+      authorId: userId,
+      title: input.title.trim(),
+      // The page's form is a single title field, so everything it starts lands
+      // in one bucket rather than inventing a category the member never chose.
+      category: input.category?.trim() || DEFAULT_THREAD_CATEGORY,
+    },
+  });
+  return { id: thread.id, title: thread.title, category: thread.category };
+}
+
+export async function threadDetail(userId: string, threadId: string) {
+  await loadMemberProfile(userId);
+  const thread = await prisma.discussionThread.findUnique({
+    where: { id: threadId },
+    include: {
+      author: { select: { fullName: true } },
+      replies: { orderBy: { createdAt: 'asc' }, include: { author: { select: { fullName: true } } } },
+    },
+  });
+  if (!thread) throw ApiError.notFound('Discussion not found');
+  return {
+    id: thread.id,
+    title: thread.title,
+    category: thread.category,
+    author: thread.author?.fullName ?? 'Former member',
+    lastPost: thread.updatedAt,
+    replies: thread.replies.map((r) => ({
+      id: r.id,
+      body: r.body,
+      author: r.author?.fullName ?? 'Former member',
+      at: r.createdAt,
+      mine: r.authorId === userId,
+    })),
+  };
+}
+
+export async function replyToThread(userId: string, threadId: string, body: string) {
+  await loadMemberProfile(userId);
+  const thread = await prisma.discussionThread.findUnique({ where: { id: threadId }, select: { id: true } });
+  if (!thread) throw ApiError.notFound('Discussion not found');
+
+  await prisma.$transaction([
+    prisma.discussionReply.create({ data: { threadId, authorId: userId, body: body.trim() } }),
+    // Touched so the thread rises to the top of the list, which orders by it.
+    prisma.discussionThread.update({ where: { id: threadId }, data: { updatedAt: new Date() } }),
+  ]);
+  return threadDetail(userId, threadId);
+}
+
+/** Conversations between two members, kept out of the CRO queue. */
+const DIRECT_KIND = 'DIRECT';
+
+/** Resolves the other member of a direct conversation, or 404s. */
+async function loadDirectPeer(userId: string, peerUserId: string) {
+  if (peerUserId === userId) throw new ApiError(422, 'You cannot message yourself');
+  const peer = await prisma.user.findFirst({
+    where: { id: peerUserId, status: 'ACTIVE', role: 'MEMBER', deletedAt: null },
+    select: { id: true, fullName: true },
+  });
+  if (!peer) throw ApiError.notFound('Member not found');
+  return peer;
+}
+
+/**
+ * The one-to-one thread between two members, if it exists.
+ *
+ * Matched on participants rather than a key column: a direct conversation is
+ * defined by exactly who is in it.
+ */
+async function findDirectConversation(userId: string, peerUserId: string) {
+  return prisma.conversation.findFirst({
+    where: {
+      kind: DIRECT_KIND,
+      AND: [
+        { participants: { some: { userId } } },
+        { participants: { some: { userId: peerUserId } } },
+      ],
+    },
+    select: { id: true, subject: true },
+  });
+}
+
+/** The direct thread with one member, newest last. Empty when none has started. */
+export async function directConversation(userId: string, peerUserId: string) {
+  await loadMemberProfile(userId);
+  const peer = await loadDirectPeer(userId, peerUserId);
+  const conversation = await findDirectConversation(userId, peerUserId);
+  if (!conversation) return { peer, conversationId: null, messages: [] };
+
+  const messages = await prisma.message.findMany({
+    where: { conversationId: conversation.id, internal: false },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, body: true, senderId: true, senderName: true, createdAt: true },
+  });
+
+  return {
+    peer,
+    conversationId: conversation.id,
+    messages: messages.map((m) => ({
+      id: m.id,
+      body: m.body,
+      author: m.senderName,
+      at: m.createdAt,
+      mine: m.senderId === userId,
+    })),
+  };
+}
+
+/**
+ * Sends a direct message, starting the thread on first send.
+ *
+ * Reuses `writeMessage` so notifications, read state and attachments behave
+ * exactly as they do for CRO threads; only the participants and `kind` differ.
+ */
+export async function sendDirectMessage(userId: string, peerUserId: string, body: string) {
+  await loadMemberProfile(userId);
+  const peer = await loadDirectPeer(userId, peerUserId);
+  const sender = await loadSender(userId);
+
+  let conversation = await findDirectConversation(userId, peerUserId);
+  if (!conversation) {
+    conversation = await prisma.conversation.create({
+      data: {
+        subject: `${sender.fullName} & ${peer.fullName}`,
+        category: 'Community',
+        kind: DIRECT_KIND,
+        status: 'Open',
+        priority: 'Standard',
+        participants: {
+          create: [
+            { userId, roleLabel: 'Member' },
+            { userId: peer.id, roleLabel: 'Member' },
+          ],
+        },
+      },
+      select: { id: true, subject: true },
+    });
+  }
+
+  await writeMessage({
+    conversationId: conversation.id,
+    sender,
+    body: body.trim(),
+    internal: false,
+    subject: conversation.subject,
+    recipientIds: [peer.id],
+  });
+
+  return directConversation(userId, peerUserId);
 }
 
 /**
@@ -2193,13 +2539,17 @@ const conversationListInclude = {
 
 export async function adminConversations(userId: string, req: Request) {
   const pagination = parsePage(req);
+  // Member-to-member threads are private to their two participants. Without
+  // this the CRO queue would list every direct message on the platform.
+  const where: Prisma.ConversationWhereInput = { kind: { not: DIRECT_KIND } };
   const [rows, total] = await Promise.all([
     prisma.conversation.findMany({
+      where,
       include: conversationListInclude,
       orderBy: { updatedAt: 'desc' },
       ...toSkipTake(pagination),
     }),
-    prisma.conversation.count(),
+    prisma.conversation.count({ where }),
   ]);
   const unread = await unreadCountsFor(userId, rows.map((r) => r.id));
   return buildPaginatedResult(rows.map((r) => serializeConversation(r, unread)), total, pagination);
