@@ -2,6 +2,7 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import { env } from '../config';
 import { ApiError } from '../utils/ApiError';
 import { logger } from '../utils/logger';
+import { renderAnnouncement } from '../domain/announcement-markdown';
 
 /**
  * Mail transport.
@@ -28,6 +29,19 @@ function getTransport(): Transporter {
     });
   }
   return transporter;
+}
+
+export async function sendAnnouncementEmail(input: { to: string; subject: string; body: string; senderAsCRO: boolean; preview: boolean; unsubscribeUrl?: string; messageId: string }): Promise<boolean> {
+  if (!env.mailConfigured) return false;
+  const signature = input.senderAsCRO ? 'CRO Office' : 'Communications team';
+  const footer = input.unsubscribeUrl ? `\n\nUnsubscribe from announcement emails: ${input.unsubscribeUrl}` : '';
+  const result = await getTransport().sendMail({ from: env.mailFrom, to: input.to, messageId: input.messageId,
+    subject: `${input.preview ? '[SAB Preview] ' : ''}${input.subject}`,
+    text: `${input.body}\n\n${signature}${footer}`,
+    html: `<div style="font-family:system-ui;max-width:640px">${renderAnnouncement(input.body)}<p>${signature}</p>${input.unsubscribeUrl ? `<p><a href="${input.unsubscribeUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Unsubscribe from announcement emails</a></p>` : ''}</div>`,
+  });
+  if (!result.accepted?.length) throw new Error('SMTP did not accept the announcement recipient');
+  return true;
 }
 
 interface Mail {

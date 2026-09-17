@@ -48,6 +48,8 @@ import AdminEditEventPage from './pages/admin/AdminEditEventPage';
 import AdminInquiriesPage from './pages/admin/AdminInquiriesPage';
 import AdminAuditLogPage from './pages/admin/AdminAuditLogPage';
 import AdminAnnouncementsPage from './pages/admin/AdminAnnouncementsPage';
+import NotificationsPage from './pages/member/NotificationsPage';
+import AnnouncementUnsubscribePage from './pages/public/AnnouncementUnsubscribePage';
 import AdminReportsPage from './pages/admin/AdminReportsPage';
 import AdminProfilePage from './pages/admin/AdminProfilePage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
@@ -73,6 +75,7 @@ export default function App() {
       <Route path="register" element={<RegisterPage />} />
       <Route path="forgot-password" element={<LoginPage />} />
       <Route path="reset-password" element={<LoginPage />} />
+      <Route path="announcements/unsubscribe" element={<AnnouncementUnsubscribePage />} />
 
       <Route path="dashboard" element={<RequireAuth role="MEMBER"><MemberLayout /></RequireAuth>}>
         <Route index element={<DashboardHomePage />} />
@@ -82,6 +85,7 @@ export default function App() {
         <Route path="projects/:id" element={<MemberProjectsPage />} />
         <Route path="messages" element={<MessagesPage />} />
         <Route path="documents" element={<DocumentExchangePage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="publications" element={<MemberPublicationsPage />} />
         <Route path="gallery" element={<MemberGalleryPage />} />
         <Route path="community" element={<CommunityPage />} />

@@ -54,6 +54,9 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   /** Envelope From. Falls back to SMTP_USER when unset. */
   MAIL_FROM: z.string().optional(),
+  SAB_PREVIEW_EMAILS: z.string().default('').transform(value => [...new Set(value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean))]).pipe(z.array(z.string().email()).max(50)),
+  ANNOUNCEMENT_WORKER_ENABLED: z.enum(['true', 'false']).default('true').transform(v => v === 'true'),
+  ANNOUNCEMENT_WEB_URL: z.string().url().optional(),
 
   // --- One-time passcodes ---------------------------------------------------
   OTP_TTL_MINUTES: z.coerce.number().int().positive().default(10),

@@ -7,6 +7,8 @@ import publicRoutes from './public.routes';
 import contactRoutes from './contact.routes';
 import publicationsPublicRoutes from './publications.routes';
 import filesRoutes from './files.routes';
+import announcementRoutes from './announcements.routes';
+import notificationRoutes, { unsubscribeRouter } from './notifications.routes';
 
 /**
  * API v1 router (spec §39).
@@ -32,6 +34,9 @@ router.use('/publications', publicationsPublicRoutes);
 router.use('/auth', authRoutes);
 router.use('/files', filesRoutes);
 router.use('/members', memberRoutes);
+router.use('/admin/announcements', announcementRoutes);
 router.use('/admin', adminRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/announcements/unsubscribe', unsubscribeRouter);
 
 export default router;

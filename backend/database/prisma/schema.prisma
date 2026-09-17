@@ -88,6 +88,9 @@ enum AnnouncementStatus {
   SENDING
   SENT
   CANCELLED
+  PARTIAL
+  FAILED
+  SUPPRESSED
 }
 
 enum NotificationStatus {
@@ -136,6 +139,7 @@ model User {
   documentExchange        DocumentExchange?
   attachmentOpens         AttachmentOpen[]
   notifications           Notification[]
+  announcementPreference  AnnouncementPreference?
   auditEntries            AuditLog[]                @relation("AuditActor")
   createdEvents           Event[]                   @relation("EventCreator")
   announcements           Announcement[]            @relation("AnnouncementAuthor")
@@ -967,10 +971,24 @@ model Announcement {
   scheduledAt       DateTime?
   sentAt            DateTime?
   appendUnsubscribe Boolean                @default(true)
+  managed           Boolean                @default(false)
+  senderAsCRO       Boolean                @default(true)
+  timezone          String                 @default("UTC")
+  revision          Int                    @default(1)
+  sendSABPreview    Boolean                @default(false)
+  previewRevision   Int?
+  signedOffRevision Int?
+  signedOffBy       String?
+  signedOffAt       DateTime?
+  dispatchStartedAt DateTime?
+  completedAt       DateTime?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
   author            User?                  @relation("AnnouncementAuthor", fields: [authorId], references: [id])
   deliveries        AnnouncementDelivery[]
+  operations        AnnouncementOperation[]
+
+  @@index([managed, status, scheduledAt])
 }
 
 model AnnouncementDelivery {
@@ -982,7 +1000,40 @@ model AnnouncementDelivery {
   openedAt        DateTime?
   clickedAt       DateTime?
   createdAt       DateTime     @default(now())
+  key             String?      @unique
+  channel         String       @default("LEGACY")
+  purpose         String       @default("BROADCAST")
+  revision        Int?
+  attempts        Int          @default(0)
+  dueAt           DateTime     @default(now())
+  lockedAt        DateTime?
+  claimToken      String?
+  deliveredAt     DateTime?
+  error           String?      @db.Text
   announcement    Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  notification    Notification?
+
+  @@index([status, dueAt])
+  @@index([announcementId, purpose, revision])
+  @@index([recipientUserId, channel, status])
+}
+
+model AnnouncementOperation {
+  id             String       @id @default(cuid())
+  actorId        String
+  requestId      String
+  fingerprint    String
+  announcementId String
+  createdAt      DateTime     @default(now())
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  @@unique([actorId, requestId])
+}
+
+model AnnouncementPreference {
+  userId       String   @id
+  emailEnabled Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
@@ -995,6 +1046,8 @@ model Notification {
   link      String?
   createdAt DateTime           @default(now())
   readAt    DateTime?
+  announcementDeliveryId String? @unique
+  announcementDelivery AnnouncementDelivery? @relation(fields: [announcementDeliveryId], references: [id], onDelete: SetNull)
   user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status, createdAt])

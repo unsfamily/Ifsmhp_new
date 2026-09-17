@@ -2665,31 +2665,6 @@ export async function changeInquiryStatus(id: string, actorId: string, status: '
   return { status };
 }
 
-export async function adminAnnouncements(req: Request) {
-  const pagination = parsePage(req);
-  const rows = await prisma.announcement.findMany({ include: { author: true, deliveries: true }, orderBy: { updatedAt: 'desc' }, ...toSkipTake(pagination) });
-  const total = await prisma.announcement.count();
-  return buildPaginatedResult(rows.map((a) => ({ ...a, preview: a.body.slice(0, 180), recipients: a.deliveries.length.toString(), author: a.author?.fullName ?? 'System' })), total, pagination);
-}
-
-export async function createAnnouncement(actorId: string, input: { subject: string; body: string; audience: string; channel: string; scheduleMode?: string; scheduledAt?: string; appendUnsubscribe?: boolean }) {
-  const status = input.scheduleMode === 'now' ? 'SENT' : input.scheduleMode === 'scheduled' ? 'SCHEDULED' : 'DRAFT';
-  const announcement = await prisma.announcement.create({
-    data: {
-      authorId: actorId,
-      subject: input.subject,
-      body: input.body,
-      audience: input.audience,
-      channel: input.channel,
-      status,
-      scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
-      sentAt: status === 'SENT' ? new Date() : null,
-      appendUnsubscribe: input.appendUnsubscribe ?? true,
-    },
-  });
-  await writeAudit({ actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'AnnouncementCreated', entity: `Announcement ${announcement.id}`, severity: status === 'SENT' ? 'SUCCESS' : 'INFO', description: announcement.subject });
-  return announcement;
-}
 
 export async function adminAuditLog(req: Request) {
   const pagination = parsePage(req);

@@ -77,15 +77,6 @@ const messageBody = z.object({
   })).max(5, 'Add no more than 5 links').default([]),
 }).strict();
 const inquiryReplyBody = z.object({ text: z.string().min(1).max(8000) });
-const announcementBody = z.object({
-  subject: z.string().min(2).max(220),
-  body: z.string().min(2).max(20000),
-  audience: z.string().default('All Members'),
-  channel: z.string().default('email'),
-  scheduleMode: z.enum(['draft', 'now', 'scheduled']).optional(),
-  scheduledAt: z.string().optional(),
-  appendUnsubscribe: z.boolean().optional(),
-});
 
 router.use(requireAuth, requireRole('ADMIN'));
 
@@ -284,13 +275,6 @@ router.post('/inquiries/:id/spam', validate({ params: idParams, body: noteBody }
   sendSuccess(res, await service.changeInquiryStatus(req.params.id!, req.user!.id, 'SPAM', req.body?.reason), 'Marked as spam');
 }));
 
-router.get('/announcements', asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.adminAnnouncements(req), 'Announcements list');
-}));
-
-router.post('/announcements', validate({ body: announcementBody }), asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.createAnnouncement(req.user!.id, req.body), 'Announcement saved', 201);
-}));
 
 router.get('/gallery', asyncHandler(async (req, res) => {
   sendSuccess(res, await service.gallery(req, true), 'Gallery assets');

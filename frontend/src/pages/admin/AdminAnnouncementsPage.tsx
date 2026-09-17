@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Megaphone,
   Search,
@@ -18,7 +18,6 @@ import {
   AlertCircle,
   AlertTriangle,
   Check,
-  Sparkles,
   History,
   FileText,
   Ban,
@@ -35,199 +34,53 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { SelectInput, TextInput, TextArea, Checkbox } from '../../components/common/Input';
 
-type Audience = 'All' | 'All Members' | 'Members Only' | 'Scientists Track' | 'Professionals Track' | 'Pending Applicants' | 'Newsletter (Public)';
-type Status = 'All' | 'Draft' | 'Scheduled' | 'Sending' | 'Sent' | 'Cancelled';
-type Channel = 'Email + In-App' | 'Email' | 'In-App Only';
-type ScheduleMode = 'now' | 'scheduled' | 'draft';
-
-interface Announcement {
-  id: string;
-  subject: string;
-  preview: string;
-  audience: Exclude<Audience, 'All'>;
-  recipients: string;
-  sentAt?: string;
-  scheduledFor?: string;
-  status: Exclude<Status, 'All'>;
-  channel: Channel;
-  author: string;
-  openRate?: string;
-  linkClicks?: number;
-}
-
-interface ComposerState {
-  subject: string;
-  body: string;
-  audience: Exclude<Audience, 'All'>;
-  channel: Channel;
-  scheduleMode: ScheduleMode;
-  scheduledAt: string;
-  senderAsCRO: boolean;
-  appendUnsubscribe: boolean;
-  sendSABPreview: boolean;
-}
-
-const EMPTY_COMPOSER: ComposerState = {
-  subject: '', body: '', audience: 'All Members', channel: 'Email + In-App',
-  scheduleMode: 'draft', scheduledAt: '', senderAsCRO: true, appendUnsubscribe: true, sendSABPreview: false,
-};
-
-const announcements: Announcement[] = [
-  { id: 'ann-20', subject: '2026 Annual Symposium — Early-bird registration opens August 23', preview: 'Dear IFSMHP community — Registration opens Sunday, August 23rd. The first 100 registrants receive free admission to the Sunday SAB meeting and a €50 gift code toward the CRO grant submission…', audience: 'All Members', recipients: '277 members + 1,204 newsletter', status: 'Scheduled', scheduledFor: 'Aug 23, 2026 · 08:00 UTC', channel: 'Email + In-App', author: 'Communications' },
-  { id: 'ann-19', subject: 'Welcome aboard — 14 new members approved this week', preview: 'Warm welcome to the 14 researchers and clinicians approved between August 14 and 20. Member IDs and welcome messages have been sent. Check the Members page for details.', audience: 'All Members', recipients: '277 members', sentAt: 'Aug 21, 2026 · 06:00 UTC', status: 'Sent', channel: 'In-App Only', author: 'CRO Office', openRate: '94%', linkClicks: 148 },
-  { id: 'ann-18', subject: 'Publication SLA update — average review time 6.2 days', preview: 'The review queue is running well below the 10-day SLA target for a third consecutive month. Thank you to our SAB reviewers — the next CRO roadmap discusses reducing this further to 5 days by year-end.', audience: 'All Members', recipients: '277 members', sentAt: 'Aug 19, 2026 · 10:00 UTC', status: 'Sent', channel: 'Email + In-App', author: 'CRO Office', openRate: '86%', linkClicks: 312 },
-  { id: 'ann-17', subject: 'Important — Credential document viewer downtime 30 min Aug 20', preview: 'Scheduled maintenance window Saturday, August 20, 02:30 UTC. Credential viewing and document downloads will be unavailable for approximately 30 minutes during a storage endpoint upgrade.', audience: 'All Members', recipients: '277 members', sentAt: 'Aug 18, 2026 · 14:30 UTC', status: 'Sent', channel: 'Email', author: 'System Operations', openRate: '72%', linkClicks: 44 },
-  { id: 'ann-16', subject: 'Reminder: Public Lecture — Digital Mental Health Evidence', preview: 'The public lecture on digital mental health evidence base is November 4th at 18:00 UTC. Registration is now open. Speakers include Prof. Lindberg and CRO Whitfield.', audience: 'Newsletter (Public)', recipients: '1,204 newsletter subscribers', status: 'Draft', channel: 'Email', author: 'Communications' },
-  { id: 'ann-15', subject: 'Moral Support Program — new peer group starting', preview: 'A new quarterly peer support group is forming for early-career members. Contact the Wellness Committee to join.', audience: 'Members Only', recipients: '277', sentAt: 'Aug 10, 2026 · 12:00 UTC', status: 'Sent', channel: 'In-App Only', author: 'Wellness', openRate: '62%' },
-];
+import { announcementApi, announcementSchema, ANNOUNCEMENT_AUDIENCES as AUDIENCE_OPTS, ANNOUNCEMENT_CHANNELS as CHANNEL_OPTS, ANNOUNCEMENT_STATUSES, type Audience, type Status, type Channel, type Announcement } from '../../api/announcements';
+import { usePolledApiData } from '../../hooks/usePolledApiData';
+import { useAnnouncementComposer, composerInput } from '../../hooks/useAnnouncementComposer';
+import AnnouncementDetail from '../../components/announcements/AnnouncementDetail';
+import Pagination from '../../components/announcements/Pagination';
 
 const statusVariant: Record<Exclude<Status, 'All'>, 'warning' | 'brass' | 'info' | 'success' | 'danger' | 'default'> = {
-  Draft: 'warning', Scheduled: 'brass', Sending: 'info', Sent: 'success', Cancelled: 'danger',
+  Draft: 'warning', Scheduled: 'brass', Sending: 'info', Sent: 'success', Cancelled: 'danger', Partial: 'warning', Failed: 'danger', Suppressed: 'default',
 };
-
-const AUDIENCE_OPTS: Exclude<Audience, 'All'>[] = ['All Members', 'Members Only', 'Scientists Track', 'Professionals Track', 'Pending Applicants', 'Newsletter (Public)'];
-const CHANNEL_OPTS: Channel[] = ['Email + In-App', 'Email', 'In-App Only'];
-
-interface Errors {
-  subject?: string;
-  body?: string;
-  audience?: string;
-  scheduledAt?: string;
-}
-
-function validateComposer(s: ComposerState): Errors {
-  const e: Errors = {};
-  if (!s.subject.trim()) e.subject = 'Subject is required for all broadcasts.';
-  else if (s.subject.trim().length > 80 && s.channel !== 'In-App Only') e.subject = 'Subject exceeds the 80-character limit recommended for email deliverability.';
-  if (!s.body.trim()) e.body = 'Message body is required.';
-  else if (s.body.trim().length < 20) e.body = 'Message body is too short — add at least 20 characters.';
-  if (!s.audience) e.audience = 'Select an audience for this announcement.';
-  if (s.scheduleMode === 'scheduled' && !s.scheduledAt) e.scheduledAt = 'Pick a date/time to schedule this broadcast.';
-  if (s.audience === 'Newsletter (Public)' && !s.appendUnsubscribe) e.audience = 'Public newsletter emails require an unsubscribe footer by law.';
-  return e;
-}
-
-function previewLine(p: string) {
-  return p.length > 160 ? p.slice(0, 160) + '…' : p;
-}
+const previewLine = (text: string) => text.length > 160 ? text.slice(0, 160) + '...' : text;
+const dateLabel = (date: string | null, zone?: string) => date ? new Date(date).toLocaleString(undefined, { timeZone: zone, timeZoneName: 'short' }) : 'Not recorded';
 
 export default function AdminAnnouncementsPage() {
   const [tab, setTab] = useState<Status>('All');
   const [audienceFilter, setAudienceFilter] = useState<Audience>('All');
   const [search, setSearch] = useState('');
-  const [showComposer, setShowComposer] = useState(false);
-  const [composer, setComposer] = useState<ComposerState>(EMPTY_COMPOSER);
-  const [touched, setTouched] = useState<Partial<Record<keyof ComposerState, boolean>>>({});
-  const [result, setResult] = useState<null | { kind: 'saved' | 'scheduled' | 'sent' | 'preview-sab'; id?: string; at?: string }>(null);
-  const [confirmCancelSchedule, setConfirmCancelSchedule] = useState<string | null>(null);
-
-  const errors = useMemo(() => validateComposer(composer), [composer]);
-  const isValid = Object.keys(errors).length === 0;
-  const err = (k: keyof Errors) => touched[k as keyof ComposerState] || Object.keys(touched).length > 0 ? errors[k] : undefined;
-
-  const tabCounts = {
-    All: announcements.length,
-    Draft: announcements.filter((a) => a.status === 'Draft').length,
-    Scheduled: announcements.filter((a) => a.status === 'Scheduled').length,
-    Sending: announcements.filter((a) => a.status === 'Sending').length,
-    Sent: announcements.filter((a) => a.status === 'Sent').length,
-    Cancelled: announcements.filter((a) => a.status === 'Cancelled').length,
-  };
-
-  const filtered = announcements.filter((a) => {
-    if (tab !== 'All' && a.status !== tab) return false;
-    if (audienceFilter !== 'All' && a.audience !== audienceFilter) return false;
-    if (search && !(a.subject.toLowerCase().includes(search.toLowerCase()) || a.preview.toLowerCase().includes(search.toLowerCase()))) return false;
-    return true;
-  });
-
-  const touchAll = () => {
-    const allTouched: Record<keyof ComposerState, boolean> = {
-      subject: true, body: true, audience: true, channel: true,
-      scheduleMode: true, scheduledAt: true, senderAsCRO: true, appendUnsubscribe: true, sendSABPreview: true,
-    };
-    setTouched(allTouched);
-  };
-
-  const update = <K extends keyof ComposerState>(k: K, v: ComposerState[K]) => {
-    setComposer((c) => ({ ...c, [k]: v }));
-    setTouched((t) => ({ ...t, [k]: true }));
-  };
-
-  const estimatedRecipients = (() => {
-    switch (composer.audience) {
-      case 'All Members': return '~ 277 members (+ 1,204 newsletter if public)';
-      case 'Members Only': return '~ 277 members';
-      case 'Scientists Track': return '~ 94 members';
-      case 'Professionals Track': return '~ 71 members';
-      case 'Pending Applicants': return '~ 6 pending';
-      case 'Newsletter (Public)': return '~ 1,204 public subscribers';
-      default: return '—';
-    }
-  })();
-
-  const audienceCountEstimate = (a: Exclude<Audience, 'All'>) => {
-    switch (a) {
-      case 'All Members': return 277;
-      case 'Members Only': return 277;
-      case 'Scientists Track': return 94;
-      case 'Professionals Track': return 71;
-      case 'Pending Applicants': return 6;
-      case 'Newsletter (Public)': return 1204;
-    }
-  };
-
-  const saveDraft = () => {
-    if (!composer.subject.trim() && !composer.body.trim()) return;
-    setResult({ kind: 'saved', id: `ann-draft-${Date.now()}`, at: new Date().toLocaleString() });
-    setTimeout(() => setResult(null), 3500);
-  };
-
-  const submit = (kind: 'send-now' | 'schedule' | 'sab-preview') => {
-    touchAll();
-    if (kind === 'sab-preview') {
-      setResult({ kind: 'preview-sab', at: new Date().toLocaleString() });
-      setTimeout(() => setResult(null), 3500);
-      return;
-    }
-    if (!isValid) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    if (kind === 'send-now') setResult({ kind: 'sent', id: `ann-${Date.now()}`, at: new Date().toLocaleString() });
-    if (kind === 'schedule') setResult({ kind: 'scheduled', id: `ann-${Date.now()}`, at: composer.scheduledAt });
-    setTimeout(() => { setResult(null); setShowComposer(false); setComposer(EMPTY_COMPOSER); setTouched({}); }, 2800);
-  };
-
-  const openDraft = (a: Announcement) => {
-    setComposer({
-      subject: a.subject,
-      body: a.preview,
-      audience: a.audience,
-      channel: a.channel,
-      scheduleMode: a.status === 'Scheduled' ? 'scheduled' : 'draft',
-      scheduledAt: a.scheduledFor ?? '',
-      senderAsCRO: a.author === 'CRO Office',
-      appendUnsubscribe: a.audience === 'Newsletter (Public)',
-      sendSABPreview: false,
-    });
-    setShowComposer(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [confirmCancelSchedule, setConfirmCancelSchedule] = useState<Announcement | null>(null);
+  useEffect(() => { const timer = setTimeout(() => { setQuery(search); setPage(1); }, 300); return () => clearTimeout(timer); }, [search]);
+  const listing = usePolledApiData(() => announcementApi.list({ page, limit, q: query, status: tab, audience: audienceFilter }), [page, limit, query, tab, audienceFilter], 30000);
+  const options = usePolledApiData(announcementApi.options, [], 60000);
+  const form = useAnnouncementComposer(listing.refresh);
+  const { composer, showComposer, setShowComposer, errors, busy, update, openDraft } = form;
+  const err = (key: string) => errors[key];
+  const isValid = announcementSchema(composer.scheduleMode === 'scheduled' ? 'schedule' : 'send').safeParse(composerInput(composer)).success;
+  const tabCounts = listing.data?.counts ?? Object.fromEntries(ANNOUNCEMENT_STATUSES.map(s => [s, 0])) as Record<Status, number>;
+  const filtered = listing.data?.items ?? [];
+  const audienceCountEstimate = (audience: Exclude<Audience, 'All'>) => { const estimate = options.data?.audiences.find(a => a.name === audience); return (composer.channel === 'Email' ? estimate?.email : estimate?.total) ?? 0; };
+  const estimatedRecipients = options.data ? audienceCountEstimate(composer.audience).toLocaleString() : 'Loading...';
+  const saveDraft = () => void form.run('draft');
+  const submit = (kind: 'send-now' | 'schedule' | 'sab-preview') => void form.run(kind === 'send-now' ? 'send' : kind === 'sab-preview' ? 'preview' : 'schedule');
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">
         <div className="flex-1 max-w-3xl">
           <div className="flex flex-wrap items-center gap-2 text-xs text-ink-subtle mb-2">
-            <Badge variant="brass"><Sparkles className="h-2.5 w-2.5 mr-1" />[DEMO DATA — API pending]</Badge>
             <Link to="/admin" className="inline-flex items-center gap-1 text-forum-700 font-medium hover:underline">
               <ChevronRight className="h-3 w-3 rotate-180" /> Admin home
             </Link>
           </div>
           <h1 className="font-display text-2xl sm:text-3xl font-semibold text-forum-900 leading-tight">Announcements &amp; Platform Notifications</h1>
           <p className="mt-1.5 text-ink-muted text-base leading-relaxed">
-            Draft, schedule, and send emails and in-app notifications to members, applicants, and the public newsletter. All broadcasts recorded in the audit log and require CRO signature.
+            Member announcements and applicant communications.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
@@ -239,10 +92,10 @@ export default function AdminAnnouncementsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Total Announcements', value: '147', icon: Megaphone, color: 'forum', note: '+ 3 in-flight today' },
+          { label: 'Total Announcements', value: listing.data ? String(tabCounts.All) : '-', icon: Megaphone, color: 'forum', note: `${tabCounts.Sending} in progress` },
           { label: 'Scheduled', value: tabCounts.Scheduled.toString(), icon: CalendarClock, color: 'brass', note: `${tabCounts.Draft} drafts awaiting` },
-          { label: 'Avg. Open Rate', value: '78%', icon: Eye, color: 'slateteal', note: 'Email broadcasts last 30 days' },
-          { label: 'This Month Sent', value: tabCounts.Sent.toString(), icon: CheckCircle2, color: 'forum', note: 'Delivered ~11,000 messages' },
+          { label: 'In-App Read Rate', value: listing.data?.stats.inAppReadRate == null ? '-' : `${listing.data.stats.inAppReadRate}%`, icon: Eye, color: 'slateteal', note: 'Delivered in-app notifications this month' },
+          { label: 'This Month Sent', value: String(listing.data?.stats.monthSent ?? '-'), icon: CheckCircle2, color: 'forum', note: `${listing.data?.stats.delivered ?? '-'} channel deliveries this month` },
         ].map((k) => {
           const Icon = k.icon;
           const bg = { forum: 'bg-forum-50 text-forum-700', slateteal: 'bg-slateteal-100 text-slateteal-700', brass: 'bg-brass-100 text-brass-700' }[k.color as 'forum' | 'slateteal' | 'brass'];
@@ -259,53 +112,17 @@ export default function AdminAnnouncementsPage() {
         })}
       </div>
 
-      {result && (
-        <div className={`rounded-lg border p-3.5 flex items-start gap-2.5 ${
-          result.kind === 'sent' ? 'border-success-600/30 bg-success-50' :
-          result.kind === 'scheduled' ? 'border-brass-500/40 bg-brass-50' :
-          result.kind === 'preview-sab' ? 'border-forum-600/30 bg-forum-50' :
-          'border-paper-border bg-paper'
-        }`}>
-          <CheckCircle2 className={`h-5 w-5 shrink-0 mt-0.5 ${
-            result.kind === 'sent' ? 'text-success-600' :
-            result.kind === 'scheduled' ? 'text-brass-700' :
-            'text-forum-700'
-          }`} />
-          <div className="text-sm">
-            {result.kind === 'sent' && (
-              <>
-                <p className="font-semibold text-success-800">Broadcast sent</p>
-                <p className="text-xs text-success-700/90 mt-0.5">Reference {result.id} · queued immediately. Audience {composer.audience} · channel {composer.channel}. Audit entry created.</p>
-              </>
-            )}
-            {result.kind === 'scheduled' && (
-              <>
-                <p className="font-semibold text-brass-800">Broadcast scheduled</p>
-                <p className="text-xs text-brass-700/90 mt-0.5">Reference {result.id} · will send at {result.at || composer.scheduledAt}.</p>
-              </>
-            )}
-            {result.kind === 'saved' && (
-              <>
-                <p className="font-semibold text-ink">Draft saved</p>
-                <p className="text-xs text-ink-subtle mt-0.5">Reference {result.id} · edit any time before sending. Saved at {result.at}.</p>
-              </>
-            )}
-            {result.kind === 'preview-sab' && (
-              <>
-                <p className="font-semibold text-forum-900">SAB preview dispatched</p>
-                <p className="text-xs text-ink-muted mt-0.5">A preview has been sent to Scientific Advisory Board members (current sign-off list) at {result.at}. Proceed to broadcast once you have confirmations.</p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      {form.result && <p role="status" className="rounded-lg border border-success-600/30 bg-success-50 p-3.5 text-sm text-success-800">{form.result}</p>}
+      {form.error && <div role="alert" className="rounded-lg border border-danger-600/30 bg-danger-50 p-3.5 text-sm text-danger-800">{form.error}{form.stale && form.record && <Button variant="outline" disabled={busy} onClick={() => void openDraft(form.record!)}>Reload saved draft</Button>}</div>}
+      {(listing.error || options.error) && <div role="alert" className="text-sm text-danger-600">{listing.error || options.error}<Button variant="outline" onClick={() => { listing.refresh(); options.refresh(); }}>Retry</Button></div>}
+      {options.data && (!options.data.smtpConfigured || !options.data.workerEnabled) && <p className="text-sm text-warning-600">{!options.data.smtpConfigured && 'Email delivery is unconfigured. '}{!options.data.workerEnabled && 'Delivery worker is disabled.'}</p>}
 
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex gap-1 rounded-lg bg-forum-50 p-1 overflow-x-auto">
               {(['All', 'Draft', 'Scheduled', 'Sent'] as Status[]).map((t) => (
-                <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium capitalize transition-colors whitespace-nowrap ${tab === t ? 'bg-paper-raised text-forum-900 shadow-sm ring-1 ring-paper-border' : 'text-ink-muted hover:text-forum-900'}`}>
+                <button key={t} onClick={() => { setTab(t); setPage(1); }} className={`rounded-md px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium capitalize transition-colors whitespace-nowrap ${tab === t ? 'bg-paper-raised text-forum-900 shadow-sm ring-1 ring-paper-border' : 'text-ink-muted hover:text-forum-900'}`}>
                   {t} ({tabCounts[t]})
                 </button>
               ))}
@@ -315,10 +132,11 @@ export default function AdminAnnouncementsPage() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
                 <TextInput placeholder="Search announcements…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 [&>input]:pl-9" />
               </div>
-              <SelectInput value={audienceFilter} onChange={(e) => setAudienceFilter(e.target.value as Audience)} className="w-full sm:w-44 hidden md:block">
+              <SelectInput value={audienceFilter} aria-label="Filter audience" onChange={(e) => { setAudienceFilter(e.target.value as Audience); setPage(1); }} className="w-full sm:w-44">
                 {(['All', ...AUDIENCE_OPTS] as Audience[]).map((v) => <option key={v} value={v}>{v === 'All' ? 'All Audiences' : v}</option>)}
               </SelectInput>
-              <Button variant="primary" onClick={() => setShowComposer((v) => !v)}>
+              <SelectInput aria-label="Filter status" value={tab} onChange={e => { setTab(e.target.value as Status); setPage(1); }} className="w-full sm:w-36">{ANNOUNCEMENT_STATUSES.map(s => <option key={s}>{s}</option>)}</SelectInput>
+              <Button variant="primary" disabled={busy} onClick={() => { if (!showComposer) form.reset(); setShowComposer(!showComposer); }}>
                 <Plus className="h-4 w-4" />
                 {showComposer ? 'Close Composer' : 'New Announcement'}
               </Button>
@@ -327,7 +145,7 @@ export default function AdminAnnouncementsPage() {
         </CardHeader>
         <CardContent className="pt-0 space-y-5">
           {showComposer && (
-            <div className="mb-3 rounded-xl border border-forum-600/30 bg-gradient-to-br from-forum-50 to-brass-100/60 p-5 sm:p-6">
+            <fieldset disabled={busy} className="min-w-0 mb-3 rounded-xl border border-forum-600/30 bg-gradient-to-br from-forum-50 to-brass-100/60 p-5 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
                 <div className="flex items-start gap-3">
                   <div className="h-11 w-11 shrink-0 rounded-lg bg-brass-100 text-brass-700 flex items-center justify-center">
@@ -338,12 +156,12 @@ export default function AdminAnnouncementsPage() {
                     <p className="text-xs text-ink-subtle mt-0.5">Target up to <span className="font-semibold text-forum-900">{audienceCountEstimate(composer.audience).toLocaleString()} recipients</span> via {composer.channel.toLowerCase()}.</p>
                   </div>
                 </div>
-                <button onClick={() => { setShowComposer(false); setTouched({}); }} className="p-1.5 rounded-md text-ink-muted hover:bg-paper-raised self-start" aria-label="Close composer">
+                <button onClick={() => { setShowComposer(false);  }} className="p-1.5 rounded-md text-ink-muted hover:bg-paper-raised self-start" aria-label="Close composer">
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              {(Object.keys(touched).length > 0 && !isValid) && (
+              {Object.values(errors).some(Boolean) && (
                 <div className="rounded-lg border border-danger-600/30 bg-danger-50 p-3.5 mb-5">
                   <div className="flex items-start gap-2.5">
                     <AlertCircle className="h-4.5 w-4.5 text-danger-600 shrink-0 mt-0.5" />
@@ -381,7 +199,7 @@ export default function AdminAnnouncementsPage() {
                     <p className="text-xs font-semibold uppercase tracking-wider text-ink-subtle flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-brass-700" /> Sender Options</p>
                     <div className="grid gap-3 sm:grid-cols-1">
                       <Checkbox id="from-cro" name="from-cro" label="Sign from CRO Office (otherwise sent by Communications team)." checked={composer.senderAsCRO} onChange={(e) => update('senderAsCRO', (e.target as HTMLInputElement).checked)} />
-                      <Checkbox id="append-unsub" name="append-unsub" label="Include unsubscribe footer (required for Newsletter — Public)." checked={composer.appendUnsubscribe} onChange={(e) => update('appendUnsubscribe', (e.target as HTMLInputElement).checked)} />
+                      <Checkbox id="append-unsub" name="append-unsub" label="Include announcement-email unsubscribe footer." checked={composer.appendUnsubscribe} onChange={(e) => update('appendUnsubscribe', (e.target as HTMLInputElement).checked)} />
                       <Checkbox id="sab-approval" name="sab-approval" label="Send SAB preview first — wait for sign-off before scheduling full broadcast." checked={composer.sendSABPreview} onChange={(e) => update('sendSABPreview', (e.target as HTMLInputElement).checked)} />
                     </div>
                   </div>
@@ -393,10 +211,10 @@ export default function AdminAnnouncementsPage() {
                     </CardHeader>
                     <CardContent className="pt-0 space-y-4">
                       <SelectInput label={<>Audience <span className="text-danger-600">*</span></>} value={composer.audience} onChange={(e) => update('audience', e.target.value as Exclude<Audience, 'All'>)} error={err('audience')}>
-                        {AUDIENCE_OPTS.map((a) => <option key={a} value={a}>{a} (est. {audienceCountEstimate(a).toLocaleString()})</option>)}
+                        {AUDIENCE_OPTS.map((a) => <option key={a} value={a} disabled={a === 'Newsletter (Public)'}>{a === 'Newsletter (Public)' ? 'Newsletter (Public) - unavailable' : `${a} (est. ${audienceCountEstimate(a).toLocaleString()})`}</option>)}
                       </SelectInput>
-                      <SelectInput label="Delivery Channel" value={composer.channel} onChange={(e) => update('channel', e.target.value as Channel)}>
-                        {CHANNEL_OPTS.map((c) => <option key={c}>{c}</option>)}
+                      <SelectInput label="Delivery Channel" error={err('channel')} value={composer.channel} onChange={(e) => update('channel', e.target.value as Channel)}>
+                        {CHANNEL_OPTS.map((c) => <option key={c} disabled={composer.audience === 'Pending Applicants' && c !== 'Email'}>{c}</option>)}
                       </SelectInput>
                       <div>
                         <label className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-1.5 block">Send Timing</label>
@@ -422,7 +240,8 @@ export default function AdminAnnouncementsPage() {
                               <p className="text-xs text-ink-subtle">Queue for a specific date and time.</p>
                               {composer.scheduleMode === 'scheduled' && (
                                 <div className="mt-2">
-                                  <TextInput type="datetime-local" value={composer.scheduledAt} onChange={(e) => update('scheduledAt', e.target.value)} error={err('scheduledAt')} />
+                                  <TextInput label="Send date and time" type="datetime-local" value={composer.scheduledAt} onChange={(e) => update('scheduledAt', e.target.value)} error={err('scheduledAt')} />
+                                  <TextInput label="Timezone (IANA)" value={composer.timezone} onChange={e => update('timezone', e.target.value)} error={err('timezone')} />
                                 </div>
                               )}
                             </div>
@@ -439,7 +258,7 @@ export default function AdminAnnouncementsPage() {
                       <div className="flex justify-between items-center gap-2"><span>Subject filled</span>{composer.subject.trim() ? <Check className="h-3.5 w-3.5 text-success-600" /> : <X className="h-3.5 w-3.5 text-danger-500" />}</div>
                       <div className="flex justify-between items-center gap-2"><span>Body ≥ 20 chars</span>{composer.body.trim().length >= 20 ? <Check className="h-3.5 w-3.5 text-success-600" /> : <X className="h-3.5 w-3.5 text-danger-500" />}</div>
                       <div className="flex justify-between items-center gap-2"><span>Audience selected</span>{composer.audience ? <Check className="h-3.5 w-3.5 text-success-600" /> : <X className="h-3.5 w-3.5 text-danger-500" />}</div>
-                      <div className="flex justify-between items-center gap-2"><span>Public + unsubscribe footer</span>{composer.audience !== 'Newsletter (Public)' || composer.appendUnsubscribe ? <Check className="h-3.5 w-3.5 text-success-600" /> : <X className="h-3.5 w-3.5 text-danger-500" />}</div>
+                      <div className="flex justify-between items-center gap-2"><span>Unsubscribe footer</span>{composer.appendUnsubscribe ? <Check className="h-3.5 w-3.5 text-success-600" /> : <X className="h-3.5 w-3.5 text-danger-500" />}</div>
                       {composer.scheduleMode === 'scheduled' && (
                         <div className="flex justify-between items-center gap-2"><span>Schedule date set</span>{composer.scheduledAt ? <Check className="h-3.5 w-3.5 text-success-600" /> : <X className="h-3.5 w-3.5 text-danger-500" />}</div>
                       )}
@@ -463,28 +282,30 @@ export default function AdminAnnouncementsPage() {
                 </div>
               </div>
 
-              <div className="mt-5 flex flex-col sm:flex-row sm:justify-end gap-2 pt-4 border-t border-forum-600/10">
-                <Button variant="ghost" onClick={() => { setComposer(EMPTY_COMPOSER); setTouched({}); }}>
+              <div className="mt-5 flex flex-col sm:flex-row sm:flex-wrap sm:justify-end gap-2 pt-4 border-t border-forum-600/10">
+                <Button variant="ghost" onClick={() => { form.reset();  }}>
                   <Trash2 className="h-4 w-4" /> Clear
                 </Button>
-                <Button variant="ghost" onClick={() => { setShowComposer(false); setTouched({}); }}>Close</Button>
+                <Button variant="ghost" onClick={() => { setShowComposer(false);  }}>Close</Button>
                 <Button variant="outline" onClick={saveDraft}>
                   <Save className="h-4 w-4" />Save Draft
                 </Button>
-                <Button variant="outline" disabled={!composer.subject.trim() || !composer.body.trim()} onClick={() => submit('sab-preview')}>
+                <Button variant="outline" disabled={!options.data?.sabRecipients} onClick={() => submit('sab-preview')}>
                   <ShieldCheck className="h-4 w-4" />Send SAB Preview
                 </Button>
                 <Button
                   variant="primary"
-                  disabled={!isValid || composer.scheduleMode === 'draft'}
+                  disabled={composer.scheduleMode === 'draft'}
                   onClick={() => submit(composer.scheduleMode === 'scheduled' ? 'schedule' : 'send-now')}
                 >
                   {composer.scheduleMode === 'scheduled' ? <><CalendarClock className="h-4 w-4" />Schedule Broadcast</> : composer.scheduleMode === 'draft' ? <><Save className="h-4 w-4" />Draft Mode — save first</> : <><Send className="h-4 w-4" />Broadcast Now</>}
                 </Button>
               </div>
-            </div>
+              {form.record && <Button variant="ghost" onClick={() => setSelected(form.record!.id)}><Eye className="h-4 w-4" />Preview and SAB sign-off</Button>}
+            </fieldset>
           )}
 
+          {listing.initialLoading && <p role="status" className="py-8 text-center text-ink-muted">Loading announcements...</p>}
           <div className="space-y-2.5">
             {filtered.map((a) => (
               <div key={a.id} className="rounded-xl border border-paper-border p-4 sm:p-5 hover:bg-forum-50/30 transition-colors">
@@ -500,7 +321,7 @@ export default function AdminAnnouncementsPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                        <p className="text-base font-semibold text-forum-900 truncate">{a.subject}</p>
+                        <p className="text-base font-semibold text-forum-900 truncate">{a.subject || 'Untitled draft'}</p>
                         <Badge variant={statusVariant[a.status]} className="!py-0">{a.status}</Badge>
                         <code className="font-mono text-[10px] text-ink-subtle bg-paper border border-paper-border px-1.5 py-0.5 rounded uppercase tracking-wider">{a.id}</code>
                       </div>
@@ -511,39 +332,38 @@ export default function AdminAnnouncementsPage() {
                         <span className="inline-flex items-center gap-1">{a.channel.includes('Email') ? <MailIcon className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}{a.channel}</span>
                         <span className="inline-flex items-center gap-1">
                           <Clock className="h-3.5 w-3.5" />
-                          {a.status === 'Scheduled' ? <>Sends {a.scheduledFor}</> : a.sentAt ? <>Sent {a.sentAt}</> : <>Last edited 2h ago</>}
+                          {a.status === 'Scheduled' ? <>Sends {dateLabel(a.scheduledFor, a.timezone)}</> : a.sentAt ? <>Sent {dateLabel(a.sentAt)}</> : <>Edited {dateLabel(a.updatedAt)}</>}
                         </span>
                         <span className="inline-flex items-center gap-1">by {a.author}</span>
-                        {a.openRate && <Badge variant="info" className="!text-[10px] !py-0">Open rate {a.openRate}</Badge>}
-                        {typeof a.linkClicks === 'number' && <Badge variant="default" className="!text-[10px] !py-0">{a.linkClicks} link clicks</Badge>}
+                        {a.delivery.map(d => <Badge key={`${d.channel}-${d.status}`} variant={d.status === 'FAILED' ? 'danger' : 'default'} className="!text-[10px] !py-0">{d.channel === 'IN_APP' ? 'In-app' : d.channel}: {d.count} {d.status.toLowerCase()}</Badge>)}
                       </div>
                     </div>
                   </div>
                   <div className="flex flex-wrap md:flex-col md:items-end gap-2 shrink-0">
                     {a.status === 'Draft' && (
-                      <Button size="sm" variant="outline" className="justify-start" onClick={() => openDraft(a)}>
+                      <Button size="sm" variant="outline" className="justify-start" disabled={busy} onClick={() => void openDraft(a)}>
                         <Copy className="h-3.5 w-3.5" />
                         Edit in Composer
                       </Button>
                     )}
-                    <Button variant="ghost" size="sm" className="justify-start">
+                    <Button variant="ghost" size="sm" className="justify-start" onClick={() => setSelected(a.id)}>
                       <Eye className="h-3.5 w-3.5" />
                       Preview
                     </Button>
                     {a.status === 'Draft' && (
-                      <Button size="sm" variant="primary" className="justify-start">
+                      <Button size="sm" variant="primary" className="justify-start" disabled={busy} onClick={() => void openDraft(a, true)}>
                         <Send className="h-3.5 w-3.5" />
                         Schedule
                       </Button>
                     )}
                     {a.status === 'Scheduled' && (
-                      <Button size="sm" variant="outline" className="border-danger-600/30 text-danger-600 hover:bg-danger-100 justify-start" onClick={() => setConfirmCancelSchedule(a.id)}>
+                      <Button size="sm" variant="outline" className="border-danger-600/30 text-danger-600 hover:bg-danger-100 justify-start" onClick={() => setConfirmCancelSchedule(a)}>
                         <XCircle className="h-3.5 w-3.5" />
                         Cancel Scheduled
                       </Button>
                     )}
-                    {a.status === 'Sent' && (
-                      <Button as="link" to="/admin/reports" variant="outline" size="sm" className="justify-start">
+                    {a.dispatchStartedAt && (
+                      <Button onClick={() => setSelected(a.id)} variant="outline" size="sm" className="justify-start">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         Stats &amp; Engagement
                         <ChevronRight className="h-3.5 w-3.5" />
@@ -553,7 +373,7 @@ export default function AdminAnnouncementsPage() {
                 </div>
               </div>
             ))}
-            {filtered.length === 0 && (
+            {!listing.initialLoading && !listing.error && filtered.length === 0 && (
               <div className="p-10 text-center">
                 <Bell className="h-8 w-8 mx-auto text-paper-border mb-2" />
                 <p className="text-sm text-ink-subtle">No announcements match the current filters.</p>
@@ -563,8 +383,10 @@ export default function AdminAnnouncementsPage() {
               </div>
             )}
           </div>
+          {listing.data && <Pagination meta={listing.data.pagination} page={page} limit={limit} setPage={setPage} setLimit={value => { setLimit(value); setPage(1); }} />}
         </CardContent>
       </Card>
+      {selected && <AnnouncementDetail key={selected} id={selected} close={() => setSelected(null)} changed={listing.refresh} />}
 
       {confirmCancelSchedule && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-forum-900/40 backdrop-blur-sm p-4">
@@ -574,17 +396,18 @@ export default function AdminAnnouncementsPage() {
                 <div className="h-10 w-10 shrink-0 rounded-full bg-warning-100 text-warning-600 flex items-center justify-center"><AlertTriangle className="h-5 w-5" /></div>
                 <div>
                   <h3 className="font-display text-lg font-semibold text-forum-900">Cancel this scheduled broadcast?</h3>
-                  <p className="text-xs text-ink-subtle mt-0.5 font-mono">{confirmCancelSchedule}</p>
+                  <p className="text-xs text-ink-subtle mt-0.5 font-mono">{confirmCancelSchedule.id}</p>
                 </div>
               </div>
               <button onClick={() => setConfirmCancelSchedule(null)} className="p-1.5 rounded-md text-ink-muted hover:bg-forum-50"><X className="h-5 w-5" /></button>
             </div>
+            {form.error && <p role="alert" className="px-5 py-2 text-sm text-danger-600">{form.error}</p>}
             <div className="px-5 py-4 text-sm text-ink-muted">
               Cancelling will remove the scheduled job from the queue. The draft will be preserved so you can reschedule. Members will not be notified.
             </div>
             <div className="border-t border-paper-border px-5 py-3.5 flex flex-col-reverse sm:flex-row justify-end gap-2 bg-paper/60">
               <Button variant="ghost" size="sm" onClick={() => setConfirmCancelSchedule(null)}>Keep scheduled</Button>
-              <Button variant="primary" size="sm" className="bg-danger-600 hover:bg-danger-600/90" onClick={() => { setConfirmCancelSchedule(null); }}>
+              <Button variant="primary" size="sm" className="bg-danger-600 hover:bg-danger-600/90" disabled={busy} onClick={() => { void form.action(confirmCancelSchedule, 'cancel').then(ok => { if (ok) setConfirmCancelSchedule(null); }); }}>
                 <Ban className="h-4 w-4" />Confirm Cancel
               </Button>
             </div>

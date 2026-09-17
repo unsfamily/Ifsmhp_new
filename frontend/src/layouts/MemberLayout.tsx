@@ -23,6 +23,7 @@ import logoImg from '../assets/images/logo.png';
 import { useAuth } from '../context/AuthContext';
 import { memberApi } from '../api/member';
 import { useApiData } from '../hooks/useApiData';
+import NotificationBell from '../components/announcements/NotificationBell';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -31,6 +32,7 @@ const navItems = [
   { to: '/dashboard/projects/upload', label: 'Upload New Project', icon: Upload },
   { to: '/dashboard/messages', label: 'Messages from CRO', icon: MessageSquare, badgeKey: 'unreadMessages' as const },
   { to: '/dashboard/documents', label: 'Document Exchange', icon: FileText },
+  { to: '/dashboard/notifications', label: 'Notifications', icon: Bell },
   { to: '/dashboard/publications', label: 'Published Works', icon: FileText },
   { to: '/dashboard/gallery', label: 'Media Gallery', icon: Images },
   { to: '/dashboard/community', label: 'Community', icon: Users },
@@ -205,14 +207,7 @@ export default function MemberLayout() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="relative inline-flex items-center justify-center rounded-md h-9 w-9 text-ink-muted hover:bg-forum-50 hover:text-forum-700 transition-colors"
-                aria-label="Notifications"
-              >
-                <Bell className="h-4.5 w-4.5" />
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-brass-500 ring-2 ring-paper-raised" />
-              </button>
+              <NotificationBell />
               <Link
                 to="/"
                 className="hidden sm:inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-ink-muted hover:bg-forum-50 hover:text-forum-700 transition-colors"

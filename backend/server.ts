@@ -3,9 +3,11 @@ import { env } from './config';
 import { logger } from './utils/logger';
 import { verifyTransport } from './services/mail.service';
 import { startEventWorker } from './services/event-jobs.service';
+import { startAnnouncementWorker } from './services/announcement-jobs.service';
 
 const app = createApp();
 const stopEventWorker = startEventWorker();
+const stopAnnouncementWorker = startAnnouncementWorker();
 
 const server = app.listen(env.PORT, () => {
   logger.info(`IFSMHP API listening on port ${env.PORT}`, {
@@ -22,6 +24,7 @@ function shutdown(signal: string): void {
   logger.info(`Received ${signal}, shutting down`);
   server.close(async () => {
     await stopEventWorker();
+    await stopAnnouncementWorker();
     logger.info('HTTP server closed');
     process.exit(0);
   });

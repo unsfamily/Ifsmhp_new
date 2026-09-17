@@ -28,9 +28,12 @@ const attachments = (userId: string): Prisma.MessageAttachmentWhereInput => ({ f
 
 async function announcementScope(userId: string): Promise<Prisma.AnnouncementWhereInput> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
-  return { status: 'SENT', sentAt: { lte: new Date() }, OR: [
-    { audience: { in: ['All Members', 'Members Only'] } },
-    { deliveries: { some: { OR: [{ recipientUserId: userId }, { recipientEmail: user.email }] } } },
+  return { OR: [
+    { managed: false, status: 'SENT', sentAt: { lte: new Date() }, OR: [
+      { audience: { in: ['All Members', 'Members Only'] } },
+      { deliveries: { some: { OR: [{ recipientUserId: userId }, { recipientEmail: user.email }] } } },
+    ] },
+    { managed: true, deliveries: { some: { recipientUserId: userId, purpose: 'BROADCAST', channel: 'IN_APP', status: 'SENT' } } },
   ] };
 }
 
