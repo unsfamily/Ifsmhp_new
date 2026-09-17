@@ -38,7 +38,7 @@ function MemberSupportDetail({ id }: { id: string }) {
         <p className="whitespace-pre-wrap text-sm text-ink">{data.description}</p>
         {data.adminResponse && <div className="mt-5 border-t border-paper-border pt-4"><h2 className="mb-2 font-semibold text-forum-900">Admin Response</h2><p className="whitespace-pre-wrap text-sm text-ink-muted">{data.adminResponse}</p></div>}
         {data.attachments.some((file) => file.type === 'application/pdf' || file.type.startsWith('image/')) && <div className="mt-4 flex flex-wrap gap-2">
-          {data.attachments.filter((file) => file.type === 'application/pdf' || file.type.startsWith('image/')).map((file) => <Button key={file.id} size="sm" variant="ghost" title={`Preview ${file.name}`} aria-label={`Preview ${file.name}`} onClick={() => { setFileError(null); void openAttachmentInTab(file.id).catch(() => setFileError('This document is unavailable. Please try again.')); }}><Eye className="h-4 w-4 shrink-0" /><span className="break-all">{file.name}</span></Button>)}
+          {data.attachments.filter((file) => file.type === 'application/pdf' || file.type.startsWith('image/')).map((file) => <Button key={file.id} size="sm" variant="ghost" title={`Preview ${file.name}`} aria-label={`Preview ${file.name}`} onClick={() => { setFileError(null); void openAttachmentInTab(file.id, file.attachmentId).catch(() => setFileError('This document is unavailable. Please try again.')); }}><Eye className="h-4 w-4 shrink-0" /><span className="break-all">{file.name}</span></Button>)}
         </div>}
         {fileError && <p role="alert" className="mt-3 text-sm text-danger-600">{fileError}</p>}
       </CardContent></Card>

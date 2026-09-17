@@ -22,7 +22,7 @@ export interface SupportList {
 export interface SupportDetail extends Omit<SupportRow, 'messages' | 'lastMessage'> {
   description: string; requiredBy: string | null; adminResponse: string | null; institution: string | null;
   messages: ConversationMessage[];
-  attachments: Array<{ id: string; name: string; size: number; type: string; internal: boolean }>;
+  attachments: Array<{ id: string; attachmentId?: string; name: string; size: number; type: string; internal: boolean }>;
   history: Array<{ id: string; at: string; by?: string; from: string | null; to: SupportStatus; note: string | null; internal?: boolean }>;
   linked: Array<{ label: string; id: string; name: string }>;
   memberSummary?: { previous: number; approved: number; rejected: number };

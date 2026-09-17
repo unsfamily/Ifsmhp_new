@@ -67,12 +67,13 @@ export function MessageBubble({
         </div>
 
         <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{message.text}</p>
+        {message.meetingRequestedAt && <p className="mt-2 text-xs">Proposed meeting: {new Date(message.meetingRequestedAt).toLocaleString(undefined, { timeZone: message.meetingTimezone || 'UTC' })} ({message.meetingTimezone || 'UTC'})</p>}
 
         {message.attachments.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {message.attachments.map((a) => (
               <button
-                key={a.id}
+                key={a.attachmentId ?? a.id}
                 type="button"
                 onClick={() => onOpenAttachment?.(a)}
                 className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${chipTone}`}
@@ -87,7 +88,7 @@ export function MessageBubble({
 
         {message.links.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {message.links.map((l) => (
+            {message.links.filter(l => /^https?:\/\//i.test(l.url)).map((l) => (
               <a
                 key={l.id}
                 href={l.url}

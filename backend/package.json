@@ -11,6 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"**/*.ts\"",
     "test": "vitest run",
+    "test:exchange": "tsx scripts/test-document-exchange.ts",
     "test:watch": "vitest",
     "db:setup": "tsx scripts/setup-database.ts",
     "db:bootstrap": "tsx scripts/bootstrap-database.ts",
@@ -19,6 +20,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:backfill-support": "tsx scripts/backfill-support.ts",
     "db:backfill-events": "tsx scripts/backfill-events.ts",
+    "db:backfill-document-exchange": "tsx scripts/backfill-document-exchange.ts",
     "db:seed": "tsx database/prisma/seed.ts",
     "db:studio": "prisma studio"
   },

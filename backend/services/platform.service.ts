@@ -14,6 +14,7 @@ import { buildPaginatedResult, type PaginationQuery, toSkipTake } from '../utils
 import { logger } from '../utils/logger';
 import { writeAudit } from './audit.service';
 import { sendApprovalEmail } from './mail.service';
+import { isLegacyVideoUrl } from '../domain/document-exchange';
 
 const projectStatusLabel: Record<ProjectStatus, string> = {
   DRAFT: 'Draft',
@@ -888,43 +889,6 @@ export async function createPublication(userId: string, input: CreatePublication
   return serializePublication(publication);
 }
 
-export async function memberDocuments(userId: string, req: Request) {
-  const pagination = parsePage(req);
-  // Paginate over attachments, not messages: one message can carry several, so
-  // paging the parent overflows the requested limit and reports a total that
-  // counts the wrong thing. `internal: false` matters most — without it this
-  // route hands the member the body of every admin-only note that has a file.
-  const where: Prisma.MessageAttachmentWhereInput = {
-    file: { deletedAt: null },
-    message: {
-      internal: false,
-      conversation: { participants: { some: { userId } } },
-    },
-  };
-
-  const [rows, total] = await Promise.all([
-    prisma.messageAttachment.findMany({
-      where,
-      include: { file: true, message: true },
-      orderBy: { message: { createdAt: 'desc' } },
-      ...toSkipTake(pagination),
-    }),
-    prisma.messageAttachment.count({ where }),
-  ]);
-
-  const items = rows.map((a) => ({
-    id: a.fileId,
-    name: a.file.originalName,
-    type: a.file.mimeType,
-    size: a.file.sizeBytes,
-    sender: a.message.senderName,
-    direction: a.message.senderId === userId ? 'outgoing' : 'incoming',
-    date: a.message.createdAt,
-    note: a.message.body,
-  }));
-  return buildPaginatedResult(items, total, pagination);
-}
-
 export async function memberConversations(userId: string, req: Request) {
   const pagination = parsePage(req);
   const where = { participants: { some: { userId } } };
@@ -1044,7 +1008,7 @@ async function writeMessage(opts: {
         // Nested rather than separate entries: this $transaction takes an array
         // of promises, which cannot see the new message's id.
         attachments: { create: fileIds.map((fileId) => ({ fileId })) },
-        sharedLinks: { create: links.map(({ url, label }) => ({ url, label: label ?? null })) },
+        sharedLinks: { create: links.map(({ url, label }) => ({ url, label: label ?? null, kind: isLegacyVideoUrl(url) ? 'VIDEO' : 'LINK' })) },
       },
     }),
     prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }),
@@ -2624,7 +2588,7 @@ export async function adminConversationDetail(
       participants: { include: { user: { include: { memberProfile: true } } } },
       messages: {
         where: includeInternal ? {} : { internal: false },
-        include: { attachments: { include: { file: true } }, sharedLinks: true },
+        include: { attachments: { where: { file: { deletedAt: null } }, include: { file: true } }, sharedLinks: true },
         orderBy: { createdAt: 'asc' },
       },
       linkedRecords: true,
@@ -2658,7 +2622,8 @@ export async function adminConversationDetail(
       at: m.createdAt,
       text: m.body,
       internal: m.internal,
-      attachments: m.attachments.map((a) => ({ id: a.fileId, name: a.file.originalName, size: a.file.sizeBytes, type: a.file.mimeType })),
+      meetingRequestedAt: m.meetingRequestedAt, meetingTimezone: m.meetingTimezone,
+      attachments: m.attachments.map((a) => ({ id: a.fileId, attachmentId: a.id, name: a.file.originalName, size: a.file.sizeBytes, type: a.file.mimeType })),
       links: m.sharedLinks.map((l) => ({ id: l.id, url: l.url, label: l.label })),
     })),
     linkedRecords: row.linkedRecords,

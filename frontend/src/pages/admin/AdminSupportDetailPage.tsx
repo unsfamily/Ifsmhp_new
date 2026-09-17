@@ -302,10 +302,10 @@ function AdminSupportDetail({ id }: { id: string }) {
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <button className="p-2 rounded-md text-ink-muted hover:bg-paper hover:text-forum-700 transition-colors" aria-label="Preview" title="Preview" disabled={a.type !== 'application/pdf' && !a.type.startsWith('image/')} onClick={() => void openAttachmentInTab(a.id).catch(() => setActionError('This document is unavailable.'))}>
+                      <button className="p-2 rounded-md text-ink-muted hover:bg-paper hover:text-forum-700 transition-colors" aria-label="Preview" title="Preview" disabled={a.type !== 'application/pdf' && !a.type.startsWith('image/')} onClick={() => void openAttachmentInTab(a.id, a.attachmentId).catch(() => setActionError('This document is unavailable.'))}>
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button className="p-2 rounded-md text-ink-muted hover:bg-paper hover:text-forum-700 transition-colors" aria-label="Download" title="Download" onClick={() => void downloadAttachment(a.id, a.name).catch(() => setActionError('This document is unavailable.'))}>
+                      <button className="p-2 rounded-md text-ink-muted hover:bg-paper hover:text-forum-700 transition-colors" aria-label="Download" title="Download" onClick={() => void downloadAttachment(a.id, a.name, a.attachmentId).catch(() => setActionError('This document is unavailable.'))}>
                         <Download className="h-4 w-4" />
                       </button>
                     </div>

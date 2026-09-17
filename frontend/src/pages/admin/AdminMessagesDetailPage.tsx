@@ -108,7 +108,7 @@ export default function AdminMessagesDetailPage() {
   const openAttachment = async (attachment: ConversationMessage['attachments'][number]) => {
     setActionError(null);
     try {
-      await openAttachmentInTab(attachment.id);
+      await openAttachmentInTab(attachment.id, attachment.attachmentId);
     } catch (err) {
       setActionError(normalizeError(err).message || 'Could not open that attachment.');
     }

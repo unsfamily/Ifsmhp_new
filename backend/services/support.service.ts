@@ -172,7 +172,7 @@ export async function supportDetail(id: string, userId?: string) {
   const messages = row.conversation?.messages.map((m) => ({
     id: m.id, who: m.senderRole === 'ADMIN' ? 'admin' : m.senderRole === 'SYSTEM' ? 'system' : 'member',
     name: m.senderName, at: m.createdAt, text: m.body, internal: m.internal,
-    attachments: m.attachments.map((a) => ({ id: a.fileId, name: a.file.originalName, size: a.file.sizeBytes, type: a.file.mimeType })),
+    attachments: m.attachments.map((a) => ({ id: a.fileId, attachmentId: a.id, name: a.file.originalName, size: a.file.sizeBytes, type: a.file.mimeType })),
     links: m.sharedLinks.filter((l) => /^https?:\/\//i.test(l.url)).map((l) => ({ id: l.id, url: l.url, label: l.label })),
   })) ?? [];
   const previous = !userId ? await prisma.supportRequest.groupBy({ by: ['status'], where: { requesterId: row.requesterId, id: { not: row.id } }, _count: true }) : [];

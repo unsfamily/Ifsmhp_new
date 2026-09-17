@@ -17,7 +17,9 @@ export interface ConversationMessage {
   text: string;
   /** Admin-only note; never present in a member's payload. */
   internal: boolean;
-  attachments: { id: string; name: string; size: number; type: string }[];
+  meetingRequestedAt?: string | null;
+  meetingTimezone?: string | null;
+  attachments: { id: string; attachmentId?: string; name: string; size: number; type: string }[];
   links: { id: string; url: string; label: string | null }[];
 }
 
@@ -76,21 +78,21 @@ export interface MessageExtras {
  * Fetches an attachment as a blob. Downloads go through the API rather than a
  * plain href because the route is bearer-authenticated and access-logged.
  */
-export async function fetchAttachment(fileId: string): Promise<Blob> {
-  const res = await apiClient.get(`/files/${fileId}/download`, { responseType: 'blob' });
+export async function fetchAttachment(fileId: string, attachmentId?: string, action: 'preview' | 'download' = 'preview'): Promise<Blob> {
+  const res = await apiClient.get(`/files/${fileId}/download`, { responseType: 'blob', params: { attachmentId, action } });
   return res.data as Blob;
 }
 
 /** Opens an attachment in a new tab. */
-export async function openAttachmentInTab(fileId: string) {
-  const url = URL.createObjectURL(await fetchAttachment(fileId));
+export async function openAttachmentInTab(fileId: string, attachmentId?: string) {
+  const url = URL.createObjectURL(await fetchAttachment(fileId, attachmentId));
   window.open(url, '_blank', 'noopener,noreferrer');
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 /** Saves an attachment under its original name. */
-export async function downloadAttachment(fileId: string, fileName: string) {
-  const url = URL.createObjectURL(await fetchAttachment(fileId));
+export async function downloadAttachment(fileId: string, fileName: string, attachmentId?: string) {
+  const url = URL.createObjectURL(await fetchAttachment(fileId, attachmentId, 'download'));
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;

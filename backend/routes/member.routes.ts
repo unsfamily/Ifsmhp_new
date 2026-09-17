@@ -10,6 +10,8 @@ import { z } from 'zod';
 import { validate } from '../middleware/validate';
 import * as service from '../services/platform.service';
 import * as supportService from '../services/support.service';
+import * as exchange from '../services/document-exchange.service';
+import { exchangeSendBody } from '../domain/document-exchange';
 
 const router = Router({ mergeParams: true });
 
@@ -260,11 +262,15 @@ router.post('/me/support/:id/messages', validate({ body: messageSchema }), async
 router.get(
   '/me/documents',
   asyncHandler(async (req, res) => {
-    sendSuccess(res, await service.memberDocuments(req.user!.id, req), 'My documents');
+    sendSuccess(res, await exchange.listDocuments(req.user!.id, req.query), 'My documents');
   })
 );
 
 /** Own profile — member editable fields only (admin-only fields never exposed via serializers) */
+router.get('/me/document-exchange', asyncHandler(async (req, res) => sendSuccess(res, await exchange.summary(req.user!.id), 'Document Exchange')));
+router.get('/me/document-exchange/items', asyncHandler(async (req, res) => sendSuccess(res, await exchange.listItems(req.user!.id, req.query), 'Exchange items')));
+router.post('/me/document-exchange/items', validate({ body: exchangeSendBody }), asyncHandler(async (req, res) => sendSuccess(res, await exchange.send(req.user!.id, req.body), 'Sent to CRO', 201)));
+
 router.get('/me/profile', asyncHandler(async (req, res) => sendSuccess(res, await service.memberProfile(req.user!.id), 'My profile')));
 router.patch('/me/profile', validate({ body: profileSchema }), asyncHandler(async (req, res) => sendSuccess(res, await service.updateMemberProfile(req.user!.id, req.body), 'Profile updated')));
 

@@ -133,6 +133,8 @@ model User {
   publications            Publication[]             @relation("PublicationAuthor")
   sentMessages            Message[]                 @relation("MessageSender")
   conversations           ConversationParticipant[]
+  documentExchange        DocumentExchange?
+  attachmentOpens         AttachmentOpen[]
   notifications           Notification[]
   auditEntries            AuditLog[]                @relation("AuditActor")
   createdEvents           Event[]                   @relation("EventCreator")
@@ -586,6 +588,7 @@ model Conversation {
   messages       Message[]
   linkedRecords  LinkedRecord[]
   supportRequest SupportRequest?
+  documentExchange DocumentExchange?
 
   @@index([status, priority])
 }
@@ -611,11 +614,16 @@ model Message {
   senderRole     String
   body           String              @db.Text
   internal       Boolean             @default(false)
+  clientRequestId String?
+  meetingRequestedAt DateTime?
+  meetingTimezone String?
   createdAt      DateTime            @default(now())
   conversation   Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User?               @relation("MessageSender", fields: [senderId], references: [id])
   attachments    MessageAttachment[]
   sharedLinks    SharedLink[]
+
+  @@unique([senderId, clientRequestId])
 }
 
 model MessageAttachment {
@@ -624,6 +632,27 @@ model MessageAttachment {
   fileId    String
   message   Message    @relation(fields: [messageId], references: [id], onDelete: Cascade)
   file      FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  opens     AttachmentOpen[]
+}
+
+model DocumentExchange {
+  id             String @id @default(cuid())
+  memberId       String @unique
+  conversationId String @unique
+  member         User @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model AttachmentOpen {
+  id           String @id @default(cuid())
+  attachmentId String
+  userId       String
+  action       String
+  openedAt     DateTime @default(now())
+  attachment   MessageAttachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([attachmentId, userId])
 }
 
 model SharedLink {
@@ -631,6 +660,7 @@ model SharedLink {
   messageId String
   url       String  @db.Text
   label     String?
+  kind      String @default("LINK")
   message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 }
 

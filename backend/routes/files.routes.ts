@@ -12,6 +12,8 @@ import { sendSuccess } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { assertSafePath, uploadRoot } from '../utils/fileStorage';
 import { writeAudit } from '../services/audit.service';
+import { recordOpening } from '../services/document-exchange.service';
+import { logger } from '../utils/logger';
 import {
   createRegistrationClaimToken,
   registrationAllowedExtensions,
@@ -269,6 +271,14 @@ router.get(
 
     if (!allowed) throw ApiError.notFound('File not found');
 
+    const attachmentId = req.query.attachmentId;
+    const context = attachmentId === undefined ? undefined : file.messageAttachments.find(a => a.id === attachmentId);
+    if (attachmentId !== undefined && (!context || (user.role !== 'ADMIN' && (context.message.internal || !context.message.conversation.participants.some(p => p.userId === user.id))))) {
+      throw ApiError.notFound('Attachment not found');
+    }
+    const action = req.query.action ?? 'download';
+    if (!['preview', 'download'].includes(String(action))) throw ApiError.unprocessable('Invalid file action');
+
     if (user.role === 'ADMIN' || file.visibility !== 'PUBLIC') {
       await writeAudit({
         actorId: user.id,
@@ -286,8 +296,16 @@ router.get(
       throw ApiError.notFound('File not found');
     });
     res.setHeader('Content-Type', file.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${file.originalName.replace(/"/g, '')}"`);
-    fs.createReadStream(absolute).pipe(res);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
+    if (req.method === 'GET' && context && context.message.conversation.kind === 'CRO' && !context.message.internal && context.message.senderId !== user.id) {
+      res.once('finish', () => {
+        void recordOpening(context.id, user.id, action as 'preview' | 'download').catch(error => logger.error('Attachment receipt failed', { error: String(error) }));
+      });
+    }
+    const stream = fs.createReadStream(absolute);
+    stream.on('error', () => res.destroy());
+    res.on('close', () => stream.destroy());
+    stream.pipe(res);
   }),
 );
 
