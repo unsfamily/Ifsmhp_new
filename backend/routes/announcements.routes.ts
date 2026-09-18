@@ -13,7 +13,7 @@ router.post('/', validate({ body: announcements.createBody }), asyncHandler(asyn
 router.get('/:id', asyncHandler(async (req, res) => sendSuccess(res, await announcements.detail(req.params.id!), 'Announcement')));
 router.patch('/:id', validate({ body: announcements.updateBody }), asyncHandler(async (req, res) => sendSuccess(res, await announcements.save(req.user!.id, req.body, req.params.id!), 'Draft saved')));
 router.get('/:id/deliveries', asyncHandler(async (req, res) => sendSuccess(res, await announcements.deliveries(req.params.id!, req.query), 'Delivery outcomes')));
-for (const action of ['preview', 'sign-off', 'send', 'schedule', 'cancel', 'retry'] as const) {
+for (const action of ['preview', 'sign-off', 'send', 'schedule', 'cancel', 'retry', 'delete'] as const) {
   router.post(`/:id/${action}`, validate({ body: announcements.actionBody }), asyncHandler(async (req, res) => sendSuccess(res, await announcements.act(req.user!.id, req.params.id!, action, req.body), 'Announcement updated')));
 }
 export default router;

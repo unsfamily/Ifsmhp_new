@@ -13,6 +13,7 @@ import Badge from '../common/Badge';
 import { Card, CardContent } from '../common/Card';
 import ExchangePreview, { type PreviewDocument } from './ExchangePreview';
 import { formatBytes } from '../../utils/formatBytes';
+import MemberAnnouncementList from '../announcements/MemberAnnouncementList';
 
 const titles: Record<ExchangeView, string> = { documents: 'Shared Documents', messages: 'Messages from CRO', videos: 'Video Links', announcements: 'Announcements' };
 const inputClass = 'min-w-0 rounded-md border border-paper-border bg-paper px-3 py-2 text-sm text-ink';
@@ -54,7 +55,15 @@ function Thread({ id, back, preview, changed }: { id: string; back: () => void; 
   </>;
 }
 
-export default function ExchangeInbox({ view, revision, close, changed }: { view: ExchangeView; revision: number; close: () => void; changed: () => void }) {
+type InboxProps = { view: ExchangeView; revision: number; close: () => void; changed: () => void };
+export default function ExchangeInbox(props: InboxProps) {
+  if (props.view !== 'announcements') return <OtherExchangeInbox {...props} />;
+  return <Card><CardContent className="p-6">
+    <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-xl font-semibold text-forum-900">Announcements</h2><button title="Close view" aria-label="Close view" onClick={props.close} className="shrink-0 text-ink-muted"><X className="h-5 w-5" /></button></div>
+    <MemberAnnouncementList />
+  </CardContent></Card>;
+}
+function OtherExchangeInbox({ view, revision, close, changed }: InboxProps) {
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
   const [type, setType] = useState('All');
@@ -106,7 +115,7 @@ export default function ExchangeInbox({ view, revision, close, changed }: { view
           }
           if ('lastPreview' in item) return <button key={item.id} onClick={() => setSelected(item.id)} className="block w-full px-3 py-4 text-left hover:bg-forum-50/30"><div className="flex flex-wrap items-center gap-2"><span className="min-w-0 break-words font-medium text-forum-900">{item.subject}</span>{item.unreadCount > 0 && <Badge>{item.unreadCount} unread</Badge>}</div><p className="mt-1 line-clamp-2 break-words text-sm text-ink-muted">{item.lastPreview}</p><p className="mt-2 text-xs text-ink-muted">{stamp(item.lastActivity)} / {item.totalMessages} messages</p></button>;
           if ('url' in item) return <div key={item.id} className="px-3 py-4"><a href={/^https?:\/\//i.test(item.url) ? item.url : undefined} target="_blank" rel="noopener noreferrer" className="break-all font-medium text-forum-700 underline">{item.label || item.url}</a><p className="mt-2 text-xs text-ink-muted">{item.direction === 'outgoing' ? 'Sent' : 'Received'} / {item.sender} / {stamp(item.date)}</p></div>;
-          return <article key={item.id} className="px-3 py-4"><h3 className="break-words font-semibold text-forum-900">{item.subject}</h3><p className="my-2 text-xs text-ink-muted">{stamp(item.sentAt)}</p><p className="whitespace-pre-wrap break-words text-sm text-ink">{item.body}</p></article>;
+          return <article key={item.id} className="px-3 py-4"><h3 className="break-words font-semibold text-forum-900">{item.subject}</h3><p className="my-2 text-xs text-ink-muted">{item.sentAt && stamp(item.sentAt)}</p><p className="whitespace-pre-wrap break-words text-sm text-ink">{item.body}</p></article>;
         })}
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-paper-border pt-4 text-xs text-ink-muted">

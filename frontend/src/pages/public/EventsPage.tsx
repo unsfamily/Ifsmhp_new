@@ -1,5 +1,5 @@
+import { useState } from 'react';
 import {
-  Calendar,
   MapPin,
   Clock,
   Users,
@@ -10,145 +10,38 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
-  BookOpenCheck,
-  Star,
   CalendarDays,
 } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 
-interface Event {
-  id: string;
-  title: string;
-  date: string;
-  time: string;
-  location: string;
-  type: 'Symposium' | 'Webinar' | 'Workshop' | 'Conference';
-  category: string;
-  description: string;
-  speakers: string[];
-  seats?: number;
-  past?: boolean;
-  takeaways?: string[];
-  feedback?: number;
-}
+import { publicApi } from '../../api/public';
+import { usePolledApiData } from '../../hooks/usePolledApiData';
+import { EventListState, EventPagination, EventRegistration, formatEventDate as formatDate, resourceKinds } from '../../components/events/PublicEventControls';
+import PublicEventDetails from '../../components/events/PublicEventDetails';
 
-const upcomingEvents: Event[] = [
-  {
-    id: 'u1',
-    title: 'Symposium on Digital Mental Health Tools: Evidence & Ethics',
-    date: '2026-09-12',
-    time: '14:00 - 18:00 UTC',
-    location: 'Virtual + Hybrid (London Hub)',
-    type: 'Symposium',
-    category: 'New products in mental health',
-    description:
-      'A rigorous examination of emerging digital mental health platforms, apps, and AI-driven tools, with presentations from developers, clinicians, and ethicists. Panel discussions will address validation standards, data privacy, and clinical integration pathways.',
-    speakers: ['Dr. Sarah Chen', 'Prof. Naomi Hargrove', 'Dr. Amara Patel', 'CRO Keynote'],
-    seats: 450,
-  },
-  {
-    id: 'u2',
-    title: 'Service Innovations in Crisis Mental Health Support',
-    date: '2026-10-03',
-    time: '09:00 - 16:00 UTC',
-    location: 'Berlin, Germany (Hybrid)',
-    type: 'Workshop',
-    category: 'Service innovations',
-    description:
-      'Hands-on workshop exploring emerging models for crisis intervention, including text-based counseling, community first-responder programs, and stepped-care models. Attendees will participate in case-study exercises and protocol design sessions.',
-    speakers: ['Dr. James Okafor', 'Dr. Liam Sutherland', 'Berlin Psychiatric Association'],
-    seats: 120,
-  },
-  {
-    id: 'u3',
-    title: 'Annual Research Findings Showcase',
-    date: '2026-10-27',
-    time: '10:00 - 19:00 UTC',
-    location: 'Virtual Conference Platform',
-    type: 'Conference',
-    category: 'Research findings',
-    description:
-      'The flagship annual event where IFSMHP members present recently completed research. Includes lightning talks, poster sessions, and keynote presentation from the CRO. Best presentation awards to be announced.',
-    speakers: ['All IFSMHP Members', 'CRO Office', 'Guest Keynote'],
-    seats: 1000,
-  },
-  {
-    id: 'u4',
-    title: 'Webinar: International Mental Health Policy 2027 Outlook',
-    date: '2026-11-15',
-    time: '15:00 - 17:00 UTC',
-    location: 'Online Webinar',
-    type: 'Webinar',
-    category: 'International policy discussions',
-    description:
-      'A panel of policy advisors and WHO representatives discuss upcoming mental health policy shifts across major regions, including EU mental health framework, US parity updates, and ASEAN mental health strategy.',
-    speakers: ['Policy Advisory Panel', 'WHO Liaison', 'Regional Representatives'],
-  },
-];
-
-const pastEvents: Event[] = [
-  {
-    id: 'p1',
-    title: 'Symposium: Psychedelic-Assisted Therapy — Current Evidence Landscape',
-    date: '2026-06-20',
-    time: '13:00 - 17:30 UTC',
-    location: 'Amsterdam, Netherlands',
-    type: 'Symposium',
-    category: 'Therapeutic services',
-    description:
-      'Multi-disciplinary symposium on psilocybin, MDMA, and DMT-assisted psychotherapy protocols, with sessions on clinical trial design, therapist training standards, and regulatory pathways.',
-    speakers: ['Prof. Marcus Whitfield', 'Amsterdam UMC', 'Clinical Trial Consortium'],
-    past: true,
-    takeaways: [
-      'Phase III trial outcome benchmarks released',
-      'Therapist accreditation framework drafted',
-      'Regulator roadmap published for 2027',
-    ],
-    feedback: 4.8,
-  },
-  {
-    id: 'p2',
-    title: 'Workshop: Publishing High-Impact Mental Health Research',
-    date: '2026-05-08',
-    time: '10:00 - 15:00 UTC',
-    location: 'Online',
-    type: 'Workshop',
-    category: 'Research methodologies',
-    description:
-      'Interactive workshop covering methodology rigor, statistical transparency, open science practices, and navigating peer review — delivered by senior journal editors.',
-    speakers: ['Journal Editors Panel', 'Senior Research Methodologists'],
-    past: true,
-    takeaways: [
-      'Checklist for statistical transparency distributed',
-      'Peer review response templates available',
-      'Open science endorsement program announced',
-    ],
-    feedback: 4.6,
-  },
-];
-
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  return {
-    day: d.toLocaleDateString('en-US', { day: '2-digit' }),
-    month: d.toLocaleDateString('en-US', { month: 'short' }),
-    year: d.toLocaleDateString('en-US', { year: 'numeric' }),
-    full: d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
-  };
-}
-
-const typeBadge: Record<Event['type'], 'default' | 'success' | 'warning' | 'info'> = {
-  Symposium: 'default',
-  Webinar: 'info',
-  Workshop: 'success',
-  Conference: 'warning',
+const typeBadge: Record<string, 'default' | 'success' | 'warning' | 'info'> = {
+  Symposium: 'default', Webinar: 'info', Workshop: 'success', Conference: 'warning',
 };
 
-const days = Array.from({ length: 30 }, (_, i) => i + 1);
-
 export default function EventsPage() {
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const [pastPage, setPastPage] = useState(1);
+  const [selectedDate, setSelectedDate] = useState<string>();
+  const [selected, setSelected] = useState<{ id: string; section?: 'recordings' | 'proceedings' } | null>(null);
+  const [monthDate, setMonthDate] = useState(() => { const today = new Date(); return new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1)); });
+  const month = monthDate.toISOString().slice(0, 7);
+  const upcoming = usePolledApiData(() => publicApi.events({ tab: 'upcoming', date: selectedDate, page: upcomingPage, limit: 4 }), [selectedDate, upcomingPage], 30000);
+  const past = usePolledApiData(() => publicApi.events({ tab: 'past', date: selectedDate, page: pastPage, limit: 2 }), [selectedDate, pastPage], 30000);
+  const calendar = usePolledApiData(() => publicApi.eventCalendar(month), [month], 30000);
+  const upcomingEvents = upcoming.error ? [] : upcoming.data?.items ?? [];
+  const pastEvents = past.error ? [] : past.data?.items ?? [];
+  const markers = new Map(calendar.data?.month === month && !calendar.error ? calendar.data.days.map(day => [day.date, day]) : []);
+  const days = Array.from({ length: new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0)).getUTCDate() }, (_, i) => i + 1);
+  const filterDate = (date?: string) => { setSelectedDate(date); setUpcomingPage(1); setPastPage(1); };
+  const moveMonth = (offset: number) => { const date = new Date(monthDate); date.setUTCMonth(date.getUTCMonth() + offset); setMonthDate(date); filterDate(); };
+
   return (
     <>
       <section className="bg-gradient-to-br from-forum-600 via-slateteal-700 to-forum-700">
@@ -176,7 +69,9 @@ export default function EventsPage() {
             <h2 className="font-display text-2xl font-semibold text-forum-900">
               Upcoming Events
             </h2>
+            {selectedDate && <Button variant="ghost" size="sm" className="mt-2" onClick={() => filterDate()}>{formatDate(selectedDate).full} · Clear date filter</Button>}
             <div className="mt-6 space-y-6">
+              <EventListState loading={upcoming.initialLoading} error={upcoming.error} empty={!upcomingEvents.length} retry={upcoming.refresh} label="upcoming events" />
               {upcomingEvents.map((e) => {
                 const d = formatDate(e.date);
                 return (
@@ -191,13 +86,13 @@ export default function EventsPage() {
                       </div>
                       <span className="text-[11px] text-forum-100/50">{d.year}</span>
                     </div>
-                    <div className="flex-1 p-5 sm:p-6">
+                    <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] p-5 sm:p-6">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={typeBadge[e.type]}>{e.type}</Badge>
+                        <Badge variant={typeBadge[e.type] ?? 'default'}>{e.type}</Badge>
                         <Badge variant="brass">{e.category}</Badge>
                       </div>
                       <h3 className="mt-3 text-lg font-semibold text-forum-900 leading-snug group-hover:text-forum-700">
-                        {e.title}
+                        <button onClick={() => setSelected({ id: e.id })} className="text-left hover:underline focus-visible:underline">{e.title}</button>
                       </h3>
                       <p className="mt-3 text-sm leading-relaxed text-ink-muted line-clamp-3">
                         {e.description}
@@ -211,41 +106,39 @@ export default function EventsPage() {
                           <MapPin className="h-3.5 w-3.5" />
                           {e.location}
                         </span>
-                        {e.seats && (
+                        {(
                           <span className="inline-flex items-center gap-1.5">
                             <Users className="h-3.5 w-3.5" />
-                            {e.seats.toLocaleString()} seats
+                            {e.seats === null ? 'Unlimited capacity' : `${e.seats.toLocaleString()} seats`}
                           </span>
                         )}
                       </div>
                       <div className="mt-5 flex items-center justify-between gap-3 flex-wrap">
-                        <div className="text-xs text-ink-subtle">
+                        {e.speakers.length > 0 && <div className="text-xs text-ink-subtle">
                           Featuring:{' '}
                           <span className="text-ink-muted font-medium">{e.speakers.join(', ')}</span>
-                        </div>
-                        <Button size="sm">
-                          <Calendar className="h-4 w-4" />
-                          Register
-                        </Button>
+                        </div>}
+                        <EventRegistration event={e} />
                       </div>
                     </div>
                   </article>
                 );
               })}
             </div>
+            {!upcoming.error && upcoming.data && <EventPagination pagination={upcoming.data.pagination} label="upcoming events" setPage={setUpcomingPage} />}
           </div>
 
-          <aside className="lg:col-span-1 order-1 lg:order-2">
-            <div className="rounded-xl border border-paper-border bg-paper-raised p-5 shadow-sm sticky top-20">
+          <aside className="lg:col-span-1 order-1 lg:order-2 lg:sticky lg:top-20 self-start">
+            <div className="rounded-xl border border-paper-border bg-paper-raised p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <h3 className="font-display text-lg font-semibold text-forum-900">
-                  September 2026
+                  {monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}
                 </h3>
                 <div className="flex gap-1">
-                  <button className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-forum-50 text-ink-muted">
+                  <button title="Previous month" aria-label="Previous month" onClick={() => moveMonth(-1)} className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-forum-50 text-ink-muted">
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  <button className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-forum-50 text-ink-muted">
+                  <button title="Next month" aria-label="Next month" onClick={() => moveMonth(1)} className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-forum-50 text-ink-muted">
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -256,24 +149,29 @@ export default function EventsPage() {
                     {day}
                   </div>
                 ))}
-                {Array.from({ length: 1 }, () => (
-                  <div key="empty1" />
-                ))}
-                {days.map((d) => (
-                  <button
+                {Array.from({ length: monthDate.getUTCDay() }, (_, index) => <div key={`empty-${index}`} />)}
+                {days.map((d) => {
+                  const date = `${month}-${String(d).padStart(2, '0')}`;
+                  const marker = markers.get(date);
+                  return <button
                     key={d}
+                    aria-label={`${formatDate(date).full}, ${marker?.count ?? 0} events`}
+                    aria-pressed={selectedDate === date}
+                    title={`${marker?.count ?? 0} events`}
+                    onClick={() => filterDate(selectedDate === date ? undefined : date)}
                     className={`h-8 w-full rounded-md text-sm transition-colors ${
-                      d === 12
+                      marker?.major
                         ? 'bg-forum-600 text-white font-medium'
-                        : [3, 27].includes(d)
+                        : marker
                         ? 'bg-brass-100 text-brass-700 font-medium hover:bg-brass-500 hover:text-white'
                         : 'hover:bg-forum-50 text-ink-muted'
-                    }`}
+                    } ${selectedDate === date ? 'ring-2 ring-forum-700 ring-offset-1' : ''}`}
                   >
                     {d}
-                  </button>
-                ))}
+                  </button>;
+                })}
               </div>
+              <EventListState loading={calendar.initialLoading} error={calendar.error} empty={false} retry={calendar.refresh} label="calendar" />
               <div className="mt-5 space-y-2 pt-5 border-t border-paper-border">
                 <div className="flex items-center gap-2.5 text-xs">
                   <span className="h-3 w-3 rounded bg-forum-600" />
@@ -317,6 +215,8 @@ export default function EventsPage() {
           </p>
         </div>
 
+        {selectedDate && <div className="mt-4 text-center"><Button variant="ghost" size="sm" onClick={() => filterDate()}>{formatDate(selectedDate).full} · Clear date filter</Button></div>}
+        <div className="mt-6"><EventListState loading={past.initialLoading} error={past.error} empty={!pastEvents.length} retry={past.refresh} label="past events" /></div>
         <div className="mt-14 grid gap-6 lg:grid-cols-2">
           {pastEvents.map((e) => {
             const d = formatDate(e.date);
@@ -335,60 +235,29 @@ export default function EventsPage() {
                     </span>
                     <span className="text-[10px] text-forum-400">{d.year}</span>
                   </div>
-                  <div className="flex-1 p-4">
+                  <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] p-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={typeBadge[e.type]}>{e.type}</Badge>
+                      <Badge variant={typeBadge[e.type] ?? 'default'}>{e.type}</Badge>
                       <Badge variant="brass">{e.category}</Badge>
                     </div>
                     <h3 className="mt-2 font-semibold text-forum-900 leading-snug">
-                      {e.title}
+                      <button onClick={() => setSelected({ id: e.id })} className="text-left hover:underline focus-visible:underline">{e.title}</button>
                     </h3>
                     <p className="mt-1 text-xs text-ink-subtle">{d.full} · {e.location}</p>
                   </div>
                 </div>
                 <div className="p-5">
-                  {typeof e.feedback === 'number' && (
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="flex items-center gap-0.5">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-4 w-4 ${
-                              i < Math.floor(e.feedback as number)
-                                ? 'fill-brass-500 text-brass-500'
-                                : 'text-paper-border'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <span className="text-sm font-medium text-ink-muted">{e.feedback} participant rating</span>
-                    </div>
-                  )}
-                  {e.takeaways && (
-                    <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">
-                        Key Takeaways
-                      </h4>
-                      <ul className="mt-3 space-y-2 text-sm text-ink-muted">
-                        {e.takeaways.map((t) => (
-                          <li key={t} className="flex gap-2">
-                            <BookOpenCheck className="mt-0.5 h-4 w-4 shrink-0 text-slateteal-500" />
-                            {t}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  <p className="text-sm leading-relaxed text-ink-muted break-words [overflow-wrap:anywhere]">{e.description}</p>
                   <div className="mt-5 flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" disabled={!e.resources.some(r => r.url && resourceKinds.recordings.includes(r.kind))} title={e.resources.some(r => r.url && resourceKinds.recordings.includes(r.kind)) ? 'View recordings' : 'No public recordings available'} onClick={() => setSelected({ id: e.id, section: 'recordings' })}>
                       <PlayCircle className="h-4 w-4" />
                       Recordings
                     </Button>
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" disabled={!e.resources.some(r => r.url && resourceKinds.proceedings.includes(r.kind))} title={e.resources.some(r => r.url && resourceKinds.proceedings.includes(r.kind)) ? 'View proceedings' : 'No public proceedings available'} onClick={() => setSelected({ id: e.id, section: 'proceedings' })}>
                       <FileText className="h-4 w-4" />
                       Proceedings
                     </Button>
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" disabled title="Event feedback is not available">
                       <MessageSquare className="h-4 w-4" />
                       Feedback
                     </Button>
@@ -398,6 +267,7 @@ export default function EventsPage() {
             );
           })}
         </div>
+        {!past.error && past.data && <EventPagination pagination={past.data.pagination} label="past events" setPage={setPastPage} />}
       </Section>
 
       <Section bg="paper">
@@ -424,6 +294,7 @@ export default function EventsPage() {
           </div>
         </div>
       </Section>
+      {selected && <PublicEventDetails key={selected.id} id={selected.id} section={selected.section} close={() => setSelected(null)} />}
     </>
   );
 }

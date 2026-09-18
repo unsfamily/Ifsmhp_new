@@ -6,6 +6,7 @@ import { sendSuccess } from '../utils/apiResponse';
 import { ApiError } from '../utils/ApiError';
 import { assertSafePath } from '../utils/fileStorage';
 import * as service from '../services/platform.service';
+import { listPublicEvents, publicEventDetail, publicEventCalendar, publicEventCover } from '../services/public-events.service';
 
 const router = Router({ mergeParams: true });
 
@@ -39,8 +40,8 @@ router.get(
  *
  * Publishing is what grants this access — the same gate that already makes the
  * abstract and full text public — so the FileObject stays PRIVATE and the
- * authenticated `/files/:id/download` ACL is untouched. This is the only
- * anonymous byte-serving path in the API.
+ * authenticated `/files/:id/download` ACL is untouched. Event covers below
+ * have their own publication-scoped anonymous access gate.
  *
  * `?inline=1` renders the PDF in the browser ("Read Full Paper"); the default
  * attachment disposition downloads it ("PDF").
@@ -73,15 +74,36 @@ router.get(
 router.get(
   '/events',
   asyncHandler(async (req, res) => {
-    const data = await service.publicEvents(req);
+    res.setHeader('Cache-Control', 'no-store');
+    const data = await listPublicEvents(req.query);
     sendSuccess(res, data, 'Public events listing');
   })
 );
 
+router.get('/events/calendar', asyncHandler(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  sendSuccess(res, await publicEventCalendar(req.query), 'Public event calendar');
+}));
+
+router.get('/events/:slugOrId/cover', asyncHandler(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const file = await publicEventCover(req.params.slugOrId!);
+  const absolute = assertSafePath(file.storageKey);
+  await fsp.access(absolute, fs.constants.R_OK).catch(() => { throw ApiError.notFound('Event cover not found'); });
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Content-Type', file.mimeType);
+  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
+  const stream = fs.createReadStream(absolute);
+  stream.on('error', () => res.destroy());
+  res.on('close', () => stream.destroy());
+  stream.pipe(res);
+}));
+
 router.get(
   '/events/:slugOrId',
   asyncHandler(async (req, res) => {
-    const event = await service.eventDetail(req.params.slugOrId!);
+    res.setHeader('Cache-Control', 'no-store');
+    const event = await publicEventDetail(req.params.slugOrId!);
     sendSuccess(res, { event }, 'Public event detail');
   })
 );

@@ -14,14 +14,25 @@ export const actionBody = mutationFields.required().extend({ confirmed: z.boolea
 export const listQuery = paginationQuerySchema.extend({ q: z.string().trim().max(220).default(''), status: z.enum(ANNOUNCEMENT_STATUSES).default('All'), audience: z.enum(['All', ...ANNOUNCEMENT_AUDIENCES]).default('All') });
 export const deliveryQuery = paginationQuerySchema.extend({ channel: z.enum(['All', 'EMAIL', 'IN_APP', 'LEGACY']).default('All'), purpose: z.enum(['All', 'BROADCAST', 'PREVIEW']).default('All') });
 export const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-const scientists = ['Research Scholar / Scientist', 'Academic Researcher', 'Doctoral Candidate', 'Scientist', 'Research Scholar'];
-const professionals = ['Psychiatrist', 'Psychologist', 'Counselor', 'Therapist', 'Social Worker', 'Other Mental Health Professional'];
+export const scientists = ['Research Scholar / Scientist', 'Academic Researcher', 'Doctoral Candidate', 'Scientist', 'Research Scholar'];
+export const professionals = ['Psychiatrist', 'Psychologist', 'Counselor', 'Therapist', 'Social Worker', 'Other Mental Health Professional'];
 export function recipientWhere(audience: string): Prisma.UserWhereInput {
   if (audience === 'Pending Applicants') return { role: 'APPLICANT', status: 'PENDING', deletedAt: null, membershipApplication: { status: 'PENDING' } };
   if (!['All Members', 'Members Only', 'Scientists Track', 'Professionals Track'].includes(audience)) return { id: { in: [] } };
   return { role: 'MEMBER', status: 'ACTIVE', deletedAt: null, ...(audience === 'Scientists Track' || audience === 'Professionals Track' ? { memberProfile: { professionalType: { in: audience === 'Scientists Track' ? scientists : professionals } } } : {}) };
 }
-export const channelsFor = (channel: string) => channel === 'Email' ? ['EMAIL'] : channel === 'In-App Only' ? ['IN_APP'] : ['EMAIL', 'IN_APP'];
+/**
+ * Which delivery rows a broadcast produces.
+ *
+ * Every member-audience announcement gets an IN_APP row whatever the channel,
+ * so it always reaches the member Announcements list; the channel decides only
+ * whether an email goes out alongside it. `Pending Applicants` is the exception:
+ * applicants are `role: 'APPLICANT'`, and `announcementScope` only ever matches
+ * active members, so an in-app row for them would never be read (`options()`
+ * already reports `inApp: 0` for that audience).
+ */
+export const channelsFor = (channel: string, audience: string) =>
+  audience === 'Pending Applicants' ? ['EMAIL'] : channel === 'In-App Only' ? ['IN_APP'] : ['EMAIL', 'IN_APP'];
 export async function options() {
   const audiences = await Promise.all(ANNOUNCEMENT_AUDIENCES.map(async name => {
     const where = recipientWhere(name);
@@ -35,7 +46,7 @@ export async function options() {
 }
 export function toInput(row: Announcement): AnnouncementInput {
   return { subject: row.subject, body: row.body, audience: row.audience as AnnouncementInput['audience'], channel: row.channel as AnnouncementInput['channel'], timezone: row.timezone,
-    scheduledAt: row.scheduledAt ? DateTime.fromJSDate(row.scheduledAt).setZone(row.timezone).toFormat("yyyy-MM-dd'T'HH:mm") : '', senderAsCRO: row.senderAsCRO, appendUnsubscribe: row.appendUnsubscribe, sendSABPreview: row.sendSABPreview };
+    scheduledAt: row.scheduledAt ? DateTime.fromJSDate(row.scheduledAt).setZone(row.timezone).toFormat("yyyy-MM-dd'T'HH:mm") : '', expiresAt: row.expiresAt ? DateTime.fromJSDate(row.expiresAt).setZone(row.timezone).toFormat("yyyy-MM-dd'T'HH:mm") : '', senderAsCRO: row.senderAsCRO, appendUnsubscribe: row.appendUnsubscribe, sendSABPreview: row.sendSABPreview };
 }
 const label = (status: string) => status.charAt(0) + status.slice(1).toLowerCase();
 const include = { author: { select: { fullName: true } } } satisfies Prisma.AnnouncementInclude;
@@ -52,16 +63,17 @@ async function serialize(row: Announcement & { author: { fullName: string } | nu
     signedOff: row.signedOffRevision === row.revision, signedOffAt: row.signedOffAt, signedOffBy: row.signedOffBy,
   };
 }
-export async function detail(id: string) {
+export async function detail(id: string, includeDeleted = false) {
   const row = await prisma.announcement.findUnique({ where: { id }, include });
-  if (!row) throw ApiError.notFound('Announcement not found');
+  if (!row || (row.deletedAt && !includeDeleted)) throw ApiError.notFound('Announcement not found');
   return serialize(row);
 }
 export async function list(raw: unknown) {
   const query = listQuery.parse(raw);
   const where: Prisma.AnnouncementWhereInput = { ...(query.status === 'All' ? {} : { status: query.status.toUpperCase() as AnnouncementStatus }), ...(query.audience === 'All' ? {} : { audience: query.audience }), ...(query.q ? { OR: [{ subject: { contains: query.q } }, { body: { contains: query.q } }] } : {}) };
   const month = new Date(); month.setUTCDate(1); month.setUTCHours(0, 0, 0, 0);
-  const grouped = await prisma.announcement.groupBy({ by: ['status'], _count: { _all: true } });
+  where.deletedAt = null;
+  const grouped = await prisma.announcement.groupBy({ by: ['status'], where: { deletedAt: null }, _count: { _all: true } });
   const [rows, total, monthSent, delivered, read, inApp] = await prisma.$transaction([
     prisma.announcement.findMany({ where, include, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }], ...toSkipTake(query) }), prisma.announcement.count({ where }),
     prisma.announcement.count({ where: { status: 'SENT', sentAt: { gte: month } } }),
@@ -98,17 +110,19 @@ async function mutation(actorId: string, input: { requestId: string; expectedRev
     await audit(tx, actorId, announcementId, `Announcement${operation}`, operation === 'SignOff' ? 'Administrator confirmed external SAB approval for the current revision.' : `${operation} recorded.`);
     return announcementId;
   }, { timeout: 30000 });
-  return detail(result);
+  return detail(result, operation === 'delete');
 }
 export async function save(actorId: string, raw: unknown, id?: string) {
   const parsed = id ? updateBody.parse(raw) : createBody.parse(raw);
   const { requestId, expectedRevision, ...fields } = parsed;
   return mutation(actorId, { requestId, expectedRevision }, 'Saved', id, parsed, async (tx, row) => {
+    if (row?.deletedAt) throw ApiError.notFound('Announcement not found');
+    if (row?.expiresAt && row.expiresAt <= new Date() && row.dispatchStartedAt) throw ApiError.conflict('Expired broadcasts cannot be republished.');
     if (row && (row.dispatchStartedAt || !['DRAFT', 'SCHEDULED', 'CANCELLED'].includes(row.status))) throw ApiError.conflict('A dispatched announcement cannot be edited.');
     const value = announcementSchema().parse({ ...(row ? toInput(row) : {}), ...fields });
     const scheduledAt = value.scheduledAt ? DateTime.fromISO(value.scheduledAt, { zone: value.timezone }) : null;
     if (scheduledAt && (!scheduledAt.isValid || scheduledAt.toFormat("yyyy-MM-dd'T'HH:mm") !== value.scheduledAt)) throw ApiError.unprocessable('Invalid scheduled time', [{ field: 'scheduledAt', message: 'Choose a valid local date and time.' }]);
-    const data = { ...value, scheduledAt: scheduledAt?.toJSDate() ?? null, status: 'DRAFT' as const, managed: true };
+    const data = { ...value, scheduledAt: scheduledAt?.toJSDate() ?? null, expiresAt: value.expiresAt ? DateTime.fromISO(value.expiresAt, { zone: value.timezone }).toJSDate() : null, status: 'DRAFT' as const, managed: true };
     if (!row) return (await tx.announcement.create({ data: { ...data, authorId: actorId } })).id;
     if (JSON.stringify(toInput(row)) === JSON.stringify(value) && row.status === 'DRAFT' && row.managed) return row.id;
     await tx.announcementDelivery.updateMany({ where: { announcementId: row.id, purpose: 'PREVIEW', status: { in: ['QUEUED', 'PROCESSING', 'FAILED', 'UNCONFIGURED'] } }, data: { status: 'CANCELLED', claimToken: null, lockedAt: null } });
@@ -116,10 +130,18 @@ export async function save(actorId: string, raw: unknown, id?: string) {
     return row.id;
   });
 }
-export async function act(actorId: string, id: string, action: 'preview' | 'sign-off' | 'send' | 'schedule' | 'cancel' | 'retry', raw: unknown) {
+export async function act(actorId: string, id: string, action: 'preview' | 'sign-off' | 'send' | 'schedule' | 'cancel' | 'retry' | 'delete', raw: unknown) {
   const input = actionBody.parse(raw);
   return mutation(actorId, input, action === 'sign-off' ? 'SignOff' : action, id, input, async (tx, value) => {
     const row = value!;
+    if (row.deletedAt) throw ApiError.notFound('Announcement not found');
+    if (action === 'delete') {
+      if (!input.confirmed) throw ApiError.unprocessable('Confirm deletion.');
+      await tx.announcement.update({ where: { id }, data: { deletedAt: new Date(), scheduledAt: null, revision: { increment: 1 } } });
+      await tx.announcementDelivery.updateMany({ where: { announcementId: id, status: { in: ['QUEUED', 'PROCESSING', 'FAILED', 'UNCONFIGURED'] } }, data: { status: 'CANCELLED', claimToken: null, lockedAt: null } });
+      return id;
+    }
+    if (row.expiresAt && row.expiresAt <= new Date()) throw ApiError.conflict('This announcement has expired. Create a new announcement.');
     if (action === 'retry') {
       const result = await tx.announcementDelivery.updateMany({ where: { announcementId: id, revision: row.revision, status: { in: ['FAILED', 'UNCONFIGURED'] } }, data: { status: 'QUEUED', attempts: 0, dueAt: new Date(), error: null, lockedAt: null, claimToken: null } });
       if (!result.count) throw ApiError.conflict('No failed or unconfigured deliveries to retry.');
@@ -151,7 +173,11 @@ export async function act(actorId: string, id: string, action: 'preview' | 'sign
       return id;
     }
     if (row.sendSABPreview && row.signedOffRevision !== row.revision) throw ApiError.conflict('Confirm SAB sign-off for this revision before broadcasting.');
-    const recipients = await tx.user.count({ where: { AND: [recipientWhere(row.audience), ...(row.channel === 'Email' ? [{ OR: [{ announcementPreference: null }, { announcementPreference: { emailEnabled: true } }] }] : [])] } });
+    // Only an email-only broadcast can be emptied by email opt-outs; anything that
+    // also delivers in-app still reaches every recipient, so the preference filter
+    // would wrongly refuse it.
+    const emailOnly = !channelsFor(row.channel, row.audience).includes('IN_APP');
+    const recipients = await tx.user.count({ where: { AND: [recipientWhere(row.audience), ...(emailOnly ? [{ OR: [{ announcementPreference: null }, { announcementPreference: { emailEnabled: true } }] }] : [])] } });
     if (!recipients) throw ApiError.unprocessable('No eligible recipients for this audience.');
     await tx.announcement.update({ where: { id }, data: { status: 'SCHEDULED', scheduledAt: action === 'send' ? new Date() : row.scheduledAt } });
     return id;

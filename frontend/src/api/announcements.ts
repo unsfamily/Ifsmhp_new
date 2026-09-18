@@ -14,7 +14,7 @@ export interface Announcement extends AnnouncementInput {
 }
 export interface Delivery { id: string; recipientEmail: string | null; recipientUserId: string | null; channel: string; purpose: string; revision: number | null; status: string; attempts: number; deliveredAt: string | null; openedAt: string | null; error: string | null }
 export interface AnnouncementOptions { audiences: { name: string; total: number; email: number; inApp: number; available: boolean }[]; smtpConfigured: boolean; sabRecipients: number; workerEnabled: boolean }
-export type AnnouncementAction = 'preview' | 'sign-off' | 'send' | 'schedule' | 'cancel' | 'retry';
+export type AnnouncementAction = 'preview' | 'sign-off' | 'send' | 'schedule' | 'cancel' | 'retry' | 'delete';
 const root = '/admin/announcements';
 export const announcementApi = {
   list: async (params: { page: number; limit: number; q: string; audience: Audience; status: Status }) => (await apiClient.get<{ data: Page<Announcement> & { counts: Record<Status, number>; stats: { monthSent: number; delivered: number; inAppReadRate: number | null } } }>(root, { params })).data.data,

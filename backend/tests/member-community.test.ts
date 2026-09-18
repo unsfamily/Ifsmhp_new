@@ -321,8 +321,11 @@ describe('direct messages', () => {
     await send(alice, bob, 'Following up on that.');
     await send(bob, alice, 'Yes — happy to.');
 
-    // One conversation, not three.
-    expect(await prisma.conversation.count({ where: { kind: 'DIRECT' } })).toBe(1);
+    // One conversation, not three. Scoped to this fixture's participants: an
+    // unscoped count also picks up real DIRECT threads already in the database.
+    expect(await prisma.conversation.count({
+      where: { kind: 'DIRECT', participants: { some: { userId: alice.userId } } },
+    })).toBe(1);
 
     const asBob = await as(bob, 'get', `/api/v1/members/me/community/messages/${alice.userId}`);
     expect(asBob.body.data.messages).toHaveLength(3);

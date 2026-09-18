@@ -11,6 +11,7 @@ import { validate } from '../middleware/validate';
 import * as service from '../services/platform.service';
 import * as supportService from '../services/support.service';
 import * as exchange from '../services/document-exchange.service';
+import * as announcements from '../services/member-announcements.service';
 import { exchangeSendBody } from '../domain/document-exchange';
 
 const router = Router({ mergeParams: true });
@@ -27,6 +28,11 @@ const router = Router({ mergeParams: true });
  */
 
 router.use(requireAuth, requireRole('MEMBER'), requireMembershipStatus('ACTIVE'));
+router.get('/me/announcements', asyncHandler(async (req, res) => sendSuccess(res, await announcements.listMemberAnnouncements(req.user!.id, req.query), 'Announcements')));
+router.get('/me/announcements/:id', asyncHandler(async (req, res) => sendSuccess(res, await announcements.memberAnnouncementDetail(req.user!.id, req.params.id!), 'Announcement')));
+for (const action of ['read', 'unread'] as const) {
+  router.post(`/me/announcements/:id/${action}`, asyncHandler(async (req, res) => sendSuccess(res, await announcements.setAnnouncementRead(req.user!.id, req.params.id!, action === 'read'), 'Announcement updated')));
+}
 
 const projectSchema = z.object({
   title: z.string().min(4).max(220),

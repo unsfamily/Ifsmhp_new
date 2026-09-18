@@ -39,6 +39,7 @@ import { usePolledApiData } from '../../hooks/usePolledApiData';
 import { useAnnouncementComposer, composerInput } from '../../hooks/useAnnouncementComposer';
 import AnnouncementDetail from '../../components/announcements/AnnouncementDetail';
 import Pagination from '../../components/announcements/Pagination';
+import { ExchangeModal } from '../../components/exchange/ExchangeDialog';
 
 const statusVariant: Record<Exclude<Status, 'All'>, 'warning' | 'brass' | 'info' | 'success' | 'danger' | 'default'> = {
   Draft: 'warning', Scheduled: 'brass', Sending: 'info', Sent: 'success', Cancelled: 'danger', Partial: 'warning', Failed: 'danger', Suppressed: 'default',
@@ -55,6 +56,7 @@ export default function AdminAnnouncementsPage() {
   const [limit, setLimit] = useState(10);
   const [selected, setSelected] = useState<string | null>(null);
   const [confirmCancelSchedule, setConfirmCancelSchedule] = useState<Announcement | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Announcement | null>(null);
   useEffect(() => { const timer = setTimeout(() => { setQuery(search); setPage(1); }, 300); return () => clearTimeout(timer); }, [search]);
   const listing = usePolledApiData(() => announcementApi.list({ page, limit, q: query, status: tab, audience: audienceFilter }), [page, limit, query, tab, audienceFilter], 30000);
   const options = usePolledApiData(announcementApi.options, [], 60000);
@@ -64,7 +66,9 @@ export default function AdminAnnouncementsPage() {
   const isValid = announcementSchema(composer.scheduleMode === 'scheduled' ? 'schedule' : 'send').safeParse(composerInput(composer)).success;
   const tabCounts = listing.data?.counts ?? Object.fromEntries(ANNOUNCEMENT_STATUSES.map(s => [s, 0])) as Record<Status, number>;
   const filtered = listing.data?.items ?? [];
-  const audienceCountEstimate = (audience: Exclude<Audience, 'All'>) => { const estimate = options.data?.audiences.find(a => a.name === audience); return (composer.channel === 'Email' ? estimate?.email : estimate?.total) ?? 0; };
+  // Every channel now delivers in-app, so reach is the full audience; only Pending
+  // Applicants is email-only and therefore limited by email opt-outs.
+  const audienceCountEstimate = (audience: Exclude<Audience, 'All'>) => { const estimate = options.data?.audiences.find(a => a.name === audience); return (audience === 'Pending Applicants' ? estimate?.email : estimate?.total) ?? 0; };
   const estimatedRecipients = options.data ? audienceCountEstimate(composer.audience).toLocaleString() : 'Loading...';
   const saveDraft = () => void form.run('draft');
   const submit = (kind: 'send-now' | 'schedule' | 'sab-preview') => void form.run(kind === 'send-now' ? 'send' : kind === 'sab-preview' ? 'preview' : 'schedule');
@@ -216,6 +220,27 @@ export default function AdminAnnouncementsPage() {
                       <SelectInput label="Delivery Channel" error={err('channel')} value={composer.channel} onChange={(e) => update('channel', e.target.value as Channel)}>
                         {CHANNEL_OPTS.map((c) => <option key={c} disabled={composer.audience === 'Pending Applicants' && c !== 'Email'}>{c}</option>)}
                       </SelectInput>
+                      {/* Every channel reaches the member Announcements list; the choice only
+                          decides whether an email goes out too. Pending Applicants is the one
+                          audience with no in-app reader, so it is email-only. */}
+                      {composer.audience === 'Pending Applicants' ? (
+                        <p className="-mt-2 flex items-start gap-1.5 text-xs text-ink-subtle">
+                          <MailIcon className="h-3.5 w-3.5 shrink-0 mt-px" />
+                          <span>Emailed only — applicants have no in-app Announcements view.</span>
+                        </p>
+                      ) : composer.channel === 'In-App Only' ? (
+                        <p className="-mt-2 flex items-start gap-1.5 text-xs text-ink-subtle">
+                          <Smartphone className="h-3.5 w-3.5 shrink-0 mt-px" />
+                          <span>Shown in members' Announcements. No email is sent.</span>
+                        </p>
+                      ) : (
+                        <p className="-mt-2 flex items-start gap-1.5 text-xs text-ink-subtle">
+                          <MailIcon className="h-3.5 w-3.5 shrink-0 mt-px" />
+                          <span>Shown in members' Announcements, and emailed.</span>
+                        </p>
+                      )}
+                      <TextInput label="Expiration (optional)" type="datetime-local" value={composer.expiresAt} onChange={e => update('expiresAt', e.target.value)} error={err('expiresAt')} />
+                      {composer.scheduleMode !== 'scheduled' && <TextInput label="Timezone (IANA)" value={composer.timezone} onChange={e => update('timezone', e.target.value)} error={err('timezone')} />}
                       <div>
                         <label className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-1.5 block">Send Timing</label>
                         <div className="grid gap-2">
@@ -274,6 +299,12 @@ export default function AdminAnnouncementsPage() {
                       <div className="flex items-center gap-2 text-ink">
                         {composer.channel.includes('Email') ? <MailIcon className="h-3.5 w-3.5 text-forum-600" /> : <Smartphone className="h-3.5 w-3.5 text-forum-600" />}Channel: <span className="font-semibold">{composer.channel}</span>
                       </div>
+                      {composer.audience === 'Pending Applicants' && (
+                        <p className="flex items-start gap-1.5 text-warning-600">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                          <span>Email only — applicants have no in-app Announcements view.</span>
+                        </p>
+                      )}
                       <div className="flex items-center gap-2 text-ink">
                         <Bell className="h-3.5 w-3.5 text-forum-600" />Recipients: <span className="font-semibold">{estimatedRecipients}</span>
                       </div>
@@ -335,11 +366,13 @@ export default function AdminAnnouncementsPage() {
                           {a.status === 'Scheduled' ? <>Sends {dateLabel(a.scheduledFor, a.timezone)}</> : a.sentAt ? <>Sent {dateLabel(a.sentAt)}</> : <>Edited {dateLabel(a.updatedAt)}</>}
                         </span>
                         <span className="inline-flex items-center gap-1">by {a.author}</span>
+                        {a.expiresAt && <span>Expires {a.expiresAt.replace('T', ' ')} {a.timezone}</span>}
                         {a.delivery.map(d => <Badge key={`${d.channel}-${d.status}`} variant={d.status === 'FAILED' ? 'danger' : 'default'} className="!text-[10px] !py-0">{d.channel === 'IN_APP' ? 'In-app' : d.channel}: {d.count} {d.status.toLowerCase()}</Badge>)}
                       </div>
                     </div>
                   </div>
                   <div className="flex flex-wrap md:flex-col md:items-end gap-2 shrink-0">
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirmDelete(a)}><Trash2 className="h-4 w-4" />Delete</Button>
                     {a.status === 'Draft' && (
                       <Button size="sm" variant="outline" className="justify-start" disabled={busy} onClick={() => void openDraft(a)}>
                         <Copy className="h-3.5 w-3.5" />
@@ -387,6 +420,11 @@ export default function AdminAnnouncementsPage() {
         </CardContent>
       </Card>
       {selected && <AnnouncementDetail key={selected} id={selected} close={() => setSelected(null)} changed={listing.refresh} />}
+      {confirmDelete && <ExchangeModal title="Delete announcement?" close={() => setConfirmDelete(null)} busy={busy}>
+        <p className="text-sm text-ink-muted">This announcement will be removed from member views and pending delivery will stop. Emails already sent cannot be recalled.</p>
+        {form.error && <p role="alert" className="mt-3 text-sm text-danger-600">{form.error}</p>}
+        <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirmDelete(null)}>Keep announcement</Button><Button disabled={busy} onClick={() => { void form.action(confirmDelete, 'delete', true).then(ok => { if (ok) { setConfirmDelete(null); setPage(1); } }); }}><Trash2 className="h-4 w-4" />Confirm Delete</Button></div>
+      </ExchangeModal>}
 
       {confirmCancelSchedule && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-forum-900/40 backdrop-blur-sm p-4">

@@ -253,54 +253,6 @@ export async function productReviews(req: Request) {
   return buildPaginatedResult(items, total, pagination);
 }
 
-export async function publicEvents(req: Request) {
-  const pagination = parsePage(req);
-  const q = String(req.query.q ?? '').trim();
-  const where: Prisma.EventWhereInput = {
-    deletedAt: null,
-    status: { in: ['PUBLISHED', 'PAST'] },
-    audience: { in: ['Public', 'All Members'] },
-    ...(q ? { title: { contains: q } } : {}),
-  };
-  const [items, total] = await Promise.all([
-    prisma.event.findMany({
-      where,
-      ...toSkipTake(pagination),
-      orderBy: { date: 'asc' },
-      include: { speakers: true, tags: true, registrations: true, resources: true },
-    }),
-    prisma.event.count({ where }),
-  ]);
-  return buildPaginatedResult(
-    items.map((event) => ({
-      id: event.slug,
-      title: event.title,
-      date: event.date,
-      time: `${event.timeStart} - ${event.timeEnd} ${event.timezone}`,
-      location: event.location,
-      type: event.tags[0]?.name ?? 'Event',
-      category: event.tags[1]?.name ?? event.format,
-      description: event.shortDescription,
-      speakers: event.speakers.map((s) => s.name),
-      seats: event.capacity,
-      status: event.status,
-      feedback: event.status === 'PAST' ? 4.8 : undefined,
-      takeaways: event.resources.map((r) => r.title),
-      attendees: event.registrations.length,
-    })),
-    total,
-    pagination,
-  );
-}
-
-export async function eventDetail(slugOrId: string) {
-  const event = await prisma.event.findFirst({
-    where: { deletedAt: null, OR: [{ id: slugOrId }, { slug: slugOrId }], status: { in: ['PUBLISHED', 'PAST'] }, audience: { in: ['Public', 'All Members'] } },
-    include: { speakers: true, tags: true, registrations: true, resources: true },
-  });
-  if (!event) throw ApiError.notFound('Event not found');
-  return event;
-}
 
 export async function gallery(req: Request, admin = false) {
   const pagination = parsePage(req);

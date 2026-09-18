@@ -43,7 +43,7 @@ async function draft(data: Record<string, unknown> = {}) {
   return response.body.data as { id: string; revision: number; status: string };
 }
 const act = (row: { id: string; revision: number }, action: string, body = {}) => call(admin, 'post', `${base}/${row.id}/${action}`).send({ expectedRevision: row.revision, requestId: crypto.randomUUID(), ...body });
-const tick = async (id: string, advance = 1000) => processAnnouncementJobs(new Date(Date.now() + advance), id);
+const tick = async (id: string, advance = 0) => processAnnouncementJobs(new Date(Date.now() + advance), id);
 beforeAll(async () => {
   admin = await actor('admin', 'ADMIN'); member = await actor('scientist', 'MEMBER'); other = await actor('professional', 'MEMBER', 'ACTIVE', 'Psychologist');
   applicant = await actor('applicant', 'APPLICANT', 'PENDING'); inactive = await actor('inactive', 'MEMBER', 'SUSPENDED');
@@ -149,14 +149,16 @@ describe('recipient boundaries and durable delivery', () => {
     const calls = await prisma.announcementDelivery.findMany({ where: { announcementId: row.id } });
     expect(calls.every(d => fixture.ids.includes(d.recipientUserId!))).toBe(true);
   });
-  it('handles missed schedules after restart and excludes email-only and previews from Document Exchange', async () => {
+  it('handles missed schedules after restart and keeps future-dated receipts out of Document Exchange', async () => {
     const row = await draft({ channel: 'Email', audience: 'Professionals Track', scheduledAt: '2035-06-10T09:00' });
     await act(row, 'schedule');
     await processAnnouncementJobs(new Date('2035-06-10T10:00:00Z'), row.id);
     expect(sendAnnouncementEmail).toHaveBeenCalledTimes(1);
+    // An email-carrying announcement now also delivers in-app, so the notification exists...
+    expect(await prisma.notification.count({ where: { announcementDelivery: { announcementId: row.id } } })).toBe(1);
+    // ...but the receipt is dated 2035, so it stays hidden until that date arrives.
     const exchange = await call(other, 'get', '/api/v1/members/me/document-exchange/items?type=announcements&limit=100');
     expect(exchange.body.data.items.some((a: { id: string }) => a.id === row.id)).toBe(false);
-    expect(await prisma.notification.count({ where: { announcementDelivery: { announcementId: row.id } } })).toBe(0);
   });
   it('rechecks eligibility and email preferences and leaves operational mail unaffected', async () => {
     const row = await draft({ audience: 'Professionals Track' }); await act(row, 'send');
@@ -209,6 +211,197 @@ describe('recipient boundaries and durable delivery', () => {
     await tick(row.id); expect(await prisma.announcementDelivery.count({ where: { announcementId: row.id, status: 'SENT' } })).toBe(100);
     await tick(row.id); expect(await prisma.announcementDelivery.count({ where: { announcementId: row.id, status: 'SENT' } })).toBe(105);
     const page = await call(admin, 'get', `${base}/${row.id}/deliveries?limit=50&page=3`); expect(page.body.data.items).toHaveLength(5);
+  });
+});
+
+describe('member announcement lifecycle', () => {
+  const memberBase = '/api/v1/members/me/announcements';
+  const visible = async (who: Actor, id: string) => call(who, 'get', `${memberBase}/${id}`);
+  async function publish(extra: Record<string, unknown> = {}) {
+    const row = await draft({ channel: 'In-App Only', ...extra });
+    expect((await act(row, 'send')).status).toBe(200);
+    await tick(row.id);
+    return row;
+  }
+  it('requires active members and hides drafts, future schedules and unrelated audiences', async () => {
+    const row = await draft();
+    expect((await visible(member, row.id)).status).toBe(404);
+    expect((await request(app).get(memberBase)).status).toBe(401);
+    expect((await call(inactive, 'get', memberBase)).status).toBe(401);
+    expect((await call(applicant, 'get', memberBase)).status).toBe(403);
+    const future = await draft({ scheduledAt: '2035-06-10T09:00' });
+    await act(future, 'schedule'); await tick(future.id);
+    expect((await visible(member, future.id)).status).toBe(404);
+    const sent = await publish();
+    expect((await visible(other, sent.id)).status).toBe(404);
+    expect((await visible(member, sent.id)).body.data).toMatchObject({ subject: valid.subject, body: valid.body, status: 'UNREAD', sender: 'CRO Office' });
+    expect((await visible(member, sent.id)).body.data).not.toHaveProperty('deliveries');
+  });
+  it('synchronizes read/unread across exchange and notifications without losing first-read history', async () => {
+    const row = await publish();
+    const notification = await prisma.notification.findUniqueOrThrow({ where: { userId_announcementId: { userId: member.id, announcementId: row.id } } });
+    expect((await call(other, 'post', `${memberBase}/${row.id}/read`)).status).toBe(404);
+    expect((await call(member, 'post', `${memberBase}/${row.id}/read`)).body.data.status).toBe('READ');
+    const first = await prisma.announcementDelivery.findUniqueOrThrow({ where: { id: notification.announcementDeliveryId! } });
+    expect(first.openedAt).not.toBeNull();
+    expect((await call(member, 'post', `/api/v1/notifications/${notification.id}/unread`)).status).toBe(200);
+    expect((await visible(member, row.id)).body.data.status).toBe('UNREAD');
+    const exchange = (await call(member, 'get', '/api/v1/members/me/document-exchange/items?type=announcements&limit=100')).body.data;
+    expect(exchange.items.find((item: { id: string }) => item.id === row.id).status).toBe('UNREAD');
+    await call(member, 'post', `/api/v1/notifications/${notification.id}/read`);
+    expect((await prisma.announcementDelivery.findUniqueOrThrow({ where: { id: first.id } })).openedAt).toEqual(first.openedAt);
+    expect((await visible(member, row.id)).body.data.status).toBe('READ');
+  });
+  it('keeps successful in-app delivery visible during partial email failure', async () => {
+    vi.mocked(sendAnnouncementEmail).mockRejectedValue(new Error('fixture failure'));
+    const row = await publish({ channel: 'Email + In-App' });
+    expect((await visible(member, row.id)).status).toBe(200);
+    await prisma.announcement.update({ where: { id: row.id }, data: { status: 'PARTIAL' } });
+    expect((await visible(member, row.id)).status).toBe(200);
+  });
+  it('shows email-carrying announcements in-app and still emails them', async () => {
+    const row = await publish({ channel: 'Email' });
+    expect((await visible(member, row.id)).status).toBe(200);
+    const mine = await prisma.announcementDelivery.findMany({ where: { announcementId: row.id, purpose: 'BROADCAST', recipientUserId: member.id }, select: { channel: true } });
+    expect(mine.map(d => d.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+    expect(sendAnnouncementEmail).toHaveBeenCalled();
+  });
+
+  it('delivers in-app even when the member has opted out of announcement email', async () => {
+    await prisma.announcementPreference.upsert({ where: { userId: member.id }, create: { userId: member.id, emailEnabled: false }, update: { emailEnabled: false } });
+    try {
+      const row = await publish({ channel: 'Email' });
+      // The opt-out silences the email; the in-app copy still arrives.
+      expect((await visible(member, row.id)).status).toBe(200);
+      const mine = await prisma.announcementDelivery.findMany({ where: { announcementId: row.id, recipientUserId: member.id }, select: { channel: true, status: true } });
+      expect(mine.find(d => d.channel === 'EMAIL')?.status).toBe('SUPPRESSED');
+      expect(mine.find(d => d.channel === 'IN_APP')?.status).toBe('SENT');
+    } finally {
+      await prisma.announcementPreference.update({ where: { userId: member.id }, data: { emailEnabled: true } });
+    }
+  });
+
+  it('keeps Pending Applicants email-only — they have no in-app reader', async () => {
+    const row = await draft({ audience: 'Pending Applicants', channel: 'Email' });
+    expect((await act(row, 'send')).status).toBe(200);
+    await tick(row.id);
+    const deliveries = await prisma.announcementDelivery.findMany({ where: { announcementId: row.id, purpose: 'BROADCAST' }, select: { channel: true } });
+    expect(deliveries.length).toBeGreaterThan(0);
+    expect([...new Set(deliveries.map(d => d.channel))]).toEqual(['EMAIL']);
+  });
+
+  it('excludes preview-only, stale-revision and future-dated receipts', async () => {
+    const preview = await draft(); await act(preview, 'preview'); await tick(preview.id);
+    expect((await visible(member, preview.id)).status).toBe(404);
+    const stale = await publish();
+    await prisma.announcement.update({ where: { id: stale.id }, data: { revision: { increment: 1 } } });
+    expect((await visible(member, stale.id)).status).toBe(404);
+    const future = await publish();
+    await prisma.announcementDelivery.updateMany({ where: { announcementId: future.id }, data: { deliveredAt: new Date(Date.now() + 86400000) } });
+    expect((await visible(member, future.id)).status).toBe(404);
+  });
+  it('rechecks current audience membership for existing notifications', async () => {
+    const row = await publish();
+    const notification = await prisma.notification.findUniqueOrThrow({ where: { userId_announcementId: { userId: member.id, announcementId: row.id } } });
+    await prisma.memberProfile.update({ where: { userId: member.id }, data: { professionalType: 'Psychologist' } });
+    try {
+      expect((await visible(member, row.id)).status).toBe(404);
+      expect((await call(member, 'get', `/api/v1/notifications/${notification.id}`)).status).toBe(404);
+      expect((await call(member, 'post', `/api/v1/notifications/${notification.id}/read`)).status).toBe(404);
+    } finally { await prisma.memberProfile.update({ where: { userId: member.id }, data: { professionalType: 'Research Scholar / Scientist' } }); }
+  });
+  it('validates expiry dates and persists timezone conversion without resetting expiry on partial edits', async () => {
+    const row = await draft({ expiresAt: '2035-06-10T10:00', timezone: 'Asia/Kolkata' });
+    expect((await prisma.announcement.findUniqueOrThrow({ where: { id: row.id } })).expiresAt?.toISOString()).toBe('2035-06-10T04:30:00.000Z');
+    const updated = await call(admin, 'patch', `${base}/${row.id}`).send({ subject: 'Updated subject', expectedRevision: row.revision, requestId: crypto.randomUUID() });
+    expect(updated.body.data.expiresAt).toBe('2035-06-10T10:00');
+    for (const input of [
+      { expiresAt: '2035-02-30T10:00' }, { expiresAt: '2035-03-11T02:30', timezone: 'America/New_York' },
+      { expiresAt: '2035-11-04T01:30', timezone: 'America/New_York' },
+      { scheduledAt: '2035-06-10T10:00', expiresAt: '2035-06-10T10:00' }, { expiresAt: '2000-01-01T10:00' },
+    ]) expect(announcementSchema('send').safeParse({ ...valid, ...input }).success).toBe(false);
+  });
+  it('removes expired content from every member surface and prevents delivery retry', async () => {
+    const row = await publish();
+    const notification = await prisma.notification.findUniqueOrThrow({ where: { userId_announcementId: { userId: member.id, announcementId: row.id } } });
+    await prisma.announcement.update({ where: { id: row.id }, data: { expiresAt: new Date(Date.now() - 1) } });
+    expect((await visible(member, row.id)).status).toBe(404);
+    expect((await call(member, 'get', `/api/v1/notifications/${notification.id}`)).status).toBe(404);
+    expect((await call(member, 'get', `/api/v1/notifications?announcement=${row.id}`)).body.data.items).toEqual([]);
+    expect((await call(member, 'post', `${memberBase}/${row.id}/unread`)).status).toBe(404);
+    expect((await act(row, 'retry')).status).toBe(409);
+  });
+  it('suppresses a schedule that expires while the worker is offline', async () => {
+    const row = await draft({ scheduledAt: '2035-06-10T09:00', expiresAt: '2035-06-10T10:00' });
+    await act(row, 'schedule');
+    await processAnnouncementJobs(new Date('2035-06-10T10:00:00Z'), row.id);
+    expect((await prisma.announcement.findUniqueOrThrow({ where: { id: row.id } })).status).toBe('SUPPRESSED');
+    expect(await prisma.announcementDelivery.count({ where: { announcementId: row.id } })).toBe(0);
+    expect(sendAnnouncementEmail).not.toHaveBeenCalled();
+  });
+  it('soft deletes idempotently, revokes access and keeps audit and delivery history', async () => {
+    const row = await publish();
+    const notification = await prisma.notification.findUniqueOrThrow({ where: { userId_announcementId: { userId: member.id, announcementId: row.id } } });
+    expect((await act(row, 'delete')).status).toBe(422);
+    const input = { confirmed: true, requestId: crypto.randomUUID(), expectedRevision: row.revision };
+    expect((await call(admin, 'post', `${base}/${row.id}/delete`).send(input)).status).toBe(200);
+    expect((await call(admin, 'post', `${base}/${row.id}/delete`).send(input)).status).toBe(200);
+    expect((await visible(member, row.id)).status).toBe(404);
+    expect((await call(member, 'get', `/api/v1/notifications/${notification.id}`)).status).toBe(404);
+    expect((await call(admin, 'get', `${base}/${row.id}`)).status).toBe(404);
+    expect(await prisma.announcementDelivery.count({ where: { announcementId: row.id, status: 'SENT' } })).toBeGreaterThan(0);
+    expect(await prisma.auditLog.count({ where: { entity: `Announcement ${row.id}`, action: 'Announcementdelete' } })).toBe(1);
+  });
+  it('publishes an overdue schedule after restart only when it is still live', async () => {
+    const row = await draft({ channel: 'In-App Only', scheduledAt: '2035-06-10T09:00', expiresAt: '2035-06-10T10:00' });
+    await act(row, 'schedule');
+    await prisma.announcement.update({ where: { id: row.id }, data: { scheduledAt: new Date(Date.now() - 1000) } });
+    await tick(row.id);
+    expect((await visible(member, row.id)).status).toBe(200);
+    expect(await prisma.notification.count({ where: { announcementId: row.id, userId: member.id } })).toBe(1);
+  });
+  it('stops queued retries after expiry without sending email', async () => {
+    vi.mocked(sendAnnouncementEmail).mockResolvedValue(false);
+    const row = await publish({ channel: 'Email + In-App' });
+    await prisma.announcement.update({ where: { id: row.id }, data: { expiresAt: new Date(Date.now() - 1) } });
+    await prisma.announcementDelivery.updateMany({ where: { announcementId: row.id, status: 'UNCONFIGURED' }, data: { dueAt: new Date(0) } });
+    vi.mocked(sendAnnouncementEmail).mockClear();
+    await tick(row.id);
+    expect(sendAnnouncementEmail).not.toHaveBeenCalled();
+    expect(await prisma.announcementDelivery.count({ where: { announcementId: row.id, status: { in: ['QUEUED', 'PROCESSING', 'UNCONFIGURED'] } } })).toBe(0);
+    expect((await visible(member, row.id)).status).toBe(404);
+  });
+  it('serializes deletion against concurrent workers and never delivers after deletion returns', async () => {
+    const row = await draft({ channel: 'In-App Only' }); await act(row, 'send');
+    await Promise.all([act(row, 'delete', { confirmed: true }), tick(row.id), tick(row.id)]);
+    const before = await prisma.notification.count({ where: { announcementId: row.id } });
+    await tick(row.id);
+    expect(await prisma.notification.count({ where: { announcementId: row.id } })).toBe(before);
+    expect((await visible(member, row.id)).status).toBe(404);
+  });
+  it('preserves legacy content, creates read state only on interaction, and hides orphan notifications', async () => {
+    const row = await prisma.announcement.create({ data: { subject: `${prefix} legacy`, body: valid.body, audience: 'Members Only', channel: 'In-App Only', status: 'SENT', sentAt: new Date() } });
+    announcements.push(row.id);
+    expect((await visible(member, row.id)).body.data.status).toBe('UNREAD');
+    expect(await prisma.notification.count({ where: { announcementId: row.id } })).toBe(0);
+    await call(member, 'post', `${memberBase}/${row.id}/read`);
+    expect(await prisma.notification.count({ where: { announcementId: row.id, status: 'READ' } })).toBe(1);
+    expect(await prisma.announcementDelivery.count({ where: { announcementId: row.id } })).toBe(0);
+    await prisma.announcement.delete({ where: { id: row.id } });
+    const inbox = (await call(member, 'get', '/api/v1/notifications?limit=100')).body.data;
+    expect(inbox.items.some((item: { title: string }) => item.title === row.subject)).toBe(false);
+  });
+  it('filters before pagination beyond 100 records and clamps removed pages', async () => {
+    const ids = Array.from({ length: 105 }, (_, i) => `${prefix}-member-page-${i}`); announcements.push(...ids);
+    await prisma.announcement.createMany({ data: ids.map((id, i) => ({ id, subject: `${prefix} searchable ${i}`, body: 'Pagination fixture', audience: 'Members Only', channel: 'In-App Only', status: 'SENT', sentAt: new Date() })) });
+    const first = (await call(member, 'get', memberBase).query({ q: `${prefix} searchable`, limit: 50 })).body.data;
+    const third = (await call(member, 'get', memberBase).query({ q: `${prefix} searchable`, limit: 50, page: 3 })).body.data;
+    expect(first.pagination.total).toBe(105); expect(first.items).toHaveLength(50); expect(third.items).toHaveLength(5);
+    const id = third.items[0].id;
+    await call(member, 'post', `${memberBase}/${id}/read`);
+    const read = (await call(member, 'get', memberBase).query({ q: `${prefix} searchable`, status: 'READ', page: 3 })).body.data;
+    expect(read.pagination).toMatchObject({ total: 1, page: 1 }); expect(read.items[0].id).toBe(id);
+    expect((await call(member, 'get', memberBase).query({ q: `${prefix} absent` })).body.data.items).toEqual([]);
   });
 });
 

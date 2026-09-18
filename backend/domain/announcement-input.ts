@@ -9,6 +9,7 @@ export const announcementFields = z.object({
   audience: z.enum(ANNOUNCEMENT_AUDIENCES).default('All Members'), channel: z.enum(ANNOUNCEMENT_CHANNELS).default('Email + In-App'),
   timezone: z.string().max(100).refine(v => v === 'UTC' || IANAZone.isValidZone(v), 'Use an IANA timezone.').default('UTC'),
   scheduledAt: z.string().max(30).default(''), senderAsCRO: z.boolean().default(true),
+  expiresAt: z.string().max(30).default(''),
   appendUnsubscribe: z.boolean().default(true), sendSABPreview: z.boolean().default(false),
 }).strict();
 export type AnnouncementInput = z.infer<typeof announcementFields>;
@@ -17,6 +18,12 @@ export function announcementSchema(mode: 'draft' | 'send' | 'schedule' | 'previe
   return announcementFields.superRefine((value, ctx) => {
     const error = (field: keyof AnnouncementInput, message: string) => ctx.addIssue({ code: 'custom', path: [field], message });
     if (!value.subject && !value.body) error('subject', 'Add a subject or message to save a draft.');
+    if (value.expiresAt) {
+      const expiry = DateTime.fromISO(value.expiresAt, { zone: value.timezone });
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value.expiresAt) || !expiry.isValid || expiry.toFormat("yyyy-MM-dd'T'HH:mm") !== value.expiresAt || expiry.getPossibleOffsets().length > 1) error('expiresAt', 'Choose a valid, unambiguous expiration time.');
+      else if (value.scheduledAt && expiry.toMillis() <= DateTime.fromISO(value.scheduledAt, { zone: value.timezone }).toMillis()) error('expiresAt', 'Expiration must be after publication.');
+      else if (mode !== 'draft' && expiry.toMillis() <= Date.now()) error('expiresAt', 'Expiration must be in the future.');
+    }
     if (value.scheduledAt || mode === 'schedule') {
       const date = DateTime.fromISO(value.scheduledAt, { zone: value.timezone });
       if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value.scheduledAt) || !date.isValid || date.toFormat("yyyy-MM-dd'T'HH:mm") !== value.scheduledAt || date.getPossibleOffsets().length > 1) error('scheduledAt', 'Choose a valid, unambiguous local date and time.');

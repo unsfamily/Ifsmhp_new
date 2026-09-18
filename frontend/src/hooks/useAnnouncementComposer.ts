@@ -2,9 +2,9 @@ import { useRef, useState } from 'react';
 import { announcementApi, announcementSchema, type Announcement, type AnnouncementInput, type AnnouncementAction } from '../api/announcements';
 import { normalizeError } from '../api/client';
 export type ComposerState = AnnouncementInput & { scheduleMode: 'draft' | 'now' | 'scheduled' };
-export const EMPTY_COMPOSER: ComposerState = { subject: '', body: '', audience: 'All Members', channel: 'Email + In-App', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', scheduledAt: '', senderAsCRO: true, appendUnsubscribe: true, sendSABPreview: false, scheduleMode: 'draft' };
+export const EMPTY_COMPOSER: ComposerState = { subject: '', body: '', audience: 'All Members', channel: 'Email + In-App', expiresAt: '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', scheduledAt: '', senderAsCRO: true, appendUnsubscribe: true, sendSABPreview: false, scheduleMode: 'draft' };
 export function composerInput(c: ComposerState): AnnouncementInput {
-  return { subject: c.subject, body: c.body, audience: c.audience, channel: c.channel, timezone: c.timezone, senderAsCRO: c.senderAsCRO, appendUnsubscribe: c.appendUnsubscribe, sendSABPreview: c.sendSABPreview, scheduledAt: c.scheduleMode === 'scheduled' ? c.scheduledAt : '' };
+  return { expiresAt: c.expiresAt, subject: c.subject, body: c.body, audience: c.audience, channel: c.channel, timezone: c.timezone, senderAsCRO: c.senderAsCRO, appendUnsubscribe: c.appendUnsubscribe, sendSABPreview: c.sendSABPreview, scheduledAt: c.scheduleMode === 'scheduled' ? c.scheduledAt : '' };
 }
 export function useAnnouncementComposer(refresh: () => void) {
   const [composer, setComposer] = useState(EMPTY_COMPOSER);
@@ -58,7 +58,7 @@ export function useAnnouncementComposer(refresh: () => void) {
   const action = async (row: Announcement, kind: AnnouncementAction, confirmed = false) => {
     if (lock.current) return false;
     lock.current = true; setBusy(true); setError(''); setResult('');
-    try { const updated = await announcementApi.act(row, kind, requestId([kind, row.id, row.revision]), confirmed); if (record?.id === row.id) setRecord(updated); setResult(kind === 'sign-off' ? 'SAB sign-off recorded for this revision.' : kind === 'cancel' ? 'Schedule cancelled. Announcement returned to drafts.' : 'Delivery retry queued.'); refresh(); return true; }
+    try { const updated = await announcementApi.act(row, kind, requestId([kind, row.id, row.revision]), confirmed); if (record?.id === row.id) { if (kind === 'delete') { setRecord(null); setComposer(EMPTY_COMPOSER); setShowComposer(false); } else setRecord(updated); } setResult(kind === 'delete' ? 'Announcement deleted.' : kind === 'sign-off' ? 'SAB sign-off recorded for this revision.' : kind === 'cancel' ? 'Schedule cancelled. Announcement returned to drafts.' : 'Delivery retry queued.'); refresh(); return true; }
     catch (e) { fail(e); return false; } finally { lock.current = false; setBusy(false); }
   };
   return { composer, record, showComposer, setShowComposer, errors, error, stale, busy, result, update, reset, openDraft, run, action };

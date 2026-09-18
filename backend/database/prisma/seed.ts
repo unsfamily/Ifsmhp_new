@@ -502,16 +502,53 @@ async function main(): Promise<void> {
     },
   });
 
+  /**
+   * A delivered announcement, so a fresh database actually demonstrates the
+   * member Announcements panel instead of shipping it empty.
+   *
+   * This is the *unmanaged* shape the legacy read branch in
+   * `member-announcements.service.ts` is built for: `managed: false` rows are
+   * never touched by the delivery worker, so they must be written already
+   * finished — `status: 'SENT'` with a past `sentAt`. An `All Members` audience
+   * short-circuits the receipt check, so every seeded member sees it. (The
+   * previous seed wrote `managed: false` + `SCHEDULED`, which the worker only
+   * advances for managed rows — it was stuck, and invisible, forever.)
+   */
   await prisma.announcement.create({
     data: {
       authorId: admin.id,
       subject: 'September research roundtable',
       body: `Development-only announcement for ${event.title}.`,
       audience: 'All Members',
-      channel: 'email',
-      status: 'SCHEDULED',
-      scheduledAt: new Date('2026-09-01T12:00:00Z'),
-      deliveries: { create: { recipientUserId: member.id, recipientEmail: member.email, status: 'Pending' } },
+      channel: 'Email + In-App',
+      status: 'SENT',
+      managed: false,
+      sentAt: new Date('2026-09-01T12:00:00Z'),
+      deliveries: {
+        create: {
+          key: 'seed-roundtable-in-app',
+          recipientUserId: member.id,
+          recipientEmail: member.email,
+          channel: 'IN_APP',
+          purpose: 'BROADCAST',
+          revision: 1,
+          status: 'SENT',
+          deliveredAt: new Date('2026-09-01T12:00:00Z'),
+        },
+      },
+    },
+  });
+
+  // A managed draft, so the admin listing has something to open in the composer.
+  await prisma.announcement.create({
+    data: {
+      authorId: admin.id,
+      subject: 'Draft: winter symposium call for abstracts',
+      body: 'Development-only draft announcement for composer and broadcast testing.',
+      audience: 'Members Only',
+      channel: 'Email + In-App',
+      status: 'DRAFT',
+      managed: true,
     },
   });
 

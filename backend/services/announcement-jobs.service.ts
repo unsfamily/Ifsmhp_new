@@ -11,9 +11,17 @@ async function dispatch(id: string, now: Date) {
   await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM Announcement WHERE id = ${id} FOR UPDATE`;
     const row = await tx.announcement.findUniqueOrThrow({ where: { id } });
+    if (row.deletedAt) return;
+    if (row.expiresAt && row.expiresAt <= now) {
+      if (row.status === 'SCHEDULED') {
+        await tx.announcement.update({ where: { id }, data: { status: 'SUPPRESSED', completedAt: now } });
+        await audit(tx, null, id, 'AnnouncementExpired', 'Expired before dispatch; no recipients notified.');
+      }
+      return;
+    }
     if (!row.managed || row.status !== 'SCHEDULED' || !row.scheduledAt || row.scheduledAt > now || row.dispatchStartedAt) return;
     const recipients = await tx.user.findMany({ where: recipientWhere(row.audience), select: { id: true, email: true } });
-    const data = recipients.flatMap(user => channelsFor(row.channel).map(channel => ({ key: hash(`${id}:${row.revision}:BROADCAST:${channel}:${user.id}`), announcementId: id, recipientUserId: user.id, recipientEmail: user.email, channel, purpose: 'BROADCAST', revision: row.revision, status: 'QUEUED', dueAt: now })));
+    const data = recipients.flatMap(user => channelsFor(row.channel, row.audience).map(channel => ({ key: hash(`${id}:${row.revision}:BROADCAST:${channel}:${user.id}`), announcementId: id, recipientUserId: user.id, recipientEmail: user.email, channel, purpose: 'BROADCAST', revision: row.revision, status: 'QUEUED', dueAt: now })));
     if (data.length) await tx.announcementDelivery.createMany({ data, skipDuplicates: true });
     await tx.announcement.update({ where: { id }, data: { dispatchStartedAt: now, status: data.length ? 'SENDING' : 'SUPPRESSED', completedAt: data.length ? null : now } });
     await audit(tx, null, id, 'AnnouncementDispatchStarted', `${recipients.length} recipients resolved at dispatch.`);
@@ -24,7 +32,7 @@ async function complete(id: string, now: Date) {
   await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM Announcement WHERE id = ${id} FOR UPDATE`;
     const row = await tx.announcement.findUniqueOrThrow({ where: { id } });
-    if (!row.managed || !row.dispatchStartedAt) return;
+    if (!row.managed || !row.dispatchStartedAt || row.deletedAt) return;
     const groups = await tx.announcementDelivery.groupBy({ by: ['status'], where: { announcementId: id, revision: row.revision, purpose: 'BROADCAST' }, _count: true });
     const count = (status: string) => groups.find(g => g.status === status)?._count ?? 0;
     const queued = count('QUEUED') + count('PROCESSING') + count('UNCONFIGURED');
@@ -55,10 +63,10 @@ export async function processAnnouncementJobs(now = new Date(), onlyId?: string)
         let status = 'SENT', error: string | null = null;
         const preview = job.purpose === 'PREVIEW';
         const user = job.recipientUserId ? await tx.user.findFirst({ where: { id: job.recipientUserId, ...recipientWhere(row.audience) }, include: { announcementPreference: true } }) : null;
-        if (row.revision !== job.revision || (preview ? row.previewRevision !== job.revision || !env.SAB_PREVIEW_EMAILS.includes(job.recipientEmail ?? '') : !row.dispatchStartedAt)) status = 'CANCELLED';
+        if (row.deletedAt || (row.expiresAt && row.expiresAt <= new Date(Math.max(now.getTime(), Date.now()))) || row.revision !== job.revision || (preview ? row.previewRevision !== job.revision || !env.SAB_PREVIEW_EMAILS.includes(job.recipientEmail ?? '') : !row.dispatchStartedAt)) status = 'CANCELLED';
         else if (!preview && (!user || (job.channel === 'EMAIL' && user.announcementPreference?.emailEnabled === false))) status = 'SUPPRESSED';
         else if (job.channel === 'IN_APP' && user) {
-          await tx.notification.upsert({ where: { announcementDeliveryId: job.id }, create: { userId: user.id, title: row.subject, body: row.body, type: 'announcement', announcementDeliveryId: job.id, link: `/dashboard/notifications?announcement=${row.id}` }, update: {} });
+          await tx.notification.upsert({ where: { userId_announcementId: { userId: user.id, announcementId: row.id } }, create: { userId: user.id, announcementId: row.id, title: row.subject, body: row.body, type: 'announcement', announcementDeliveryId: job.id, link: `/dashboard/notifications?announcement=${row.id}` }, update: {} });
         } else {
           const web = (env.ANNOUNCEMENT_WEB_URL ?? env.allowedOrigins[0]!).replace(/\/$/, '');
           const unsubscribeUrl = !preview && user && row.appendUnsubscribe ? `${web}/announcements/unsubscribe#token=${unsubscribeToken(user.id)}` : undefined;

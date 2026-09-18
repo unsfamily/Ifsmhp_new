@@ -47,6 +47,19 @@ export interface PublicPublicationDetail extends Omit<PublicPublication, 'hasMan
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api/v1';
 
+export interface PublicEventResource { id: string; title: string; kind: string; url: string | null }
+export interface PublicEvent {
+  id: string; slug: string; title: string; date: string | null; time: string; timeStart: string; timeEnd: string;
+  timezone: string; startsAt: string | null; endsAt: string | null; location: string; format: string;
+  type: string; category: string; tags: string[]; description: string; speakers: string[];
+  seats: number | null; attendees: number; status: 'PUBLISHED' | 'PAST'; past: boolean; featured: boolean;
+  registrationRequired: boolean; externalUrl: string | null; recordingProvided: boolean;
+  resources: PublicEventResource[]; cover: { name: string; url: string } | null;
+}
+export interface PublicEventDetail extends PublicEvent { longDescription: string; organizer: string; organizerEmail: string }
+export interface PublicEventCalendar { month: string; days: { date: string; count: number; major: boolean }[] }
+export const eventCoverUrl = (url: string) => `${baseURL}${url}`;
+
 /**
  * Absolute URL of a published paper's manuscript.
  *
@@ -72,8 +85,9 @@ export const publicApi = {
   publication: async (id: string) =>
     (await apiClient.get<Envelope<{ publication: PublicPublicationDetail }>>(`/public/publications/${id}`)).data.data.publication,
   productReviews: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/public/product-reviews', { params })).data.data,
-  events: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/public/events', { params })).data.data,
-  event: async (id: string) => (await apiClient.get<Envelope<unknown>>(`/public/events/${id}`)).data.data,
+  events: async (params?: { tab?: 'all' | 'upcoming' | 'past'; date?: string; page?: number; limit?: number; q?: string }) => (await apiClient.get<Envelope<Paginated<PublicEvent>>>('/public/events', { params })).data.data,
+  event: async (id: string) => (await apiClient.get<Envelope<{ event: PublicEventDetail }>>(`/public/events/${encodeURIComponent(id)}`)).data.data.event,
+  eventCalendar: async (month: string) => (await apiClient.get<Envelope<PublicEventCalendar>>('/public/events/calendar', { params: { month } })).data.data,
   gallery: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/public/gallery', { params })).data.data,
   contact: async (payload: unknown) => (await apiClient.post<Envelope<unknown>>('/contact', payload)).data.data,
 };

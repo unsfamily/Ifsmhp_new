@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type { MemberDocument } from './member';
 import type { ConversationRow } from './messaging';
+import type { MemberAnnouncement } from './memberAnnouncements';
 export { exchangeSendSchema, documentKind } from '../../../backend/domain/document-exchange';
 import type { ExchangeSend } from '../../../backend/domain/document-exchange';
 export type { ExchangeSend };
@@ -13,7 +14,12 @@ export interface ExchangeSummary {
 }
 export interface ExchangeDocument extends MemberDocument { attachmentId: string; conversationId: string; opened: boolean; openedAt: string | null }
 export interface ExchangeVideo { id: string; url: string; label: string | null; sender: string; date: string; direction: 'incoming' | 'outgoing'; conversationId: string }
-export interface ExchangeAnnouncement { id: string; subject: string; body: string; sentAt: string }
+/**
+ * `items?type=announcements` delegates to the member announcements reader
+ * (`document-exchange.service.ts`), so a row is exactly a `MemberAnnouncement`.
+ * Aliased rather than redeclared so the two cannot drift apart.
+ */
+export type ExchangeAnnouncement = MemberAnnouncement;
 export type ExchangeConversation = Pick<ConversationRow, 'id' | 'subject' | 'status' | 'lastActivity' | 'lastPreview' | 'totalMessages' | 'unreadCount'>;
 export interface ExchangeResult<T> { items: T[]; pagination: { page: number; limit: number; total: number; pages: number } }
 interface Envelope<T> { data: T }

@@ -982,11 +982,14 @@ model Announcement {
   signedOffAt       DateTime?
   dispatchStartedAt DateTime?
   completedAt       DateTime?
+  expiresAt         DateTime?
+  deletedAt         DateTime?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
   author            User?                  @relation("AnnouncementAuthor", fields: [authorId], references: [id])
   deliveries        AnnouncementDelivery[]
   operations        AnnouncementOperation[]
+  notifications     Notification[]
 
   @@index([managed, status, scheduledAt])
 }
@@ -1046,11 +1049,14 @@ model Notification {
   link      String?
   createdAt DateTime           @default(now())
   readAt    DateTime?
+  announcementId String?
+  announcement Announcement? @relation(fields: [announcementId], references: [id], onDelete: SetNull)
   announcementDeliveryId String? @unique
   announcementDelivery AnnouncementDelivery? @relation(fields: [announcementDeliveryId], references: [id], onDelete: SetNull)
   user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status, createdAt])
+  @@unique([userId, announcementId])
 }
 
 model PlatformSetting {

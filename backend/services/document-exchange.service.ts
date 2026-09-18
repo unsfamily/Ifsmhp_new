@@ -9,6 +9,7 @@ import { ApiError } from '../utils/ApiError';
 import { assertSafePath } from '../utils/fileStorage';
 import { buildPaginatedResult, paginationQuerySchema, toSkipTake } from '../utils/pagination';
 import { DOCUMENT_EXTENSIONS, DOCUMENT_MIME_TYPES, documentKind, exchangeSendSchema, type ExchangeSend } from '../domain/document-exchange';
+import { announcementScope, listMemberAnnouncements } from './member-announcements.service';
 
 export const documentsQuery = paginationQuerySchema.extend({
   q: z.string().trim().max(220).default(''),
@@ -25,17 +26,6 @@ const opened = (userId: string): Prisma.MessageAttachmentWhereInput => ({ OR: [
   { message: incoming(userId), opens: { some: { userId } } },
 ] });
 const attachments = (userId: string): Prisma.MessageAttachmentWhereInput => ({ file: { deletedAt: null }, message: messages(userId) });
-
-async function announcementScope(userId: string): Promise<Prisma.AnnouncementWhereInput> {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
-  return { OR: [
-    { managed: false, status: 'SENT', sentAt: { lte: new Date() }, OR: [
-      { audience: { in: ['All Members', 'Members Only'] } },
-      { deliveries: { some: { OR: [{ recipientUserId: userId }, { recipientEmail: user.email }] } } },
-    ] },
-    { managed: true, deliveries: { some: { recipientUserId: userId, purpose: 'BROADCAST', channel: 'IN_APP', status: 'SENT' } } },
-  ] };
-}
 
 export async function summary(userId: string) {
   const announcementWhere = await announcementScope(userId);
@@ -77,12 +67,7 @@ export async function listDocuments(userId: string, raw: unknown) {
 export async function listItems(userId: string, raw: unknown) {
   const query = itemsQuery.parse(raw);
   if (query.type === 'announcements') {
-    const where = await announcementScope(userId);
-    const [rows, total] = await prisma.$transaction([
-      prisma.announcement.findMany({ where, select: { id: true, subject: true, body: true, sentAt: true }, orderBy: [{ sentAt: 'desc' }, { id: 'desc' }], ...toSkipTake(query) }),
-      prisma.announcement.count({ where }),
-    ]);
-    return buildPaginatedResult(rows, total, query);
+    return listMemberAnnouncements(userId, raw);
   }
   if (query.type === 'videos') {
     const where = { kind: 'VIDEO', message: messages(userId) };

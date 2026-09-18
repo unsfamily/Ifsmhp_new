@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { notificationsApi } from '../../api/notifications';
 import { usePolledApiData } from '../../hooks/usePolledApiData';
+import { useAnnouncementUpdates } from '../../hooks/useAnnouncementUpdates';
 export default function NotificationBell() {
-  const [tick, setTick] = useState(0);
-  useEffect(() => { const refresh = () => setTick(n => n + 1); window.addEventListener('notifications-read', refresh); return () => window.removeEventListener('notifications-read', refresh); }, []);
+  const tick = useAnnouncementUpdates();
   const inbox = usePolledApiData(() => notificationsApi.list({ page: 1, limit: 1 }), [tick], 30000);
   const unread = inbox.data?.unread;
   return <Link to="/dashboard/notifications" title={inbox.error ? 'Notifications unavailable' : `Notifications${unread ? ` (${unread} unread)` : ''}`} aria-label={`Notifications${unread ? ` (${unread} unread)` : ''}`} className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-muted hover:bg-forum-50 hover:text-forum-700">
