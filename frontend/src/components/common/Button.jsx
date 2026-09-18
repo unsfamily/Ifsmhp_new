@@ -4,7 +4,7 @@ const variantClasses = {
   primary:
     'bg-forum-600 text-white hover:bg-forum-700 focus-visible:ring-forum-600 shadow-sm',
   secondary:
-    'bg-slateteal-500 text-white hover:bg-slateteal-700 focus-visible:ring-slateteal-500 shadow-sm',
+    'bg-brass-500 text-white hover:bg-brass-600 focus-visible:ring-brass-500 shadow-sm',
   outline:
     'border border-forum-600 text-forum-700 hover:bg-forum-50 focus-visible:ring-forum-600 bg-transparent',
   ghost:

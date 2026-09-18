@@ -328,9 +328,7 @@ function AdminSupportDetail({ id }: { id: string }) {
                 action === 'complete' ? 'bg-brass-100/60 rounded-t-lg' :
                 'bg-danger-100/60 rounded-t-lg'
               }>
-                <h3 className="font-display text-lg font-semibold flex items-center gap-2" style={{
-                  color: action === 'approve' ? '#1F6B41' : action === 'complete' ? '#3F7825' : action === 'reject' ? '#A32B2B' : '#1E3A5F'
-                }}>
+                <h3 className={`font-display text-lg font-semibold flex items-center gap-2 ${action === 'approve' ? 'text-success-600' : action === 'complete' ? 'text-brass-700' : action === 'reject' ? 'text-danger-600' : 'text-forum-700'}`}>
                   {action === 'start' && <><Play className="h-5 w-5" />Start Review — Begin Triage</>}
                   {action === 'approve' && <><CheckCircle2 className="h-5 w-5" />Approve Support Request</>}
                   {action === 'complete' && <><Check className="h-5 w-5" />Mark as Completed</>}
@@ -529,11 +527,11 @@ function AdminSupportDetail({ id }: { id: string }) {
               )}
               {t.status === 'Completed' && (
                 <div className="rounded-xl border border-brass-500/30 bg-brass-50 p-4">
-                  <p className="text-sm font-semibold" style={{ color: '#3F7825' }}>
+                  <p className="text-sm font-semibold text-brass-700">
                     <Check className="h-4 w-4 inline mr-1" />
                     Resolved / Completed
                   </p>
-                  <p className="text-xs mt-1" style={{ color: '#5A6415' }}>All deliverables issued &amp; member notified.</p>
+                  <p className="text-xs mt-1 text-brass-600">All deliverables issued &amp; member notified.</p>
                 </div>
               )}
               {t.status === 'Rejected' && (

@@ -1,13 +1,40 @@
-import { Link } from 'react-router-dom';
-import { Linkedin, Twitter, Facebook, BookOpen } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { Linkedin, Twitter, Facebook, BookOpen, Images } from 'lucide-react';
 import logoImg from '../../assets/images/logo.png';
+
+function GalleryAnchor({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const location = useLocation();
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (location.pathname === '/') {
+      const el = document.getElementById('gallery-section');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      history.pushState(null, '', '/#gallery-section');
+    } else {
+      window.location.href = '/#gallery-section';
+    }
+  };
+
+  return (
+    <a href="/#gallery-section" onClick={handleClick} className={className}>
+      {children}
+    </a>
+  );
+}
 
 const quickLinks = [
   { to: '/', label: 'Home' },
   { to: '/about', label: 'About Us' },
   { to: '/membership', label: 'Membership' },
   { to: '/research', label: 'Research Publications' },
-  { to: '/gallery', label: 'Media Gallery' },
+  { to: '/gallery', label: 'Media Gallery', anchor: true },
   { to: '/support-services', label: 'Support Services' },
   { to: '/events', label: 'Events' },
   { to: '/contact', label: 'Contact' },
@@ -53,34 +80,21 @@ export default function Footer() {
               excellence. Join 277+ scientists and professionals worldwide.
             </p>
             <div className="mt-5 flex items-center gap-3">
-              <a
-                href="#"
-                aria-label="LinkedIn"
-                className="flex h-9 w-9 items-center justify-center rounded-md bg-forum-700 text-forum-100 hover:bg-brass-500 hover:text-white transition-colors"
-              >
-                <Linkedin className="h-4 w-4" />
-              </a>
-              <a
-                href="#"
-                aria-label="Twitter"
-                className="flex h-9 w-9 items-center justify-center rounded-md bg-forum-700 text-forum-100 hover:bg-brass-500 hover:text-white transition-colors"
-              >
-                <Twitter className="h-4 w-4" />
-              </a>
-              <a
-                href="#"
-                aria-label="Facebook"
-                className="flex h-9 w-9 items-center justify-center rounded-md bg-forum-700 text-forum-100 hover:bg-brass-500 hover:text-white transition-colors"
-              >
-                <Facebook className="h-4 w-4" />
-              </a>
-              <a
-                href="#"
-                aria-label="ResearchGate"
-                className="flex h-9 w-9 items-center justify-center rounded-md bg-forum-700 text-forum-100 hover:bg-brass-500 hover:text-white transition-colors"
-              >
-                <BookOpen className="h-4 w-4" />
-              </a>
+              {[
+                { Icon: Linkedin, label: 'LinkedIn' },
+                { Icon: Twitter, label: 'Twitter' },
+                { Icon: Facebook, label: 'Facebook' },
+                { Icon: BookOpen, label: 'ResearchGate' },
+              ].map(({ Icon, label }) => (
+                <a
+                  key={label}
+                  href="#"
+                  aria-label={label}
+                  className="flex h-9 w-9 items-center justify-center rounded-md bg-forum-700/60 text-forum-100 ring-1 ring-inset ring-white/5 hover:bg-brass-500 hover:text-white transition-all duration-200 hover:shadow-md"
+                >
+                  <Icon className="h-4 w-4" />
+                </a>
+              ))}
             </div>
           </div>
 
@@ -91,12 +105,19 @@ export default function Footer() {
             <ul className="mt-4 space-y-2.5">
               {quickLinks.map((link) => (
                 <li key={link.to}>
-                  <Link
-                    to={link.to}
-                    className="text-sm text-forum-200/70 hover:text-brass-500 transition-colors"
-                  >
-                    {link.label}
-                  </Link>
+                  {link.anchor ? (
+                    <GalleryAnchor className="text-sm text-forum-200/70 hover:text-brass-500 transition-colors inline-flex items-center gap-1.5">
+                      <Images className="h-3 w-3" />
+                      {link.label}
+                    </GalleryAnchor>
+                  ) : (
+                    <Link
+                      to={link.to}
+                      className="text-sm text-forum-200/70 hover:text-brass-500 transition-colors"
+                    >
+                      {link.label}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -139,12 +160,12 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-forum-700 pt-6 sm:flex-row sm:items-center">
+        <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-forum-700/80 pt-6 sm:flex-row sm:items-center">
           <p className="text-xs text-forum-200/60">
             © {new Date().getFullYear()} International Forum of Scientists and
             Mental Health Professionals. All Rights Reserved.
           </p>
-          <p className="text-xs text-forum-200/60">
+          <p className="text-xs text-brass-500/80 font-medium">
             Built for collaborative scientific excellence.
           </p>
         </div>

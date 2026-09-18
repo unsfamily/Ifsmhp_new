@@ -18,14 +18,9 @@
   h1,
   h2,
   h3 {
-    @apply font-display tracking-tight;
+    @apply font-display tracking-tight text-forum-900;
   }
 
-  /*
-   * Accessibility floor (spec §48): every interactive element keeps a
-   * visible, high-contrast focus ring. Never remove this without an
-   * equivalent replacement.
-   */
   :focus-visible {
     @apply outline-none ring-2 ring-forum-600 ring-offset-2 ring-offset-paper;
   }
@@ -43,19 +38,288 @@
 }
 
 @layer components {
-  /* Skip link — visible only when focused. */
   .skip-link {
     @apply sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50
-           focus:rounded focus:bg-forum-600 focus:px-4 focus:py-2 focus:text-white;
+           focus:rounded focus:bg-forum-900 focus:px-4 focus:py-2 focus:text-white;
   }
 
-  /*
-   * Brief ring pulse drawing the eye to a panel that has just been revealed and
-   * scrolled to. Sits in this file so the prefers-reduced-motion block above
-   * already collapses it to a no-op.
-   */
   .attention-ring {
     animation: attention-ring 1.4s ease-out 1;
+  }
+
+  /* ======================== About IFSMHP Banner ======================== */
+
+  .about-banner {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .about-shape {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .about-shape-blob-blue {
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(
+      closest-side,
+      theme('colors.forum.900') 0%,
+      theme('colors.forum.900') 55%,
+      transparent 72%
+    );
+    opacity: 0.05;
+    filter: blur(8px);
+    animation: about-float-1 8s ease-in-out infinite;
+  }
+
+  .about-shape-blob-gold {
+    width: 240px;
+    height: 240px;
+    background: radial-gradient(
+      closest-side,
+      theme('colors.brass.500') 0%,
+      theme('colors.brass.500') 55%,
+      transparent 72%
+    );
+    opacity: 0.07;
+    filter: blur(6px);
+    animation: about-float-2 10s ease-in-out infinite;
+  }
+
+  .about-shape-ring {
+    width: 180px;
+    height: 180px;
+    border: 2px solid theme('colors.forum.900');
+    opacity: 0.08;
+    border-radius: 9999px;
+    animation: about-float-3 7s ease-in-out infinite;
+  }
+
+  .about-shape-ring-gold {
+    width: 120px;
+    height: 120px;
+    border: 1.5px solid theme('colors.brass.500');
+    opacity: 0.12;
+    border-radius: 9999px;
+    animation: about-float-1 9s ease-in-out infinite;
+  }
+
+  .about-shape-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: theme('colors.brass.500');
+    opacity: 0.4;
+    animation: about-float-2 6s ease-in-out infinite;
+  }
+
+  .about-shape-line {
+    width: 60px;
+    height: 2px;
+    background: theme('colors.forum.900');
+    opacity: 0.12;
+    transform: rotate(-18deg);
+    animation: about-float-3 8.5s ease-in-out infinite;
+  }
+
+  /* --- Entrance initial state (before in-view) --- */
+  .about-label,
+  .about-line,
+  .about-heading-word,
+  .about-paragraph {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  .about-line {
+    transform-origin: left center;
+    transform: scaleX(0);
+  }
+
+  .about-heading-word {
+    display: inline-block;
+    transform: translateY(100%);
+  }
+
+  .about-shimmer-word {
+    position: relative;
+    display: inline-block;
+    color: theme('colors.forum.900');
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .about-shimmer-word::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 25%,
+      theme('colors.brass.400') 50%,
+      theme('colors.brass.500') 55%,
+      transparent 75%
+    );
+    background-size: 250% 100%;
+    opacity: 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    mix-blend-mode: multiply;
+  }
+
+  /* --- Entrance animations: play ONCE after .in-view is added --- */
+  .in-view .about-label {
+    animation: about-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.05s forwards;
+  }
+
+  .in-view .about-line {
+    animation: about-line-expand 1s cubic-bezier(0.22, 1, 0.36, 1) 0.35s forwards;
+  }
+
+  .in-view .about-heading-word {
+    animation: about-word-reveal 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .in-view .about-heading-word:nth-child(1) { animation-delay: 0.35s; }
+  .in-view .about-heading-word:nth-child(2) { animation-delay: 0.42s; }
+  .in-view .about-heading-word:nth-child(3) { animation-delay: 0.49s; }
+  .in-view .about-heading-word:nth-child(4) { animation-delay: 0.56s; }
+  .in-view .about-heading-word:nth-child(5) { animation-delay: 0.63s; }
+  .in-view .about-heading-word:nth-child(6) { animation-delay: 0.70s; }
+  .in-view .about-heading-word:nth-child(7) { animation-delay: 0.77s; }
+
+  .in-view .about-shimmer-word::after {
+    animation: about-shimmer 1.8s cubic-bezier(0.22, 1, 0.36, 1) 1.25s forwards;
+  }
+
+  .in-view .about-paragraph {
+    animation: about-fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.9s forwards;
+  }
+}
+
+@keyframes about-fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes about-line-expand {
+  0% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes about-word-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes about-shimmer {
+  0% {
+    opacity: 0;
+    background-position: 100% 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    background-position: -60% 0;
+  }
+}
+
+@keyframes about-float-1 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(18px, -22px) scale(1.04);
+  }
+}
+
+@keyframes about-float-2 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-14px, 18px) scale(0.96);
+  }
+}
+
+@keyframes about-float-3 {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(10px, -14px) rotate(6deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-shape-blob-blue,
+  .about-shape-blob-gold,
+  .about-shape-ring,
+  .about-shape-ring-gold,
+  .about-shape-dot,
+  .about-shape-line {
+    animation: none !important;
+  }
+
+  .about-label,
+  .about-line,
+  .about-heading-word,
+  .about-paragraph {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .about-line {
+    transform: scaleX(1) !important;
+  }
+
+  .in-view .about-label,
+  .in-view .about-line,
+  .in-view .about-heading-word,
+  .in-view .about-paragraph {
+    animation: none !important;
+  }
+
+  .about-shimmer-word::after {
+    animation: none !important;
+    opacity: 0 !important;
   }
 }
 
@@ -71,21 +335,7 @@
   }
 }
 
-/*
- * Printing a report.
- *
- * The viewer modal is the only thing worth putting on paper, so when one is
- * open everything else is hidden and the dialog is un-fixed so it can flow
- * across pages. Screen rendering is untouched — this block only applies to
- * print, and only when a `.report-print-root` is mounted.
- */
 @media print {
-  /*
-   * The overlay sits deep inside #root, so nothing can simply be display:none'd
-   * without taking the dialog with it. Hiding everything by *visibility* and
-   * then re-showing the overlay subtree keeps the ancestors laid out while
-   * rendering only the report.
-   */
   body:has(.report-print-root) * {
     visibility: hidden;
   }
@@ -113,7 +363,6 @@
     display: none !important;
   }
 
-  /* Let long reports break across pages instead of clipping at the fold. */
   .report-print-root table {
     min-width: 0 !important;
   }

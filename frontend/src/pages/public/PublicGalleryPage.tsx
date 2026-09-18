@@ -52,10 +52,10 @@ interface GalleryItem {
 const ALBUMS: Array<{ key: AlbumKey; label: string; count: number; coverGradient: string }> = [
   { key: 'all', label: 'All Media', count: 52, coverGradient: 'from-forum-600 via-slateteal-500 to-brass-400' },
   { key: 'symposium-2026', label: 'Spring Symposium 2026', count: 18, coverGradient: 'from-forum-700 via-forum-500 to-slateteal-500' },
-  { key: 'awards-2025', label: 'CRO Awards Night 2025', count: 11, coverGradient: 'from-brass-500 via-amber-500 to-orange-500' },
-  { key: 'cro-retreat', label: 'CRO Strategy Retreat', count: 9, coverGradient: 'from-slateteal-700 via-forum-700 to-indigo-700' },
-  { key: 'member-welcome', label: 'New Member Welcome Day', count: 14, coverGradient: 'from-emerald-500 via-teal-500 to-slateteal-500' },
-  { key: 'lab-open-house', label: 'Lab Open House', count: 12, coverGradient: 'from-rose-500 via-forum-500 to-violet-500' },
+  { key: 'awards-2025', label: 'CRO Awards Night 2025', count: 11, coverGradient: 'from-brass-700 via-brass-500 to-brass-200' },
+  { key: 'cro-retreat', label: 'CRO Strategy Retreat', count: 9, coverGradient: 'from-slateteal-700 via-forum-700 to-forum-900' },
+  { key: 'member-welcome', label: 'New Member Welcome Day', count: 14, coverGradient: 'from-forum-500 via-slateteal-500 to-brass-400' },
+  { key: 'lab-open-house', label: 'Lab Open House', count: 12, coverGradient: 'from-brass-600 via-forum-600 to-forum-800' },
 ];
 
 const CATEGORIES: AlbumKey[] = ['all', 'symposium-2026', 'awards-2025', 'cro-retreat', 'member-welcome', 'lab-open-house'];

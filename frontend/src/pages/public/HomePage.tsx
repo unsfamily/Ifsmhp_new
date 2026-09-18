@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
+import GallerySection from '../../components/gallery/GallerySection';
 
 import bannerCommunity from '../../assets/images/slide_01.png';
 import bannerSymposium from '../../assets/images/slide_02.png';
@@ -134,7 +135,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
     bgImage: bannerSymposium,
     ctas: [
       { to: '/events', label: 'View Event Programme', variant: 'primary', icon: ArrowRight },
-      { to: '/gallery', label: 'Browse Event Gallery', variant: 'outline', icon: Sparkles },
+      { to: '/#gallery-section', label: 'Browse Event Gallery', variant: 'outline', icon: Sparkles },
     ],
   },
   {
@@ -148,11 +149,11 @@ const HOME_BANNERS: HomeBannerSlide[] = [
       { label: 'Categories', value: '4 prizes' },
       { label: 'Portraits', value: '11 curated' },
     ],
-    gradientOverlay: 'from-amber-950/80 via-brass-900/55 to-rose-950/40',
+    gradientOverlay: 'from-brass-950/80 via-brass-900/55 to-forum-950/40',
     bgImage: bannerAwards,
     ctas: [
       { to: '/product-reviews', label: 'Read Awardee Citations', variant: 'primary', icon: ArrowRight },
-      { to: '/gallery', label: 'View Awards Gallery', variant: 'outline', icon: Sparkles },
+      { to: '/#gallery-section', label: 'View Awards Gallery', variant: 'outline', icon: Sparkles },
     ],
   },
   {
@@ -166,7 +167,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
       { label: 'This quarter', value: '15 new reviews' },
       { label: 'Disclosures', value: '100% declared' },
     ],
-    gradientOverlay: 'from-slateteal-950/80 via-forum-900/55 to-indigo-950/40',
+    gradientOverlay: 'from-slateteal-950/80 via-forum-900/55 to-forum-950/40',
     bgImage: bannerReviews,
     ctas: [
       { to: '/product-reviews', label: 'Browse Expert Reviews', variant: 'primary', icon: ArrowRight },
@@ -198,7 +199,7 @@ export default function HomePage() {
     <>
       <div
         aria-hidden
-        className="pointer-events-none fixed right-2 top-20 z-40 sm:right-4 sm:top-20 lg:right-7 lg:top-20"
+        className="pointer-events-none fixed right-2 top-20 z-40 sm:right-4 sm:top-24 lg:right-7 lg:top-24"
       >
         <span className="inline-flex items-center justify-center rounded-xl bg-white/60 px-1 py-1 shadow-[0_4px_14px_-4px_rgba(20,29,27,0.45)] ring-1 ring-inset ring-white/80 backdrop-blur-sm sm:rounded-2xl sm:px-1.5 sm:py-1.5 lg:rounded-2xl lg:px-2 lg:py-2">
           <img
@@ -531,6 +532,8 @@ export default function HomePage() {
           </div>
         </div>
       </Section>
+
+      <GallerySection sectionId="gallery-section" />
     </>
   );
 }

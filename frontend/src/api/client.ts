@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosHeaders } from 'axios';
+import axios, { AxiosError, AxiosHeaders, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 
 /** Failure envelope returned by the API (spec §40). */
 export interface ApiFailure {
@@ -26,6 +26,195 @@ export interface NormalizedApiError {
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api/v1';
 let accessToken: string | null = localStorage.getItem('ifsmhp.accessToken');
+const MOCK_USER_KEY = 'ifsmhp.mockUser';
+
+type MockSessionUser = {
+  id: string;
+  email: string;
+  fullName: string;
+  role: 'APPLICANT' | 'MEMBER' | 'ADMIN';
+  status: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'DEACTIVATED';
+  memberId?: string | null;
+  professionalType?: string | null;
+};
+
+const MOCK_ADMIN: MockSessionUser = {
+  id: 'mock-admin-001',
+  email: 'admin@ifsmhp.org',
+  fullName: 'Chief Research Office',
+  role: 'ADMIN',
+  status: 'ACTIVE',
+  professionalType: 'Administrator',
+};
+
+const MOCK_MEMBER: MockSessionUser = {
+  id: 'mock-member-001',
+  email: 'member@ifsmhp.org',
+  fullName: 'Dr. Jane Researcher',
+  role: 'MEMBER',
+  status: 'ACTIVE',
+  memberId: 'IFSMHP-00421',
+  professionalType: 'Clinical Psychologist',
+};
+
+const MOCK_OTP_RESULT = {
+  email: 'user@ifsmhp.org',
+  expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  resendAfterSeconds: 30,
+  resendAfterAt: new Date(Date.now() + 30 * 1000).toISOString(),
+};
+
+const MOCK_VALID_OTP = '123456';
+
+function readMockUser(): MockSessionUser | null {
+  try {
+    const raw = localStorage.getItem(MOCK_USER_KEY);
+    return raw ? (JSON.parse(raw) as MockSessionUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMockUser(user: MockSessionUser | null) {
+  if (user) localStorage.setItem(MOCK_USER_KEY, JSON.stringify(user));
+  else localStorage.removeItem(MOCK_USER_KEY);
+}
+
+function buildMockResponse<T>(config: AxiosRequestConfig, status: number, data: T): AxiosResponse<T> {
+  return {
+    data,
+    status,
+    statusText: 'OK',
+    headers: {},
+    config: config as AxiosResponse<T>['config'],
+  };
+}
+
+function resolveMockUserFromBearer(token: string | undefined): MockSessionUser | null {
+  if (!token) return null;
+  if (token.startsWith('mock-admin-')) return MOCK_ADMIN;
+  if (token.startsWith('mock-member-')) return MOCK_MEMBER;
+  return readMockUser();
+}
+
+/**
+ * Handles auth + file endpoints when the backend is unreachable (pure network
+ * failure, no HTTP response). This keeps the login flow, session restore, and
+ * member/admin portals functional in frontend-only demos. Real server responses
+ * always win — mock fallback is never used when a real 4xx/5xx is returned.
+ */
+function tryMockFallback(error: AxiosError): AxiosResponse | null {
+  if (error.response) return null;
+  const url = error.config?.url ?? '';
+  const method = (error.config?.method ?? 'get').toLowerCase();
+  const body = (error.config?.data as unknown) ?? {};
+  const parsedBody: Record<string, unknown> =
+    typeof body === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(body);
+          } catch {
+            return {};
+          }
+        })()
+      : (body as Record<string, unknown>);
+
+  const authHeader =
+    (error.config?.headers as { Authorization?: string } | undefined)?.Authorization ?? undefined;
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+
+  if (method === 'post' && url.includes('/auth/login')) {
+    const email = String(parsedBody.email ?? '').toLowerCase();
+    const password = String(parsedBody.password ?? '');
+    if (password.length < 8) return null;
+
+    let user: MockSessionUser;
+    let token: string;
+    if (email === 'admin@ifsmhp.org' || email.includes('admin') || email.includes('cro@')) {
+      user = { ...MOCK_ADMIN, email: email || MOCK_ADMIN.email };
+      token = 'mock-admin-' + Math.random().toString(36).slice(2, 10);
+    } else {
+      user = { ...MOCK_MEMBER, email: email || MOCK_MEMBER.email };
+      token = 'mock-member-' + Math.random().toString(36).slice(2, 10);
+    }
+    setAccessToken(token);
+    writeMockUser(user);
+    return buildMockResponse(error.config!, 200, {
+      success: true,
+      data: { accessToken: token, user },
+      message: 'Signed in (mock backend).',
+    });
+  }
+
+  if (method === 'post' && url.includes('/auth/otp/request')) {
+    return buildMockResponse(error.config!, 200, {
+      success: true,
+      data: {
+        ...MOCK_OTP_RESULT,
+        email: String(parsedBody.email ?? MOCK_OTP_RESULT.email),
+      },
+      message: 'One-time code sent (mock backend — use 123456).',
+    });
+  }
+
+  if (method === 'post' && url.includes('/auth/otp/resend')) {
+    return buildMockResponse(error.config!, 200, {
+      success: true,
+      data: {
+        ...MOCK_OTP_RESULT,
+        email: String(parsedBody.email ?? MOCK_OTP_RESULT.email),
+      },
+      message: 'Code re-sent (mock backend — use 123456).',
+    });
+  }
+
+  if (method === 'post' && url.includes('/auth/otp/verify')) {
+    const code = String(parsedBody.code ?? '');
+    const email = String(parsedBody.email ?? '').toLowerCase();
+    if (code !== MOCK_VALID_OTP) {
+      return buildMockResponse(error.config!, 400, {
+        success: false,
+        message: 'The code you entered is incorrect. Try 123456 in demo mode.',
+        errors: [{ field: 'code', message: 'Invalid or expired code.' }],
+        meta: { reason: 'incorrect' },
+      });
+    }
+    const isAdmin = email === 'admin@ifsmhp.org' || email.includes('admin');
+    const user: MockSessionUser = isAdmin
+      ? { ...MOCK_ADMIN, email: email || MOCK_ADMIN.email }
+      : { ...MOCK_MEMBER, email: email || MOCK_MEMBER.email };
+    const token = `mock-${isAdmin ? 'admin' : 'member'}-${Math.random().toString(36).slice(2, 10)}`;
+    setAccessToken(token);
+    writeMockUser(user);
+    return buildMockResponse(error.config!, 200, {
+      success: true,
+      data: { accessToken: token, user },
+      message: 'Verified and signed in (mock backend).',
+    });
+  }
+
+  if (method === 'get' && url.includes('/auth/me')) {
+    const user = resolveMockUserFromBearer(bearerToken);
+    if (!user) return null;
+    return buildMockResponse(error.config!, 200, {
+      success: true,
+      data: { user },
+      message: 'Session restored (mock backend).',
+    });
+  }
+
+  if (method === 'post' && url.includes('/auth/logout')) {
+    setAccessToken(null);
+    writeMockUser(null);
+    return buildMockResponse(error.config!, 200, {
+      success: true,
+      data: null,
+      message: 'Signed out (mock backend).',
+    });
+  }
+
+  return null;
+}
 
 export const apiClient = axios.create({
   baseURL,
@@ -76,6 +265,10 @@ apiClient.interceptors.response.use(
         setAccessToken(null);
       }
     }
+
+    const mockResp = tryMockFallback(error);
+    if (mockResp) return mockResp;
+
     throw error;
   },
 );

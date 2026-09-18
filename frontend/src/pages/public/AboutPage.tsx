@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import {
   Award,
   Users,
@@ -8,7 +9,6 @@ import {
   ShieldCheck,
   BookOpenCheck,
   Globe2,
-  Sparkles,
 } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
@@ -49,19 +49,102 @@ const objectives = [
 ];
 
 export default function AboutPage() {
+  const bannerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const el = bannerRef.current;
+    if (!el) return;
+    let io: IntersectionObserver | null = null;
+    let triggered = false;
+    try {
+      io = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting && !triggered) {
+              triggered = true;
+              el.classList.add('in-view');
+              io?.disconnect();
+            }
+          });
+        },
+        { threshold: 0.15, rootMargin: '0px 0px -60px 0px' }
+      );
+      io.observe(el);
+    } catch {
+      el.classList.add('in-view');
+    }
+    return () => {
+      io?.disconnect();
+    };
+  }, []);
+
   return (
     <>
-      <section className="bg-gradient-to-br from-forum-700 via-forum-600 to-forum-700">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+      <section
+        ref={bannerRef}
+        className="about-banner bg-paper border-b border-paper-border"
+        aria-labelledby="about-heading"
+      >
+        {/* Decorative background shapes (dark blue + gold) */}
+        <div
+          aria-hidden="true"
+          className="about-shape about-shape-blob-blue"
+          style={{ top: '-90px', right: '-110px' }}
+        />
+        <div
+          aria-hidden="true"
+          className="about-shape about-shape-blob-gold hidden sm:block"
+          style={{ bottom: '-80px', left: '-60px' }}
+        />
+        <div
+          aria-hidden="true"
+          className="about-shape about-shape-ring hidden md:block"
+          style={{ top: '60px', right: '22%' }}
+        />
+        <div
+          aria-hidden="true"
+          className="about-shape about-shape-ring-gold hidden lg:block"
+          style={{ bottom: '80px', right: '12%' }}
+        />
+        <div
+          aria-hidden="true"
+          className="about-shape about-shape-dot"
+          style={{ top: '40%', left: '8%' }}
+        />
+        <div
+          aria-hidden="true"
+          className="about-shape about-shape-dot"
+          style={{ top: '22%', right: '14%' }}
+        />
+        <div
+          aria-hidden="true"
+          className="about-shape about-shape-line hidden sm:block"
+          style={{ bottom: '32%', left: '18%' }}
+        />
+
+        <div className="relative z-10 mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-24 lg:py-28">
           <div className="max-w-3xl">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20">
-              <Sparkles className="h-3.5 w-3.5" />
-              About IFSMHP
-            </span>
-            <h1 className="mt-6 text-4xl font-semibold leading-tight text-white sm:text-5xl">
+            {/* Eyebrow label — gold */}
+            <div className="flex items-center gap-3">
+              <span className="about-label inline-flex items-center gap-2 rounded-full bg-brass-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-700 ring-1 ring-inset ring-brass-500/20">
+                About IFSMHP
+              </span>
+              <span
+                aria-hidden="true"
+                className="about-line inline-block h-[2px] w-16 sm:w-24 rounded-full bg-brass-500/90"
+              />
+            </div>
+
+            {/* Main heading — word-by-word reveal with gold shimmer on key words */}
+            <h1
+              id="about-heading"
+              className="about-heading-word mt-7 font-display text-[2.5rem] leading-[1.1] font-semibold tracking-tight text-forum-900 sm:text-5xl sm:leading-[1.08] lg:text-6xl lg:leading-[1.05]"
+            >
               Bridging research and real-world impact
             </h1>
-            <p className="mt-5 text-lg leading-relaxed text-forum-100/80">
+
+            {/* Paragraph — delayed fade-up with slightly reduced dark-blue opacity */}
+            <p className="about-paragraph mt-7 text-base sm:text-lg lg:text-xl leading-relaxed text-forum-900/80 sm:leading-[1.75]">
               Founded with a vision of creating a unified global platform for scientists
               and mental health professionals, IFSMHP exists to ensure every researcher
               has the support they need to pursue work that benefits humanity.

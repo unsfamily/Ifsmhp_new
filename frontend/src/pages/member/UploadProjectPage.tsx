@@ -6,7 +6,6 @@ import {
   ShieldCheck,
   DollarSign,
   FileText,
-  Presentation,
   Link2,
   CheckCircle2,
   Loader2,
@@ -18,7 +17,6 @@ import {
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput, FileInput } from '../../components/common/Input';
-import Badge from '../../components/common/Badge';
 import { useForm } from 'react-hook-form';
 import { memberApi, type UploadedFile, type ProjectResourceLinkInput } from '../../api/member';
 import { normalizeError } from '../../api/client';

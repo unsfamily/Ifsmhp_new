@@ -65,7 +65,7 @@ const CATEGORY_DEFS: Array<{
     description:
       'Member evaluations of clinic networks, teletherapy providers, inpatient programmes, and peer-support services across 14 countries.',
     icon: 'BadgeCheck',
-    gradient: 'from-emerald-600 via-teal-500 to-slateteal-500',
+    gradient: 'from-forum-600 via-slateteal-500 to-brass-400',
     count: 18,
   },
   {
@@ -75,7 +75,7 @@ const CATEGORY_DEFS: Array<{
     description:
       'Critical appraisals of study design, measurement instruments, qualitative protocols, and mixed-methods approaches used in recent trials.',
     icon: 'Sparkles',
-    gradient: 'from-brass-500 via-amber-500 to-orange-500',
+    gradient: 'from-brass-700 via-brass-500 to-brass-200',
     count: 16,
   },
   {
@@ -85,7 +85,7 @@ const CATEGORY_DEFS: Array<{
     description:
       'Policy briefs and comparative reviews of national mental health legislation, insurance reform, and intergovernmental frameworks.',
     icon: 'ShieldCheck',
-    gradient: 'from-slateteal-700 via-forum-700 to-indigo-700',
+    gradient: 'from-slateteal-700 via-forum-700 to-forum-900',
     count: 14,
   },
   {
@@ -95,7 +95,7 @@ const CATEGORY_DEFS: Array<{
     description:
       'First looks at AI-assisted triage, immersive VR exposure therapy, predictive analytics, sensor-based monitoring, and digital biomarkers.',
     icon: 'BadgeCheck',
-    gradient: 'from-violet-600 via-forum-600 to-rose-500',
+    gradient: 'from-brass-500 via-forum-600 to-forum-800',
     count: 10,
   },
 ];

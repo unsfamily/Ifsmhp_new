@@ -398,7 +398,7 @@ export default function AdminPublicationDetailPage() {
                 : action === 'reject' ? 'bg-danger-100/60 rounded-t-lg'
                 : 'bg-warning-100/60 rounded-t-lg'
               }>
-                <h3 className="font-display text-lg font-semibold flex items-center gap-2" style={{ color: action === 'approve' ? '#1F6B41' : action === 'publish' ? '#3F7825' : action === 'reject' ? '#A32B2B' : '#8A6212' }}>
+                <h3 className={`font-display text-lg font-semibold flex items-center gap-2 ${action === 'approve' ? 'text-success-600' : action === 'publish' ? 'text-brass-700' : action === 'reject' ? 'text-danger-600' : 'text-warning-600'}`}>
                   {action === 'approve' ? <CheckCircle2 className="h-5 w-5" /> : action === 'publish' ? <Globe2 className="h-5 w-5" /> : action === 'reject' ? <XCircle className="h-5 w-5" /> : <Ban className="h-5 w-5" />}
                   {action === 'approve' ? 'Confirm Approval (Internal)' : action === 'publish' ? 'Confirm Publication (Public)' : action === 'reject' ? 'Confirm Rejection' : 'Confirm Unpublishing'}
                 </h3>

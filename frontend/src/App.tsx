@@ -1,8 +1,10 @@
-import { Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Route, Routes, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import PublicLayout from './layouts/PublicLayout';
 import MemberLayout from './layouts/MemberLayout';
 import AdminLayout from './layouts/AdminLayout';
 import { RequireAuth } from './context/AuthContext';
+import { GalleryProvider } from './context/GalleryContext';
 
 import HomePage from './pages/public/HomePage';
 import AboutPage from './pages/public/AboutPage';
@@ -11,7 +13,6 @@ import ResearchPublicationsPage from './pages/public/ResearchPublicationsPage';
 import SupportServicesPage from './pages/public/SupportServicesPage';
 import EventsPage from './pages/public/EventsPage';
 import ContactPage from './pages/public/ContactPage';
-import PublicGalleryPage from './pages/public/PublicGalleryPage';
 import ProductReviewsPage from './pages/public/ProductReviewsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -55,72 +56,99 @@ import AdminProfilePage from './pages/admin/AdminProfilePage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import AdminGalleryPage from './pages/admin/AdminGalleryPage';
 
+function GalleryAnchorRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate('/#gallery-section');
+  }, [navigate]);
+  return <Navigate to="/" replace />;
+}
+
+function GalleryAnchorHandler() {
+  const location = useLocation();
+  useEffect(() => {
+    if (location.pathname === '/' && location.hash === '#gallery-section') {
+      const el = document.getElementById('gallery-section');
+      if (el) {
+        const t = window.setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 60);
+        return () => window.clearTimeout(t);
+      }
+    }
+  }, [location.pathname, location.hash]);
+  return null;
+}
+
 export default function App() {
   return (
-    <Routes>
-      <Route element={<PublicLayout />}>
-        <Route index element={<HomePage />} />
-        <Route path="about" element={<AboutPage />} />
-        <Route path="membership" element={<MembershipPage />} />
-        <Route path="research" element={<ResearchPublicationsPage />} />
-        <Route path="research/:id" element={<ResearchPublicationsPage />} />
-        <Route path="product-reviews" element={<ProductReviewsPage />} />
-        <Route path="gallery" element={<PublicGalleryPage />} />
-        <Route path="support-services" element={<SupportServicesPage />} />
-        <Route path="events" element={<EventsPage />} />
-        <Route path="contact" element={<ContactPage />} />
-      </Route>
+    <GalleryProvider>
+      <GalleryAnchorHandler />
+      <Routes>
+        <Route element={<PublicLayout />}>
+          <Route index element={<HomePage />} />
+          <Route path="about" element={<AboutPage />} />
+          <Route path="membership" element={<MembershipPage />} />
+          <Route path="research" element={<ResearchPublicationsPage />} />
+          <Route path="research/:id" element={<ResearchPublicationsPage />} />
+          <Route path="product-reviews" element={<ProductReviewsPage />} />
+          <Route path="gallery" element={<GalleryAnchorRedirect />} />
+          <Route path="support-services" element={<SupportServicesPage />} />
+          <Route path="events" element={<EventsPage />} />
+          <Route path="contact" element={<ContactPage />} />
+        </Route>
 
-      <Route path="login" element={<LoginPage />} />
-      <Route path="register" element={<RegisterPage />} />
-      <Route path="forgot-password" element={<LoginPage />} />
-      <Route path="reset-password" element={<LoginPage />} />
-      <Route path="announcements/unsubscribe" element={<AnnouncementUnsubscribePage />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route path="forgot-password" element={<LoginPage />} />
+        <Route path="reset-password" element={<LoginPage />} />
+        <Route path="announcements/unsubscribe" element={<AnnouncementUnsubscribePage />} />
 
-      <Route path="dashboard" element={<RequireAuth role="MEMBER"><MemberLayout /></RequireAuth>}>
-        <Route index element={<DashboardHomePage />} />
-        <Route path="profile" element={<MemberProfilePage />} />
-        <Route path="projects" element={<MemberProjectsPage />} />
-        <Route path="projects/upload" element={<UploadProjectPage />} />
-        <Route path="projects/:id" element={<MemberProjectsPage />} />
-        <Route path="messages" element={<MessagesPage />} />
-        <Route path="documents" element={<DocumentExchangePage />} />
-        <Route path="notifications" element={<NotificationsPage />} />
-        <Route path="publications" element={<MemberPublicationsPage />} />
-        <Route path="gallery" element={<MemberGalleryPage />} />
-        <Route path="community" element={<CommunityPage />} />
-        <Route path="support" element={<SupportRequestsPage />} />
-        <Route path="support/:id" element={<SupportRequestDetailPage />} />
-      </Route>
+        <Route path="dashboard" element={<RequireAuth role="MEMBER"><MemberLayout /></RequireAuth>}>
+          <Route index element={<DashboardHomePage />} />
+          <Route path="profile" element={<MemberProfilePage />} />
+          <Route path="projects" element={<MemberProjectsPage />} />
+          <Route path="projects/upload" element={<UploadProjectPage />} />
+          <Route path="projects/:id" element={<MemberProjectsPage />} />
+          <Route path="messages" element={<MessagesPage />} />
+          <Route path="documents" element={<DocumentExchangePage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="publications" element={<MemberPublicationsPage />} />
+          <Route path="gallery" element={<MemberGalleryPage />} />
+          <Route path="community" element={<CommunityPage />} />
+          <Route path="support" element={<SupportRequestsPage />} />
+          <Route path="support/:id" element={<SupportRequestDetailPage />} />
+        </Route>
 
-      <Route path="admin" element={<RequireAuth role="ADMIN"><AdminLayout /></RequireAuth>}>
-        <Route index element={<AdminHomePage />} />
-        <Route path="members" element={<AdminMembersPage />} />
-        <Route path="members/pending" element={<AdminPendingApplicationsPage />} />
-        <Route path="members/lookup" element={<AdminMembersPage />} />
-        <Route path="members/:id" element={<AdminMemberDetailPage />} />
-        <Route path="projects" element={<AdminProjectsPage />} />
-        <Route path="projects/:id" element={<AdminProjectDetailPage />} />
-        <Route path="publications" element={<AdminPublicationsPage />} />
-        <Route path="publications/:id" element={<AdminPublicationDetailPage />} />
-        <Route path="gallery" element={<AdminGalleryPage />} />
-        <Route path="support" element={<AdminSupportPage />} />
-        <Route path="support/:id" element={<AdminSupportDetailPage />} />
-        <Route path="messages" element={<AdminMessagesPage />} />
-        <Route path="messages/:conversationId" element={<AdminMessagesDetailPage />} />
-        <Route path="events" element={<AdminEventsPage />} />
-        <Route path="events/new" element={<AdminNewEventPage />} />
-        <Route path="events/:id/edit" element={<AdminEditEventPage />} />
-        <Route path="events/:id" element={<AdminEditEventPage />} />
-        <Route path="inquiries" element={<AdminInquiriesPage />} />
-        <Route path="audit-log" element={<AdminAuditLogPage />} />
-        <Route path="announcements" element={<AdminAnnouncementsPage />} />
-        <Route path="reports" element={<AdminReportsPage />} />
-        <Route path="profile" element={<AdminProfilePage />} />
-        <Route path="settings" element={<AdminSettingsPage />} />
-      </Route>
+        <Route path="admin" element={<RequireAuth role="ADMIN"><AdminLayout /></RequireAuth>}>
+          <Route index element={<AdminHomePage />} />
+          <Route path="members" element={<AdminMembersPage />} />
+          <Route path="members/pending" element={<AdminPendingApplicationsPage />} />
+          <Route path="members/lookup" element={<AdminMembersPage />} />
+          <Route path="members/:id" element={<AdminMemberDetailPage />} />
+          <Route path="projects" element={<AdminProjectsPage />} />
+          <Route path="projects/:id" element={<AdminProjectDetailPage />} />
+          <Route path="publications" element={<AdminPublicationsPage />} />
+          <Route path="publications/:id" element={<AdminPublicationDetailPage />} />
+          <Route path="gallery" element={<AdminGalleryPage />} />
+          <Route path="support" element={<AdminSupportPage />} />
+          <Route path="support/:id" element={<AdminSupportDetailPage />} />
+          <Route path="messages" element={<AdminMessagesPage />} />
+          <Route path="messages/:conversationId" element={<AdminMessagesDetailPage />} />
+          <Route path="events" element={<AdminEventsPage />} />
+          <Route path="events/new" element={<AdminNewEventPage />} />
+          <Route path="events/:id/edit" element={<AdminEditEventPage />} />
+          <Route path="events/:id" element={<AdminEditEventPage />} />
+          <Route path="inquiries" element={<AdminInquiriesPage />} />
+          <Route path="audit-log" element={<AdminAuditLogPage />} />
+          <Route path="announcements" element={<AdminAnnouncementsPage />} />
+          <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="profile" element={<AdminProfilePage />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
+        </Route>
 
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </GalleryProvider>
   );
 }
