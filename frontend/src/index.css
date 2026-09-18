@@ -70,3 +70,55 @@
     box-shadow: 0 0 0 0 theme('colors.brass.500' / 0%);
   }
 }
+
+/*
+ * Printing a report.
+ *
+ * The viewer modal is the only thing worth putting on paper, so when one is
+ * open everything else is hidden and the dialog is un-fixed so it can flow
+ * across pages. Screen rendering is untouched — this block only applies to
+ * print, and only when a `.report-print-root` is mounted.
+ */
+@media print {
+  /*
+   * The overlay sits deep inside #root, so nothing can simply be display:none'd
+   * without taking the dialog with it. Hiding everything by *visibility* and
+   * then re-showing the overlay subtree keeps the ancestors laid out while
+   * rendering only the report.
+   */
+  body:has(.report-print-root) * {
+    visibility: hidden;
+  }
+
+  body:has(.report-print-root) .report-print-overlay,
+  body:has(.report-print-root) .report-print-overlay * {
+    visibility: visible;
+  }
+
+  body:has(.report-print-root) .report-print-overlay {
+    position: absolute !important;
+    inset: 0 !important;
+    overflow: visible !important;
+    background: none !important;
+    padding: 0 !important;
+  }
+
+  .report-print-root {
+    max-width: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .report-print-hide {
+    display: none !important;
+  }
+
+  /* Let long reports break across pages instead of clipping at the fold. */
+  .report-print-root table {
+    min-width: 0 !important;
+  }
+
+  .report-print-root tr {
+    break-inside: avoid;
+  }
+}

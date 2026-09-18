@@ -1565,7 +1565,7 @@ function labelToApplicationStatus(label: string): ApplicationStatus | null {
 }
 
 /** Parses a YYYY-MM-DD filter bound, ignoring anything unparseable. */
-function parseDateBound(value: unknown, endOfDay = false): Date | undefined {
+export function parseDateBound(value: unknown, endOfDay = false): Date | undefined {
   const raw = String(value ?? '').trim();
   if (!raw) return undefined;
   const date = new Date(endOfDay ? `${raw}T23:59:59.999Z` : `${raw}T00:00:00.000Z`);

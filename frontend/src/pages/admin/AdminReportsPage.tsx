@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
   FileText,
@@ -20,40 +20,19 @@ import {
   Mail,
   AlertCircle,
   Search,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { SelectInput, TextInput } from '../../components/common/Input';
+import { useApiData } from '../../hooks/useApiData';
+import { normalizeError } from '../../api/client';
+import ReportViewerModal from '../../components/reports/ReportViewerModal';
+import { reportsApi, type ReportCadence, type ReportCategory, type ReportTile } from '../../api/reports';
 
-interface ReportDef {
-  id: string;
-  title: string;
-  category: 'Membership' | 'Publications' | 'Support' | 'Engagement' | 'Platform' | 'Finance';
-  description: string;
-  cadence: 'Monthly' | 'Weekly' | 'Quarterly' | 'On-demand' | 'Real-time';
-  lastRun?: string;
-  nextRun?: string;
-  recipient?: string;
-  format: 'PDF' | 'XLSX' | 'Both';
-  metric: string;
-  trend: 'up' | 'down' | 'flat';
-  trendValue: string;
-  samplePeriod: string;
-}
-
-const reports: ReportDef[] = [
-  { id: 'rpt-membership-monthly', title: 'Membership Monthly Review', category: 'Membership', description: 'Applications received, approval/rejection counts, member ID issuance, geographic cohort distribution, credential verification statistics, and cohort retention.', cadence: 'Monthly', lastRun: 'Aug 01, 2026', nextRun: 'Sep 01, 2026', recipient: 'CRO + SAB', format: 'Both', metric: '14 new members', trend: 'up', trendValue: '+18% MoM', samplePeriod: 'July 2026' },
-  { id: 'rpt-review-sla', title: 'Review SLA Performance', category: 'Publications', description: 'SLA compliance for publication review, project review, and support queues. 25/50/75 percentile review times, reviewer backlog, per-category breaching items.', cadence: 'Weekly', lastRun: 'Aug 19, 2026', nextRun: 'Aug 26, 2026', recipient: 'CRO Office', format: 'XLSX', metric: 'Avg. 6.2 days (pub)', trend: 'up', trendValue: '−1.3d since June', samplePeriod: 'Aug 12 – 18' },
-  { id: 'rpt-funding', title: 'Funding & Support Disbursement', category: 'Finance', description: 'All funding approvals by project, by category, by cohort. Official endorsement counts, moral support pairings opened/closed. Budget utilization per grant line.', cadence: 'Quarterly', lastRun: 'Jul 01, 2026', nextRun: 'Oct 01, 2026', recipient: 'CRO + Finance Board', format: 'Both', metric: '€241,850 approved Q2', trend: 'up', trendValue: '+33% QoQ', samplePeriod: 'Q2 2026' },
-  { id: 'rpt-support', title: 'Support Request Case Report', category: 'Support', description: 'All support tickets by category, time-to-first-response, time-to-approve, top requester segments, approval/rejection ratios, linked publications.', cadence: 'Monthly', lastRun: 'Aug 01, 2026', nextRun: 'Sep 01, 2026', recipient: 'CRO Office', format: 'Both', metric: 'Avg. 2.4 days response', trend: 'down', trendValue: '−0.7d MoM', samplePeriod: 'July 2026' },
-  { id: 'rpt-engagement', title: 'Platform Engagement Dashboard', category: 'Engagement', description: 'Active member DAU/MAU, document views, message reply ratios, publication read-through, event attendance, community threads opened.', cadence: 'Weekly', lastRun: 'Aug 19, 2026', nextRun: 'Aug 26, 2026', recipient: 'CRO Office + Comms', format: 'PDF', metric: 'MAU 198 (71%)', trend: 'up', trendValue: '+6.4% WoW', samplePeriod: 'Aug 12 – 18' },
-  { id: 'rpt-content', title: 'Publications Impact Report', category: 'Publications', description: 'Publications approved vs. published, public views, external backlinks, citation counts, top downloaded PDFs, subject area performance.', cadence: 'Quarterly', lastRun: 'Jul 01, 2026', nextRun: 'Oct 01, 2026', recipient: 'SAB', format: 'Both', metric: '21,847 public views', trend: 'up', trendValue: '+42% YoY', samplePeriod: 'Q2 2026' },
-  { id: 'rpt-events', title: 'Events & Attendance Report', category: 'Engagement', description: 'Events created, RSVP pipeline, actual attendance vs capacity, speaker stats, geographic participation for virtual events.', cadence: 'Monthly', lastRun: 'Aug 01, 2026', nextRun: 'Sep 01, 2026', recipient: 'Events Committee', format: 'PDF', metric: '4 events, 971 RSVPs', trend: 'up', trendValue: '+22% MoM', samplePeriod: 'July 2026' },
-  { id: 'rpt-messages', title: 'Messaging & Inquiries Report', category: 'Platform', description: 'Inbox response times, escalations to SAB, conversation topics, contact-form inquiries triaged, spam detection rate, public inquiry reply time.', cadence: 'Weekly', lastRun: 'Aug 19, 2026', nextRun: 'Aug 26, 2026', recipient: 'CRO Office', format: 'XLSX', metric: '96% response within 24h', trend: 'flat', trendValue: '−0.2% WoW', samplePeriod: 'Aug 12 – 18' },
-];
-
-const categoryIcon: Record<ReportDef['category'], typeof Users> = {
+const categoryIcon: Record<ReportCategory, typeof Users> = {
   Membership: Users,
   Publications: Globe2,
   Support: Headphones,
@@ -62,7 +41,7 @@ const categoryIcon: Record<ReportDef['category'], typeof Users> = {
   Finance: FileSpreadsheet,
 };
 
-const cadenceBadge: Record<ReportDef['cadence'], 'info' | 'brass' | 'warning' | 'default' | 'success'> = {
+const cadenceBadge: Record<ReportCadence, 'info' | 'brass' | 'warning' | 'default' | 'success'> = {
   Weekly: 'info',
   Monthly: 'brass',
   Quarterly: 'warning',
@@ -70,28 +49,94 @@ const cadenceBadge: Record<ReportDef['cadence'], 'info' | 'brass' | 'warning' | 
   'Real-time': 'success',
 };
 
-export default function AdminReportsPage() {
-  const [category, setCategory] = useState<'All' | ReportDef['category']>('All');
-  const [period, setPeriod] = useState<'Last 7 days' | 'Last 30 days' | 'Last 90 days' | 'Custom'>('Last 30 days');
-  const [search, setSearch] = useState('');
+// These maps are exhaustive over the current unions, so an unexpected value
+// from the API would otherwise render `undefined` as a component and throw.
+const iconFor = (category: ReportCategory) => categoryIcon[category] ?? BarChart3;
+const badgeFor = (cadence: ReportCadence) => cadenceBadge[cadence] ?? 'default';
 
+const PERIODS = ['Last 7 days', 'Last 30 days', 'Last 90 days', 'Custom'] as const;
+type Period = (typeof PERIODS)[number];
+
+const isoDay = (date: Date) => date.toISOString().slice(0, 10);
+/** Translates the period dropdown into the bounds the API expects. */
+function boundsFor(period: Period, customFrom: string, customTo: string) {
+  if (period === 'Custom') return { from: customFrom || undefined, to: customTo || undefined };
+  const days = period === 'Last 7 days' ? 7 : period === 'Last 90 days' ? 90 : 30;
+  const to = new Date();
+  return { from: isoDay(new Date(to.getTime() - days * 86_400_000)), to: isoDay(to) };
+}
+
+export default function AdminReportsPage() {
+  const [category, setCategory] = useState<'All' | ReportCategory>('All');
+  const [period, setPeriod] = useState<Period>('Last 30 days');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [viewing, setViewing] = useState<ReportTile | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  const range = useMemo(() => boundsFor(period, customFrom, customTo), [period, customFrom, customTo]);
+  // A half-entered custom range would otherwise refetch on every keystroke.
+  const ready = period !== 'Custom' || Boolean(customFrom && customTo);
+  const invalidCustom = period === 'Custom' && Boolean(customFrom && customTo) && customFrom > customTo;
+
+  const catalog = useApiData(
+    () => (ready && !invalidCustom ? reportsApi.catalog(range) : Promise.resolve(null)),
+    [range.from, range.to, ready, invalidCustom, reloadKey],
+  );
+
+  const reports = catalog.data?.reports ?? [];
   const filtered = reports.filter((r) => {
     if (category !== 'All' && r.category !== category) return false;
-    if (search && !(r.title.toLowerCase().includes(search.toLowerCase()) || r.description.toLowerCase().includes(search.toLowerCase()))) return false;
+    const term = debouncedSearch.trim().toLowerCase();
+    if (term && !(r.title.toLowerCase().includes(term) || r.description.toLowerCase().includes(term))) return false;
     return true;
   });
 
   const categories = ['All', 'Membership', 'Publications', 'Support', 'Engagement', 'Platform', 'Finance'] as const;
 
+  const act = async (key: string, run: () => Promise<string>) => {
+    if (busyKey) return;
+    setBusyKey(key); setActionError(''); setNotice('');
+    try { setNotice(await run()); }
+    catch (error) { setActionError(normalizeError(error).message); }
+    finally { setBusyKey(null); }
+  };
+
+  const exportReport = (r: ReportTile) => act(r.key, async () => {
+    const filename = await reportsApi.download(r.key, range);
+    return `Exported ${filename}`;
+  });
+
+  const runReport = (r: ReportTile) => act(r.key, async () => {
+    const result = await reportsApi.run(r.key, range);
+    setReloadKey((k) => k + 1);
+    return `${r.title} generated — ${result.rows.toLocaleString()} row${result.rows === 1 ? '' : 's'}.`;
+  });
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: 'Active Members (30d)', value: '198 / 277', sub: '71.5%', trend: '+6.4%', trendDir: 'up' as const, icon: Users, color: 'forum' },
-          { label: 'Publications In Review', value: '12', sub: 'SLA 6.2 / 10d', trend: '−1.3d', trendDir: 'up' as const, icon: FolderKanban, color: 'brass' },
-          { label: 'New Publications (30d)', value: '27', sub: 'Public views 21,847', trend: '+42%', trendDir: 'up' as const, icon: Globe2, color: 'slateteal' },
-          { label: 'Support SLA Compliance', value: '96.3%', sub: '43 resolved', trend: '+1.1%', trendDir: 'up' as const, icon: Headphones, color: 'forum' },
-        ].map((m) => {
+        {(catalog.data?.kpis ?? []).map((kpi, index) => ({
+          label: kpi.label,
+          value: kpi.value,
+          sub: kpi.sub,
+          trend: kpi.trendValue,
+          trendDir: kpi.trend,
+          // Icon and accent stay positional, so each card keeps the identity it
+          // had when the values were hardcoded.
+          icon: [Users, FolderKanban, Globe2, Headphones][index] ?? Users,
+          color: ['forum', 'brass', 'slateteal', 'forum'][index] ?? 'forum',
+        })).map((m) => {
           const Icon = m.icon;
           const bg = { forum: 'bg-forum-50 text-forum-700', slateteal: 'bg-slateteal-100 text-slateteal-700', brass: 'bg-brass-100 text-brass-700' }[m.color as 'forum' | 'slateteal' | 'brass'];
           return (
@@ -111,7 +156,30 @@ export default function AdminReportsPage() {
             </Card>
           );
         })}
+        {!catalog.data && Array.from({ length: 4 }, (_, i) => (
+          <Card key={`kpi-skeleton-${i}`}>
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between">
+                <div className="h-11 w-11 animate-pulse rounded-lg bg-forum-50" />
+                <div className="h-4 w-12 animate-pulse rounded bg-forum-50" />
+              </div>
+              <div className="mt-4 h-8 w-24 animate-pulse rounded bg-forum-50" />
+              <div className="mt-2 h-4 w-32 animate-pulse rounded bg-forum-50" />
+              <div className="mt-2 h-3 w-20 animate-pulse rounded bg-forum-50" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
+
+      {(actionError || notice) && (
+        <p
+          role={actionError ? 'alert' : 'status'}
+          className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${actionError ? 'bg-danger-100 text-danger-600' : 'bg-success-100 text-success-600'}`}
+        >
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {actionError || notice}
+        </p>
+      )}
 
       <Card>
         <CardHeader>
@@ -132,15 +200,64 @@ export default function AdminReportsPage() {
                 {categories.map((v) => <option key={v} value={v}>{v === 'All' ? 'All Categories' : v}</option>)}
               </SelectInput>
               <SelectInput value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} className="w-full sm:w-44 hidden md:block">
-                {['Last 7 days', 'Last 30 days', 'Last 90 days', 'Custom'].map((v) => <option key={v} value={v}>{v}</option>)}
+                {PERIODS.map((v) => <option key={v} value={v}>{v}</option>)}
               </SelectInput>
+              {period === 'Custom' && (
+                <div className="flex w-full flex-wrap items-start gap-2 sm:w-auto">
+                  <TextInput aria-label="From date" type="date" max={customTo || undefined} value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-full sm:w-40" />
+                  <TextInput aria-label="To date" type="date" min={customFrom || undefined} value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-full sm:w-40" />
+                </div>
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
+          {invalidCustom && (
+            <p role="alert" className="mb-4 flex items-center gap-2 rounded-md bg-danger-100 px-3 py-2 text-sm text-danger-600">
+              <AlertCircle className="h-4 w-4 shrink-0" />The start date must fall before the end date.
+            </p>
+          )}
+          {!invalidCustom && period === 'Custom' && !ready && (
+            <p className="py-10 text-center text-sm text-ink-muted">Choose a start and end date to load reports.</p>
+          )}
+          {catalog.loading && ready && !invalidCustom && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={`tile-skeleton-${i}`} className="rounded-xl border border-paper-border p-5">
+                  <div className="h-10 w-10 animate-pulse rounded-lg bg-forum-50" />
+                  <div className="mt-3 h-4 w-3/4 animate-pulse rounded bg-forum-50" />
+                  <div className="mt-2 h-3 w-full animate-pulse rounded bg-forum-50" />
+                  <div className="mt-4 h-7 w-1/2 animate-pulse rounded bg-forum-50" />
+                </div>
+              ))}
+            </div>
+          )}
+          {!catalog.loading && catalog.error && (
+            <div className="py-12 text-center">
+              <AlertCircle className="mx-auto h-7 w-7 text-danger-600" />
+              <p className="mt-2 text-sm text-ink">{catalog.error}</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => setReloadKey((k) => k + 1)}>
+                <RefreshCw className="h-3.5 w-3.5" />
+                Try again
+              </Button>
+            </div>
+          )}
+          {!catalog.loading && !catalog.error && catalog.data && filtered.length === 0 && (
+            <div className="py-12 text-center">
+              <FileText className="mx-auto h-7 w-7 text-ink-subtle" />
+              <p className="mt-2 text-sm text-ink-muted">
+                {search || category !== 'All' ? 'No reports match these filters.' : 'No reports are configured.'}
+              </p>
+              {(search || category !== 'All') && (
+                <Button variant="outline" size="sm" className="mt-3" onClick={() => { setSearch(''); setCategory('All'); }}>
+                  Clear filters
+                </Button>
+              )}
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
-            {filtered.map((r) => {
-              const CatIcon = categoryIcon[r.category];
+            {!catalog.loading && !catalog.error && filtered.map((r) => {
+              const CatIcon = iconFor(r.category);
               return (
                 <div key={r.id} className="rounded-xl border border-paper-border hover:ring-2 hover:ring-forum-600/10 hover:shadow-sm transition-all overflow-hidden flex flex-col">
                   <div className="p-5 border-b border-paper-border">
@@ -150,7 +267,7 @@ export default function AdminReportsPage() {
                           <CatIcon className="h-5 w-5" />
                         </div>
                         <div>
-                          <Badge variant={cadenceBadge[r.cadence]} className="!text-[10px] !py-0">{r.cadence}</Badge>
+                          <Badge variant={badgeFor(r.cadence)} className="!text-[10px] !py-0">{r.cadence}</Badge>
                           <p className="text-[10px] uppercase tracking-wider text-ink-subtle mt-1.5 font-semibold">{r.category}</p>
                         </div>
                       </div>
@@ -192,17 +309,17 @@ export default function AdminReportsPage() {
                     </div>
                   </div>
                   <div className="p-4 border-t border-paper-border bg-paper-raised flex flex-wrap items-center justify-between gap-2">
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => setViewing(r)}>
                       <Eye className="h-3.5 w-3.5" />
                       View
                     </Button>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Download className="h-3.5 w-3.5" />
+                      <Button variant="outline" size="sm" disabled={busyKey !== null} onClick={() => void exportReport(r)}>
+                        {busyKey === r.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                         {r.format.includes('XLSX') && <FileSpreadsheet className="h-3.5 w-3.5" />}
                         Export
                       </Button>
-                      <Button variant="primary" size="sm">
+                      <Button variant="primary" size="sm" disabled={busyKey !== null} onClick={() => void runReport(r)}>
                         <Mail className="h-3.5 w-3.5" />
                         Run Now
                         <ArrowRight className="h-3.5 w-3.5" />
@@ -225,6 +342,9 @@ export default function AdminReportsPage() {
             </h3>
           </CardHeader>
           <CardContent className="pt-0 space-y-2">
+            {catalog.data && reports.filter((r) => r.nextRun).length === 0 && (
+              <p className="py-6 text-center text-sm text-ink-muted">No reports are scheduled.</p>
+            )}
             {reports.filter((r) => r.nextRun).slice(0, 5).map((r) => (
               <div key={r.id} className="flex items-center justify-between p-3 rounded-lg border border-paper-border hover:bg-forum-50/40 transition-colors">
                 <div className="flex items-center gap-3 min-w-0">
@@ -236,7 +356,7 @@ export default function AdminReportsPage() {
                     <p className="text-[11px] text-ink-subtle">{r.nextRun} · {r.recipient}</p>
                   </div>
                 </div>
-                <Badge variant={cadenceBadge[r.cadence]} className="!text-[10px] !py-0">{r.cadence}</Badge>
+                <Badge variant={badgeFor(r.cadence)} className="!text-[10px] !py-0">{r.cadence}</Badge>
               </div>
             ))}
           </CardContent>
@@ -249,11 +369,10 @@ export default function AdminReportsPage() {
             </h3>
           </CardHeader>
           <CardContent className="pt-0 space-y-2">
-            {[
-              { when: 'Due today', title: 'Review SLA Performance', issue: '2 publications over 10-day SLA threshold', severity: 'warning' as const },
-              { when: 'Past due', title: 'Funding & Support Disbursement', issue: 'Q2 audit sign-off still pending SAB Chair', severity: 'danger' as const },
-              { when: 'This week', title: 'Publications Impact Report', issue: '34 external citation counts need manual verification', severity: 'default' as const },
-            ].map((r) => (
+            {catalog.data && catalog.data.attention.length === 0 && (
+              <p className="py-6 text-center text-sm text-ink-muted">Nothing needs attention — every queue is within its SLA.</p>
+            )}
+            {(catalog.data?.attention ?? []).map((r) => (
               <div key={r.title} className={`flex items-start justify-between p-3 rounded-lg border ${r.severity === 'danger' ? 'border-danger-600/30 bg-danger-100/30' : r.severity === 'warning' ? 'border-warning-600/30 bg-warning-100/30' : 'border-paper-border'}`}>
                 <div className="flex items-start gap-3 min-w-0">
                   <Badge variant={r.severity === 'danger' ? 'danger' : r.severity === 'warning' ? 'warning' : 'info'} className="!text-[10px] !py-0">{r.when}</Badge>
@@ -268,6 +387,15 @@ export default function AdminReportsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {viewing && (
+        <ReportViewerModal
+          reportKey={viewing.key}
+          title={viewing.title}
+          range={range}
+          close={() => setViewing(null)}
+        />
+      )}
     </div>
   );
 }

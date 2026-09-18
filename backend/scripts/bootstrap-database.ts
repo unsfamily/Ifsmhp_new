@@ -18,6 +18,7 @@
 import { PrismaClient } from '@prisma/client';
 import { env } from '../config';
 import { hashPassword } from '../utils/security';
+import { reportDefinitionSeed } from '../domain/reports';
 
 const prisma = new PrismaClient();
 
@@ -34,26 +35,8 @@ const PLATFORM_SETTINGS = [
   { section: 'events', key: 'default_timezone', value: 'UTC' },
 ];
 
-const REPORT_DEFINITIONS = [
-  {
-    key: 'membership-monthly',
-    title: 'Monthly Membership Review',
-    category: 'Membership',
-    description: 'Applicant volume, decisions, and SLA.',
-    cadence: 'Monthly',
-    format: 'xlsx',
-    recipient: 'CRO',
-  },
-  {
-    key: 'review-sla',
-    title: 'Review SLA',
-    category: 'Operations',
-    description: 'Ageing queues across projects, support, and publications.',
-    cadence: 'Weekly',
-    format: 'xlsx',
-    recipient: 'Operations',
-  },
-];
+/** The code registry is the source of truth; these rows only mirror it. */
+const REPORT_DEFINITIONS = reportDefinitionSeed;
 
 async function bootstrapAdmin(): Promise<void> {
   const email = env.SEED_ADMIN_EMAIL.trim().toLowerCase();

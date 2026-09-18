@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { reportDefinitionSeed } from '../../domain/reports';
 
 const prisma = new PrismaClient();
 
@@ -568,12 +569,10 @@ async function main(): Promise<void> {
     },
   });
 
-  await prisma.reportDefinition.createMany({
-    data: [
-      { key: 'membership-monthly', title: 'Monthly Membership Review', category: 'Membership', description: 'Applicant volume, decisions, and SLA.', cadence: 'Monthly', format: 'xlsx', recipient: 'CRO' },
-      { key: 'review-sla', title: 'Review SLA', category: 'Operations', description: 'Ageing queues across projects, support, and publications.', cadence: 'Weekly', format: 'xlsx', recipient: 'Operations' },
-    ],
-  });
+  // Mirrors the code registry, which is the source of truth for what a report
+  // is and how it runs. The previous two rows carried a category ('Operations')
+  // the Reports screen has no icon for, and a lowercase format it cannot badge.
+  await prisma.reportDefinition.createMany({ data: reportDefinitionSeed });
 
   await prisma.platformSetting.createMany({
     data: [

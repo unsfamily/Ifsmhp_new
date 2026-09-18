@@ -6,7 +6,9 @@ import { validate } from '../middleware/validate';
 import { sendSuccess } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import * as service from '../services/platform.service';
+import * as reports from '../services/reports.service';
 import * as supportService from '../services/support.service';
+import { paginationQuerySchema } from '../utils/pagination';
 import * as events from '../services/events.service';
 import { eventFields } from '../domain/event-input';
 
@@ -284,12 +286,45 @@ router.get('/audit-log', asyncHandler(async (req, res) => {
   sendSuccess(res, await service.adminAuditLog(req), 'Audit log page');
 }));
 
-router.get('/reports', asyncHandler(async (_req, res) => {
-  sendSuccess(res, await service.adminReports(), 'Report definitions');
+/**
+ * Reporting.
+ *
+ * `from`/`to` are optional everywhere and default to the trailing 30 days,
+ * matching the page's default period. Running a report writes a ReportRun, so
+ * it is a POST — the previous GET stub returned a hardcoded empty result and
+ * had no callers.
+ */
+const reportRange = z.object({ from: isoDate.optional(), to: isoDate.optional() });
+const reportKeyParams = z.object({ reportKey: z.string().min(1).max(64) });
+
+router.get('/reports', validate({ query: reportRange }), asyncHandler(async (req, res) => {
+  const range = reports.resolveRange(req.query as { from?: string; to?: string });
+  sendSuccess(res, await reports.reportCatalog(range), 'Reports overview');
 }));
 
-router.get('/reports/:reportKey/run', asyncHandler(async (req, res) => {
-  sendSuccess(res, { reportKey: req.params.reportKey, generated: true, rows: [] }, 'Report generated');
+router.get(
+  '/reports/:reportKey',
+  validate({ params: reportKeyParams, query: reportRange.merge(paginationQuerySchema.partial()) }),
+  asyncHandler(async (req, res) => {
+    const range = reports.resolveRange(req.query as { from?: string; to?: string });
+    sendSuccess(res, await reports.reportRows(req.params.reportKey!, range, service.parsePage(req)), 'Report rows');
+  })
+);
+
+router.get('/reports/:reportKey/export', validate({ params: reportKeyParams, query: reportRange }), asyncHandler(async (req, res) => {
+  const range = reports.resolveRange(req.query as { from?: string; to?: string });
+  const csv = await reports.reportCsv(req.params.reportKey!, range);
+  // Written directly rather than through sendSuccess, which would wrap it in
+  // the JSON envelope.
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(csv.filename)}`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(csv.body);
+}));
+
+router.post('/reports/:reportKey/run', validate({ params: reportKeyParams, query: reportRange }), asyncHandler(async (req, res) => {
+  const range = reports.resolveRange(req.query as { from?: string; to?: string });
+  sendSuccess(res, await reports.runReport(req.params.reportKey!, range, req.user!.id), 'Report generated');
 }));
 
 router.get('/settings', asyncHandler(async (_req, res) => {
