@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import {
   Users,
   HeartHandshake,
@@ -13,8 +13,6 @@ import {
   Rocket,
   ArrowRight,
   FileText,
-  Pause,
-  Play,
   ChevronLeft,
   ChevronRight,
   Award,
@@ -125,10 +123,10 @@ const HOME_BANNERS: HomeBannerSlide[] = [
     eyebrow: { icon: Calendar, label: 'Spring Symposium 2026 · Save the date' },
     title: 'The IFSMHP Spring Symposium — Call for Abstracts Now Open',
     highlightWord: 'Call for Abstracts Now Open',
-    lead: 'Submit your methodological, clinical or policy-focused work by 15 October 2026. Three tracks, 9 keynote plenaries, and a riverside networking reception hosted at the UNS Sydney Forum Hall.',
+    lead: 'Submit your methodological, clinical or policy-focused work by 15 October 2026. Three tracks, 9 keynote plenaries, and a riverside networking reception hosted at the India Forum Hall.',
     chips: [
       { label: 'Dates', value: '12–14 Mar 2026' },
-      { label: 'Venue', value: 'UNS Sydney' },
+      { label: 'Venue', value: 'India' },
       { label: '3 tracks', value: '9 keynotes' },
     ],
     gradientOverlay: 'from-forum-950/80 via-forum-800/60 to-slateteal-900/40',
@@ -181,16 +179,15 @@ const TRIANGLE_SVG =
 
 export default function HomePage() {
   const [bannerIndex, setBannerIndex] = useState(0);
-  const [bannerPlaying, setBannerPlaying] = useState(true);
   const [bannerHover, setBannerHover] = useState(false);
 
   useEffect(() => {
-    if (!bannerPlaying || bannerHover) return;
+    if (bannerHover) return;
     const t = window.setInterval(() => {
       setBannerIndex((i) => (i + 1) % HOME_BANNERS.length);
     }, 6200);
     return () => window.clearInterval(t);
-  }, [bannerPlaying, bannerHover]);
+  }, [bannerHover]);
 
   const goPrev = () => setBannerIndex((i) => (i - 1 + HOME_BANNERS.length) % HOME_BANNERS.length);
   const goNext = () => setBannerIndex((i) => (i + 1) % HOME_BANNERS.length);
@@ -239,14 +236,14 @@ export default function HomePage() {
                   className="absolute inset-0 h-full w-full object-cover"
                   loading={i === 0 ? 'eager' : 'lazy'}
                 />
-                <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-center px-4 pb-28 pt-24 sm:px-6 sm:pb-12 sm:pt-20 lg:px-8 lg:pb-16 lg:pt-20">
-                  <div className="relative max-w-3xl pr-[104px] sm:pr-0">
-                    <div className="absolute inset-x-[-1.5rem] -inset-y-8 -z-10 rounded-[2.5rem] bg-forum-950/25 backdrop-blur-[2px]" aria-hidden />
-                    <span className="inline-flex items-center gap-2 rounded-full bg-forum-950/40 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20 backdrop-blur">
+                <div className="relative z-10 mx-auto grid h-full w-full max-w-7xl items-center px-4 pb-28 pt-24 sm:px-6 sm:pb-12 sm:pt-20 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] lg:gap-8 lg:px-8 lg:pb-16 lg:pt-20">
+                  <div className="relative max-w-xl pr-[104px] sm:pr-0">
+                    <div className="absolute -inset-x-4 -inset-y-5 -z-10 rounded-2xl bg-forum-950/25 backdrop-blur-[2px]" aria-hidden />
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-forum-950/40 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20 backdrop-blur sm:text-[11px]">
                       <Icon className="h-3.5 w-3.5" />
                       {slide.eyebrow.label}
                     </span>
-                    <h1 className="mt-5 text-3xl font-semibold leading-[1.1] text-white drop-shadow-sm sm:mt-6 sm:max-w-4xl sm:text-5xl lg:text-6xl">
+                    <h1 className="mt-5 text-xl font-semibold leading-[1.2] text-white drop-shadow-sm sm:mt-6 sm:max-w-4xl sm:text-2xl lg:text-3xl">
                       {slide.title.split(slide.highlightWord).length === 2 ? (
                         <>
                           {slide.title.split(slide.highlightWord)[0]}
@@ -259,14 +256,14 @@ export default function HomePage() {
                         </>
                       )}
                     </h1>
-                    <p className="mt-5 text-[15px] leading-relaxed text-white/90 sm:mt-6 sm:text-lg lg:text-xl">
+                    <p className="mt-4 max-w-2xl text-xs leading-relaxed text-white/90 sm:mt-5 sm:text-sm lg:text-base">
                       {slide.lead}
                     </p>
-                    <div className="mt-4 flex flex-wrap gap-2 sm:mt-5">
+                    <div className="mt-3 flex flex-wrap gap-1.5 sm:mt-4">
                       {slide.chips.map((chip) => (
                         <span
                           key={chip.label}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-forum-950/35 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur sm:text-xs"
+                          className="inline-flex items-center gap-1 rounded-full border border-white/25 bg-forum-950/35 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur sm:text-[11px]"
                         >
                           <span className="text-white/80">{chip.label}</span>
                           {chip.value ? (
@@ -275,7 +272,7 @@ export default function HomePage() {
                         </span>
                       ))}
                     </div>
-                    <div className="mt-7 grid grid-cols-1 items-center gap-2.5 sm:mt-10 sm:flex sm:flex-wrap sm:gap-4">
+                    <div className="mt-5 grid grid-cols-1 items-center gap-2 sm:mt-6 sm:flex sm:flex-wrap sm:gap-2.5">
                       {slide.ctas.map((cta, idx) => {
                         const CtaIcon = cta.icon;
                         if (cta.variant === 'primary') {
@@ -284,12 +281,12 @@ export default function HomePage() {
                               key={cta.to + idx}
                               as="link"
                               to={cta.to}
-                              size="lg"
+                              size="sm"
                               variant="primary"
-                              className="min-h-12 w-full whitespace-nowrap bg-brass-500 px-5 text-forum-950 hover:bg-brass-700 focus-visible:ring-brass-500 sm:w-auto sm:min-h-14 sm:px-8"
+                              className="min-h-9 w-full whitespace-nowrap bg-brass-500 px-4 text-xs text-forum-950 hover:bg-brass-700 focus-visible:ring-brass-500 sm:min-h-10 sm:w-auto sm:px-5 sm:text-sm"
                             >
                               {cta.label}
-                              {CtaIcon ? <CtaIcon className="h-4 w-4 sm:h-4.5 sm:w-4.5" /> : null}
+                              {CtaIcon ? <CtaIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : null}
                             </Button>
                           );
                         }
@@ -298,17 +295,18 @@ export default function HomePage() {
                             key={cta.to + idx}
                             as="link"
                             to={cta.to}
-                            size="lg"
+                            size="sm"
                             variant="outline"
-                            className="min-h-12 w-full whitespace-nowrap border-white/40 bg-forum-950/30 px-5 text-white hover:bg-forum-950/50 focus-visible:ring-white/60 backdrop-blur sm:w-auto sm:min-h-14 sm:px-8"
+                            className="min-h-9 w-full whitespace-nowrap border-white/40 bg-forum-950/30 px-4 text-xs text-white hover:bg-forum-950/50 focus-visible:ring-white/60 backdrop-blur sm:min-h-10 sm:w-auto sm:px-5 sm:text-sm"
                           >
-                            {CtaIcon ? <CtaIcon className="h-4 w-4 sm:h-4.5 sm:w-4.5" /> : null}
+                            {CtaIcon ? <CtaIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : null}
                             {cta.label}
                           </Button>
                         );
                       })}
                     </div>
                   </div>
+                  <BannerGlobe chips={slide.chips} active={active} />
                 </div>
               </div>
             );
@@ -333,19 +331,7 @@ export default function HomePage() {
         </button>
 
         <div className="absolute bottom-4 left-0 right-0 z-20 flex items-center justify-center gap-3 px-4 sm:bottom-6 sm:justify-between sm:px-8 lg:px-12">
-          <div className="hidden items-center gap-1.5 sm:inline-flex">
-            <button
-              type="button"
-              onClick={() => setBannerPlaying((p) => !p)}
-              aria-label={bannerPlaying ? 'Pause carousel' : 'Play carousel'}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-forum-950/35 text-white backdrop-blur hover:bg-forum-950/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass-300"
-            >
-              {bannerPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </button>
-            <span className="text-[11px] font-medium uppercase tracking-wider text-white/80">
-              {bannerPlaying ? 'Auto-playing · 6.2 s' : 'Paused'}
-            </span>
-          </div>
+          <span className="hidden sm:block" aria-hidden="true" />
           <ol role="tablist" aria-label="Home banner slides" className="flex items-center gap-2">
             {HOME_BANNERS.map((slide, i) => (
               <li key={slide.id}>
@@ -554,6 +540,85 @@ function MemberBenefitCard({
       </div>
       <h3 className="mt-5 text-lg font-semibold text-forum-900">{title}</h3>
       <p className="mt-2 leading-relaxed text-ink-muted">{desc}</p>
+    </div>
+  );
+}
+
+function BannerGlobe({
+  chips,
+  active,
+}: {
+  chips: HomeBannerSlide['chips'];
+  active: boolean;
+}) {
+  const svgId = useId().replace(/:/g, '');
+  const clipId = `home-globe-clip-${svgId}`;
+  const fillId = `home-globe-fill-${svgId}`;
+
+  return (
+    <div
+      aria-hidden="true"
+      className={`home-globe-visual hidden lg:block ${active ? 'is-active' : ''}`}
+    >
+      <div className="home-globe-orbit home-globe-orbit-one" />
+      <div className="home-globe-orbit home-globe-orbit-two" />
+      <div className="home-globe-sphere">
+        <div className="home-globe-shine" />
+        <svg viewBox="0 0 300 300" className="h-full w-full" focusable="false">
+          <defs>
+            <clipPath id={clipId}>
+              <circle cx="150" cy="150" r="141" />
+            </clipPath>
+            <radialGradient id={fillId} cx="35%" cy="25%" r="80%">
+              <stop offset="0%" stopColor="#80d6e4" stopOpacity="0.34" />
+              <stop offset="52%" stopColor="#07516d" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#012559" stopOpacity="0.88" />
+            </radialGradient>
+          </defs>
+          <circle cx="150" cy="150" r="141" fill={`url(#${fillId})`} stroke="rgba(255,255,255,.56)" strokeWidth="1.5" />
+          <g clipPath={`url(#${clipId})`} className="home-globe-grid">
+            <ellipse cx="150" cy="150" rx="62" ry="141" />
+            <ellipse cx="150" cy="150" rx="112" ry="141" />
+            <ellipse cx="150" cy="150" rx="141" ry="45" />
+            <ellipse cx="150" cy="150" rx="141" ry="94" />
+            <path d="M-10 96 C45 55 78 68 112 95 S178 138 218 107 276 49 326 82" />
+            <path d="M-16 214 C37 185 77 206 116 229 S183 254 218 222 275 174 320 201" />
+          </g>
+          <g className="home-globe-land" clipPath={`url(#${clipId})`}>
+            <path d="M72 74c20-22 48-31 72-24l14 17-15 19-21 3-12 22-24-4-18-17 4-16Z" />
+            <path d="m117 124 29-17 35 8 17 24-12 17-22-7-16 22-21-12-18-19 8-16Z" />
+            <path d="m184 63 31 8 23 25-12 22-25 4-10 22-17-12 8-26-14-18 16-25Z" />
+            <path d="m196 176 30-11 27 19-8 29-29 22-18-20-17-18 15-21Z" />
+          </g>
+          <g className="home-globe-points">
+            <circle cx="93" cy="104" r="4" />
+            <circle cx="199" cy="118" r="4" />
+            <circle cx="183" cy="211" r="4" />
+          </g>
+        </svg>
+      </div>
+
+      <svg viewBox="0 0 520 430" className="home-globe-connectors" focusable="false">
+        <path d="M116 78 C164 78 166 122 205 145" />
+        <path d="M414 174 C376 174 360 186 329 198" />
+        <path d="M134 357 C176 333 183 298 216 277" />
+      </svg>
+
+      {chips.slice(0, 3).map((chip, index) => (
+        <div key={`${chip.label}-${index}`} className={`home-globe-label home-globe-label-${index + 1}`}>
+          <span className="home-globe-label-dot" />
+          <span>
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/65">
+              {chip.label}
+            </span>
+            {chip.value && (
+              <span className="mt-0.5 block text-xs font-semibold text-brass-100">
+                {chip.value}
+              </span>
+            )}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

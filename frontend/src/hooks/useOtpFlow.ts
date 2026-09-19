@@ -35,6 +35,7 @@ export function useOtpFlow(purpose: OtpPurpose, { onVerified }: Options) {
   const [codeError, setCodeError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [demoHint, setDemoHint] = useState<string | undefined>(pending?.demoCodeHint);
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
 
@@ -46,6 +47,7 @@ export function useOtpFlow(purpose: OtpPurpose, { onVerified }: Options) {
     restored.current = true;
     startAt(pending.resendAfterAt);
     setNotice('We already sent a code to your email. Enter it below.');
+    setDemoHint(pending.demoCodeHint);
   }, [pending, startAt]);
 
   /** Maps a failure onto the specific state the UI should render. */
@@ -96,6 +98,7 @@ export function useOtpFlow(purpose: OtpPurpose, { onVerified }: Options) {
         purpose,
         expiresAt: result.expiresAt,
         resendAfterAt: result.resendAfterAt,
+        demoCodeHint: result.demoCodeHint,
       });
       setEmail(result.email);
       startAt(result.resendAfterAt);
@@ -104,7 +107,12 @@ export function useOtpFlow(purpose: OtpPurpose, { onVerified }: Options) {
       setStatus('idle');
       setCodeError(null);
       setError(null);
-      setNotice('We sent a 6-digit code to your email.');
+      setDemoHint(result.demoCodeHint);
+      setNotice(
+        result.demoCodeHint
+          ? `A code was generated. Since no email service is connected, use this demo code instead: ${result.demoCodeHint}.`
+          : 'We sent a 6-digit code to your email.',
+      );
     },
     [purpose, save, startAt],
   );
@@ -140,12 +148,18 @@ export function useOtpFlow(purpose: OtpPurpose, { onVerified }: Options) {
         purpose,
         expiresAt: result.expiresAt,
         resendAfterAt: result.resendAfterAt,
+        demoCodeHint: result.demoCodeHint,
       });
       // A successful send always restarts the cooldown.
       startAt(result.resendAfterAt);
       setStatus('idle');
       setCode('');
-      setNotice('A new code is on its way.');
+      setDemoHint(result.demoCodeHint);
+      setNotice(
+        result.demoCodeHint
+          ? `A new demo code was generated. Use ${result.demoCodeHint} to continue.`
+          : 'A new code is on its way.',
+      );
     } catch (failure) {
       applyFailure(failure);
     } finally {
@@ -162,6 +176,7 @@ export function useOtpFlow(purpose: OtpPurpose, { onVerified }: Options) {
     setCodeError(null);
     setError(null);
     setNotice(null);
+    setDemoHint(undefined);
     startAt(null);
   }, [clear, startAt]);
 
@@ -175,6 +190,7 @@ export function useOtpFlow(purpose: OtpPurpose, { onVerified }: Options) {
     error,
     setError,
     notice,
+    demoHint,
     verifying,
     resending,
     seconds,

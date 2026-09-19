@@ -69,7 +69,7 @@ export default function MemberLayout() {
         onClick={() => setSidebarOpen(false)}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 transform bg-forum-900 text-forum-100 transition-transform lg:translate-x-0 lg:static lg:inset-auto lg:z-auto ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 transform bg-forum-900 text-white transition-transform lg:translate-x-0 lg:static lg:inset-auto lg:z-auto ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -84,7 +84,7 @@ export default function MemberLayout() {
               <span className="block font-display text-base font-semibold text-white">
                 IFSMHP
               </span>
-              <span className="block text-[10px] uppercase tracking-wider text-forum-200/60">
+              <span className="block text-[10px] uppercase tracking-wider text-white/60">
                 Member Portal
               </span>
             </div>
@@ -92,7 +92,7 @@ export default function MemberLayout() {
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-forum-200/70 hover:text-white"
+            className="lg:hidden text-white/70 hover:text-white"
             aria-label="Close sidebar"
           >
             <X className="h-5 w-5" />
@@ -116,11 +116,11 @@ export default function MemberLayout() {
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2">
-              <Badge variant="brass">
+              <Badge variant="brass" className="bg-brass-500/20 text-brass-100 ring-1 ring-inset ring-brass-500/30">
                 <Building2 className="h-2.5 w-2.5 mr-1" />
                 {user?.professionalType ?? 'Not provided'}
               </Badge>
-              <Badge variant="info" className="bg-slateteal-500/20 text-slateteal-100">
+              <Badge variant="info" className="bg-slateteal-500/20 text-slateteal-100 ring-1 ring-inset ring-slateteal-500/30">
                 {user?.status ? user.status.charAt(0) + user.status.slice(1).toLowerCase() : 'Not provided'}
               </Badge>
             </div>
@@ -141,7 +141,7 @@ export default function MemberLayout() {
               <ChevronRight className="h-3.5 w-3.5" />
             </Link>
           )}
-          <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-forum-200/40">
+          <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
             Menu
           </p>
           {navItems.map((item) => {
@@ -156,7 +156,7 @@ export default function MemberLayout() {
                   `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-forum-700 text-white shadow-sm'
-                      : 'text-forum-100/80 hover:bg-forum-800 hover:text-white'
+                      : 'text-white/80 hover:bg-forum-800 hover:text-white'
                   }`
                 }
               >
@@ -176,7 +176,7 @@ export default function MemberLayout() {
         <div className="absolute bottom-0 left-0 right-0 border-t border-forum-700 p-4 bg-forum-900">
           <button
             type="button"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-forum-100/70 hover:bg-forum-800 hover:text-white transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/70 hover:bg-forum-800 hover:text-white transition-colors"
             onClick={() => void logout()}
           >
             <LogOut className="h-4.5 w-4.5" />

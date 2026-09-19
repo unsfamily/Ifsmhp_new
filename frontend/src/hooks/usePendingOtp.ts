@@ -9,6 +9,12 @@ export interface PendingOtp {
   expiresAt: string;
   /** ISO instant a resend becomes acceptable to the backend. */
   resendAfterAt: string;
+  /**
+   * Optional demo code hint. Only populated when the request was answered by
+   * the frontend mock backend (no real email pipeline), so the UI can reveal
+   * the expected code explicitly instead of looking like delivery failed.
+   */
+  demoCodeHint?: string;
 }
 
 const KEY = 'ifsmhp.pendingOtp';

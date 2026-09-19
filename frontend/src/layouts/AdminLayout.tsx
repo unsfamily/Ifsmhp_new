@@ -21,6 +21,11 @@ import {
   UserCircle,
   Clock,
   Images,
+  ChevronDown,
+  Globe2,
+  MessagesSquare,
+  ShieldAlert,
+  UserRoundSearch,
 } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import logoImg from '../assets/images/logo.png';
@@ -34,6 +39,7 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   end?: boolean;
   badgeKey?: keyof AdminCounts;
+  children?: NavItem[];
 }
 
 interface NavSection {
@@ -54,6 +60,21 @@ interface AdminCounts {
 }
 
 const navSections: NavSection[] = [
+  {
+    heading: 'Community',
+    items: [
+      {
+        to: '/admin/community', label: 'Community', icon: Globe2, end: true,
+        children: [
+          { to: '/admin/community', label: 'Community Dashboard', icon: LayoutDashboard, end: true },
+          { to: '/admin/community/communities', label: 'Manage Communities', icon: Users },
+          { to: '/admin/community/members', label: 'Member Directory', icon: UserRoundSearch },
+          { to: '/admin/community/chats', label: 'Community Chats', icon: MessagesSquare },
+          { to: '/admin/community/moderation', label: 'Reports & Moderation', icon: ShieldAlert },
+        ],
+      },
+    ],
+  },
   {
     heading: 'Overview',
     items: [
@@ -101,8 +122,9 @@ export default function AdminLayout() {
   const { data: stats } = useApiData<AdminCounts>(() => adminApi.stats() as Promise<AdminCounts>, []);
   const { user, logout } = useAuth();
   const loc = useLocation();
+  const [communityExpanded, setCommunityExpanded] = useState(() => loc.pathname.startsWith('/admin/community'));
 
-  const allNavItems = navSections.flatMap((s) => s.items);
+  const allNavItems = navSections.flatMap((s) => s.items.flatMap((item) => item.children ?? [item]));
   const currentPage = allNavItems.find((n) =>
     n.end ? loc.pathname === n.to : loc.pathname.startsWith(n.to)
   );
@@ -119,7 +141,7 @@ export default function AdminLayout() {
         onClick={() => setSidebarOpen(false)}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 transform bg-forum-900 text-forum-100 transition-transform lg:translate-x-0 lg:sticky lg:top-0 lg:z-auto flex flex-col h-screen overflow-hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 transform bg-forum-900 text-white transition-transform lg:translate-x-0 lg:sticky lg:top-0 lg:z-auto flex flex-col h-screen overflow-hidden ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -183,6 +205,44 @@ export default function AdminLayout() {
               <div className="space-y-1">
                 {section.items.map((item) => {
                   const Icon = item.icon;
+                  if (item.children) {
+                    const sectionActive = loc.pathname.startsWith(item.to);
+                    return (
+                      <div key={item.to}>
+                        <div
+                          className={`flex items-center rounded-lg transition-colors ${sectionActive ? 'bg-forum-800 text-white' : 'text-forum-100/80 hover:bg-forum-800 hover:text-white'}`}
+                        >
+                          <NavLink
+                            to={item.to}
+                            end={item.end}
+                            onClick={() => {
+                              setCommunityExpanded(true);
+                              setSidebarOpen(false);
+                            }}
+                            className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-sm font-medium"
+                          >
+                            <Icon className="h-4.5 w-4.5 shrink-0" />
+                            <span className="truncate">{item.label}</span>
+                          </NavLink>
+                          <button
+                            type="button"
+                            aria-label={`${communityExpanded ? 'Collapse' : 'Expand'} ${item.label} menu`}
+                            aria-expanded={communityExpanded}
+                            onClick={() => setCommunityExpanded((value) => !value)}
+                            className="rounded-lg p-2.5 hover:bg-forum-700"
+                          >
+                            <ChevronDown className={`h-4 w-4 transition-transform ${communityExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+                        </div>
+                        {communityExpanded && <div className="mt-1 space-y-1 pl-4">
+                          {item.children.map((child) => {
+                            const ChildIcon = child.icon;
+                            return <NavLink key={child.to} to={child.to} end={child.end} onClick={() => setSidebarOpen(false)} className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${isActive ? 'bg-forum-700 text-white shadow-sm' : 'text-forum-100/70 hover:bg-forum-800 hover:text-white'}`}><ChildIcon className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate">{child.label}</span></NavLink>;
+                          })}
+                        </div>}
+                      </div>
+                    );
+                  }
                   return (
                     <NavLink
                       key={item.to}

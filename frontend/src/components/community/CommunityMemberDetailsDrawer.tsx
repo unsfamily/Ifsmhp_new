@@ -1,0 +1,9 @@
+import type { CommunityMember } from '../../types/community';
+import CommunityAvatar from './CommunityAvatar';
+import MembershipStatusBadge from './MembershipStatusBadge';
+import { Drawer, formatDate } from './AdminCommunityUi';
+
+export default function CommunityMemberDetailsDrawer({ member, close }: { member: CommunityMember; close: () => void }) {
+  return <Drawer title="Member details" close={close}><div className="flex items-center gap-4"><CommunityAvatar name={member.fullName} src={member.profileImageUrl} className="h-16 w-16 rounded-full" /><div><h3 className="text-lg font-semibold text-forum-900">{member.fullName}</h3><p className="text-sm text-ink-muted">{member.email}</p><div className="mt-2"><MembershipStatusBadge status={member.status} /></div></div></div><dl className="mt-6 grid grid-cols-2 gap-5 text-sm"><Item label="Role" value={member.role} /><Item label="Community" value={member.communityName} /><Item label="Communities joined" value={String(member.communitiesJoined ?? 1)} /><Item label="Messages" value={String(member.messageCount ?? 0)} /><Item label="Reports" value={String(member.reportCount ?? 0)} /><Item label="Joined / requested" value={formatDate(member.joinedAt ?? member.requestedAt)} /><Item label="Last active" value={formatDate(member.lastActiveAt)} /></dl><section className="mt-7 border-t border-paper-border pt-5"><h4 className="font-semibold text-forum-900">Recent activity</h4><p className="mt-2 text-sm text-ink-muted">Recent messages, joined communities, and reports are shown when included by the member-detail endpoint.</p></section></Drawer>;
+}
+function Item({ label, value }: { label: string; value: string }) { return <div><dt className="text-xs uppercase tracking-wide text-ink-subtle">{label}</dt><dd className="mt-1 break-words text-forum-900">{value}</dd></div>; }

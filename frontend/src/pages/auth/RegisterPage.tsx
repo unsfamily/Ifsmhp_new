@@ -383,6 +383,7 @@ export default function RegisterPage() {
             resending={otp.resending}
             seconds={otp.seconds}
             canResend={otp.canResend}
+            demoHint={otp.demoHint}
           />
           <p className="mt-6 text-center text-xs text-ink-subtle">
             Your account is created only once this code is confirmed.

@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, AlertCircle, Clock, Loader2, ShieldCheck, ShieldX } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AlertCircle, Clock, Loader2, ShieldCheck, ShieldX, Sparkles } from 'lucide-react';
 import Button from '../common/Button';
 import OtpInput from '../common/OtpInput';
 import { maskEmail } from '../../utils/maskEmail';
@@ -23,6 +23,12 @@ interface Props {
   resending: boolean;
   seconds: number;
   canResend: boolean;
+  /**
+   * Optional demo OTP, surfaced only when the request was served by the
+   * frontend mock backend (no real email pipeline). Setting this reveals an
+   * in-line banner with the expected code so the flow does not appear broken.
+   */
+  demoHint?: string;
 }
 
 /**
@@ -52,6 +58,7 @@ export default function OtpCodeStep({
   resending,
   seconds,
   canResend,
+  demoHint,
 }: Props) {
   // Once the attempt is spent, a new code cannot rescue it — the user has to
   // begin again, so the code boxes and resend are withdrawn.
@@ -72,6 +79,25 @@ export default function OtpCodeStep({
       <p className="mt-2 text-sm text-ink-muted leading-relaxed">
         {description} <span className="font-medium text-ink">{maskEmail(email)}</span>.
       </p>
+
+      {demoHint && !exhausted && (
+        <div className="mt-5 rounded-xl border border-brass-500/35 bg-brass-50/80 p-4 flex items-start gap-3 shadow-[0_1px_0_rgba(195,157,73,0.06)]">
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brass-100 text-brass-700 ring-1 ring-inset ring-brass-500/25">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div className="text-sm">
+            <p className="font-semibold text-brass-800">Demo mode — use this code</p>
+            <p className="mt-1 text-brass-700/90">
+              No email service is currently connected, so your code was not mailed.
+              For this preview session enter{' '}
+              <span className="font-mono tracking-[0.18em] font-semibold text-brass-800 bg-brass-100/70 px-1.5 py-0.5 rounded border border-brass-500/25 select-all">
+                {demoHint}
+              </span>{' '}
+              to continue.
+            </p>
+          </div>
+        </div>
+      )}
 
       {notice && status === 'idle' && !codeError && !error && (
         <div className="mt-6 rounded-lg border border-forum-600/20 bg-forum-100/50 p-4 flex items-start gap-3">

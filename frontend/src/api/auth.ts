@@ -62,6 +62,13 @@ export interface OtpRequestResult {
    * absolute deadline stays correct across a refresh and a backgrounded tab.
    */
   resendAfterAt: string;
+  /**
+   * Demo code hint shown only when the mock backend handled the request. Real
+   * backends never set this. When present, the UI can surface a banner that
+   * reveals the verification code to users running without a real email
+   * pipeline so the flow doesn't appear broken.
+   */
+  demoCodeHint?: string;
 }
 
 /** Password sign-in. Retained for administrators only. */

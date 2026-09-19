@@ -337,6 +337,238 @@
   }
 }
 
+/* Homepage hero network globe */
+.home-globe-visual {
+  position: relative;
+  width: min(40vw, 520px);
+  height: 430px;
+  justify-self: end;
+  opacity: 0;
+  transform: translateX(28px) scale(0.96);
+  transition: opacity 700ms ease 180ms, transform 900ms cubic-bezier(0.22, 1, 0.36, 1) 180ms;
+}
+
+.home-globe-visual.is-active {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+
+.home-globe-sphere {
+  position: absolute;
+  left: 110px;
+  top: 62px;
+  z-index: 2;
+  width: 300px;
+  height: 300px;
+  border-radius: 9999px;
+  filter: drop-shadow(0 24px 40px rgb(1 37 89 / 42%));
+  animation: home-globe-float 6s ease-in-out infinite;
+}
+
+.home-globe-shine {
+  position: absolute;
+  inset: 10%;
+  z-index: 1;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 28% 22%, rgb(255 255 255 / 28%), transparent 35%);
+  pointer-events: none;
+}
+
+.home-globe-grid {
+  fill: none;
+  stroke: rgb(255 255 255 / 26%);
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: home-globe-spin 24s linear infinite;
+}
+
+.home-globe-land {
+  fill: rgb(255 255 255 / 12%);
+  stroke: rgb(208 235 238 / 38%);
+  stroke-width: 1;
+}
+
+.home-globe-points {
+  fill: #e7b34b;
+  stroke: rgb(255 255 255 / 85%);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 7px rgb(231 179 75 / 90%));
+  animation: home-globe-pulse 2.2s ease-in-out infinite;
+}
+
+.home-globe-orbit {
+  position: absolute;
+  z-index: 1;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+.home-globe-orbit::after {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #e7b34b;
+  box-shadow: 0 0 12px rgb(231 179 75 / 85%);
+}
+
+.home-globe-orbit-one {
+  left: 86px;
+  top: 93px;
+  width: 350px;
+  height: 238px;
+  transform: rotate(-14deg);
+  animation: home-orbit-one 13s linear infinite;
+}
+
+.home-globe-orbit-one::after {
+  right: 38px;
+  top: 24px;
+}
+
+.home-globe-orbit-two {
+  left: 142px;
+  top: 43px;
+  width: 238px;
+  height: 338px;
+  transform: rotate(26deg);
+  animation: home-orbit-two 17s linear infinite reverse;
+}
+
+.home-globe-orbit-two::after {
+  bottom: 34px;
+  left: 24px;
+}
+
+.home-globe-connectors {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: rgb(231 179 75 / 78%);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-dasharray: 6 8;
+  pointer-events: none;
+}
+
+.is-active .home-globe-connectors path {
+  animation: home-connector-flow 2.4s linear infinite;
+}
+
+.is-active .home-globe-connectors path:nth-child(2) {
+  animation-delay: -0.8s;
+}
+
+.is-active .home-globe-connectors path:nth-child(3) {
+  animation-delay: -1.6s;
+}
+
+.home-globe-label {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  min-width: 126px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 12px;
+  background: rgb(1 37 89 / 58%);
+  padding: 9px 11px;
+  box-shadow: 0 12px 30px rgb(1 20 50 / 25%);
+  opacity: 0;
+  transform: translateY(10px);
+  backdrop-filter: blur(10px);
+}
+
+.is-active .home-globe-label {
+  animation: home-label-in 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.home-globe-label-1 {
+  left: 0;
+  top: 50px;
+}
+
+.home-globe-label-2 {
+  right: -4px;
+  top: 148px;
+}
+
+.home-globe-label-3 {
+  left: 14px;
+  bottom: 42px;
+}
+
+.is-active .home-globe-label-2 {
+  animation-delay: 160ms;
+}
+
+.is-active .home-globe-label-3 {
+  animation-delay: 320ms;
+}
+
+.home-globe-label-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 9999px;
+  background: #e7b34b;
+  box-shadow: 0 0 0 4px rgb(231 179 75 / 14%), 0 0 12px rgb(231 179 75 / 65%);
+}
+
+@keyframes home-globe-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes home-globe-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+
+@keyframes home-globe-pulse {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+
+@keyframes home-orbit-one {
+  to { transform: rotate(346deg); }
+}
+
+@keyframes home-orbit-two {
+  to { transform: rotate(386deg); }
+}
+
+@keyframes home-connector-flow {
+  to { stroke-dashoffset: -28; }
+}
+
+@keyframes home-label-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-globe-sphere,
+  .home-globe-grid,
+  .home-globe-points,
+  .home-globe-orbit,
+  .home-globe-connectors path,
+  .home-globe-label {
+    animation: none !important;
+  }
+
+  .home-globe-label {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @media print {
   body:has(.report-print-root) * {
     visibility: hidden;

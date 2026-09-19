@@ -55,6 +55,11 @@ import AdminReportsPage from './pages/admin/AdminReportsPage';
 import AdminProfilePage from './pages/admin/AdminProfilePage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import AdminGalleryPage from './pages/admin/AdminGalleryPage';
+import AdminCommunityDashboard from './pages/admin/community/AdminCommunityDashboard';
+import AdminCommunitiesPage from './pages/admin/community/AdminCommunitiesPage';
+import AdminCommunityMembersPage from './pages/admin/community/AdminCommunityMembersPage';
+import AdminCommunityChatsPage from './pages/admin/community/AdminCommunityChatsPage';
+import AdminCommunityModerationPage from './pages/admin/community/AdminCommunityModerationPage';
 
 function GalleryAnchorRedirect() {
   const navigate = useNavigate();
@@ -131,6 +136,11 @@ export default function App() {
           <Route path="publications" element={<AdminPublicationsPage />} />
           <Route path="publications/:id" element={<AdminPublicationDetailPage />} />
           <Route path="gallery" element={<AdminGalleryPage />} />
+          <Route path="community" element={<AdminCommunityDashboard />} />
+          <Route path="community/communities" element={<AdminCommunitiesPage />} />
+          <Route path="community/members" element={<AdminCommunityMembersPage />} />
+          <Route path="community/chats" element={<AdminCommunityChatsPage />} />
+          <Route path="community/moderation" element={<AdminCommunityModerationPage />} />
           <Route path="support" element={<AdminSupportPage />} />
           <Route path="support/:id" element={<AdminSupportDetailPage />} />
           <Route path="messages" element={<AdminMessagesPage />} />

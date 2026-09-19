@@ -66,6 +66,25 @@ const MOCK_OTP_RESULT = {
 
 const MOCK_VALID_OTP = '123456';
 
+const NETWORK_ERROR_CODES = new Set([
+  'ERR_NETWORK',
+  'ECONNREFUSED',
+  'ERR_CONNECTION_REFUSED',
+  'ERR_EMPTY_RESPONSE',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+  'ECONNABORTED',
+  'ERR_CANCELED',
+]);
+
+const DRAFT_REGISTRATION_KEY = 'ifsmhp.draftRegistration';
+
+type DraftRegistration = {
+  email: string;
+  fullName?: string;
+  createdAt: number;
+};
+
 function readMockUser(): MockSessionUser | null {
   try {
     const raw = localStorage.getItem(MOCK_USER_KEY);
@@ -80,11 +99,25 @@ function writeMockUser(user: MockSessionUser | null) {
   else localStorage.removeItem(MOCK_USER_KEY);
 }
 
+function readDraftRegistration(): DraftRegistration | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_REGISTRATION_KEY);
+    return raw ? (JSON.parse(raw) as DraftRegistration) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraftRegistration(draft: DraftRegistration | null) {
+  if (draft) localStorage.setItem(DRAFT_REGISTRATION_KEY, JSON.stringify(draft));
+  else localStorage.removeItem(DRAFT_REGISTRATION_KEY);
+}
+
 function buildMockResponse<T>(config: AxiosRequestConfig, status: number, data: T): AxiosResponse<T> {
   return {
     data,
     status,
-    statusText: 'OK',
+    statusText: status >= 200 && status < 300 ? 'OK' : `${status}`,
     headers: {},
     config: config as AxiosResponse<T>['config'],
   };
@@ -98,16 +131,33 @@ function resolveMockUserFromBearer(token: string | undefined): MockSessionUser |
 }
 
 /**
+ * True when the request failed for a pure transport-level reason (no HTTP
+ * response was ever received from a server). This is when the mock fallback
+ * kicks in — real 4xx/5xx responses are never overridden.
+ */
+function isNetworkFailure(error: AxiosError): boolean {
+  if (error.response) return false;
+  if (error.code && NETWORK_ERROR_CODES.has(error.code)) return true;
+  if (typeof (error as unknown as { isAxiosError?: boolean }).isAxiosError === 'boolean' && !error.response) {
+    return true;
+  }
+  return !error.response && !!error.request;
+}
+
+/**
  * Handles auth + file endpoints when the backend is unreachable (pure network
  * failure, no HTTP response). This keeps the login flow, session restore, and
  * member/admin portals functional in frontend-only demos. Real server responses
  * always win — mock fallback is never used when a real 4xx/5xx is returned.
  */
 function tryMockFallback(error: AxiosError): AxiosResponse | null {
-  if (error.response) return null;
-  const url = error.config?.url ?? '';
-  const method = (error.config?.method ?? 'get').toLowerCase();
-  const body = (error.config?.data as unknown) ?? {};
+  if (!isNetworkFailure(error)) return null;
+  const config = error.config;
+  if (!config) return null;
+  const rawUrl = config.url ?? '';
+  const url = rawUrl.startsWith('http') ? new URL(rawUrl).pathname : rawUrl;
+  const method = (config.method ?? 'get').toLowerCase();
+  const body = (config.data as unknown) ?? {};
   const parsedBody: Record<string, unknown> =
     typeof body === 'string'
       ? (() => {
@@ -120,10 +170,21 @@ function tryMockFallback(error: AxiosError): AxiosResponse | null {
       : (body as Record<string, unknown>);
 
   const authHeader =
-    (error.config?.headers as { Authorization?: string } | undefined)?.Authorization ?? undefined;
+    (config.headers as { Authorization?: string } | undefined)?.Authorization ?? undefined;
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
 
-  if (method === 'post' && url.includes('/auth/login')) {
+  if (method === 'post' && url.endsWith('/auth/refresh')) {
+    const token = bearerToken
+      ? bearerToken
+      : 'mock-member-' + Math.random().toString(36).slice(2, 10);
+    return buildMockResponse(config, 200, {
+      success: true,
+      data: { accessToken: token },
+      message: 'Token refreshed (mock backend).',
+    });
+  }
+
+  if (method === 'post' && url.endsWith('/auth/login')) {
     const email = String(parsedBody.email ?? '').toLowerCase();
     const password = String(parsedBody.password ?? '');
     if (password.length < 8) return null;
@@ -139,40 +200,65 @@ function tryMockFallback(error: AxiosError): AxiosResponse | null {
     }
     setAccessToken(token);
     writeMockUser(user);
-    return buildMockResponse(error.config!, 200, {
+    return buildMockResponse(config, 200, {
       success: true,
       data: { accessToken: token, user },
       message: 'Signed in (mock backend).',
     });
   }
 
-  if (method === 'post' && url.includes('/auth/otp/request')) {
-    return buildMockResponse(error.config!, 200, {
+  if (method === 'post' && url.endsWith('/auth/otp/request')) {
+    const email = String(parsedBody.email ?? MOCK_OTP_RESULT.email).toLowerCase();
+    const purpose = String(parsedBody.purpose ?? 'LOGIN').toUpperCase();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const resendAfterAt = new Date(Date.now() + 30 * 1000).toISOString();
+
+    if (purpose === 'REGISTER') {
+      writeDraftRegistration({
+        email,
+        fullName: typeof parsedBody.fullName === 'string' ? parsedBody.fullName : undefined,
+        createdAt: Date.now(),
+      });
+    } else {
+      writeDraftRegistration(null);
+    }
+
+    return buildMockResponse(config, 200, {
       success: true,
       data: {
-        ...MOCK_OTP_RESULT,
-        email: String(parsedBody.email ?? MOCK_OTP_RESULT.email),
+        email,
+        expiresAt,
+        resendAfterSeconds: 30,
+        resendAfterAt,
+        demoCodeHint: MOCK_VALID_OTP,
       },
       message: 'One-time code sent (mock backend — use 123456).',
     });
   }
 
-  if (method === 'post' && url.includes('/auth/otp/resend')) {
-    return buildMockResponse(error.config!, 200, {
+  if (method === 'post' && url.endsWith('/auth/otp/resend')) {
+    const email = String(parsedBody.email ?? readDraftRegistration()?.email ?? MOCK_OTP_RESULT.email).toLowerCase();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const resendAfterAt = new Date(Date.now() + 30 * 1000).toISOString();
+    return buildMockResponse(config, 200, {
       success: true,
       data: {
-        ...MOCK_OTP_RESULT,
-        email: String(parsedBody.email ?? MOCK_OTP_RESULT.email),
+        email,
+        expiresAt,
+        resendAfterSeconds: 30,
+        resendAfterAt,
+        demoCodeHint: MOCK_VALID_OTP,
       },
       message: 'Code re-sent (mock backend — use 123456).',
     });
   }
 
-  if (method === 'post' && url.includes('/auth/otp/verify')) {
+  if (method === 'post' && url.endsWith('/auth/otp/verify')) {
     const code = String(parsedBody.code ?? '');
     const email = String(parsedBody.email ?? '').toLowerCase();
+    const purpose = String(parsedBody.purpose ?? 'LOGIN').toUpperCase();
     if (code !== MOCK_VALID_OTP) {
-      return buildMockResponse(error.config!, 400, {
+      return buildMockResponse(config, 400, {
         success: false,
         message: 'The code you entered is incorrect. Try 123456 in demo mode.',
         errors: [{ field: 'code', message: 'Invalid or expired code.' }],
@@ -180,36 +266,97 @@ function tryMockFallback(error: AxiosError): AxiosResponse | null {
       });
     }
     const isAdmin = email === 'admin@ifsmhp.org' || email.includes('admin');
-    const user: MockSessionUser = isAdmin
-      ? { ...MOCK_ADMIN, email: email || MOCK_ADMIN.email }
-      : { ...MOCK_MEMBER, email: email || MOCK_MEMBER.email };
-    const token = `mock-${isAdmin ? 'admin' : 'member'}-${Math.random().toString(36).slice(2, 10)}`;
+    const baseRole: 'APPLICANT' | 'MEMBER' | 'ADMIN' =
+      purpose === 'REGISTER' ? 'APPLICANT' : isAdmin ? 'ADMIN' : 'MEMBER';
+    const defaults = isAdmin ? MOCK_ADMIN : MOCK_MEMBER;
+    const draft = readDraftRegistration();
+    const user: MockSessionUser = {
+      ...defaults,
+      id: `mock-${baseRole.toLowerCase()}-${Math.random().toString(36).slice(2, 8)}`,
+      email: email || defaults.email,
+      fullName: draft?.fullName || defaults.fullName,
+      role: baseRole,
+      status: purpose === 'REGISTER' ? 'PENDING' : 'ACTIVE',
+      memberId: baseRole === 'MEMBER' ? `IFSMHP-${String(Math.floor(Math.random() * 90000) + 10000)}` : baseRole === 'APPLICANT' ? null : defaults.memberId,
+    };
+    const token = `mock-${user.role.toLowerCase()}-${Math.random().toString(36).slice(2, 10)}`;
     setAccessToken(token);
     writeMockUser(user);
-    return buildMockResponse(error.config!, 200, {
+    if (purpose === 'REGISTER') writeDraftRegistration(null);
+    return buildMockResponse(config, 200, {
       success: true,
       data: { accessToken: token, user },
-      message: 'Verified and signed in (mock backend).',
+      message: purpose === 'REGISTER'
+        ? 'Registration complete — application under review (mock backend).'
+        : 'Verified and signed in (mock backend).',
     });
   }
 
-  if (method === 'get' && url.includes('/auth/me')) {
+  if (method === 'get' && url.endsWith('/auth/me')) {
     const user = resolveMockUserFromBearer(bearerToken);
-    if (!user) return null;
-    return buildMockResponse(error.config!, 200, {
+    if (!user) {
+      return buildMockResponse(config, 401, {
+        success: false,
+        message: 'No active session.',
+        errors: [{ field: 'session', message: 'Session expired or missing.' }],
+        meta: { reason: 'expired' },
+      });
+    }
+    return buildMockResponse(config, 200, {
       success: true,
       data: { user },
       message: 'Session restored (mock backend).',
     });
   }
 
-  if (method === 'post' && url.includes('/auth/logout')) {
+  if (method === 'post' && url.endsWith('/auth/logout')) {
     setAccessToken(null);
     writeMockUser(null);
-    return buildMockResponse(error.config!, 200, {
+    return buildMockResponse(config, 200, {
       success: true,
       data: null,
       message: 'Signed out (mock backend).',
+    });
+  }
+
+  if (method === 'post' && url.includes('/files/registration')) {
+    const id = 'file-mock-' + Math.random().toString(36).slice(2, 10);
+    const claimToken = 'claim-' + Math.random().toString(36).slice(2, 14);
+    let name = 'upload.pdf';
+    let mimeType = 'application/pdf';
+    let sizeBytes = 128_000;
+    if (config.data instanceof FormData) {
+      try {
+        const f = config.data.get('file') as unknown as File | null;
+        if (f) {
+          name = f.name || name;
+          mimeType = f.type || mimeType;
+          sizeBytes = typeof f.size === 'number' ? f.size : sizeBytes;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return buildMockResponse(config, 200, {
+      success: true,
+      data: { id, claimToken, name, mimeType, sizeBytes, uploadedAt: new Date().toISOString() },
+      message: 'Document uploaded (mock backend — nothing persisted).',
+    });
+  }
+
+  if (method === 'delete' && url.includes('/files/registration/')) {
+    return buildMockResponse(config, 200, {
+      success: true,
+      data: null,
+      message: 'Document removed (mock backend).',
+    });
+  }
+
+  if (method === 'post' && url.endsWith('/contact')) {
+    return buildMockResponse(config, 200, {
+      success: true,
+      data: { receivedAt: new Date().toISOString(), ticketId: 'TKT-' + Math.floor(Math.random() * 90000 + 10000) },
+      message: 'Message received — expect a reply within 24-48 hours (mock backend).',
     });
   }
 
@@ -249,16 +396,13 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiFailure>) => {
     const original = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
+    const refreshUrl = '/auth/refresh';
     if (error.response?.status === 401 && original && !original._retry && !original.url?.includes('/auth/refresh')) {
       original._retry = true;
       try {
-        const refreshed = await axios.post<{ success: true; data: { accessToken: string } }>(
-          `${baseURL}/auth/refresh`,
-          {},
-          { withCredentials: true },
-        );
+        const refreshed = await apiClient.post<{ success: true; data: { accessToken: string } }>(refreshUrl);
         setAccessToken(refreshed.data.data.accessToken);
-        original.headers = AxiosHeaders.from(original.headers);
+        original.headers = AxiosHeaders.from(original.headers ?? {});
         original.headers.set('Authorization', `Bearer ${refreshed.data.data.accessToken}`);
         return apiClient(original);
       } catch {

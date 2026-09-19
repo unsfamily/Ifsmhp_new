@@ -220,6 +220,7 @@ function OtpSignIn({
         resending={otp.resending}
         seconds={otp.seconds}
         canResend={otp.canResend}
+        demoHint={otp.demoHint}
       />
     );
   }

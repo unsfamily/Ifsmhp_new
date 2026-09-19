@@ -77,7 +77,7 @@ const ITEMS: GalleryItem[] = [
     albumKey: 'symposium-2026',
     albumLabel: 'Spring Symposium 2026',
     capturedAt: '2026-03-12',
-    location: 'IFSMHP Forum Hall, UNS Sydney',
+    location: 'IFSMHP Forum Hall, India',
     photographer: 'Office of Communications',
     tags: ['keynote', 'plenary', 'symposium-2026'],
     aspect: 'landscape',

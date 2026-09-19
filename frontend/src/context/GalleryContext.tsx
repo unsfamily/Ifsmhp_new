@@ -378,7 +378,7 @@ function loadInitialState(): PersistedState {
           return parsed;
         }
       }
-    } catch (_err) {
+    } catch {
       // ignore corrupted storage
     }
   }
@@ -399,7 +399,7 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
         STORAGE_KEY,
         JSON.stringify({ categories, photos } satisfies PersistedState)
       );
-    } catch (_err) {
+    } catch {
       // ignore quota errors
     }
   }, [categories, photos]);
@@ -742,7 +742,7 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.removeItem(STORAGE_KEY);
-      } catch (_err) {
+      } catch {
         // ignore
       }
     }
