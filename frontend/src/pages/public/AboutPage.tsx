@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
+import aboutBackgroundImage from '../../assets/images/about.png';
 
 const impactStats = [
   { value: '277', label: 'Current Members Worldwide', icon: Users },
@@ -82,9 +83,24 @@ export default function AboutPage() {
     <>
       <section
         ref={bannerRef}
-        className="about-banner bg-paper border-b border-paper-border"
+        className="about-banner border-b border-paper-border"
+        style={{
+          backgroundImage: `url(${aboutBackgroundImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
         aria-labelledby="about-heading"
       >
+        {/* White overlay + subtle gradient wash to preserve text readability over the photo */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 z-0"
+          style={{
+            background:
+              'linear-gradient(90deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.86) 48%, rgba(255,255,255,0.72) 72%, rgba(255,255,255,0.54) 100%)',
+          }}
+        />
         {/* Decorative background shapes (dark blue + gold) */}
         <div
           aria-hidden="true"

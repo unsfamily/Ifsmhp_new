@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
+import supportBackgroundImage from '../../assets/images/support.png';
 
 const moralSupport = [
   { icon: Users, title: 'Peer Mentorship Programs', desc: 'Connect with experienced researchers who guide your journey.' },
@@ -43,17 +44,34 @@ const fundingSupport = [
 export default function SupportServicesPage() {
   return (
     <>
-      <section className="bg-gradient-to-br from-slateteal-700 via-slateteal-500 to-forum-600">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+      <section
+        className="relative isolate overflow-hidden"
+        style={{
+          backgroundImage: `url(${supportBackgroundImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        {/* Dark blue + gold tinted overlay for contrast */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 z-0"
+          style={{
+            background:
+              'linear-gradient(90deg, rgba(1,37,89,0.90) 0%, rgba(1,37,89,0.80) 40%, rgba(1,37,89,0.58) 75%, rgba(195,157,73,0.20) 100%), linear-gradient(180deg, rgba(1,37,89,0.22) 0%, rgba(1,37,89,0.50) 100%)',
+          }}
+        />
+        <div className="relative z-10 mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           <div className="max-w-3xl">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20 backdrop-blur-sm">
               <ShieldCheck className="h-3.5 w-3.5" />
               Support Services
             </span>
             <h1 className="mt-6 text-4xl font-semibold leading-tight text-white sm:text-5xl">
               How we support our members
             </h1>
-            <p className="mt-5 text-lg leading-relaxed text-forum-100/80">
+            <p className="mt-5 text-lg leading-relaxed text-forum-100/85">
               Three integrated pillars of support — moral, official, and financial —
               designed to ensure you can focus on what matters: your research and
               practice.

@@ -98,56 +98,101 @@ const steps = [
 export default function MembershipPage() {
   return (
     <>
-      <section className="bg-gradient-to-br from-forum-700 to-forum-900">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+      <section
+        className="bg-paper border-b border-paper-border"
+        aria-labelledby="membership-heading"
+      >
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-24 lg:py-28">
           <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 lg:items-center">
             <div>
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20">
-                <UserCheck className="h-3.5 w-3.5" />
-                Membership
-              </span>
-              <h1 className="mt-6 text-4xl font-semibold leading-tight text-white sm:text-5xl">
-                Join our global network of experts
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center gap-2 rounded-full bg-brass-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-700 ring-1 ring-inset ring-brass-500/20">
+                  <UserCheck className="h-3.5 w-3.5" />
+                  Membership
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-[2px] w-16 sm:w-24 rounded-full bg-brass-500/90"
+                />
+              </div>
+
+              <h1
+                id="membership-heading"
+                className="mt-7 font-display text-[2.5rem] leading-[1.1] font-semibold tracking-tight text-forum-900 sm:text-5xl sm:leading-[1.08] lg:text-6xl lg:leading-[1.05]"
+              >
+                <span className="block">
+                  <span className="text-brass-600">Join</span>{' '}
+                  <span>our</span>{' '}
+                  <span className="text-brass-600">global</span>{' '}
+                  <span>network</span>
+                </span>
+                <span className="block mt-1 sm:mt-2">
+                  <span>of</span>{' '}
+                  <span className="text-brass-600">experts</span>
+                </span>
               </h1>
-              <p className="mt-5 text-lg leading-relaxed text-forum-100/80">
+
+              <p className="mt-7 text-base sm:text-lg lg:text-xl leading-relaxed text-forum-900/80 sm:leading-[1.75]">
                 Connect with 277+ scientists and mental health professionals across
                 continents. Gain the support, credentials, and platform you need to
                 advance your work.
               </p>
+
               <div className="mt-8 flex flex-wrap gap-3">
-                <Button as="link" to="/register" size="lg" className="bg-brass-500 hover:bg-brass-700 focus-visible:ring-brass-500">
+                <Button as="link" to="/register" size="lg">
                   Register Now
                   <ArrowRight className="h-4.5 w-4.5" />
                 </Button>
-                <Button
-                  as="link"
-                  to="/contact"
-                  size="lg"
-                  variant="outline"
-                  className="border-white/30 text-white hover:bg-white/10 focus-visible:ring-white/50 bg-transparent"
-                >
+                <Button as="link" to="/contact" size="lg" variant="outline">
                   Ask a Question
                 </Button>
               </div>
             </div>
-            <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-inset ring-white/10 backdrop-blur">
-              <h3 className="text-lg font-semibold text-white">Who Can Join</h3>
-              <ul className="mt-5 space-y-4">
-                {whoCanJoin.map((p) => {
-                  const Icon = p.icon;
-                  return (
-                    <li key={p.title} className="flex gap-3.5">
-                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brass-500/20 text-brass-100">
-                        <Icon className="h-4.5 w-4.5" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-white">{p.title}</p>
-                        <p className="mt-0.5 text-sm text-forum-100/70">{p.desc}</p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+
+            <div className="relative">
+              <div aria-hidden="true" className="absolute -top-4 -right-4 -bottom-4 -left-4 pointer-events-none">
+                <svg className="w-full h-full opacity-12" viewBox="0 0 320 260" fill="none">
+                  <ellipse fill="none" stroke="#012559" strokeWidth="1.4" cx="160" cy="130" rx="120" ry="100" />
+                  <ellipse fill="none" stroke="#012559" strokeWidth="1.4" cx="160" cy="130" rx="120" ry="62" />
+                  <ellipse fill="none" stroke="#012559" strokeWidth="1.4" cx="160" cy="130" rx="120" ry="30" />
+                  <ellipse fill="none" stroke="#C39D49" strokeWidth="1.2" strokeDasharray="6 6" cx="160" cy="130" rx="42" ry="100" />
+                  <ellipse fill="none" stroke="#C39D49" strokeWidth="1.2" strokeDasharray="6 6" cx="160" cy="130" rx="82" ry="100" />
+                  <line fill="none" stroke="#012559" strokeWidth="1.4" x1="40" y1="130" x2="280" y2="130" />
+                  <line fill="none" stroke="#C39D49" strokeWidth="1.2" strokeDasharray="6 6" x1="160" y1="30" x2="160" y2="230" />
+                  <circle cx="160" cy="130" r="6" fill="#C39D49" />
+                  <circle cx="160" cy="130" r="12" fill="#C39D49" opacity="0.18" />
+                  <circle cx="96" cy="96" r="4" fill="#012559" />
+                  <circle cx="218" cy="82" r="4" fill="#C39D49" />
+                  <circle cx="236" cy="156" r="4" fill="#012559" />
+                  <circle cx="108" cy="172" r="4" fill="#C39D49" />
+                  <circle cx="162" cy="62" r="3.5" fill="#012559" />
+                  <circle cx="158" cy="200" r="3.5" fill="#C39D49" />
+                  <path stroke="#012559" strokeWidth="1.4" d="M160 130 L96 96" />
+                  <path stroke="#C39D49" strokeWidth="1.2" d="M160 130 L218 82" />
+                  <path stroke="#012559" strokeWidth="1.4" d="M160 130 L236 156" />
+                  <path stroke="#C39D49" strokeWidth="1.2" d="M160 130 L108 172" />
+                </svg>
+              </div>
+
+              <div className="relative rounded-2xl bg-paper-raised/80 p-6 ring-1 ring-inset ring-paper-border backdrop-blur-[2px] shadow-[0_1px_0_rgba(1,37,89,0.04),0_12px_30px_-12px_rgba(1,37,89,0.12)]">
+                <h3 className="text-lg font-semibold text-forum-900">Who Can Join</h3>
+                <ul className="mt-5 space-y-4">
+                  {whoCanJoin.map((p) => {
+                    const Icon = p.icon;
+                    return (
+                      <li key={p.title} className="flex gap-3.5">
+                        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brass-50 text-brass-700 ring-1 ring-inset ring-brass-500/15">
+                          <Icon className="h-4.5 w-4.5" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-forum-900">{p.title}</p>
+                          <p className="mt-0.5 text-sm text-forum-900/70">{p.desc}</p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             </div>
           </div>
         </div>

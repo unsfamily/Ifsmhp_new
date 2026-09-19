@@ -20,6 +20,7 @@ import { Link, useParams } from 'react-router-dom';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
+import researchBackgroundImage from '../../assets/images/research.png';
 import {
   doiUrl,
   publicApi,
@@ -96,17 +97,34 @@ function PublicationList() {
 
   return (
     <>
-      <section className="bg-gradient-to-br from-forum-700 to-forum-900">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+      <section
+        className="relative isolate overflow-hidden"
+        style={{
+          backgroundImage: `url(${researchBackgroundImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        {/* Dark blue + gold tinted overlay so white copy stays legible over the photo */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 z-0"
+          style={{
+            background:
+              'linear-gradient(90deg, rgba(1,37,89,0.90) 0%, rgba(1,37,89,0.82) 45%, rgba(1,37,89,0.62) 78%, rgba(195,157,73,0.18) 100%), linear-gradient(180deg, rgba(1,37,89,0.22) 0%, rgba(1,37,89,0.48) 100%)',
+          }}
+        />
+        <div className="relative z-10 mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           <div className="max-w-3xl">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20 backdrop-blur-sm">
               <FileText className="h-3.5 w-3.5" />
               Research & Publications
             </span>
             <h1 className="mt-6 text-4xl font-semibold leading-tight text-white sm:text-5xl">
               Latest Research & Insights
             </h1>
-            <p className="mt-5 text-lg leading-relaxed text-forum-100/80">
+            <p className="mt-5 text-lg leading-relaxed text-forum-100/85">
               Access peer-reviewed papers, evidence-based reviews, and expert
               perspectives from IFSMHP members worldwide.
             </p>
