@@ -248,11 +248,14 @@ export default function MembershipPage() {
         </div>
 
         <div className="mt-14 relative">
-          <div className="absolute left-6 top-6 bottom-6 w-px bg-forum-200 hidden sm:block" />
+          <div className="membership-step-line" aria-hidden="true" />
           <ol className="space-y-6 sm:space-y-8">
-            {steps.map((step) => (
+            {steps.map((step, index) => (
               <li key={step.n} className="relative flex gap-5 sm:gap-8">
-                <div className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-forum-600 font-display text-lg font-semibold text-white ring-4 ring-paper shadow-sm">
+                <div
+                  className="membership-step-number relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-forum-600 font-display text-lg font-semibold text-white ring-4 ring-paper shadow-sm"
+                  style={{ '--step-delay': `${index * 0.55}s` } as React.CSSProperties}
+                >
                   {step.n}
                 </div>
                 <div className="flex-1 rounded-xl border border-paper-border bg-paper-raised p-5 sm:p-6 shadow-sm">

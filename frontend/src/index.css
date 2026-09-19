@@ -337,6 +337,342 @@
   }
 }
 
+/* Animated five-step membership timeline */
+.membership-step-line {
+  position: absolute;
+  left: calc(1.5rem - 1px);
+  top: 1.5rem;
+  bottom: 1.5rem;
+  width: 2px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: rgb(55 121 151 / 24%);
+}
+
+.membership-step-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 32%;
+  border-radius: inherit;
+  background: linear-gradient(to bottom, transparent, #e7b34b 42%, #07516d 72%, transparent);
+  filter: drop-shadow(0 0 5px rgb(231 179 75 / 72%));
+  animation: membership-line-flow 3.8s linear infinite;
+}
+
+.membership-step-number::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  z-index: -1;
+  border: 1px solid rgb(231 179 75 / 65%);
+  border-radius: 9999px;
+  opacity: 0;
+  animation: membership-step-pulse 3.8s ease-out var(--step-delay) infinite;
+}
+
+@keyframes membership-line-flow {
+  from { transform: translateY(-110%); }
+  to { transform: translateY(315%); }
+}
+
+@keyframes membership-step-pulse {
+  0%, 55%, 100% { opacity: 0; transform: scale(0.84); }
+  12% { opacity: 0.8; transform: scale(1); }
+  28% { opacity: 0; transform: scale(1.18); }
+}
+
+/* Alternating cards in the global-community section */
+.global-community-stack {
+  position: relative;
+  display: flex;
+  min-height: 224px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0;
+}
+
+.global-community-stack::before {
+  content: '';
+  position: absolute;
+  inset: 7% 8%;
+  border-radius: 2rem;
+  background: radial-gradient(circle at center, rgb(55 121 151 / 13%), transparent 68%);
+  filter: blur(10px);
+}
+
+.global-community-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid rgb(55 121 151 / 18%);
+  border-radius: 0.8rem;
+  background: rgb(255 255 255 / 88%);
+  padding: 0.6rem 0.75rem;
+  box-shadow: 0 18px 38px -24px rgb(1 37 89 / 48%);
+  backdrop-filter: blur(12px);
+  will-change: transform;
+}
+
+.global-community-card-1 {
+  margin-right: auto;
+  animation: global-card-down 4.2s ease-in-out infinite;
+}
+
+.global-community-card-2 {
+  margin-left: auto;
+  animation: global-card-up 4.2s ease-in-out -1.4s infinite;
+}
+
+.global-community-card-3 {
+  margin-right: auto;
+  animation: global-card-down 4.2s ease-in-out -2.8s infinite;
+}
+
+.global-community-card-icon {
+  display: inline-flex;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  background: linear-gradient(145deg, #07516d, #012559);
+  color: white;
+  box-shadow: 0 8px 20px -10px rgb(1 37 89 / 75%);
+}
+
+@keyframes global-card-down {
+  0%, 100% { transform: translateY(-8px); }
+  50% { transform: translateY(8px); }
+}
+
+@keyframes global-card-up {
+  0%, 100% { transform: translateY(8px); }
+  50% { transform: translateY(-8px); }
+}
+
+@media (max-width: 639px) {
+  .global-community-card {
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+}
+
+@media (min-width: 640px) {
+  .global-community-card {
+    width: 300px;
+    max-width: 100%;
+  }
+}
+
+/* Connected member-benefit network */
+.member-benefits-network {
+  position: relative;
+  display: grid;
+  gap: 1rem;
+}
+
+.member-benefits-connectors,
+.member-benefits-hub {
+  display: none;
+}
+
+.member-benefit-node {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  min-height: 116px;
+  border: 1px solid rgb(210 221 232 / 90%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 92%);
+  padding: 1rem;
+  box-shadow: 0 14px 32px -22px rgb(1 37 89 / 42%);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.member-benefit-node:hover {
+  transform: translateY(-3px);
+  border-color: rgb(55 121 151 / 42%);
+  box-shadow: 0 18px 38px -22px rgb(1 37 89 / 52%);
+}
+
+.member-benefit-icon {
+  position: relative;
+  display: flex;
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 0.85rem;
+  background: #eef7f8;
+  color: #07516d;
+}
+
+.member-benefit-icon-ring {
+  position: absolute;
+  inset: -45%;
+  background: conic-gradient(from 0deg, transparent 0 34%, rgb(231 179 75 / 82%) 46%, transparent 58% 84%, rgb(55 121 151 / 76%) 94%);
+  animation: member-icon-spin 4.8s linear infinite;
+}
+
+.member-benefit-icon::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 0.7rem;
+  background: #eef7f8;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .member-benefits-network {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .member-benefit-node-5 {
+    grid-column: 1 / -1;
+    width: calc(50% - 0.5rem);
+    justify-self: center;
+  }
+}
+
+@media (min-width: 1024px) {
+  .member-benefits-network {
+    display: block;
+    width: 100%;
+    max-width: 1100px;
+    height: 570px;
+    margin-right: auto;
+    margin-left: auto;
+  }
+
+  .member-benefits-connectors {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    fill: none;
+    stroke: rgb(55 121 151 / 58%);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 9 11;
+    filter: drop-shadow(0 0 4px rgb(55 121 151 / 22%));
+  }
+
+  .member-benefits-connectors path {
+    animation: member-connector-flow 2.6s linear infinite;
+  }
+
+  .member-benefits-connectors path:nth-child(2) { animation-delay: -0.5s; }
+  .member-benefits-connectors path:nth-child(3) { animation-delay: -1s; }
+  .member-benefits-connectors path:nth-child(4) { animation-delay: -1.5s; }
+  .member-benefits-connectors path:nth-child(5) { animation-delay: -2s; }
+
+  .member-benefits-hub {
+    position: absolute;
+    left: 50%;
+    top: 285px;
+    z-index: 3;
+    display: flex;
+    width: 132px;
+    height: 132px;
+    margin-top: -66px;
+    margin-left: -66px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    overflow: hidden;
+    border: 1px solid rgb(255 255 255 / 85%);
+    border-radius: 9999px;
+    background: linear-gradient(145deg, #07516d, #012559);
+    color: white;
+    box-shadow: 0 22px 50px -22px rgb(1 37 89 / 70%), 0 0 0 10px rgb(55 121 151 / 9%);
+  }
+
+  .member-benefits-hub > svg,
+  .member-benefits-hub > span:last-child {
+    position: relative;
+    z-index: 2;
+  }
+
+  .member-benefits-hub > span:last-child {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .member-benefits-hub-ring {
+    position: absolute;
+    inset: -35%;
+    background: conic-gradient(from 0deg, transparent, rgb(231 179 75 / 75%), transparent 42%, rgb(128 214 228 / 55%), transparent 78%);
+    animation: member-icon-spin 8s linear infinite;
+  }
+
+  .member-benefits-hub::after {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    z-index: 1;
+    border-radius: 9999px;
+    background: linear-gradient(145deg, #07516d, #012559);
+  }
+
+  .member-benefit-node {
+    position: absolute;
+    width: 250px;
+  }
+
+  .member-benefit-node-1 {
+    left: 50%;
+    top: 0;
+    margin-left: -125px;
+  }
+
+  .member-benefit-node-2 {
+    right: 0;
+    top: 150px;
+  }
+
+  .member-benefit-node-3 {
+    right: 100px;
+    bottom: 0;
+  }
+
+  .member-benefit-node-4 {
+    left: 100px;
+    bottom: 0;
+  }
+
+  .member-benefit-node-5 {
+    left: 0;
+    top: 150px;
+  }
+}
+
+@keyframes member-icon-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes member-connector-flow {
+  to { stroke-dashoffset: -40; }
+}
+
 /* Homepage hero network globe */
 .home-globe-visual {
   position: relative;
@@ -554,6 +890,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .membership-step-line::before,
+  .membership-step-number::after,
+  .global-community-card,
+  .member-benefit-icon-ring,
+  .member-benefits-hub-ring,
+  .member-benefits-connectors path,
   .home-globe-sphere,
   .home-globe-grid,
   .home-globe-points,

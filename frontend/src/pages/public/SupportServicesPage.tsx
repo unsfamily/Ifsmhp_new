@@ -182,7 +182,7 @@ export default function SupportServicesPage() {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20">
               <LogIn className="h-6 w-6" />
             </div>
-            <h3 className="mt-6 font-display text-2xl font-semibold">
+            <h3 className="mt-6 font-display text-white text-2xl font-semibold">
               Already a Member?
             </h3>
             <p className="mt-3 text-forum-100/80 leading-relaxed">
@@ -220,7 +220,7 @@ export default function SupportServicesPage() {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-forum-50 text-forum-700">
               <UserPlus className="h-6 w-6" />
             </div>
-            <h3 className="mt-6 font-display text-2xl font-semibold text-forum-900">
+            <h3 className="mt-6 font-display text-2xl font-semibold text-forum-100\/80">
               Not a Member Yet?
             </h3>
             <p className="mt-3 text-ink-muted leading-relaxed">

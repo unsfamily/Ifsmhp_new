@@ -377,18 +377,26 @@ export default function HomePage() {
       </Section>
 
       <Section bg="forum">
-        <div className="max-w-2xl">
-          <span className="text-sm font-semibold uppercase tracking-wider text-slateteal-700">
-            Our Global Community
-          </span>
-          <h2 className="mt-3 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">
-            A network united by scientific excellence
-          </h2>
-          <p className="mt-5 text-lg text-ink-muted">
-            Operating across multiple continents, we bring together research scholars,
-            scientists, and mental health professionals who share a commitment to
-            rigorous, ethical, and impactful work.
-          </p>
+        <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.72fr)] lg:gap-16">
+          <div className="max-w-2xl">
+            <span className="text-sm font-semibold uppercase tracking-wider text-slateteal-700">
+              Our Global Community
+            </span>
+            <h2 className="mt-3 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">
+              A network united by scientific excellence
+            </h2>
+            <p className="mt-5 text-lg text-ink-muted">
+              Operating across multiple continents, we bring together research scholars,
+              scientists, and mental health professionals who share a commitment to
+              rigorous, ethical, and impactful work.
+            </p>
+          </div>
+
+          <div className="global-community-stack" aria-label="Our professional community">
+            <CommunityRoleCard icon={GraduationCap} label="Research Scholars" index={1} />
+            <CommunityRoleCard icon={BookOpen} label="Scientists" index={2} />
+            <CommunityRoleCard icon={HeartHandshake} label="Mental Health Professionals" index={3} />
+          </div>
         </div>
       </Section>
 
@@ -405,16 +413,7 @@ export default function HomePage() {
             practitioners at every stage of their journey.
           </p>
         </div>
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {memberBenefits.slice(0, 3).map((b) => (
-            <MemberBenefitCard key={b.title} {...b} />
-          ))}
-        </div>
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-2">
-          {memberBenefits.slice(3).map((b) => (
-            <MemberBenefitCard key={b.title} {...b} />
-          ))}
-        </div>
+        <MemberBenefitsNetwork benefits={memberBenefits} />
       </Section>
 
       <Section bg="raised">
@@ -524,22 +523,64 @@ export default function HomePage() {
   );
 }
 
-function MemberBenefitCard({
+function MemberBenefitsNetwork({ benefits }: { benefits: typeof memberBenefits }) {
+  return (
+    <div className="member-benefits-network mt-12 lg:mt-14">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 1100 570"
+        preserveAspectRatio="none"
+        className="member-benefits-connectors"
+      >
+        <path d="M550 285 C550 218 550 155 550 75" />
+        <path d="M550 285 C690 270 815 230 975 215" />
+        <path d="M550 285 C665 345 750 428 875 505" />
+        <path d="M550 285 C435 345 350 428 225 505" />
+        <path d="M550 285 C410 270 285 230 125 215" />
+      </svg>
+
+      <div className="member-benefits-hub" aria-hidden="true">
+        <span className="member-benefits-hub-ring" />
+        <Users className="h-7 w-7" />
+        <span>Member support</span>
+      </div>
+
+      {benefits.map(({ icon: Icon, title, desc }, index) => (
+        <article
+          key={title}
+          className={`member-benefit-node member-benefit-node-${index + 1}`}
+        >
+          <div className="member-benefit-icon">
+            <span className="member-benefit-icon-ring" aria-hidden="true" />
+            <Icon className="relative z-10 h-6 w-6" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-display text-base font-semibold text-forum-900">{title}</h3>
+            <p className="mt-1 text-xs leading-relaxed text-ink-muted">{desc}</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function CommunityRoleCard({
   icon: Icon,
-  title,
-  desc,
+  label,
+  index,
 }: {
-  icon: typeof HeartHandshake;
-  title: string;
-  desc: string;
+  icon: typeof GraduationCap;
+  label: string;
+  index: number;
 }) {
   return (
-    <div className="group rounded-xl border border-paper-border bg-paper-raised p-6 transition-all hover:border-forum-200 hover:shadow-md">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-forum-50 text-forum-700 group-hover:bg-forum-600 group-hover:text-white transition-colors">
-        <Icon className="h-6 w-6" />
-      </div>
-      <h3 className="mt-5 text-lg font-semibold text-forum-900">{title}</h3>
-      <p className="mt-2 leading-relaxed text-ink-muted">{desc}</p>
+    <div className={`global-community-card global-community-card-${index}`}>
+      <span className="global-community-card-icon">
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="font-display text-sm font-semibold text-forum-900 sm:text-base">
+        {label}
+      </span>
     </div>
   );
 }
