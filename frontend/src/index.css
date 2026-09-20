@@ -384,6 +384,83 @@
   28% { opacity: 0; transform: scale(1.18); }
 }
 
+/* Who Can Join — rotating multicolour icon border + flowing connector line */
+.who-can-join-icon {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.who-can-join-icon::before {
+  content: '';
+  position: absolute;
+  inset: -45%;
+  z-index: 0;
+  background: conic-gradient(
+    from 0deg,
+    #c39d49,
+    #e7b34b,
+    #80d6e4,
+    #377997,
+    #d98cb3,
+    #c39d49
+  );
+  animation: member-icon-spin 4s linear infinite;
+}
+
+.who-can-join-icon::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: 1;
+  border-radius: inherit;
+  background: #fbf6ea;
+}
+
+.who-can-join-icon > svg {
+  position: relative;
+  z-index: 2;
+}
+
+.who-can-join-list li:nth-child(2) .who-can-join-icon::before { animation-delay: -1s; }
+.who-can-join-list li:nth-child(3) .who-can-join-icon::before { animation-delay: -2s; }
+.who-can-join-list li:nth-child(4) .who-can-join-icon::before { animation-delay: -3s; }
+
+/* Vertical connector line behind the icons — colour band flows down, then back up */
+.who-can-join-list li:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: calc(1.125rem - 1px);
+  top: 1.25rem;
+  height: calc(100% + 1rem);
+  width: 2px;
+  border-radius: 9999px;
+  background: rgb(195 157 73 / 22%);
+}
+
+.who-can-join-list li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: calc(1.125rem - 1px);
+  top: 1.25rem;
+  height: calc(100% + 1rem);
+  width: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(to bottom, transparent, #e7b34b 30%, #80d6e4 52%, #377997 68%, transparent);
+  background-size: 100% 55%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 4px rgb(231 179 75 / 72%));
+  animation: who-can-join-line-flow 3.4s ease-in-out infinite alternate;
+}
+
+.who-can-join-list li:nth-child(2)::after { animation-delay: -0.85s; }
+.who-can-join-list li:nth-child(3)::after { animation-delay: -1.7s; }
+
+@keyframes who-can-join-line-flow {
+  from { background-position: 0 -70%; }
+  to { background-position: 0 170%; }
+}
+
 /* Alternating cards in the global-community section */
 .global-community-stack {
   position: relative;
@@ -893,6 +970,8 @@
   .membership-step-line::before,
   .membership-step-number::after,
   .global-community-card,
+  .who-can-join-icon::before,
+  .who-can-join-list li:not(:last-child)::after,
   .member-benefit-icon-ring,
   .member-benefits-hub-ring,
   .member-benefits-connectors path,

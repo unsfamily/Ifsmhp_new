@@ -150,7 +150,7 @@ export default function MembershipPage() {
             </div>
 
             <div className="relative">
-              <div aria-hidden="true" className="absolute -top-4 -right-4 -bottom-4 -left-4 pointer-events-none">
+              {/* <div aria-hidden="true" className="absolute -top-4 -right-4 -bottom-4 -left-4 pointer-events-none">
                 <svg className="w-full h-full opacity-12" viewBox="0 0 320 260" fill="none">
                   <ellipse fill="none" stroke="#012559" strokeWidth="1.4" cx="160" cy="130" rx="120" ry="100" />
                   <ellipse fill="none" stroke="#012559" strokeWidth="1.4" cx="160" cy="130" rx="120" ry="62" />
@@ -172,20 +172,20 @@ export default function MembershipPage() {
                   <path stroke="#012559" strokeWidth="1.4" d="M160 130 L236 156" />
                   <path stroke="#C39D49" strokeWidth="1.2" d="M160 130 L108 172" />
                 </svg>
-              </div>
+              </div> */}
 
               <div className="relative rounded-2xl bg-paper-raised/80 p-6 ring-1 ring-inset ring-paper-border backdrop-blur-[2px] shadow-[0_1px_0_rgba(1,37,89,0.04),0_12px_30px_-12px_rgba(1,37,89,0.12)]">
                 <h3 className="text-lg font-semibold text-forum-900">Who Can Join</h3>
-                <ul className="mt-5 space-y-4">
+                <ul className="who-can-join-list mt-5 space-y-4">
                   {whoCanJoin.map((p) => {
                     const Icon = p.icon;
                     return (
-                      <li key={p.title} className="flex gap-3.5">
-                        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brass-50 text-brass-700 ring-1 ring-inset ring-brass-500/15">
+                      <li key={p.title} className="relative flex gap-3.5">
+                        <div className="who-can-join-icon mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brass-50 text-brass-700">
                           <Icon className="h-4.5 w-4.5" />
                         </div>
                         <div>
-                          <p className="font-medium text-forum-900">{p.title}</p>
+                          <p className="font-medium text-brass-600">{p.title}</p>
                           <p className="mt-0.5 text-sm text-forum-900/70">{p.desc}</p>
                         </div>
                       </li>
