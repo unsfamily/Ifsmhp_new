@@ -1,12 +1,38 @@
 import { CheckCircle2, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import Button from '../common/Button';
-import type { PaginationMeta } from '../../types/community';
+import type { PaginatedCommunityResult, PaginationMeta } from '../../types/community';
 
 export const panelClass = 'rounded-xl border border-paper-border bg-paper-raised shadow-sm';
 export const controlClass = 'rounded-md border border-paper-border bg-paper-raised px-3 py-2 text-sm text-forum-900 focus:border-forum-600 focus:outline-none focus:ring-2 focus:ring-forum-600/20';
 export const formatDate = (value?: string) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
 export const formatShortDate = (value?: string) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)) : '—';
+
+/** Page size used by the sample-data admin pages until the real endpoints land. */
+export const SAMPLE_PAGE_SIZE = 10;
+
+/** Client-side pagination for the sample dataset, mirroring the API's pagination shape. */
+export function samplePage<T>(items: T[], page: number): PaginatedCommunityResult<T> {
+  const pages = Math.max(1, Math.ceil(items.length / SAMPLE_PAGE_SIZE));
+  const current = Math.min(Math.max(page, 1), pages);
+  return {
+    items: items.slice((current - 1) * SAMPLE_PAGE_SIZE, current * SAMPLE_PAGE_SIZE),
+    pagination: { page: current, limit: SAMPLE_PAGE_SIZE, total: items.length, pages },
+  };
+}
+/** "12 minutes ago" style label, falling back to the short date beyond two weeks. */
+export function formatRelative(value?: string) {
+  if (!value) return '—';
+  const minutes = Math.round((Date.now() - new Date(value).getTime()) / 60_000);
+  if (Math.abs(minutes) < 1) return 'just now';
+  const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  if (Math.abs(minutes) < 60) return relative.format(-minutes, 'minute');
+  const hours = Math.round(minutes / 60);
+  if (Math.abs(hours) < 24) return relative.format(-hours, 'hour');
+  const days = Math.round(hours / 24);
+  if (Math.abs(days) < 14) return relative.format(-days, 'day');
+  return formatShortDate(value);
+}
 
 export function PageHeading({ title, description, actions }: { title: string; description: string; actions?: ReactNode }) {
   return <div className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{title}</h1><p className="mt-1 text-sm text-ink-muted">{description}</p></div>{actions && <div className="flex flex-wrap gap-2">{actions}</div>}</div>;

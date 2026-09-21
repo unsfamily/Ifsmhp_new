@@ -56,7 +56,31 @@ export interface CommunityDashboardStats {
   totalCommunities: number; activeCommunities: number; totalMembers: number;
   pendingRequests: number; totalMessages: number; unreadMessages: number;
   openReports: number; suspendedMembers: number;
+  // Detail and trend fields proposed for GET /admin/community/dashboard;
+  // renderers must tolerate their absence.
+  inactiveCommunities?: number; archivedCommunities?: number;
+  newMembersThisMonth?: number; newMessagesThisWeek?: number;
+  suspendedChange?: number; suspendedInCommunities?: number; suspensionReviewers?: number;
 }
+
+/** One bar/point of the conversation-activity chart. */
+export interface CommunityActivityPoint { label: string; value: number; }
+
+/** A selectable window over the activity chart (14 days, 90 days, 12 months). */
+export interface CommunityActivitySeries {
+  range: string; label: string; subtitle: string;
+  unitLabel: string; highlightLabel: string;
+  total: number; changePercent: number; comparison: string;
+  points: CommunityActivityPoint[];
+}
+
+export interface TopCommunity {
+  id: string; name: string; memberCount: number; messageCount: number;
+  /** 0-100 meter strength shown as the mini bar. */
+  activityScore: number;
+}
+
+export interface CommunityKpiTrends { members: number[]; messages: number[]; }
 
 export interface PaginationMeta { page: number; limit: number; total: number; pages: number; }
 export interface PaginatedCommunityResult<T> { items: T[]; pagination: PaginationMeta; }
@@ -66,6 +90,31 @@ export interface CommunityDashboardData {
   pendingMembers: CommunityMember[];
   recentConversations: CommunityConversation[];
   reports: CommunityReport[];
+  activity?: CommunityActivitySeries[];
+  topCommunities?: TopCommunity[];
+  kpiTrends?: CommunityKpiTrends;
+}
+
+/** Shape of the local sample dataset that powers the admin community pages until the /admin/community/* routes exist. */
+export interface CommunityAdminSampleData {
+  communities: Community[];
+  members: CommunityMember[];
+  conversations: CommunityConversation[];
+  /** Keyed by conversation id. */
+  messages: Record<string, CommunityMessage[]>;
+  reports: CommunityReport[];
+}
+
+/** Shape of the local sample dataset that powers the member community page until the /community/* routes exist. */
+export interface CommunityMemberSampleData {
+  identity: { id: string; fullName: string; email: string };
+  communities: Community[];
+  /** Keyed by community id; includes the signed-in member's own directory row for active communities. */
+  membersByCommunity: Record<string, CommunityMember[]>;
+  /** Keyed by community id. */
+  conversationsByCommunity: Record<string, CommunityConversation[]>;
+  /** Keyed by conversation id; includes the signed-in member's own posts. */
+  messagesByConversation: Record<string, CommunityMessage[]>;
 }
 
 export interface CommunityPayload {
