@@ -5,6 +5,8 @@ import { reportDefinitionSeed } from '../../domain/reports';
 const prisma = new PrismaClient();
 
 async function clearDevelopmentData() {
+  // Cascades only when the existing guarded, explicit development reset runs.
+  await prisma.community.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.reportRun.deleteMany();
   await prisma.reportDefinition.deleteMany();

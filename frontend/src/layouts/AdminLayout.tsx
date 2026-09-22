@@ -31,7 +31,7 @@ import Badge from '../components/common/Badge';
 import logoImg from '../assets/images/logo.png';
 import { useAuth } from '../context/AuthContext';
 import { adminApi } from '../api/admin';
-import { useApiData } from '../hooks/useApiData';
+import { useCommunityResource } from '../hooks/useCommunityResource';
 
 interface NavItem {
   to: string;
@@ -119,12 +119,13 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Real counts; a failure just leaves the badges off rather than showing
   // numbers that contradict the pages they label.
-  const { data: stats } = useApiData<AdminCounts>(() => adminApi.stats() as Promise<AdminCounts>, []);
   const { user, logout } = useAuth();
+  const { data: stats } = useCommunityResource<AdminCounts>(user?.role === 'ADMIN' ? 'admin-stats' : null, () => adminApi.stats() as Promise<AdminCounts>, 60000);
+  const visibleSections = user?.role === 'ADMIN' ? navSections : navSections.filter(s => s.heading === 'Community').map(s => ({ ...s, items: s.items.map(item => ({ ...item, to: '/admin/community/chats', children: item.children?.filter(child => ['/admin/community/members', '/admin/community/chats', '/admin/community/moderation'].includes(child.to)) })) }));
   const loc = useLocation();
   const [communityExpanded, setCommunityExpanded] = useState(() => loc.pathname.startsWith('/admin/community'));
 
-  const allNavItems = navSections.flatMap((s) => s.items.flatMap((item) => item.children ?? [item]));
+  const allNavItems = visibleSections.flatMap((s) => s.items.flatMap((item) => item.children ?? [item]));
   const currentPage = allNavItems.find((n) =>
     n.end ? loc.pathname === n.to : loc.pathname.startsWith(n.to)
   );
@@ -146,7 +147,7 @@ export default function AdminLayout() {
         }`}
       >
         <div className="flex h-16 items-center justify-between px-5 border-b border-forum-700 shrink-0">
-          <Link to="/admin" className="flex items-center gap-2.5">
+          <Link to={user?.role === 'ADMIN' ? '/admin' : '/admin/community/chats'} className="flex items-center gap-2.5">
             <img
               src={logoImg}
               alt="IFSMHP Logo"
@@ -183,7 +184,7 @@ export default function AdminLayout() {
                 </p>
                 <Badge variant="brass">
                   <ShieldCheck className="h-2.5 w-2.5 mr-1" />
-                  Administrator
+                  {user?.role === 'ADMIN' ? 'Administrator' : 'Community Moderator'}
                 </Badge>
               </div>
             </div>
@@ -197,7 +198,7 @@ export default function AdminLayout() {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-5">
-          {navSections.map((section) => (
+          {visibleSections.map((section) => (
             <div key={section.heading}>
               <p className="px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-wider text-forum-200/40">
                 {section.heading}
@@ -274,7 +275,7 @@ export default function AdminLayout() {
 
         <div className="border-t border-forum-700 shrink-0 bg-forum-900">
           <div className="p-3 space-y-1">
-            <Link
+            {user?.role === 'ADMIN' && <><Link
               to="/admin/profile"
               onClick={() => setSidebarOpen(false)}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-forum-100/80 hover:bg-forum-800 hover:text-white transition-colors"
@@ -289,7 +290,7 @@ export default function AdminLayout() {
             >
               <Settings className="h-4.5 w-4.5 shrink-0" />
               <span className="flex-1">Settings</span>
-            </Link>
+            </Link></>}
             <button
               type="button"
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-forum-100/70 hover:bg-forum-800 hover:text-white transition-colors"
@@ -330,7 +331,7 @@ export default function AdminLayout() {
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
               <Link
-                to="/admin/announcements"
+                to={user?.role === 'ADMIN' ? '/admin/announcements' : '/dashboard/notifications'}
                 className="relative inline-flex items-center justify-center rounded-md h-9 w-9 text-ink-muted hover:bg-forum-50 hover:text-forum-700 transition-colors"
                 aria-label="Notifications"
               >

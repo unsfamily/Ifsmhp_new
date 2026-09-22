@@ -1,10 +1,12 @@
 import { apiClient } from '../api/client';
-import type { Community, CommunityConversation, CommunityMember, CommunityMessage, PaginatedCommunityResult, QueryParams } from '../types/community';
+import type { CommunityCapabilities, CommunityUploadPolicy, Community, CommunityConversation, CommunityMember, CommunityMessage, PaginatedCommunityResult, QueryParams } from '../types/community';
 
 interface Envelope<T> { success: true; data: T; }
 const data = <T>(response: { data: Envelope<T> }) => response.data.data;
 
 export const communityService = {
+  async getCapabilities() { return data(await apiClient.get<Envelope<CommunityCapabilities>>('/community/capabilities')); },
+  async getUploadPolicy() { return data(await apiClient.get<Envelope<CommunityUploadPolicy>>('/community/upload-policy')); },
   async getCommunities(params: QueryParams = {}) { return data(await apiClient.get<Envelope<PaginatedCommunityResult<Community>>>('/community/communities', { params })); },
   async getMyCommunities(params: QueryParams = {}) { return data(await apiClient.get<Envelope<PaginatedCommunityResult<Community>>>('/community/communities/mine', { params })); },
   async getCommunity(id: string) { return data(await apiClient.get<Envelope<Community>>(`/community/communities/${id}`)); },

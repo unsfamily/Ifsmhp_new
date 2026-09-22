@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import communityRoutes, { communityAdminRoutes } from './community.routes';
 import healthRoutes from './health.routes';
 import adminRoutes from './admin.routes';
 import authRoutes from './auth.routes';
@@ -35,6 +36,8 @@ router.use('/auth', authRoutes);
 router.use('/files', filesRoutes);
 router.use('/members', memberRoutes);
 router.use('/admin/announcements', announcementRoutes);
+router.use('/community', communityRoutes);
+router.use('/admin/community', communityAdminRoutes);
 router.use('/admin', adminRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/announcements/unsubscribe', unsubscribeRouter);

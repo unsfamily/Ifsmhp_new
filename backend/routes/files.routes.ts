@@ -14,6 +14,7 @@ import { assertSafePath, uploadRoot } from '../utils/fileStorage';
 import { writeAudit } from '../services/audit.service';
 import { recordOpening } from '../services/document-exchange.service';
 import { logger } from '../utils/logger';
+import { authorizeCommunityFile } from '../services/community-access.service';
 import {
   createRegistrationClaimToken,
   registrationAllowedExtensions,
@@ -254,7 +255,13 @@ router.get(
     if (!file || file.deletedAt) throw ApiError.notFound('File not found');
 
     const user = req.user!;
-    const allowed =
+    // Community assets have revocable, contextual access even for their uploader.
+    if (file.communityManaged) {
+      await authorizeCommunityFile(user, file.id);
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+    }
+    const allowed = file.communityManaged ||
       user.role === 'ADMIN' ||
       file.visibility === 'PUBLIC' ||
       file.uploaderId === user.id ||

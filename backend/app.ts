@@ -5,6 +5,7 @@ import helmet from 'helmet';
 
 import { env } from './config';
 import { errorHandler, globalLimiter, notFound, requestId } from './middleware';
+import { communityLimiter } from './middleware/rateLimit';
 import apiRoutes from './routes';
 
 /**
@@ -51,6 +52,7 @@ export function createApp(): Express {
   );
 
   app.use(globalLimiter);
+  app.use(communityLimiter);
 
   // Request size limits (spec §43). File uploads use multipart handling with
   // their own, larger limit from Milestone 9 — this cap applies to JSON only.

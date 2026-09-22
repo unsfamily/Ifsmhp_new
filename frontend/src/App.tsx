@@ -1,3 +1,4 @@
+import { RequireCommunityManager } from './components/community/CommunityAccess';
 import { useEffect } from 'react';
 import { Route, Routes, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import PublicLayout from './layouts/PublicLayout';
@@ -125,6 +126,11 @@ export default function App() {
           <Route path="support/:id" element={<SupportRequestDetailPage />} />
         </Route>
 
+        <Route path="admin/community" element={<RequireCommunityManager><AdminLayout /></RequireCommunityManager>}>
+          <Route path="members" element={<AdminCommunityMembersPage />} />
+          <Route path="chats" element={<AdminCommunityChatsPage />} />
+          <Route path="moderation" element={<AdminCommunityModerationPage />} />
+        </Route>
         <Route path="admin" element={<RequireAuth role="ADMIN"><AdminLayout /></RequireAuth>}>
           <Route index element={<AdminHomePage />} />
           <Route path="members" element={<AdminMembersPage />} />
@@ -138,9 +144,7 @@ export default function App() {
           <Route path="gallery" element={<AdminGalleryPage />} />
           <Route path="community" element={<AdminCommunityDashboard />} />
           <Route path="community/communities" element={<AdminCommunitiesPage />} />
-          <Route path="community/members" element={<AdminCommunityMembersPage />} />
-          <Route path="community/chats" element={<AdminCommunityChatsPage />} />
-          <Route path="community/moderation" element={<AdminCommunityModerationPage />} />
+
           <Route path="support" element={<AdminSupportPage />} />
           <Route path="support/:id" element={<AdminSupportDetailPage />} />
           <Route path="messages" element={<AdminMessagesPage />} />

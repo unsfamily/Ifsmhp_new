@@ -1,3 +1,4 @@
+import { useCommunityCapabilities } from '../components/community/CommunityAccess';
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
@@ -40,6 +41,7 @@ const navItems = [
 ];
 
 export default function MemberLayout() {
+  const communityAccess = useCommunityCapabilities();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout } = useAuth();
   // Real unread count; a failure just leaves the badge off rather than showing
@@ -130,9 +132,9 @@ export default function MemberLayout() {
         <nav className="p-3 overflow-y-auto h-[calc(100%-17rem)] space-y-1">
           {/* Admins reach the member portal via "Member View" in the admin
               header; without this they would have no way back but the URL bar. */}
-          {user?.role === 'ADMIN' && (
+          {(user?.role === 'ADMIN' || communityAccess.data?.canModerate) && (
             <Link
-              to="/admin"
+              to={user?.role === 'ADMIN' ? '/admin' : '/admin/community/chats'}
               onClick={() => setSidebarOpen(false)}
               className="flex items-center gap-3 px-3 py-2.5 mb-2 rounded-lg text-sm font-medium bg-brass-500/15 text-brass-100 ring-1 ring-brass-500/30 hover:bg-brass-500/25 hover:text-white transition-colors"
             >

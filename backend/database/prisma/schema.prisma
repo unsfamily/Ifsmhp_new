@@ -146,6 +146,14 @@ model User {
   discussionThreads       DiscussionThread[]        @relation("ThreadAuthor")
   discussionReplies       DiscussionReply[]         @relation("ReplyAuthor")
 
+  managedCommunities      Community[] @relation("CommunityCreator")
+  communityMemberships    CommunityMembership[]
+  communityMessages       CommunityMessage[]
+  communityMessageReads   CommunityMessageRead[]
+  communityReports        CommunityReport[] @relation("CommunityReporter")
+  assignedCommunityReports CommunityReport[] @relation("CommunityAssignee")
+  communityModerationActions CommunityModerationAction[]
+
   @@index([role, status])
 }
 
@@ -337,6 +345,10 @@ model FileObject {
   projectFiles       ProjectFile[]
   publicationFiles   PublicationFile[]
   messageAttachments MessageAttachment[]
+  communityManaged   Boolean @default(false)
+  communityImages    Community[] @relation("CommunityImage")
+  communityBanners   Community[] @relation("CommunityBanner")
+  communityAttachments CommunityAttachment[]
   eventCovers        Event[]                    @relation("EventCover")
   galleryItems       GalleryItem[]
   inquiryAttachments ContactInquiryAttachment[]
@@ -1108,4 +1120,166 @@ model AuditLog {
 
   @@index([action, createdAt])
   @@index([severity, createdAt])
+}
+
+
+enum CommunityVisibility {
+  PUBLIC
+  PRIVATE
+}
+enum CommunityStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+enum CommunityMembershipStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+  BLOCKED
+}
+enum CommunityRole {
+  MEMBER
+  MODERATOR
+  ADMIN
+}
+enum CommunityReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+model Community {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  description String @db.Text
+  category String
+  visibility CommunityVisibility @default(PUBLIC)
+  status CommunityStatus @default(ACTIVE)
+  createdById String
+  imageId String?
+  bannerId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  createdBy User @relation("CommunityCreator", fields: [createdById], references: [id])
+  image FileObject? @relation("CommunityImage", fields: [imageId], references: [id])
+  banner FileObject? @relation("CommunityBanner", fields: [bannerId], references: [id])
+  memberships CommunityMembership[]
+  conversations CommunityConversation[]
+  reports CommunityReport[]
+  @@index([deletedAt, status, createdAt])
+  @@index([category, visibility])
+}
+
+model CommunityMembership {
+  id String @id @default(cuid())
+  communityId String
+  userId String
+  role CommunityRole @default(MEMBER)
+  status CommunityMembershipStatus @default(PENDING)
+  requestedAt DateTime @default(now())
+  joinedAt DateTime?
+  lastActiveAt DateTime?
+  updatedAt DateTime @updatedAt
+  removedAt DateTime?
+  reason String? @db.Text
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports CommunityReport[]
+  @@unique([communityId, userId])
+  @@index([userId, status, role])
+  @@index([communityId, status, removedAt])
+}
+
+model CommunityConversation {
+  id String @id @default(cuid())
+  communityId String
+  title String
+  description String? @db.Text
+  isLocked Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  messages CommunityMessage[]
+  @@index([communityId, updatedAt])
+}
+
+model CommunityMessage {
+  id String @id @default(cuid())
+  conversationId String
+  senderId String
+  content String @db.Text
+  replyToId String?
+  isPinned Boolean @default(false)
+  isHidden Boolean @default(false)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  conversation CommunityConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender User @relation(fields: [senderId], references: [id])
+  replyTo CommunityMessage? @relation("CommunityReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies CommunityMessage[] @relation("CommunityReply")
+  attachments CommunityAttachment[]
+  reads CommunityMessageRead[]
+  reports CommunityReport[]
+  @@index([conversationId, createdAt, id])
+  @@index([senderId, createdAt])
+}
+
+model CommunityAttachment {
+  id String @id @default(cuid())
+  messageId String
+  fileId String @unique
+  message CommunityMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  file FileObject @relation(fields: [fileId], references: [id])
+  @@index([messageId])
+}
+
+model CommunityMessageRead {
+  messageId String
+  userId String
+  readAt DateTime @default(now())
+  message CommunityMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([messageId, userId])
+  @@index([userId])
+}
+
+model CommunityReport {
+  id String @id @default(cuid())
+  communityId String
+  reporterId String
+  reportedMemberId String?
+  reportedMessageId String?
+  reason String
+  notes String? @db.Text
+  status CommunityReportStatus @default(OPEN)
+  assignedAdminId String?
+  resolutionNotes String? @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  reporter User @relation("CommunityReporter", fields: [reporterId], references: [id])
+  reportedMember CommunityMembership? @relation(fields: [reportedMemberId], references: [id], onDelete: SetNull)
+  reportedMessage CommunityMessage? @relation(fields: [reportedMessageId], references: [id], onDelete: SetNull)
+  assignedAdmin User? @relation("CommunityAssignee", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  actionHistory CommunityModerationAction[]
+  @@index([communityId, status, createdAt])
+  @@index([reporterId, reportedMessageId])
+}
+
+model CommunityModerationAction {
+  id String @id @default(cuid())
+  reportId String
+  actorId String
+  action String
+  notes String @db.Text
+  createdAt DateTime @default(now())
+  report CommunityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id])
+  @@index([reportId, createdAt])
 }

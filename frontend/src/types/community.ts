@@ -3,21 +3,23 @@ export type CommunityStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 export type MembershipStatus = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'BLOCKED';
 export type CommunityRole = 'MEMBER' | 'MODERATOR' | 'ADMIN';
 export type ReportStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'DISMISSED';
+export type ModerationAction = 'HIDE_CONTENT' | 'RESTORE_CONTENT' | 'WARN_MEMBER' | 'SUSPEND_MEMBER' | 'BLOCK_MEMBER' | 'RESOLVE_REPORT' | 'DISMISS_REPORT';
 
 export interface Community {
   id: string; name: string; slug: string; description: string; category: string;
   imageUrl?: string; bannerUrl?: string; visibility: CommunityVisibility;
   status: CommunityStatus; createdById: string; createdByName?: string;
-  memberCount: number; conversationCount?: number; messageCount?: number;
+  unreadCount?: number; memberCount: number; conversationCount?: number; messageCount?: number;
   createdAt: string; updatedAt: string;
   membershipStatus?: MembershipStatus;
   membershipId?: string;
 }
 
 export interface CommunityMember {
-  id: string; userId: string; communityId: string; fullName: string; email: string;
+  id: string; userId: string; communityId: string; fullName: string; email?: string;
   profileImageUrl?: string; role: CommunityRole; status: MembershipStatus;
   communityName: string; communitiesJoined?: number; messageCount?: number;
+  recentActivity?: { id: string; description: string; createdAt: string }[];
   reportCount?: number; joinedAt?: string; requestedAt?: string; lastActiveAt?: string;
 }
 
@@ -44,6 +46,7 @@ export interface CommunityReport {
   reporterName: string; reportedMemberId?: string; reportedMemberName?: string;
   reportedMessage?: CommunityMessage; reason: string; notes?: string;
   status: ReportStatus; assignedAdminName?: string; resolutionNotes?: string;
+  availableActions: ModerationAction[];
   createdAt: string; updatedAt: string;
   actionHistory?: ModerationHistoryItem[];
 }
@@ -75,3 +78,7 @@ export interface CommunityPayload {
 }
 
 export type QueryParams = Record<string, string | number | boolean | undefined>;
+
+export interface CommunityCapabilities { isAdmin: boolean; canModerate: boolean; communityIds: string[]; }
+export interface CommunityOptions { communities: { id: string; name: string }[]; categories: string[]; }
+export interface CommunityUploadPolicy { maxFiles: number; maxBytes: number; mimeTypes: string[]; extensions: string[]; imageMaxBytes: number; }

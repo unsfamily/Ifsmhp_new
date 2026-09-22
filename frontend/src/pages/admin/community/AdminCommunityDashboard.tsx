@@ -1,21 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Building2, Clock, Mail, MessageSquare, ShieldAlert, UserX, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { normalizeError } from '../../../api/client';
 import CommunityPageSkeleton from '../../../components/community/CommunityPageSkeleton';
 import EmptyCommunityState from '../../../components/community/EmptyCommunityState';
 import CommunityStatusBadge from '../../../components/community/CommunityStatusBadge';
 import MembershipStatusBadge from '../../../components/community/MembershipStatusBadge';
 import { PageHeading, formatDate, panelClass } from '../../../components/community/AdminCommunityUi';
 import { communityAdminService } from '../../../services/communityAdminService';
-import type { CommunityDashboardData } from '../../../types/community';
+import { useCommunityResource } from '../../../hooks/useCommunityResource';
 
 export default function AdminCommunityDashboard() {
-  const [data, setData] = useState<CommunityDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const load = useCallback(async () => { setLoading(true); setError(null); try { setData(await communityAdminService.getDashboardStats()); } catch (failure) { setError(normalizeError(failure).message); } finally { setLoading(false); } }, []);
-  useEffect(() => { void load(); }, [load]);
+  const { data, loading, error, refresh: load } = useCommunityResource('community-dashboard', communityAdminService.getDashboardStats);
   const stats = data?.stats;
   const tiles = [
     [Building2, stats?.totalCommunities ?? 0, 'Total communities'], [Building2, stats?.activeCommunities ?? 0, 'Active communities'],

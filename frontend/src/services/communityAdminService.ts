@@ -1,7 +1,7 @@
 import { apiClient } from '../api/client';
 import type {
-  Community, CommunityConversation, CommunityDashboardData, CommunityMember,
-  CommunityMessage, CommunityPayload, CommunityReport, CommunityRole,
+  CommunityOptions, Community, CommunityConversation, CommunityDashboardData, CommunityMember,
+  CommunityMessage, CommunityPayload, CommunityReport, CommunityRole, ModerationAction,
   CommunityStatus, MembershipStatus, PaginatedCommunityResult, QueryParams,
 } from '../types/community';
 
@@ -19,6 +19,7 @@ function communityBody(payload: CommunityPayload): FormData | Omit<CommunityPayl
 }
 
 export const communityAdminService = {
+  async getOptions() { return data(await apiClient.get<Envelope<CommunityOptions>>('/admin/community/options')); },
   async getDashboardStats() { return data(await apiClient.get<Envelope<CommunityDashboardData>>('/admin/community/dashboard')); },
   async getCommunities(params: QueryParams = {}) { return data(await apiClient.get<Envelope<PaginatedCommunityResult<Community>>>('/admin/community/communities', { params })); },
   async getCommunity(id: string) { return data(await apiClient.get<Envelope<Community>>(`/admin/community/communities/${id}`)); },
@@ -48,5 +49,5 @@ export const communityAdminService = {
   async getReports(params: QueryParams = {}) { return data(await apiClient.get<Envelope<PaginatedCommunityResult<CommunityReport>>>('/admin/community/reports', { params })); },
   async getReport(id: string) { return data(await apiClient.get<Envelope<CommunityReport>>(`/admin/community/reports/${id}`)); },
   async updateReport(id: string, payload: { status?: CommunityReport['status']; resolutionNotes?: string }) { return data(await apiClient.patch<Envelope<CommunityReport>>(`/admin/community/reports/${id}`, payload)); },
-  async createModerationAction(reportId: string, payload: { action: string; notes: string }) { return data(await apiClient.post<Envelope<CommunityReport>>(`/admin/community/reports/${reportId}/actions`, payload)); },
+  async createModerationAction(reportId: string, payload: { action: ModerationAction; notes: string }) { return data(await apiClient.post<Envelope<CommunityReport>>(`/admin/community/reports/${reportId}/actions`, payload)); },
 };
