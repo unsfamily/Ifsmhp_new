@@ -287,7 +287,7 @@ describe('Messages, moderation and protected files', () => {
     expect(responses.map(r => r.status)).toEqual([200, 200]);
     const duplicate = (await decisionAs(admin, 'patch', url).send({ status: 'UNDER_REVIEW' })).body.data;
     expect(duplicate.assignedAdminName).toBe('moderator'); expect(duplicate.actionHistory).toHaveLength(1);
-    expect(await prisma.auditLog.count({ where: { entity: report.id, action: 'CommunityREPORT_UNDER_REVIEW' } })).toBe(1);
+    expect(await prisma.auditLog.count({ where: { entityId: report.id, action: 'CommunityREPORT_UNDER_REVIEW' } })).toBe(1);
   });
   it('allows documented corrections on closed reports and clears stale resolution notes on reopening', async () => {
     const message = (await send()).body.data;
@@ -374,6 +374,7 @@ describe('Messages, moderation and protected files', () => {
     const evidenceUrl = `${url}/evidence/${attachmentId}`;
     expect((await as(moderator, 'get', evidenceUrl)).text).toBe('Immutable bytes');
     expect((await as(admin, 'get', evidenceUrl)).headers['cache-control']).toBe('private, no-store');
+    expect(await prisma.auditLog.count({ where: { entityId: original.id, action: 'CommunityEvidenceAccessGranted', outcome: 'ACCESS_GRANTED', actorId: { in: [admin.id, moderator.id] } } })).toBe(2);
     expect((await request(app).get(`${root}${evidenceUrl}`)).status).toBe(401);
     for (const who of [alice, bob, outsider]) expect((await as(who, 'get', evidenceUrl)).status).toBe(403);
     expect((await as(admin, 'get', message.attachments[0].fileUrl)).status).toBe(404);

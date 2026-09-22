@@ -1,3 +1,4 @@
+import { writeAudit } from './audit.service';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../config/database';
@@ -79,7 +80,7 @@ export async function setAnnouncementRead(userId: string, id: string, read: bool
     await tx.notification.upsert({ where: { userId_announcementId: { userId, announcementId: id } },
       create: { userId, announcementId: id, title: row.subject, body: row.body, type: 'announcement', link: `/dashboard/notifications?announcement=${id}`, ...state }, update: state });
     if (read) await tx.announcementDelivery.updateMany({ where: { announcementId: id, recipientUserId: userId, revision: row.revision, purpose: 'BROADCAST', channel: 'IN_APP', status: 'SENT', openedAt: null }, data: { openedAt: now } });
-    await tx.auditLog.create({ data: { actorId: userId, actorLabel: userId, actorRole: 'MEMBER', action: read ? 'AnnouncementRead' : 'AnnouncementUnread', entity: `Announcement ${id}`, severity: 'INFO', description: `Announcement marked ${read ? 'read' : 'unread'}.` } });
+    await writeAudit({ actorId: userId, actorLabel: userId, actorRole: 'MEMBER', action: read ? 'AnnouncementRead' : 'AnnouncementUnread', entity: `Announcement ${id}`, changes: { read: { before: previous?.status === 'READ', after: read } }, severity: 'INFO', description: `Announcement marked ${read ? 'read' : 'unread'}.` }, tx);
   });
   return memberAnnouncementDetail(userId, id);
 }

@@ -1,3 +1,4 @@
+import { auditContext } from '../services/audit-context';
 import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 
@@ -6,9 +7,9 @@ import type { NextFunction, Request, Response } from 'express';
  * failures so a user can quote it in a support message without the server
  * having to expose any internal detail.
  */
-export function requestId(_req: Request, res: Response, next: NextFunction): void {
+export function requestId(req: Request, res: Response, next: NextFunction): void {
   const id = randomUUID();
   res.locals.requestId = id;
   res.setHeader('X-Request-Id', id);
-  next();
+  auditContext.run({ request: req, requestId: id }, next);
 }

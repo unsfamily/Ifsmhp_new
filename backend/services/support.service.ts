@@ -1,3 +1,4 @@
+import { writeAudit, changesBetween } from './audit.service';
 import type { Request } from 'express';
 import { Prisma, type SupportRequest, type SupportStatus, type SupportKind } from '@prisma/client';
 import { z } from 'zod';
@@ -136,9 +137,9 @@ async function notify(tx: Prisma.TransactionClient, userId: string, id: string, 
   await tx.notification.create({ data: { userId, title, body, type: 'support', link: `${admin ? '/admin' : '/dashboard'}/support/${id}` } });
 }
 
-async function audit(tx: Prisma.TransactionClient, actorId: string, id: string, action: string, description: string) {
+async function audit(tx: Prisma.TransactionClient, actorId: string, id: string, action: string, description: string, changes?: unknown) {
   const actor = await tx.user.findUniqueOrThrow({ where: { id: actorId } });
-  await tx.auditLog.create({ data: { actorId, actorLabel: actor.fullName, actorRole: actor.role, action, entity: `SupportRequest ${id}`, severity: 'INFO', description } });
+  await writeAudit({ actorId, actorLabel: actor.fullName, actorRole: actor.role, action, entity: `SupportRequest ${id}`, changes, description }, tx);
 }
 
 export async function createSupport(userId: string, input: z.infer<typeof createBody>) {
@@ -208,6 +209,7 @@ export async function updateSupport(id: string, actorId: string, input: z.infer<
     if (!row) throw ApiError.notFound('Support request not found');
     const assignee = input.assignedAdminId ? await tx.user.findFirst({ where: { id: input.assignedAdminId, role: 'ADMIN', status: 'ACTIVE', deletedAt: null } }) : null;
     if (input.assignedAdminId && !assignee) throw new ApiError(422, 'Choose an active administrator', [{ field: 'assignedAdminId', message: 'Administrator is unavailable' }]);
+    if ((input.priority === undefined || input.priority === row.priority) && (input.assignedAdminId === undefined || input.assignedAdminId === row.assignedAdminId)) return;
     const conversationId = await attachConversation(tx, row);
     const result = await tx.supportRequest.updateMany({ where: { id, updatedAt: input.expectedUpdatedAt ? new Date(input.expectedUpdatedAt) : row.updatedAt }, data: {
       priority: input.priority, ...(input.assignedAdminId !== undefined ? { assignedAdminId: input.assignedAdminId, assignedAdmin: assignee?.fullName ?? null } : {}),
@@ -216,7 +218,7 @@ export async function updateSupport(id: string, actorId: string, input: z.infer<
     const note = [input.priority ? `Priority: ${input.priority}` : '', input.assignedAdminId !== undefined ? `Assigned to: ${assignee?.fullName ?? 'Unassigned'}` : ''].filter(Boolean).join('. ');
     await tx.conversation.update({ where: { id: conversationId }, data: { priority: input.priority, ...(input.assignedAdminId !== undefined ? { assignee: assignee?.fullName ?? null } : {}) } });
     await tx.supportRequestHistory.create({ data: { requestId: id, fromStatus: row.status, toStatus: row.status, actorId, note, internal: true } });
-    await audit(tx, actorId, id, 'SupportRequestUpdated', note);
+    await audit(tx, actorId, id, 'SupportRequestUpdated', note, changesBetween(row, { ...row, ...(input.priority !== undefined ? { priority: input.priority } : {}), ...(input.assignedAdminId !== undefined ? { assignedAdminId: input.assignedAdminId } : {}) }));
     if (assignee) {
       await tx.conversationParticipant.upsert({ where: { conversationId_userId: { conversationId, userId: assignee.id } }, create: { conversationId, userId: assignee.id, roleLabel: 'CRO Office' }, update: {} });
       await notify(tx, assignee.id, id, 'Support request assigned', row.subject, true);
@@ -243,7 +245,7 @@ export async function transitionSupport(id: string, actorId: string, next: Suppo
     const actor = await tx.user.findUniqueOrThrow({ where: { id: actorId } });
     await tx.message.create({ data: { conversationId, senderId: actorId, senderName: actor.fullName, senderRole: 'ADMIN', body, internal } });
     await tx.conversation.update({ where: { id: conversationId }, data: { status: statusLabels[next], updatedAt: new Date() } });
-    await audit(tx, actorId, id, 'SupportRequestStatusChanged', body);
+    await audit(tx, actorId, id, 'SupportRequestStatusChanged', body, { status: { before: row.status, after: next } });
     await notify(tx, row.requesterId, id, `Support request: ${memberLabels[next]}`, internal ? 'Your request is being reviewed.' : body);
   });
   return { ok: true, to: statusLabels[next] };

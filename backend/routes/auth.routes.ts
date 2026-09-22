@@ -1,3 +1,5 @@
+import { securityAudit } from '../services/audit.service';
+import { sendFailure } from '../utils/apiResponse';
 import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate';
@@ -75,8 +77,12 @@ const otpVerifySchema = z.object({
 // identifier: an institution behind NAT shares one egress address across every
 // member, so a tight per-IP cap locks out real colleagues before it meaningfully
 // slows an attacker, who can just rotate addresses.
-const otpRequestLimiter = rateLimit({ max: 20, windowMs: 15 * 60 * 1000 });
-const otpVerifyLimiter = rateLimit({ max: 30, windowMs: 15 * 60 * 1000 });
+const authLimiter = (options: { max: number; windowMs: number }) => rateLimit({ ...options, handler: async (req, res) => {
+  await securityAudit({ action: 'AuthenticationThrottled', actorRole: 'UNAUTHENTICATED', entity: 'Authentication', outcome: 'DENIED', ipAddress: req.ip, userAgent: req.get('user-agent') });
+  sendFailure(res, 429, 'Too many requests, please try again later.');
+} });
+const otpRequestLimiter = authLimiter({ max: 20, windowMs: 15 * 60 * 1000 });
+const otpVerifyLimiter = authLimiter({ max: 30, windowMs: 15 * 60 * 1000 });
 
 const forgotSchema = z.object({ email: z.string().email() }).strict();
 const resetSchema = z.object({
@@ -86,7 +92,7 @@ const resetSchema = z.object({
 
 router.post(
   '/login',
-  rateLimit({ max: 20, windowMs: 15 * 60 * 1000 }),
+  authLimiter({ max: 20, windowMs: 15 * 60 * 1000 }),
   validate({ body: loginSchema }),
   asyncHandler(async (req, res) => {
     const data = await authService.login(req.body, req, res);
@@ -140,7 +146,7 @@ router.post(
 
 router.post(
   '/logout',
-  rateLimit({ max: 30, windowMs: 15 * 60 * 1000 }),
+  authLimiter({ max: 30, windowMs: 15 * 60 * 1000 }),
   asyncHandler(async (req, res) => {
     const data = await authService.logout(req, res);
     sendSuccess(res, data, 'Logged out');
@@ -149,7 +155,7 @@ router.post(
 
 router.post(
   '/refresh',
-  rateLimit({ max: 30, windowMs: 15 * 60 * 1000 }),
+  authLimiter({ max: 30, windowMs: 15 * 60 * 1000 }),
   asyncHandler(async (req, res) => {
     const data = await authService.refresh(req, res);
     sendSuccess(res, data, 'Token refreshed');
@@ -158,7 +164,7 @@ router.post(
 
 router.post(
   '/forgot-password',
-  rateLimit({ max: 5, windowMs: 60 * 60 * 1000 }),
+  authLimiter({ max: 5, windowMs: 60 * 60 * 1000 }),
   validate({ body: forgotSchema }),
   asyncHandler(async (req, res) => {
     const data = await authService.forgotPassword(req.body.email);
@@ -168,7 +174,7 @@ router.post(
 
 router.post(
   '/reset-password',
-  rateLimit({ max: 10, windowMs: 60 * 60 * 1000 }),
+  authLimiter({ max: 10, windowMs: 60 * 60 * 1000 }),
   validate({ body: resetSchema }),
   asyncHandler(async (req, res) => {
     const data = await authService.resetPassword(req.body.token, req.body.password);

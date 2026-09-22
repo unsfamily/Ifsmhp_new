@@ -1,3 +1,4 @@
+import { writeAudit } from '../services/audit.service';
 import fs from 'node:fs';
 import { assertSafePath } from '../utils/fileStorage';
 import { Router, type Request, type Response } from 'express';
@@ -63,6 +64,7 @@ communityAdminRoutes.get('/reports/:id/evidence/:attachmentId', asyncHandler(asy
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  if (req.method === 'GET') await writeAudit({ actorId: req.user!.id, action: 'CommunityEvidenceAccessGranted', entity: `CommunityReport ${req.params.id}`, outcome: 'ACCESS_GRANTED', metadata: { fileId: file.id, attachmentId: req.params.attachmentId } });
   res.setHeader('Content-Type', file.mimeType);
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
   const stream = fs.createReadStream(path);

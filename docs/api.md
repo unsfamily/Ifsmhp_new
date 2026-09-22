@@ -102,7 +102,10 @@ All admin routes require an active `ADMIN` session.
 | `GET` | `/admin/announcements` | Announcement list |
 | `POST` | `/admin/announcements` | Create draft/scheduled/sent announcement |
 | `GET` | `/admin/gallery` | Admin gallery view |
-| `GET` | `/admin/audit-log` | Immutable audit log |
+| `GET` | `/admin/audit-log` | Persisted audit timeline with combined search/classification/date filters, deterministic sorting and pagination |
+| `GET` | `/admin/audit-log/summary` | Database counts for administrator activity (24h), warnings/danger (7d), and indefinite retention |
+| `GET` | `/admin/audit-log/options` | Registered and historical actor/module/action/severity classifications |
+| `GET` | `/admin/audit-log/export` | Authenticated CSV containing all matching records; separately audited as access granted |
 | `GET` | `/admin/reports` | Report definitions |
 | `GET` | `/admin/settings` | Platform settings |
 
@@ -137,3 +140,5 @@ These endpoints are separate from the legacy `/members/me/community` discussion 
 Submission returns `{ reportId, status, created, duplicate }`. Reusing an identical submission UUID returns the original receipt; another UUID for the same active reporter/target returns a duplicate receipt. Decision preconditions are `operationId` UUID, `expectedRevision` integer, and `expectedTargetVersion` from the reviewed report. Exact operation retries do not repeat effects; stale versions or conflicting ID reuse return 409, and missing/invalid fields return 422.
 
 Enforcement starts review without closing. Resolve/Dismiss explicitly close; `REOPEN_REPORT` explicitly reopens and clears resolution notes. Legacy reports have null original evidence. See [Community workflow](community-workflow.md#reporting-and-moderation) for eligibility, evidence retention/access, request examples, migration, coordinated deployment, and verification results.
+
+Audit event fields, privacy rules, route coverage, query semantics, migration and verification: [Dynamic Admin Audit Log](audit-log.md).

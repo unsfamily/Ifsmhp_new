@@ -1,7 +1,9 @@
+import { writeAudit } from '../services/audit.service';
+import * as auditLog from '../services/audit-log.service';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { ProjectStatus, PublicationStatus, SupportStatus } from '@prisma/client';
-import { requireAuth, requireRole } from '../middleware/auth';
+import { requireAuth, requireRole, requireVerifiedSession } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { sendSuccess } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -81,6 +83,7 @@ const messageBody = z.object({
 const inquiryReplyBody = z.object({ text: z.string().min(1).max(8000) });
 
 router.use(requireAuth, requireRole('ADMIN'));
+router.use('/audit-log', requireVerifiedSession);
 
 router.get('/stats', asyncHandler(async (_req, res) => {
   sendSuccess(res, await service.adminStats(), 'CRO dashboard statistics loaded');
@@ -255,10 +258,10 @@ router.post('/events/:id/publish', validate({ params: idParams }), asyncHandler(
   sendSuccess(res, await events.publishEvent(req.user!.id, req.params.id!), 'Event published');
 }));
 router.post('/events/:id/cancel', validate({ params: idParams, body: events.cancelBody }), asyncHandler(async (req, res) => {
-  sendSuccess(res, await events.cancelEvent(req.params.id!, req.body), 'Event cancelled');
+  sendSuccess(res, await events.cancelEvent(req.params.id!, req.body, req.user!.id), 'Event cancelled');
 }));
 router.delete('/events/:id', validate({ params: idParams }), asyncHandler(async (req, res) => {
-  sendSuccess(res, await events.deleteEvent(req.params.id!), 'Event deleted');
+  sendSuccess(res, await events.deleteEvent(req.params.id!, req.user!.id), 'Event deleted');
 }));
 
 router.get('/inquiries', asyncHandler(async (req, res) => {
@@ -282,8 +285,12 @@ router.get('/gallery', asyncHandler(async (req, res) => {
   sendSuccess(res, await service.gallery(req, true), 'Gallery assets');
 }));
 
+router.get('/audit-log/summary', asyncHandler(async (_req, res) => { res.setHeader('Cache-Control', 'private, no-store'); sendSuccess(res, await auditLog.auditSummary(), 'Audit summary'); }));
+router.get('/audit-log/options', asyncHandler(async (_req, res) => { res.setHeader('Cache-Control', 'private, no-store'); sendSuccess(res, await auditLog.auditOptions(), 'Audit options'); }));
+router.get('/audit-log/export', asyncHandler(async (req, res) => auditLog.auditExport(req.user!.id, req.query, res)));
 router.get('/audit-log', asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.adminAuditLog(req), 'Audit log page');
+  res.setHeader('Cache-Control', 'private, no-store');
+  sendSuccess(res, await auditLog.auditList(req.query), 'Audit log page');
 }));
 
 /**
@@ -314,6 +321,7 @@ router.get(
 router.get('/reports/:reportKey/export', validate({ params: reportKeyParams, query: reportRange }), asyncHandler(async (req, res) => {
   const range = reports.resolveRange(req.query as { from?: string; to?: string });
   const csv = await reports.reportCsv(req.params.reportKey!, range);
+  await writeAudit({ actorId: req.user!.id, action: 'ReportExported', entity: `Report ${req.params.reportKey}`, outcome: 'ACCESS_GRANTED', metadata: { from: range.from, to: range.to } });
   // Written directly rather than through sendSuccess, which would wrap it in
   // the JSON envelope.
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');

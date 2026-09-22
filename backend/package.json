@@ -2,7 +2,7 @@
   "name": "ifsmhp-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "IFSMHP platform — REST API",
+  "description": "IFSMHP platform \u2014 REST API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch server.ts",
@@ -26,7 +26,8 @@
     "test:gallery:browser": "node tests/gallery.browser.cjs",
     "db:studio": "prisma studio",
     "test:community:browser": "node tests/community.browser.cjs",
-    "test:moderation:browser": "node tests/community-moderation.browser.cjs"
+    "test:moderation:browser": "node tests/community-moderation.browser.cjs",
+    "test:audit:browser": "node tests/audit.browser.cjs"
   },
   "prisma": {
     "schema": "database/prisma/schema.prisma",

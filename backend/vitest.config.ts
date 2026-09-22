@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     globals: false,
+    setupFiles: ['tests/audit-contract.ts'],
     // These suites are integration tests against one real MySQL database, and
     // each file wipes and recreates its own fixtures in beforeEach. Run in
     // parallel and one file's wipe lands in the middle of another file's

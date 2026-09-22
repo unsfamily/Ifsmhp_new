@@ -1,3 +1,4 @@
+import { securityAudit } from '../services/audit.service';
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { ApiError, type FieldError } from '../utils/ApiError';
@@ -19,15 +20,21 @@ function zodToFieldErrors(error: ZodError): FieldError[] {
  * message for the client: no stack traces, SQL, filesystem paths or secrets
  * ever cross the wire (spec §40, §43).
  */
-export function errorHandler(
+export async function errorHandler(
   err: unknown,
   req: Request,
   res: Response,
   _next: NextFunction,
-): void {
+): Promise<void> {
   const correlation = { requestId: res.locals.requestId, method: req.method, path: req.path };
 
   if (err instanceof ApiError) {
+    const authentication = /\/auth\/(login|otp\/verify|reset-password)$/.test(req.path);
+    if ([401, 403, 429].includes(err.statusCode) || authentication && [401, 404, 410, 422].includes(err.statusCode)) {
+      await securityAudit({ actorId: authentication ? null : req.user?.id, actorRole: authentication || !req.user ? 'UNAUTHENTICATED' : req.user.role,
+        action: err.statusCode === 429 ? 'AuthenticationThrottled' : authentication ? req.path.endsWith('reset-password') ? 'PasswordResetFailed' : 'LoginFailed' : 'AccessDenied',
+        entity: 'Authentication', outcome: 'DENIED', metadata: { reasonCode: String(err.statusCode) } });
+    }
     if (err.statusCode >= 500) logger.error(err.message, { ...correlation, stack: err.stack });
     else logger.warn(err.message, correlation);
     sendFailure(res, err.statusCode, err.message, err.errors, err.meta);

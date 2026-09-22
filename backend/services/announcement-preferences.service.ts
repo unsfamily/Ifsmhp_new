@@ -1,3 +1,4 @@
+import { writeAudit } from './audit.service';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { env } from '../config';
@@ -27,7 +28,7 @@ export async function preference(token: string, disable = false) {
     const previous = await tx.announcementPreference.findUnique({ where: { userId: user.id } });
     if (previous?.emailEnabled === false) return;
     await tx.announcementPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, emailEnabled: false }, update: { emailEnabled: false } });
-    await tx.auditLog.create({ data: { actorId: user.id, actorLabel: user.id, actorRole: user.role, action: 'AnnouncementEmailUnsubscribed', entity: 'AnnouncementPreference', severity: 'INFO', description: 'Announcement emails disabled; operational emails are unchanged.' } });
+    await writeAudit({ actorId: user.id, actorLabel: user.id, actorRole: user.role, action: 'AnnouncementEmailUnsubscribed', entity: `AnnouncementPreference ${user.id}`, changes: { emailEnabled: { before: previous?.emailEnabled ?? true, after: false } }, severity: 'INFO', description: 'Announcement emails disabled; operational emails are unchanged.' }, tx);
   });
   const row = await prisma.announcementPreference.findUnique({ where: { userId: user.id } });
   return { emailEnabled: row?.emailEnabled ?? true };

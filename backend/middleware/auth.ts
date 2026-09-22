@@ -12,6 +12,8 @@ export interface AuthenticatedUser {
   role: UserRole;
   status: UserStatus;
   memberId?: string;
+  /** Present only after JWT and persisted-session verification. */
+  sessionId?: string;
 }
 
 declare global {
@@ -73,6 +75,7 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
       }
       user = {
         id: session.user.id,
+        sessionId: session.id,
         role: session.user.role,
         status: session.user.status,
         memberId: session.user.memberProfile?.memberId ?? undefined,
@@ -91,6 +94,15 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
   }
 
   req.user = user;
+  next();
+};
+
+/** Sensitive administrative history must not accept development role-header identities. */
+export const requireVerifiedSession: RequestHandler = (req, _res, next) => {
+  if (!req.user?.sessionId) {
+    req.user = undefined;
+    return next(new ApiError(401, 'A verified administrator session is required'));
+  }
   next();
 };
 

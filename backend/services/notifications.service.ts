@@ -1,3 +1,4 @@
+import { writeAudit } from './audit.service';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../config/database';
@@ -41,9 +42,9 @@ export async function unreadNotification(userId: string, id: string) {
   });
   return { unread: true };
 }
-async function log(tx: Prisma.TransactionClient, userId: string, id: string | undefined, action: string, description: string) {
+async function log(tx: Prisma.TransactionClient, userId: string, id: string | undefined, action: string, description: string, count = 1) {
   const actor = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
-  await tx.auditLog.create({ data: { actorId: userId, actorLabel: userId, actorRole: actor.role, action, entity: id ? `Notification ${id}` : 'Notifications', severity: 'INFO', description } });
+  await writeAudit({ actorId: userId, actorLabel: userId, actorRole: actor.role, action, entity: id ? `Notification ${id}` : 'Notifications', severity: 'INFO', description, changes: { status: { before: action === 'NotificationsRead' ? 'UNREAD' : 'READ', after: action === 'NotificationsRead' ? 'READ' : 'UNREAD' } }, metadata: { count } }, tx);
 }
 export async function readNotifications(userId: string, id?: string, through?: string) {
   return prisma.$transaction(async tx => {
@@ -57,7 +58,7 @@ export async function readNotifications(userId: string, id?: string, through?: s
     const now = new Date();
     const updated = await tx.notification.updateMany({ where, data: { status: 'READ', readAt: now } });
     await tx.announcementDelivery.updateMany({ where: { id: { in: rows.flatMap(row => row.announcementDeliveryId ? [row.announcementDeliveryId] : []) }, recipientUserId: userId, channel: 'IN_APP', purpose: 'BROADCAST', openedAt: null }, data: { openedAt: now } });
-    if (updated.count) await log(tx, userId, id, 'NotificationsRead', `${updated.count} notifications marked read.`);
+    if (updated.count) await log(tx, userId, id, 'NotificationsRead', `${updated.count} notifications marked read.`, updated.count);
     return { read: updated.count };
   });
 }

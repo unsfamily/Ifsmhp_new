@@ -12,7 +12,7 @@ import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
 import { buildPaginatedResult, type PaginationQuery, toSkipTake } from '../utils/pagination';
 import { logger } from '../utils/logger';
-import { writeAudit } from './audit.service';
+import { writeAudit, changesBetween } from './audit.service';
 import { sendApprovalEmail } from './mail.service';
 import { isLegacyVideoUrl } from '../domain/document-exchange';
 
@@ -315,14 +315,18 @@ export async function createContactInquiry(input: {
   subject: string;
   message: string;
 }) {
-  const inquiry = await prisma.contactInquiry.create({
+  return prisma.$transaction(async tx => {
+  const inquiry = await tx.contactInquiry.create({
     data: {
       ...input,
       status: 'NEW',
       histories: { create: { toStatus: 'NEW', reason: 'Submitted from public contact form' } },
     },
   });
+  await writeAudit({ actorRole: 'UNAUTHENTICATED', action: 'InquiryCreated', entity: `ContactInquiry ${inquiry.id}` }, tx);
   return { inquiryId: inquiry.id, status: inquiry.status, next: 'Our team will respond within two working days.' };
+
+  });
 }
 
 export async function memberDashboard(userId: string) {
@@ -431,11 +435,14 @@ export async function updateMemberProfile(userId: string, input: {
   scholarUrl?: string | null;
   orcid?: string | null;
 }) {
-  const result = await prisma.memberProfile.updateMany({
-    where: { userId },
-    data: { phone: input.phone, websiteUrl: input.websiteUrl, scholarUrl: input.scholarUrl, orcid: input.orcid },
+  await prisma.$transaction(async tx => {
+    const before = await tx.memberProfile.findUnique({ where: { userId } });
+    if (!before) throw ApiError.notFound('Profile not found');
+    const fields = Object.keys(input).filter(key => input[key as keyof typeof input] !== undefined && input[key as keyof typeof input] !== before[key as keyof typeof before]);
+    if (!fields.length) return;
+    await tx.memberProfile.update({ where: { userId }, data: input });
+    await writeAudit({ actorId: userId, action: 'UserProfileUpdated', entity: `MemberProfile ${before.id}`, metadata: { changedFields: fields } }, tx);
   });
-  if (!result.count) throw ApiError.notFound('Profile not found');
   return memberProfile(userId);
 }
 
@@ -525,9 +532,10 @@ export async function createProject(userId: string, input: {
   resourceLinks?: { url: string; label?: string }[];
   submit?: boolean;
 }) {
+  return prisma.$transaction(async tx => {
   const status = input.submit ? 'SUBMITTED' : 'DRAFT';
   const fileIds = await assertOwnedFiles(userId, input.fileIds ?? []);
-  const project = await prisma.project.create({
+  const project = await tx.project.create({
     data: {
       ownerId: userId,
       title: input.title,
@@ -544,7 +552,10 @@ export async function createProject(userId: string, input: {
     },
     include: { supportTypes: true },
   });
+  await writeAudit({ actorId: userId, action: input.submit ? 'ProjectSubmitted' : 'ProjectCreated', entity: `Project ${project.id}`, changes: changesBetween(null, project) }, tx);
   return serializeProject(project);
+
+  });
 }
 
 /**
@@ -602,7 +613,9 @@ export async function updateMemberProject(userId: string, id: string, input: {
         data: { projectId: id, fromStatus: existing.status, toStatus: 'SUBMITTED', actorId: userId, note: 'Project submitted for review' },
       });
     }
-    return tx.project.update({ where: { id }, data: scalars, include: { supportTypes: true } });
+    const updated = await tx.project.update({ where: { id }, data: scalars, include: { supportTypes: true } });
+    if (Object.entries(scalars).some(([key, value]) => JSON.stringify(existing[key as keyof typeof existing]) !== JSON.stringify(value)) || (input.supportTypes && JSON.stringify(existing.supportTypes.map(v => v.kind).sort()) !== JSON.stringify([...new Set(input.supportTypes.map(labelToSupportKind))].sort()))) await writeAudit({ actorId: userId, action: promoting ? 'ProjectSubmitted' : 'ProjectUpdated', entity: `Project ${id}`, changes: changesBetween(existing, updated), metadata: { changedFields: Object.keys(scalars).filter(k => !['description'].includes(k)) } }, tx);
+    return updated;
   });
 
   return serializeProject(project);
@@ -616,12 +629,12 @@ export async function deleteMemberProject(userId: string, id: string) {
 
   // Soft delete: every list query already filters on `deletedAt: null`, and the
   // history row keeps the audit trail intact.
-  await prisma.$transaction([
-    prisma.project.update({ where: { id }, data: { deletedAt: new Date() } }),
-    prisma.projectStatusHistory.create({
+  await prisma.$transaction(async tx => { await Promise.all([
+    tx.project.update({ where: { id }, data: { deletedAt: new Date() } }),
+    tx.projectStatusHistory.create({
       data: { projectId: id, fromStatus: existing.status, toStatus: existing.status, actorId: userId, note: 'Project deleted by owner' },
     }),
-  ]);
+  ]); await writeAudit({ actorId: userId, action: 'ProjectDeleted', entity: `Project ${id}`, changes: { deletedAt: { before: null, after: new Date() } } }, tx); });
 
   return { id };
 }
@@ -775,6 +788,7 @@ export interface CreatePublicationInput {
  * CRO queue picks it up from there via `transitionPublication`.
  */
 export async function createPublication(userId: string, input: CreatePublicationInput) {
+  return prisma.$transaction(async tx => {
   // Re-checks that both uploads belong to the caller. Without this a member
   // could attach someone else's fileId and gain download rights through the
   // publication-author branch of the file ACL.
@@ -786,7 +800,7 @@ export async function createPublication(userId: string, input: CreatePublication
   // Double-submits are the common case here: a slow upload, an impatient
   // second click. The client disables the button, but only the server can
   // catch a retry that arrives on a fresh request.
-  const duplicate = await prisma.publication.findFirst({
+  const duplicate = await tx.publication.findFirst({
     where: { authorId: userId, title: input.title.trim(), status: { not: 'REJECTED' } },
     select: { id: true },
   });
@@ -801,7 +815,7 @@ export async function createPublication(userId: string, input: CreatePublication
     files.push({ fileId: supplementary, kind: 'SUPPLEMENTARY' });
   }
 
-  const publication = await prisma.publication.create({
+  const publication = await tx.publication.create({
     data: {
       authorId: userId,
       title: input.title.trim(),
@@ -836,9 +850,12 @@ export async function createPublication(userId: string, input: CreatePublication
     entity: `Publication ${publication.id}`,
     severity: 'SUCCESS',
     description: `Submitted "${publication.title}" for review`,
-  });
+    changes: changesBetween(null, publication),
+  }, tx);
 
   return serializePublication(publication);
+
+  });
 }
 
 export async function memberConversations(userId: string, req: Request) {
@@ -940,16 +957,17 @@ async function writeMessage(opts: {
   /** Already ownership-checked and de-duplicated by assertOwnedFiles. */
   fileIds?: string[];
   links?: { url: string; label?: string }[];
-}) {
+}, transaction?: Prisma.TransactionClient) {
+  const work = async (tx: Prisma.TransactionClient) => {
   const { conversationId, sender, body, internal, subject, recipientIds } = opts;
   const fileIds = opts.fileIds ?? [];
   const links = opts.links ?? [];
   const senderName = memberName(sender);
-  const linkedSupport = await prisma.supportRequest.findUnique({ where: { conversationId } });
-  const recipients = await prisma.user.findMany({ where: { id: { in: recipientIds }, status: 'ACTIVE', deletedAt: null }, select: { id: true, role: true } });
+  const linkedSupport = await tx.supportRequest.findUnique({ where: { conversationId } });
+  const recipients = await tx.user.findMany({ where: { id: { in: recipientIds }, status: 'ACTIVE', deletedAt: null }, select: { id: true, role: true } });
 
-  const writes: Prisma.PrismaPromise<unknown>[] = [
-    prisma.message.create({
+  const writes: Promise<unknown>[] = [
+    tx.message.create({
       data: {
         conversationId,
         senderId: sender.id,
@@ -963,9 +981,9 @@ async function writeMessage(opts: {
         sharedLinks: { create: links.map(({ url, label }) => ({ url, label: label ?? null, kind: isLegacyVideoUrl(url) ? 'VIDEO' : 'LINK' })) },
       },
     }),
-    prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }),
+    tx.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }),
     // You have read what you just wrote.
-    prisma.conversationParticipant.updateMany({
+    tx.conversationParticipant.updateMany({
       where: { conversationId, userId: sender.id },
       data: { lastReadAt: new Date() },
     }),
@@ -973,11 +991,11 @@ async function writeMessage(opts: {
 
   // Internal notes are admin-only and must never surface to the member.
   if (!internal) {
-    if (linkedSupport) writes.push(prisma.supportRequest.update({ where: { id: linkedSupport.id }, data: { updatedAt: new Date() } }));
+    if (linkedSupport) writes.push(tx.supportRequest.update({ where: { id: linkedSupport.id }, data: { updatedAt: new Date() } }));
     for (const recipient of recipients) {
       const userId = recipient.id;
       writes.push(
-        prisma.notification.create({
+        tx.notification.create({
           data: {
             userId,
             title: `New message from ${sender.fullName}`,
@@ -990,14 +1008,18 @@ async function writeMessage(opts: {
     }
   }
 
-  if (linkedSupport) writes.push(prisma.auditLog.create({ data: {
+  if (linkedSupport) writes.push(writeAudit({
     actorId: sender.id, actorLabel: sender.fullName, actorRole: sender.role,
     action: internal ? 'SupportInternalNoteAdded' : 'SupportReplySent', entity: `SupportRequest ${linkedSupport.id}`,
     severity: 'INFO', description: internal ? 'Internal note added' : 'Reply sent',
-  } }));
+  }, tx));
 
-  await prisma.$transaction(writes);
+  if (!linkedSupport) writes.push(writeAudit({ actorId: sender.id, action: 'MessageSent', entity: `Conversation ${conversationId}`, metadata: { conversationId } }, tx));
+  await Promise.all(writes);
   return { conversationId, subject, senderName };
+
+  };
+  return transaction ? work(transaction) : prisma.$transaction(work);
 }
 
 async function loadSender(userId: string) {
@@ -1047,7 +1069,8 @@ export async function postAdminMessage(
   conversationId: string,
   input: MessagePayload & { internal?: boolean },
 ) {
-  const conversation = await prisma.conversation.findUnique({
+  return prisma.$transaction(async tx => {
+  const conversation = await tx.conversation.findUnique({
     where: { id: conversationId },
     include: { participants: { select: { userId: true } } },
   });
@@ -1057,7 +1080,7 @@ export async function postAdminMessage(
   // Same rule as the member path: you may only attach your own uploads.
   const fileIds = await assertOwnedFiles(adminId, input.fileIds ?? []);
 
-  await prisma.conversationParticipant.upsert({
+  await tx.conversationParticipant.upsert({
     where: { conversationId_userId: { conversationId, userId: adminId } },
     create: { conversationId, userId: adminId, roleLabel: 'CRO Office' },
     update: {},
@@ -1072,6 +1095,8 @@ export async function postAdminMessage(
     recipientIds: conversation.participants.map((p) => p.userId).filter((id) => id !== adminId),
     fileIds,
     links: input.links,
+  }, tx);
+
   });
 }
 
@@ -1080,16 +1105,17 @@ export async function createMemberConversation(
   userId: string,
   input: MessagePayload & { subject: string; category: string },
 ) {
+  return prisma.$transaction(async tx => {
   const sender = await loadSender(userId);
   // Checked before the conversation is created: this function and writeMessage
   // are not one transaction, so a late throw would leave an empty thread.
   const fileIds = await assertOwnedFiles(userId, input.fileIds ?? []);
-  const admins = await prisma.user.findMany({
+  const admins = await tx.user.findMany({
     where: { role: 'ADMIN', status: 'ACTIVE', deletedAt: null },
     select: { id: true },
   });
 
-  const conversation = await prisma.conversation.create({
+  const conversation = await tx.conversation.create({
     data: {
       subject: input.subject,
       category: input.category,
@@ -1113,9 +1139,12 @@ export async function createMemberConversation(
     recipientIds: admins.map((a) => a.id),
     fileIds,
     links: input.links,
-  });
+  }, tx);
 
+  await writeAudit({ actorId: userId, action: 'ConversationCreated', entity: `Conversation ${conversation.id}` }, tx);
   return { id: conversation.id, subject: conversation.subject, category: conversation.category };
+
+  });
 }
 
 /** How recently a sign-in still counts as "online" on the community page. */
@@ -1281,16 +1310,17 @@ async function communityStats(onlineSince: Date) {
  * index is directional, so the mirrored row has to be caught here.
  */
 export async function requestConnection(userId: string, profileId: string) {
+  return prisma.$transaction(async tx => {
   const me = await loadMemberProfile(userId);
   if (profileId === me.id) throw new ApiError(422, 'You cannot connect with yourself');
 
-  const target = await prisma.memberProfile.findFirst({
+  const target = await tx.memberProfile.findFirst({
     where: { id: profileId, user: { status: 'ACTIVE', role: 'MEMBER' } },
     select: { id: true },
   });
   if (!target) throw ApiError.notFound('Member not found');
 
-  const existing = await prisma.memberConnection.findFirst({
+  const existing = await tx.memberConnection.findFirst({
     where: {
       OR: [
         { requesterId: me.id, addresseeId: profileId },
@@ -1305,18 +1335,23 @@ export async function requestConnection(userId: string, profileId: string) {
 
   if (existing) {
     // They asked first; this request is the acceptance.
-    await prisma.memberConnection.update({ where: { id: existing.id }, data: { status: 'Accepted' } });
+    await tx.memberConnection.update({ where: { id: existing.id }, data: { status: 'Accepted' } });
+    if (existing.status !== 'Accepted') await writeAudit({ actorId: userId, action: 'CommunityConnectionAccepted', entity: `MemberConnection ${existing.id}`, changes: { status: { before: existing.status, after: 'Accepted' } } }, tx);
     return { status: 'connected' as const };
   }
 
-  await prisma.memberConnection.create({ data: { requesterId: me.id, addresseeId: profileId, status: 'Pending' } });
+  const connection = await tx.memberConnection.create({ data: { requesterId: me.id, addresseeId: profileId, status: 'Pending' } });
+  await writeAudit({ actorId: userId, action: 'CommunityConnectionRequested', entity: `MemberConnection ${connection.id}` }, tx);
   return { status: 'requested' as const };
+
+  });
 }
 
 /** Cancels a pending request or removes an existing connection, either direction. */
 export async function removeConnection(userId: string, profileId: string) {
+  return prisma.$transaction(async tx => {
   const me = await loadMemberProfile(userId);
-  const { count } = await prisma.memberConnection.deleteMany({
+  const { count } = await tx.memberConnection.deleteMany({
     where: {
       OR: [
         { requesterId: me.id, addresseeId: profileId },
@@ -1325,31 +1360,43 @@ export async function removeConnection(userId: string, profileId: string) {
     },
   });
   if (!count) throw ApiError.notFound('Connection not found');
+  await writeAudit({ actorId: userId, action: 'CommunityConnectionRemoved', entity: `MemberProfile ${profileId}` }, tx);
   return { status: 'none' as const };
+
+  });
 }
 
 export async function joinGroup(userId: string, groupId: string) {
+  return prisma.$transaction(async tx => {
   const me = await loadMemberProfile(userId);
-  const group = await prisma.interestGroup.findUnique({ where: { id: groupId }, select: { id: true } });
+  const group = await tx.interestGroup.findUnique({ where: { id: groupId }, select: { id: true } });
   if (!group) throw ApiError.notFound('Group not found');
 
   // Idempotent: joining a group twice is the same as being in it once.
-  await prisma.interestGroupMember
-    .create({ data: { groupId, profileId: me.id } })
-    .catch(() => undefined);
+  await tx.$queryRaw`SELECT id FROM User WHERE id = ${userId} FOR UPDATE`;
+  if (await tx.interestGroupMember.findFirst({ where: { groupId, profileId: me.id } })) return { joined: true };
+  await tx.interestGroupMember.create({ data: { groupId, profileId: me.id } });
+  await writeAudit({ actorId: userId, action: 'CommunityGroupJoined', entity: `InterestGroup ${groupId}` }, tx);
   return { joined: true };
+
+  });
 }
 
 export async function leaveGroup(userId: string, groupId: string) {
+  return prisma.$transaction(async tx => {
   const me = await loadMemberProfile(userId);
-  const { count } = await prisma.interestGroupMember.deleteMany({ where: { groupId, profileId: me.id } });
+  const { count } = await tx.interestGroupMember.deleteMany({ where: { groupId, profileId: me.id } });
   if (!count) throw ApiError.notFound('You are not a member of this group');
+  await writeAudit({ actorId: userId, action: 'CommunityGroupLeft', entity: `InterestGroup ${groupId}` }, tx);
   return { joined: false };
+
+  });
 }
 
 export async function createDiscussionThread(userId: string, input: { title: string; category?: string }) {
+  return prisma.$transaction(async tx => {
   await loadMemberProfile(userId);
-  const thread = await prisma.discussionThread.create({
+  const thread = await tx.discussionThread.create({
     data: {
       authorId: userId,
       title: input.title.trim(),
@@ -1358,7 +1405,10 @@ export async function createDiscussionThread(userId: string, input: { title: str
       category: input.category?.trim() || DEFAULT_THREAD_CATEGORY,
     },
   });
+  await writeAudit({ actorId: userId, action: 'CommunityThreadCreated', entity: `DiscussionThread ${thread.id}` }, tx);
   return { id: thread.id, title: thread.title, category: thread.category };
+
+  });
 }
 
 export async function threadDetail(userId: string, threadId: string) {
@@ -1392,11 +1442,11 @@ export async function replyToThread(userId: string, threadId: string, body: stri
   const thread = await prisma.discussionThread.findUnique({ where: { id: threadId }, select: { id: true } });
   if (!thread) throw ApiError.notFound('Discussion not found');
 
-  await prisma.$transaction([
-    prisma.discussionReply.create({ data: { threadId, authorId: userId, body: body.trim() } }),
-    // Touched so the thread rises to the top of the list, which orders by it.
-    prisma.discussionThread.update({ where: { id: threadId }, data: { updatedAt: new Date() } }),
-  ]);
+  await prisma.$transaction(async tx => {
+    const reply = await tx.discussionReply.create({ data: { threadId, authorId: userId, body: body.trim() } });
+    await tx.discussionThread.update({ where: { id: threadId }, data: { updatedAt: new Date() } });
+    await writeAudit({ actorId: userId, action: 'CommunityReplyCreated', entity: `DiscussionReply ${reply.id}` }, tx);
+  });
   return threadDetail(userId, threadId);
 }
 
@@ -1470,9 +1520,10 @@ export async function sendDirectMessage(userId: string, peerUserId: string, body
   const peer = await loadDirectPeer(userId, peerUserId);
   const sender = await loadSender(userId);
 
+  await prisma.$transaction(async tx => {
   let conversation = await findDirectConversation(userId, peerUserId);
   if (!conversation) {
-    conversation = await prisma.conversation.create({
+    conversation = await tx.conversation.create({
       data: {
         subject: `${sender.fullName} & ${peer.fullName}`,
         category: 'Community',
@@ -1497,6 +1548,7 @@ export async function sendDirectMessage(userId: string, peerUserId: string, body
     internal: false,
     subject: conversation.subject,
     recipientIds: [peer.id],
+  }, tx);
   });
 
   return directConversation(userId, peerUserId);
@@ -1783,44 +1835,26 @@ export async function adminMemberDetail(id: string) {
  * it just does not write a second history entry.
  */
 export async function reviewMember(id: string, actorId: string, note?: string) {
-  const app = await prisma.membershipApplication.findFirst({
-    where: { OR: [{ id }, { userId: id }, { applicationCode: id }] },
-    include: { user: true },
+  return prisma.$transaction(async tx => {
+    const target = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }, { applicationCode: id }] } });
+    if (!target) throw ApiError.notFound('Member application not found');
+    await tx.$queryRaw`SELECT id FROM MembershipApplication WHERE id = ${target.id} FOR UPDATE`;
+    const app = await tx.membershipApplication.findUniqueOrThrow({ where: { id: target.id } });
+    if (app.status === 'UNDER_REVIEW') return { status: applicationStatusLabel[app.status], changed: false };
+    if (app.status !== 'PENDING') throw new ApiError(409, 'Only a pending application can be moved to review');
+    await tx.membershipApplication.update({ where: { id: app.id }, data: { status: 'UNDER_REVIEW' } });
+    await tx.applicationStatusHistory.create({ data: { applicationId: app.id, fromStatus: app.status, toStatus: 'UNDER_REVIEW', actorId, note } });
+    await writeAudit({ actorId, action: 'MembershipReviewStarted', entity: `MembershipApplication ${app.applicationCode}`, entityId: app.id, changes: { status: { before: app.status, after: 'UNDER_REVIEW' } } }, tx);
+    return { status: applicationStatusLabel.UNDER_REVIEW, changed: true };
   });
-  if (!app) throw ApiError.notFound('Member application not found');
-
-  if (app.status === 'UNDER_REVIEW') {
-    return { status: applicationStatusLabel[app.status], changed: false };
-  }
-  if (app.status !== 'PENDING') {
-    throw new ApiError(409, 'Only a pending application can be moved to review');
-  }
-
-  await prisma.$transaction([
-    prisma.membershipApplication.update({ where: { id: app.id }, data: { status: 'UNDER_REVIEW' } }),
-    prisma.applicationStatusHistory.create({
-      data: { applicationId: app.id, fromStatus: 'PENDING', toStatus: 'UNDER_REVIEW', actorId, note },
-    }),
-    prisma.auditLog.create({
-      data: {
-        actorId,
-        actorLabel: actorId,
-        actorRole: 'ADMIN',
-        action: 'MembershipReviewStarted',
-        entity: `MembershipApplication ${app.applicationCode}`,
-        severity: 'INFO',
-        description: `Review started for ${app.user.fullName}.`,
-      },
-    }),
-  ]);
-
-  return { status: applicationStatusLabel.UNDER_REVIEW, changed: true };
 }
 
 export async function approveMember(id: string, actorId: string, note?: string) {
   const result = await prisma.$transaction(async (tx) => {
-    const app = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }] }, include: { user: true, profile: true } });
-    if (!app) throw ApiError.notFound('Member application not found');
+    const candidate = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }] } });
+    if (!candidate) throw ApiError.notFound('Member application not found');
+    await tx.$queryRaw`SELECT id FROM MembershipApplication WHERE id = ${candidate.id} FOR UPDATE`;
+    const app = await tx.membershipApplication.findUniqueOrThrow({ where: { id: candidate.id }, include: { user: true, profile: true } });
     if (!['PENDING', 'UNDER_REVIEW'].includes(app.status)) throw new ApiError(409, 'Application is not pending review');
     const year = new Date().getFullYear();
     const seq = await tx.memberIdSequence.upsert({
@@ -1835,14 +1869,15 @@ export async function approveMember(id: string, actorId: string, note?: string) 
     await tx.membershipApplication.update({ where: { id: app.id }, data: { status: 'APPROVED', reviewedAt: new Date(), reviewedById: actorId, reviewNotes: note } });
     await tx.applicationStatusHistory.create({ data: { applicationId: app.id, fromStatus: app.status, toStatus: 'APPROVED', actorId, note } });
     await tx.notification.create({ data: { userId: app.userId, title: 'Membership approved', body: `Your member ID is ${memberId}.`, type: 'membership', link: '/dashboard' } });
-    await tx.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'MembershipApproved', entity: `User ${app.userId} / ${memberId}`, severity: 'SUCCESS', description: `Approved membership application for ${app.user.fullName}. Issued ${memberId}.` } });
+    await writeAudit({ actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'MembershipApproved', changes: { status: { before: app.status, after: 'APPROVED' } }, entity: `User ${app.userId} / ${memberId}`, severity: 'SUCCESS', description: `Approved membership application for ${app.user.fullName}. Issued ${memberId}.` }, tx);
+    await writeAudit({ actorId, action: 'MemberIdIssued', entity: `MemberProfile ${app.profileId}`, changes: { memberId: { before: app.profile.memberId, after: memberId } } }, tx);
     return { memberId, applicationId: app.id, email: app.user.email, fullName: app.user.fullName };
   });
 
   // Deliberately outside the transaction: the approval is already committed and
   // a member ID has been issued, so a mail failure must not undo any of it. The
   // outcome is recorded instead, and the admin is offered a retry.
-  const delivery = await deliverApprovalEmail(result);
+  const delivery = await deliverApprovalEmail(result, actorId);
 
   return { issued: true, memberId: result.memberId, ...delivery };
 }
@@ -1854,37 +1889,24 @@ interface ApprovalRecipient {
   fullName: string;
 }
 
-/**
- * Sends the acknowledgement and records the outcome on the application.
- *
- * Never throws: the caller has already approved the member, and losing that
- * because the mail server is down would be far worse than an unsent email.
- */
+/** External email cannot join a database transaction. Persist its outcome and audit atomically. */
 async function deliverApprovalEmail(
-  recipient: ApprovalRecipient,
+  recipient: ApprovalRecipient, actorId: string, resend = false,
 ): Promise<{ emailSent: boolean; emailError?: string }> {
-  try {
-    await sendApprovalEmail(recipient.email, recipient.fullName, recipient.memberId);
-    await prisma.membershipApplication.update({
-      where: { id: recipient.applicationId },
-      data: {
-        approvalEmailSentAt: new Date(),
-        approvalEmailError: null,
-        approvalEmailAttempts: { increment: 1 },
-      },
-    });
-    return { emailSent: true };
-  } catch (error) {
-    const emailError = error instanceof Error ? error.message : String(error);
-    logger.error('Approval email failed', { email: recipient.email, error: emailError });
-    await prisma.membershipApplication
-      .update({
-        where: { id: recipient.applicationId },
-        data: { approvalEmailError: emailError, approvalEmailAttempts: { increment: 1 } },
-      })
-      .catch(() => undefined);
-    return { emailSent: false, emailError };
+  let emailError: string | undefined;
+  try { await sendApprovalEmail(recipient.email, recipient.fullName, recipient.memberId); }
+  catch (error) {
+    emailError = error instanceof Error ? error.message : String(error);
+    logger.error('Approval email failed', { applicationId: recipient.applicationId });
   }
+  await prisma.$transaction(async tx => {
+    await tx.membershipApplication.update({ where: { id: recipient.applicationId }, data: {
+      ...(emailError ? { approvalEmailError: emailError } : { approvalEmailSentAt: new Date(), approvalEmailError: null }),
+      approvalEmailAttempts: { increment: 1 },
+    } });
+    await writeAudit({ actorId, action: resend ? 'MembershipApprovalEmailResent' : 'MembershipApprovalEmailOutcome', entity: `MembershipApplication ${recipient.applicationId}`, outcome: emailError ? 'FAILED' : 'SUCCEEDED', metadata: { channel: 'EMAIL' } }, tx);
+  });
+  return emailError ? { emailSent: false, emailError } : { emailSent: true };
 }
 
 /**
@@ -1910,39 +1932,25 @@ export async function resendApprovalEmail(id: string, actorId: string) {
   }
 
   const delivery = await deliverApprovalEmail({
-    memberId: app.profile.memberId,
-    applicationId: app.id,
-    email: app.user.email,
-    fullName: app.user.fullName,
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      actorId,
-      actorLabel: actorId,
-      actorRole: 'ADMIN',
-      action: 'MembershipApprovalEmailResent',
-      entity: `MembershipApplication ${app.applicationCode}`,
-      severity: delivery.emailSent ? 'SUCCESS' : 'WARNING',
-      description: delivery.emailSent
-        ? `Acknowledgement re-sent to ${app.user.email}.`
-        : `Acknowledgement retry failed for ${app.user.email}: ${delivery.emailError}`,
-    },
-  });
+    memberId: app.profile.memberId, applicationId: app.id, email: app.user.email, fullName: app.user.fullName,
+  }, actorId, true);
 
   return delivery;
 }
 
 export async function rejectMember(id: string, actorId: string, reason: string, note?: string) {
-  const app = await prisma.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }] } });
-  if (!app) throw ApiError.notFound('Member application not found');
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: app.userId }, data: { status: 'REJECTED' } }),
-    prisma.membershipApplication.update({ where: { id: app.id }, data: { status: 'REJECTED', reviewedAt: new Date(), reviewedById: actorId, rejectionReason: reason, reviewNotes: note } }),
-    prisma.applicationStatusHistory.create({ data: { applicationId: app.id, fromStatus: app.status, toStatus: 'REJECTED', actorId, note: reason } }),
-    prisma.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'MembershipRejected', entity: `MembershipApplication ${app.id}`, severity: 'DANGER', description: reason } }),
-  ]);
-  return { status: 'REJECTED', reason };
+  return prisma.$transaction(async tx => {
+    const target = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }] } });
+    if (!target) throw ApiError.notFound('Member application not found');
+    await tx.$queryRaw`SELECT id FROM MembershipApplication WHERE id = ${target.id} FOR UPDATE`;
+    const app = await tx.membershipApplication.findUniqueOrThrow({ where: { id: target.id } });
+    if (app.status === 'REJECTED') return { status: 'REJECTED', reason: app.rejectionReason };
+    await tx.user.update({ where: { id: app.userId }, data: { status: 'REJECTED' } });
+    await tx.membershipApplication.update({ where: { id: app.id }, data: { status: 'REJECTED', reviewedAt: new Date(), reviewedById: actorId, rejectionReason: reason, reviewNotes: note } });
+    await tx.applicationStatusHistory.create({ data: { applicationId: app.id, fromStatus: app.status, toStatus: 'REJECTED', actorId, note: reason } });
+    await writeAudit({ actorId, action: 'MembershipRejected', entity: `MembershipApplication ${app.id}`, changes: { status: { before: app.status, after: 'REJECTED' } } }, tx);
+    return { status: 'REJECTED', reason };
+  });
 }
 
 /** Days a queued project may sit before the review SLA is considered breached. */
@@ -2105,6 +2113,7 @@ export async function adminProjectDetail(id: string) {
 }
 
 export async function transitionProject(id: string, actorId: string, next: ProjectStatus, note?: string) {
+  return prisma.$transaction(async tx => {
   const allowed: Record<ProjectStatus, ProjectStatus[]> = {
     DRAFT: ['SUBMITTED'],
     SUBMITTED: ['UNDER_REVIEW', 'APPROVED', 'REJECTED'],
@@ -2114,7 +2123,7 @@ export async function transitionProject(id: string, actorId: string, next: Proje
     REJECTED: ['ARCHIVED', 'DRAFT'],
     ARCHIVED: [],
   };
-  const project = await prisma.project.findFirst({ where: { id, deletedAt: null } });
+  const project = await tx.project.findFirst({ where: { id, deletedAt: null } });
   if (!project) throw ApiError.notFound('Project not found');
   if (!allowed[project.status].includes(next)) throw new ApiError(409, `Invalid transition from ${project.status} to ${next}`);
 
@@ -2128,17 +2137,17 @@ export async function transitionProject(id: string, actorId: string, next: Proje
   }
 
   const label = projectStatusLabel[next];
-  const writes: Prisma.PrismaPromise<unknown>[] = [
-    prisma.project.update({ where: { id }, data: { status: next, ...(next === 'PUBLISHED' ? { publishedAt: new Date() } : {}) } }),
-    prisma.projectStatusHistory.create({ data: { projectId: id, fromStatus: project.status, toStatus: next, actorId, note: trimmedNote || null } }),
-    prisma.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'ProjectStatusChanged', entity: `Project ${id}`, severity: next === 'REJECTED' ? 'DANGER' : 'SUCCESS', description: trimmedNote || `Project moved to ${next}` } }),
+  const writes: Promise<unknown>[] = [
+    tx.project.update({ where: { id }, data: { status: next, ...(next === 'PUBLISHED' ? { publishedAt: new Date() } : {}) } }),
+    tx.projectStatusHistory.create({ data: { projectId: id, fromStatus: project.status, toStatus: next, actorId, note: trimmedNote || null } }),
+    writeAudit({ actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'ProjectStatusChanged', entity: `Project ${id}`, changes: { status: { before: project.status, after: next } }, severity: next === 'REJECTED' ? 'DANGER' : 'SUCCESS', description: trimmedNote || `Project moved to ${next}` }, tx),
   ];
 
   // Outcomes the owner should hear about. Housekeeping moves (ARCHIVED, or a
   // reopen back to DRAFT) stay silent.
   if (MEMBER_VISIBLE_TRANSITIONS.includes(next)) {
     writes.push(
-      prisma.notification.create({
+      tx.notification.create({
         data: {
           userId: project.ownerId,
           title: `Project ${label.toLowerCase()}`,
@@ -2150,8 +2159,10 @@ export async function transitionProject(id: string, actorId: string, next: Proje
     );
   }
 
-  await prisma.$transaction(writes);
+  await Promise.all(writes);
   return { ok: true, to: label };
+
+  });
 }
 
 /**
@@ -2387,7 +2398,8 @@ export async function adminPublicationDetail(id: string) {
 }
 
 export async function transitionPublication(id: string, actorId: string, next: PublicationStatus, comment?: string) {
-  const pub = await prisma.publication.findUnique({ where: { id } });
+  return prisma.$transaction(async tx => {
+  const pub = await tx.publication.findUnique({ where: { id } });
   if (!pub) throw ApiError.notFound('Publication not found');
   const allowed: Record<PublicationStatus, PublicationStatus[]> = {
     DRAFT: ['SUBMITTED'],
@@ -2411,18 +2423,18 @@ export async function transitionPublication(id: string, actorId: string, next: P
   const label = publicationStatusLabel[next];
   const slug = next === 'PUBLISHED' && !pub.slug ? slugify(pub.title) : pub.slug;
 
-  const writes: Prisma.PrismaPromise<unknown>[] = [
-    prisma.publication.update({ where: { id }, data: { status: next, slug, ...(next === 'APPROVED' ? { approvedAt: new Date() } : {}), ...(next === 'PUBLISHED' ? { publishedAt: new Date() } : {}) } }),
-    prisma.publicationStatusHistory.create({ data: { publicationId: id, fromStatus: pub.status, toStatus: next, actorId, note: note || null } }),
-    prisma.publicationReview.create({ data: { publicationId: id, reviewerId: actorId, decision: next, comment: note || `Moved to ${label}` } }),
-    prisma.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: `Publication${next}`, entity: `Publication ${id}`, severity: next === 'REJECTED' ? 'DANGER' : 'SUCCESS', description: note || `Publication moved to ${label}` } }),
+  const writes: Promise<unknown>[] = [
+    tx.publication.update({ where: { id }, data: { status: next, slug, ...(next === 'APPROVED' ? { approvedAt: new Date() } : {}), ...(next === 'PUBLISHED' ? { publishedAt: new Date() } : {}) } }),
+    tx.publicationStatusHistory.create({ data: { publicationId: id, fromStatus: pub.status, toStatus: next, actorId, note: note || null } }),
+    tx.publicationReview.create({ data: { publicationId: id, reviewerId: actorId, decision: next, comment: note || `Moved to ${label}` } }),
+    writeAudit({ actorId, actorLabel: actorId, actorRole: 'ADMIN', action: `Publication${next}`, entity: `Publication ${id}`, changes: { status: { before: pub.status, after: next } }, severity: next === 'REJECTED' ? 'DANGER' : 'SUCCESS', description: note || `Publication moved to ${label}` }, tx),
   ];
 
   // Editorial outcomes the author should hear about. The moves they make
   // themselves (submitting, resubmitting) are not news to them.
   if (PUBLICATION_AUTHOR_VISIBLE.includes(next)) {
     writes.push(
-      prisma.notification.create({
+      tx.notification.create({
         data: {
           userId: pub.authorId,
           title: `Publication ${label.toLowerCase()}`,
@@ -2434,8 +2446,10 @@ export async function transitionPublication(id: string, actorId: string, next: P
     );
   }
 
-  await prisma.$transaction(writes);
+  await Promise.all(writes);
   return { ok: true, to: label, slug };
+
+  });
 }
 
 export async function adminSupport(req: Request) {
@@ -2598,32 +2612,26 @@ export async function adminInquiries(req: Request) {
 export async function replyInquiry(id: string, actorId: string, text: string) {
   const inquiry = await prisma.contactInquiry.findUnique({ where: { id } });
   if (!inquiry) throw ApiError.notFound('Inquiry not found');
-  await prisma.$transaction([
-    prisma.inquiryReply.create({ data: { inquiryId: id, authorId: actorId, author: 'CRO Office', text } }),
-    prisma.contactInquiry.update({ where: { id }, data: { status: 'RESPONDED' } }),
-    prisma.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'InquiryReplied', entity: `ContactInquiry ${id}`, severity: 'INFO', description: 'Admin replied to inquiry.' } }),
-  ]);
+  await prisma.$transaction(async tx => Promise.all([
+    tx.inquiryReply.create({ data: { inquiryId: id, authorId: actorId, author: 'CRO Office', text } }),
+    tx.contactInquiry.update({ where: { id }, data: { status: 'RESPONDED' } }),
+    writeAudit({ actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'InquiryReplied', changes: { status: { before: inquiry.status, after: 'RESPONDED' } }, entity: `ContactInquiry ${id}`, severity: 'INFO', description: 'Admin replied to inquiry.' }, tx),
+  ]));
   return { ok: true };
 }
 
 export async function changeInquiryStatus(id: string, actorId: string, status: 'CLOSED' | 'SPAM' | 'ASSIGNED', reason?: string) {
   const inquiry = await prisma.contactInquiry.findUnique({ where: { id } });
   if (!inquiry) throw ApiError.notFound('Inquiry not found');
-  await prisma.$transaction([
-    prisma.contactInquiry.update({ where: { id }, data: { status } }),
-    prisma.inquiryStatusHistory.create({ data: { inquiryId: id, fromStatus: inquiry.status, toStatus: status, actorId, reason } }),
-    prisma.auditLog.create({ data: { actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'InquiryStatusChanged', entity: `ContactInquiry ${id}`, severity: status === 'SPAM' ? 'WARNING' : 'INFO', description: reason ?? `Inquiry moved to ${status}` } }),
-  ]);
+  if (inquiry.status === status) return { status };
+  await prisma.$transaction(async tx => Promise.all([
+    tx.contactInquiry.update({ where: { id }, data: { status } }),
+    tx.inquiryStatusHistory.create({ data: { inquiryId: id, fromStatus: inquiry.status, toStatus: status, actorId, reason } }),
+    writeAudit({ actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'InquiryStatusChanged', changes: { status: { before: inquiry.status, after: status } }, entity: `ContactInquiry ${id}`, severity: status === 'SPAM' ? 'WARNING' : 'INFO', description: reason ?? `Inquiry moved to ${status}` }, tx),
+  ]));
   return { status };
 }
 
-
-export async function adminAuditLog(req: Request) {
-  const pagination = parsePage(req);
-  const rows = await prisma.auditLog.findMany({ orderBy: { createdAt: 'desc' }, ...toSkipTake(pagination) });
-  const total = await prisma.auditLog.count();
-  return buildPaginatedResult(rows, total, pagination);
-}
 
 export async function adminReports() {
   return prisma.reportDefinition.findMany({ include: { runs: { orderBy: { createdAt: 'desc' }, take: 1 } } });

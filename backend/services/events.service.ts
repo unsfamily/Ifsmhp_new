@@ -1,3 +1,4 @@
+import { changesBetween, writeAudit } from './audit.service';
 import { randomUUID } from 'node:crypto';
 import { DateTime } from 'luxon';
 import { Prisma } from '@prisma/client';
@@ -81,6 +82,7 @@ export async function saveEvent(actorId: string, raw: unknown, id?: string) {
       const file = await tx.fileObject.findFirst({ where: { id: f.coverFileId, deletedAt: null, uploaderId: actorId, mimeType: { in: ['image/jpeg', 'image/png', 'image/webp'] } } });
       if (!file) throw ApiError.unprocessable('Invalid cover image.', [{ field: 'coverFileId', message: 'Upload a JPEG, PNG or WebP image from this account.' }]);
     }
+    if (old && JSON.stringify(recordInput(old)) === JSON.stringify(f)) return old.id;
     const { speakers, tags, scheduledPublishDate, ...fields } = f;
     const start = f.date && f.timeStart ? localDateTime(f.date, f.timeStart, f.timezone).toJSDate() : null;
     const end = f.date && f.timeEnd ? localDateTime(f.date, f.timeEnd, f.timezone).toJSDate() : null;
@@ -102,6 +104,7 @@ export async function saveEvent(actorId: string, raw: unknown, id?: string) {
     if (speakers.length) await tx.eventSpeaker.createMany({ data: speakers.map((name, sort) => ({ eventId: savedId, name, sort })) });
     if (tags.length) await tx.eventTag.createMany({ data: tags.map(name => ({ eventId: savedId, name })) });
     await reconcileEventJobs(tx, savedId);
+    await writeAudit({ actorId, action: !old ? 'EventCreated' : old.status !== f.status && f.status === 'PUBLISHED' ? 'EventPublished' : 'EventUpdated', entity: `Event ${savedId}`, changes: changesBetween(old, data), metadata: { changedFields: Object.keys(patch) } }, tx);
     return savedId;
   });
   return adminEventDetail(eventId);
@@ -110,7 +113,7 @@ export async function saveEvent(actorId: string, raw: unknown, id?: string) {
 export async function publishEvent(actorId: string, id: string) {
   return saveEvent(actorId, { status: 'PUBLISHED', scheduledPublishDate: '' } satisfies Partial<EventInput>, id);
 }
-export async function cancelEvent(id: string, input: z.infer<typeof cancelBody>) {
+export async function cancelEvent(id: string, input: z.infer<typeof cancelBody>, actorId: string) {
   await prisma.$transaction(async tx => {
     const result = await tx.event.updateMany({ where: { id, deletedAt: null, status: 'PUBLISHED' }, data: { status: 'CANCELLED', featured: false, scheduledPublishAt: null, cancellationReason: input.reason, revision: { increment: 1 } } });
     if (!result.count) {
@@ -120,14 +123,16 @@ export async function cancelEvent(id: string, input: z.infer<typeof cancelBody>)
       throw ApiError.conflict('Only published events can be cancelled.');
     }
     await reconcileEventJobs(tx, id, input.emailAttendees);
+    await writeAudit({ actorId, action: 'EventCancelled', entity: `Event ${id}`, changes: { status: { before: 'PUBLISHED', after: 'CANCELLED' } } }, tx);
   });
   return adminEventDetail(id);
 }
-export async function deleteEvent(id: string) {
+export async function deleteEvent(id: string, actorId: string) {
   await prisma.$transaction(async tx => {
     const result = await tx.event.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date(), featured: false, scheduledPublishAt: null, revision: { increment: 1 } } });
     if (!result.count) throw ApiError.notFound('Event not found');
     await tx.eventJob.updateMany({ where: { eventId: id, status: { not: 'SENT' } }, data: { status: 'CANCELLED', claimToken: null, lockedAt: null } });
+    await writeAudit({ actorId, action: 'EventDeleted', entity: `Event ${id}` }, tx);
   });
   return { deleted: true };
 }

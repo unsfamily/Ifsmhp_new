@@ -24,7 +24,7 @@ function cell(value: unknown): string {
   if (value === null || value === undefined) return '';
   const raw = value instanceof Date ? value.toISOString() : String(value);
   // Neutralise a leading formula trigger before quoting, not after.
-  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  const safe = /^[\s\uFEFF]*[=+\-@]|^[\t\r\n]/.test(raw) ? `'${raw}` : raw;
   return /["\n\r,]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 

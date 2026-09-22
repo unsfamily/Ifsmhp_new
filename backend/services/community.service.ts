@@ -1,3 +1,4 @@
+import { changesBetween, safeChanges } from './audit.service';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
@@ -57,13 +58,14 @@ export async function saveCommunity(actor: Actor, raw: unknown, files: Express.M
   assertAdmin(actor);
   const data = input.communityBody.parse(raw);
   const work = async (db: DB) => {
+    const before = id ? await db.community.findUnique({ where: { id } }) : null;
     const stored = await saveFiles(db, actor, files);
     const assets = Object.fromEntries(files.map((f, i) => [`${f.fieldname}Id`, stored[i]!.id]));
     const community = id ? await db.community.update({ where: { id }, data: { ...data, ...assets } }) : await db.community.create({ data: {
       ...data, ...assets, createdById: actor.id, conversations: { create: { title: 'General' } },
       memberships: { create: { userId: actor.id, role: 'ADMIN', status: 'ACTIVE', joinedAt: new Date() } },
     } });
-    await audit(db, actor, id ? 'Updated' : 'Created', community.id);
+    if (!before || files.length || Object.entries(data).some(([k, v]) => JSON.stringify(before[k as keyof typeof before]) !== JSON.stringify(v))) await audit(db, actor, id ? 'Updated' : 'Created', community.id, safeChanges(changesBetween(before, community)));
     return communityDetail(actor, community.id, true, db);
   };
   try { return id ? await locked(actor, id, 'manage', work) : await prisma.$transaction(work); }
@@ -75,9 +77,10 @@ export async function saveCommunity(actor: Actor, raw: unknown, files: Express.M
 export async function changeCommunity(actor: Actor, id: string, status?: unknown) {
   assertAdmin(actor);
   const next = status === undefined ? undefined : input.communityStatus.parse(status);
-  return locked(actor, id, 'manage', async db => {
+  return locked(actor, id, 'manage', async (db, { community }) => {
+    if (next === community.status) return communityDetail(actor, id, true, db);
     await db.community.update({ where: { id }, data: next ? { status: next } : { deletedAt: new Date() } });
-    await audit(db, actor, next ? 'StatusChanged' : 'Deleted', id, next ? { status: next } : undefined);
+    await audit(db, actor, next ? 'StatusChanged' : 'Deleted', id, next ? { status: { before: community.status, after: next } } : undefined);
     return next ? communityDetail(actor, id, true, db) : null;
   });
 }
@@ -90,7 +93,7 @@ export async function membershipAction(actor: Actor, id: string, action: 'join' 
         const status = community.visibility === 'PUBLIC' ? 'ACTIVE' : 'PENDING';
         const data = { status, role: 'MEMBER' as const, removedAt: null, requestedAt: new Date(), joinedAt: status === 'ACTIVE' ? new Date() : null, reason: null } as const;
         await db.communityMembership.upsert({ where: { communityId_userId: { communityId: id, userId: actor.id } }, create: { communityId: id, userId: actor.id, ...data }, update: data });
-        await audit(db, actor, 'Joined', id, { status });
+        await audit(db, actor, 'Joined', id, { status: { before: membership?.status ?? null, after: status } });
       }
     } else {
       if (!membership || membership.removedAt || membership.status !== (action === 'cancel' ? 'PENDING' : 'ACTIVE')) throw ApiError.notFound('Membership not found');
@@ -154,8 +157,8 @@ export async function changeMember(actor: Actor, id: string, raw: unknown, kind:
       if (body.status === 'PENDING') throw ApiError.unprocessable('Pending status is reserved for join requests.');
       data = { ...body, ...(body.status === 'ACTIVE' ? { joinedAt: target.joinedAt ?? new Date() } : {}) };
     }
-    await db.communityMembership.update({ where: { id }, data });
-    await audit(db, actor, `Membership${kind}`, id, JSON.parse(JSON.stringify(data)) as Prisma.InputJsonValue);
+    const updated = await db.communityMembership.update({ where: { id }, data });
+    if (Object.entries(data).some(([k, v]) => JSON.stringify(target[k as keyof typeof target]) !== JSON.stringify(v))) await audit(db, actor, `Membership${kind}`, id, safeChanges(changesBetween(target, updated)));
     return kind === 'remove' ? null : memberDetail(actor, id, db);
   });
 }

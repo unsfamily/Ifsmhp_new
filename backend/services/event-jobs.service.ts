@@ -1,3 +1,4 @@
+import { writeAudit } from './audit.service';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { DateTime } from 'luxon';
@@ -56,6 +57,7 @@ export async function processEventJobs(now = new Date(), onlyEventId?: string) {
           else if (!e.endsAt || e.endsAt <= now) { status = 'FAILED'; error = 'Publication missed: the event has ended.'; await tx.event.update({ where: { id: e.id }, data: { scheduledPublishAt: null } }); }
           else {
             await tx.event.update({ where: { id: e.id }, data: { status: 'PUBLISHED', scheduledPublishAt: null, revision: { increment: 1 } } });
+            await writeAudit({ action: 'EventScheduledPublished', source: 'Event worker', entity: `Event ${e.id}`, changes: { status: { before: 'DRAFT', after: 'PUBLISHED' } }, deduplicationKey: `event-publish:${job.id}` }, tx);
             // Mark this job first so reconciliation does not cancel its own claim.
             await tx.eventJob.update({ where: { id: job.id }, data: { status: 'SENT', sentAt: now } });
             await reconcileEventJobs(tx, e.id, false, now);
@@ -68,12 +70,16 @@ export async function processEventJobs(now = new Date(), onlyEventId?: string) {
             if (!delivered) { status = 'UNCONFIGURED'; error = 'SMTP is not configured. No email was sent.'; }
           }
         }
+        if (['SENT', 'FAILED', 'CANCELLED'].includes(status)) await writeAudit({ action: 'EventDeliveryOutcome', source: 'Event worker', entity: `Event ${e.id}`, outcome: status === 'SENT' ? 'SUCCEEDED' : 'FAILED', metadata: { jobId: job.id, channel: job.kind, reasonCode: status }, deduplicationKey: `event-delivery:${job.id}:${status}` }, tx);
         await tx.eventJob.updateMany({ where: { id: job.id, claimToken }, data: { status, error, lockedAt: null, claimToken: null, sentAt: status === 'SENT' ? now : null, ...(status === 'UNCONFIGURED' ? { dueAt: new Date(now.getTime() + 60000) } : {}) } });
       }, { timeout: 30000 });
     } catch (err) {
       const attempts = job.attempts + 1;
       const delay = [1, 5, 15, 60][Math.min(attempts - 1, 3)]! * 60000;
-      await prisma.eventJob.updateMany({ where: { id: job.id, claimToken }, data: { status: attempts >= 5 ? 'FAILED' : 'QUEUED', attempts, lockedAt: null, claimToken: null, dueAt: new Date(now.getTime() + delay), error: 'Delivery failed. Check the event worker and SMTP configuration.' } });
+      await prisma.$transaction(async tx => {
+        const updated = await tx.eventJob.updateMany({ where: { id: job.id, claimToken }, data: { status: attempts >= 5 ? 'FAILED' : 'QUEUED', attempts, lockedAt: null, claimToken: null, dueAt: new Date(now.getTime() + delay), error: 'Delivery failed. Check the event worker and SMTP configuration.' } });
+        if (updated.count && attempts >= 5) await writeAudit({ action: 'EventDeliveryOutcome', source: 'Event worker', entity: `Event ${job.eventId}`, outcome: 'FAILED', metadata: { jobId: job.id, channel: job.kind, reasonCode: 'FAILED' }, deduplicationKey: `event-delivery:${job.id}:FAILED` }, tx);
+      });
       logger.error('Event job failed', { jobId: job.id, error: err instanceof Error ? err.message : String(err) });
     }
   }

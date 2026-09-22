@@ -39,7 +39,7 @@ async function complete(id: string, now: Date) {
     const status: AnnouncementStatus = queued ? 'SENDING' : count('FAILED') ? count('SENT') ? 'PARTIAL' : 'FAILED' : count('SENT') ? 'SENT' : 'SUPPRESSED';
     if (row.status === status) return;
     await tx.announcement.update({ where: { id }, data: { status, completedAt: queued ? null : now, sentAt: status === 'SENT' ? now : row.sentAt } });
-    await audit(tx, null, id, 'AnnouncementDeliveryUpdated', `Broadcast outcome: ${status}.`);
+    await audit(tx, null, id, 'AnnouncementDeliveryUpdated', `Broadcast outcome: ${status}.`, { status: { before: row.status, after: status } });
   });
 }
 

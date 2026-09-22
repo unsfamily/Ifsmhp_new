@@ -136,7 +136,8 @@ async function issueSession(
 ) {
   const refreshToken = randomToken(48);
   const expiresAt = addDays(new Date(), remember ? 30 : env.REFRESH_TOKEN_TTL_DAYS);
-  const session = await prisma.session.create({
+  const session = await prisma.$transaction(async tx => {
+  const session = await tx.session.create({
     data: {
       userId: user.id,
       tokenHash: sha256(refreshToken),
@@ -145,7 +146,10 @@ async function issueSession(
       userAgent: req.get('user-agent'),
     },
   });
-  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  await writeAudit({ actorId: user.id, action: 'LoginSucceeded', entity: `User ${user.id}`, metadata: { channel: req.path.includes('otp') ? 'OTP' : 'PASSWORD' } }, tx);
+  return session;
+  });
 
   res.cookie('refreshToken', refreshToken, { ...refreshCookieOptions(), expires: expiresAt });
   return {
@@ -245,20 +249,21 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         data: { uploaderId: user.id },
       });
     }
+  await writeAudit({
+    actorId: user.id,
+    actorLabel: user.email,
+    actorRole: 'APPLICANT',
+    action: 'MembershipApplicationSubmitted',
+    entity: `MembershipApplication ${application.id}`,
+    severity: 'INFO',
+    description: `Membership application ${application.applicationCode} submitted.`,
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent'),
+  }, tx);
+
     return { user, application };
   });
 
-  await writeAudit({
-    actorId: result.user.id,
-    actorLabel: result.user.email,
-    actorRole: 'APPLICANT',
-    action: 'MembershipApplicationSubmitted',
-    entity: `MembershipApplication ${result.application.id}`,
-    severity: 'INFO',
-    description: `Membership application ${result.application.applicationCode} submitted.`,
-    ipAddress: req.ip,
-    userAgent: req.get('user-agent'),
-  });
 
   return {
     user: publicUser(result.user),
@@ -464,9 +469,11 @@ export async function refresh(req: Request, res: Response) {
 export async function logout(req: Request, res: Response) {
   const refreshToken = req.cookies?.refreshToken as string | undefined;
   if (refreshToken) {
-    await prisma.session.updateMany({
-      where: { tokenHash: sha256(refreshToken), revokedAt: null },
-      data: { revokedAt: new Date() },
+    await prisma.$transaction(async tx => {
+      const session = await tx.session.findUnique({ where: { tokenHash: sha256(refreshToken) } });
+      if (!session) return;
+      const revoked = await tx.session.updateMany({ where: { id: session.id, revokedAt: null }, data: { revokedAt: new Date() } });
+      if (revoked.count) await writeAudit({ actorId: session.userId, action: 'Logout', entity: `User ${session.userId}` }, tx);
     });
   }
   res.clearCookie('refreshToken', refreshCookieOptions());
@@ -502,10 +509,13 @@ export async function resetPassword(token: string, password: string) {
   if (!reset || reset.usedAt || reset.expiresAt <= new Date()) {
     throw new ApiError(422, 'Password reset link is invalid or expired');
   }
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: reset.userId }, data: { passwordHash: await hashPassword(password) } }),
-    prisma.passwordResetToken.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
-    prisma.session.updateMany({ where: { userId: reset.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
-  ]);
+  const passwordHash = await hashPassword(password);
+  await prisma.$transaction(async tx => {
+    const consumed = await tx.passwordResetToken.updateMany({ where: { id: reset.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
+    if (!consumed.count) throw ApiError.unprocessable('Password reset link is invalid or expired');
+    await tx.user.update({ where: { id: reset.userId }, data: { passwordHash } });
+    await tx.session.updateMany({ where: { userId: reset.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    await writeAudit({ actorId: reset.userId, action: 'PasswordReset', entity: `User ${reset.userId}`, metadata: { changedFields: ['password'] } }, tx);
+  });
   return { reset: true };
 }

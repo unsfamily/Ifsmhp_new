@@ -1132,8 +1132,24 @@ model AuditLog {
   ipAddress   String?
   userAgent   String?       @db.Text
   createdAt   DateTime      @default(now())
+  eventVersion Int @default(0)
+  actorEmail String?
+  actorMemberId String?
+  source String?
+  module String?
+  entityType String?
+  entityId String?
+  outcome String?
+  requestId String?
+  metadata Json?
+  deduplicationKey String? @unique
   actor       User?         @relation("AuditActor", fields: [actorId], references: [id])
 
+  @@index([createdAt, id])
+  @@index([module, createdAt, id])
+  @@index([actorRole, createdAt, id])
+  @@index([entityType, entityId, createdAt])
+  @@index([requestId])
   @@index([action, createdAt])
   @@index([severity, createdAt])
 }

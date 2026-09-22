@@ -1,3 +1,4 @@
+import { writeAudit } from './audit.service';
 import { Prisma } from '@prisma/client';
 import type { AuthenticatedUser } from '../middleware/auth';
 import { prisma } from '../config/database';
@@ -34,7 +35,8 @@ export async function locked<T>(actor: Actor, communityId: string, mode: 'discov
   });
 }
 export async function audit(db: DB, actor: Actor, action: string, entity: string, changes?: Prisma.InputJsonValue) {
-  await db.auditLog.create({ data: { actorId: actor.id, actorLabel: actor.id, actorRole: actor.role, action: `Community${action}`, entity, description: action, changes } });
+  const entityType = /REPORT|Reported|CONTENT|WARN_MEMBER|SUSPEND_MEMBER|BLOCK_MEMBER/.test(action) ? 'CommunityReport' : action.startsWith('Message') ? 'CommunityMessage' : action.startsWith('Membership') ? 'CommunityMembership' : action.startsWith('Conversation') ? 'CommunityConversation' : 'Community';
+  await writeAudit({ actorId: actor.id, action: `Community${action}`, entity: `${entityType} ${entity}`, changes, metadata: { changedFields: changes && typeof changes === 'object' ? Object.keys(changes) : [] } }, db);
 }
 export async function authorizeCommunityFile(actor: Actor, fileId: string, db: DB = prisma) {
   const asset = await db.community.findFirst({ where: { OR: [{ imageId: fileId }, { bannerId: fileId }], ...(actor.role === 'ADMIN' ? { deletedAt: null } : memberScope) } });

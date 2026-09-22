@@ -1,3 +1,4 @@
+import { writeAudit, changesBetween } from './audit.service';
 import { createHash } from 'node:crypto';
 import type { Announcement, AnnouncementStatus, Prisma } from '@prisma/client';
 import { DateTime } from 'luxon';
@@ -91,8 +92,9 @@ export async function deliveries(id: string, raw: unknown) {
   const [rows, total] = await prisma.$transaction([prisma.announcementDelivery.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...toSkipTake(query), select: { id: true, recipientEmail: true, recipientUserId: true, channel: true, purpose: true, revision: true, status: true, attempts: true, deliveredAt: true, openedAt: true, error: true } }), prisma.announcementDelivery.count({ where })]);
   return buildPaginatedResult(rows, total, query);
 }
-export async function audit(tx: Prisma.TransactionClient, actorId: string | null, id: string, action: string, description: string) {
-  await tx.auditLog.create({ data: { actorId, actorLabel: actorId ?? 'Announcement worker', actorRole: actorId ? 'ADMIN' : 'SYSTEM', action, entity: `Announcement ${id}`, severity: 'INFO', description } });
+export async function audit(tx: Prisma.TransactionClient, actorId: string | null, id: string, action: string, description: string, changes?: unknown) {
+  const afterStatus = (changes as { status?: { after?: string } } | undefined)?.status?.after;
+  await writeAudit({ actorId, outcome: action === 'AnnouncementDeliveryUpdated' && ['FAILED', 'PARTIAL'].includes(afterStatus ?? '') ? 'FAILED' : 'SUCCEEDED', actorLabel: actorId ?? 'Announcement worker', actorRole: actorId ? 'ADMIN' : 'SYSTEM', source: actorId ? undefined : 'Announcement worker', action, entity: `Announcement ${id}`, changes, description }, tx);
 }
 async function mutation(actorId: string, input: { requestId: string; expectedRevision?: number }, operation: string, id: string | undefined, payload: unknown, work: (tx: Prisma.TransactionClient, row: Announcement | null) => Promise<string>) {
   const fingerprint = hash(JSON.stringify({ operation, id, payload }));
@@ -107,7 +109,8 @@ async function mutation(actorId: string, input: { requestId: string; expectedRev
     if (row && row.revision !== input.expectedRevision) throw ApiError.conflict('Announcement changed. Reload it before saving.');
     const announcementId = await work(tx, row);
     await tx.announcementOperation.create({ data: { actorId, requestId: input.requestId, fingerprint, announcementId } });
-    await audit(tx, actorId, announcementId, `Announcement${operation}`, operation === 'SignOff' ? 'Administrator confirmed external SAB approval for the current revision.' : `${operation} recorded.`);
+    const after = await tx.announcement.findUniqueOrThrow({ where: { id: announcementId } });
+    if (!row || JSON.stringify(row) !== JSON.stringify(after) || ['preview', 'retry'].includes(operation)) await audit(tx, actorId, announcementId, `Announcement${operation}`, `${operation} recorded.`, changesBetween(row, after));
     return announcementId;
   }, { timeout: 30000 });
   return detail(result, operation === 'delete');

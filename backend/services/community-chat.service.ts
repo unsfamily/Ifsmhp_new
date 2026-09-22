@@ -1,3 +1,4 @@
+import { changesBetween, safeChanges } from './audit.service';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
@@ -96,19 +97,22 @@ export async function changeMessage(actor: Actor, id: string, raw: unknown, mana
     if ('content' in patch && current.senderId !== actor.id) throw ApiError.forbidden('Only the author can edit message text.');
     const { isRead, ...fields } = patch as { isRead?: boolean; content?: string; isPinned?: boolean; isHidden?: boolean };
     if (isRead !== undefined) {
+      const read = await db.communityMessageRead.findUnique({ where: { messageId_userId: { messageId: id, userId: actor.id } } });
+      if (!!read !== isRead) await audit(db, actor, isRead ? 'MessageRead' : 'MessageUnread', id, { read: { before: !!read, after: isRead } });
       if (isRead) await db.communityMessageRead.upsert({ where: { messageId_userId: { messageId: id, userId: actor.id } }, create: { messageId: id, userId: actor.id }, update: { readAt: new Date() } });
       else await db.communityMessageRead.deleteMany({ where: { messageId: id, userId: actor.id } });
     }
     const message = await db.communityMessage.update({ where: { id }, data: remove ? { deletedAt: new Date(), isPinned: false } : fields, include: messageInclude(actor) });
-    await audit(db, actor, remove ? 'MessageDeleted' : 'MessageUpdated', id, fields);
+    if (remove || Object.entries(fields).some(([k, v]) => current[k as keyof typeof current] !== v)) await audit(db, actor, remove ? 'MessageDeleted' : 'MessageUpdated', id, safeChanges(changesBetween(current, message)));
     return remove ? null : messageDto(message, manage);
   });
 }
 export async function lockConversation(actor: Actor, id: string, isLocked: boolean) {
   const row = await conversationAccess(actor, id, true);
   return locked(actor, row.communityId, 'manage', async db => {
+    const before = await db.communityConversation.findUniqueOrThrow({ where: { id } });
     const result = await db.communityConversation.update({ where: { id }, data: { isLocked }, include: { community: true } });
-    await audit(db, actor, isLocked ? 'ConversationLocked' : 'ConversationUnlocked', id);
+    if (before.isLocked !== isLocked) await audit(db, actor, isLocked ? 'ConversationLocked' : 'ConversationUnlocked', id, { isLocked: { before: before.isLocked, after: isLocked } });
     return conversationDto(actor, result, true, db);
   });
 }

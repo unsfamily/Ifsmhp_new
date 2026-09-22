@@ -153,7 +153,7 @@ export async function updateReport(actor: Actor, id: string, raw: unknown, moder
       }
     }
     await db.communityReport.update({ where: { id }, data: { revision: { increment: 1 }, status, assignedAdminId: actor.id, ...(resolutionNotes !== undefined ? { resolutionNotes } : {}), actionHistory: { create: { actorId: actor.id, action, notes } } } });
-    await audit(db, actor, action, id, { notes });
+    await audit(db, actor, action, id, { status: { before: row.status, after: status }, assignedAdminId: { before: row.assignedAdminId, after: actor.id }, ...(action === 'HIDE_CONTENT' || action === 'RESTORE_CONTENT' ? { isHidden: { before: row.reportedMessage!.isHidden, after: action === 'HIDE_CONTENT' } } : {}) });
     return reportDetail(actor, id, db);
   });
 }

@@ -1,3 +1,4 @@
+import { writeAudit, changesBetween } from './audit.service';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import crypto from 'node:crypto';
@@ -51,8 +52,13 @@ async function mutate<T>(actor: AuthenticatedUser, action: string, entity: strin
     try {
       return await prisma.$transaction(async db => {
         await db.$queryRaw`SELECT id FROM GalleryAlbum ORDER BY id FOR UPDATE`;
+        const category = action.startsWith('Collection') || action === 'Reordered' && !!await db.galleryAlbum.findUnique({ where: { id: entity } });
+        const before = category ? await db.galleryAlbum.findUnique({ where: { id: entity } }) : await db.galleryItem.findUnique({ where: { id: entity } });
         const result = await work(db);
-        await db.auditLog.create({ data: { actorId: actor.id, actorLabel: actor.id, actorRole: actor.role, action: `Gallery${action}`, entity, description: action } });
+        const entityId = result && typeof result === 'object' && 'id' in result ? String(result.id) : entity;
+        const after = category ? await db.galleryAlbum.findUnique({ where: { id: entityId } }) : await db.galleryItem.findUnique({ where: { id: entityId } });
+        const comparable = (row: object | null) => row ? Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'updatedAt')) : null;
+        if (JSON.stringify(comparable(before)) !== JSON.stringify(comparable(after))) await writeAudit({ actorId: actor.id, action: `Gallery${action}`, entity: `${category ? 'GalleryAlbum' : 'GalleryItem'} ${entityId}`, changes: changesBetween(before, after), metadata: { changedFields: Object.keys(after ?? before ?? {}).filter(key => key !== 'updatedAt' && JSON.stringify(before?.[key as keyof typeof before]) !== JSON.stringify(after?.[key as keyof typeof after])) } }, db);
         return result;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 });
     } catch (error) {

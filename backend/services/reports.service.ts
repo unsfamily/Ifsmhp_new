@@ -1,3 +1,4 @@
+import { writeAudit } from './audit.service';
 /**
  * Admin reporting.
  *
@@ -248,19 +249,19 @@ export async function runReport(key: string, range: ReportRange, actorId: string
 
   const run = await prisma.$transaction(async tx => {
     const definition = await tx.reportDefinition.upsert({ where: { key }, create: meta, update: meta });
-    return tx.reportRun.create({
+    const result = await tx.reportRun.create({
       data: { definitionId: definition.id, status: 'Generated', rowsJson: rows as unknown as Prisma.InputJsonValue },
       select: { id: true, createdAt: true, status: true },
     });
-  });
-
-  await prisma.auditLog.create({
-    data: {
+  await writeAudit({
       actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'ReportGenerated',
       entity: `Report ${key}`, severity: 'INFO',
       description: `Generated ${found.title} for ${rangeLabel(range)} (${rows.length} rows).`,
-    },
+    }, tx);
+    return result;
   });
+
+
 
   return { key, runId: run.id, status: run.status, rows: rows.length, lastRun: dayLabel(run.createdAt), nextRun: nextRun(found.cadence, run.createdAt) };
 }

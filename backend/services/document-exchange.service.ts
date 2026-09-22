@@ -1,3 +1,4 @@
+import { writeAudit } from './audit.service';
 import { promises as fs } from 'node:fs';
 import crypto from 'node:crypto';
 import { Prisma } from '@prisma/client';
@@ -134,6 +135,7 @@ export async function send(userId: string, input: ExchangeSend) {
     await tx.conversation.update({ where: { id: conversationId }, data: { updatedAt: message.createdAt } });
     await tx.conversationParticipant.update({ where: { conversationId_userId: { conversationId, userId } }, data: { lastReadAt: message.createdAt } });
     await tx.notification.createMany({ data: admins.map(a => ({ userId: a.id, title: 'Document Exchange', body: `${user.fullName}: ${body.slice(0, 200)}`, type: 'message', link: `/admin/messages/${conversationId}` })) });
+    await writeAudit({ actorId: userId, action: 'DocumentExchangeSent', entity: `Message ${message.id}`, metadata: { channel: input.type, conversationId } }, tx);
     return { conversationId, messageId: message.id, replayed: false };
   }, { timeout: 30000 });
 }

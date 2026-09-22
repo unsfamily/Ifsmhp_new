@@ -1,3 +1,4 @@
+import { writeAudit } from '../../services/audit.service';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { reportDefinitionSeed } from '../../domain/reports';
@@ -342,7 +343,7 @@ async function main(): Promise<void> {
     },
   });
 
-  const conversation = await prisma.conversation.create({
+  await prisma.conversation.create({
     data: {
       subject: 'Publication review question',
       category: 'Publications',
@@ -518,7 +519,7 @@ async function main(): Promise<void> {
     },
   });
 
-  const group = await prisma.interestGroup.create({
+  await prisma.interestGroup.create({
     data: {
       name: 'Digital Mental Health',
       tag: 'digital-health',
@@ -547,13 +548,7 @@ async function main(): Promise<void> {
     ],
   });
 
-  await prisma.auditLog.createMany({
-    data: [
-      { actorId: admin.id, actorLabel: admin.fullName, actorRole: 'ADMIN', action: 'SeedCreated', entity: 'Development database', severity: 'SUCCESS', description: 'Development seed data installed.' },
-      { actorId: member.id, actorLabel: member.fullName, actorRole: 'MEMBER', action: 'ConversationCreated', entity: `Conversation ${conversation.id}`, severity: 'INFO', description: `Seeded group ${group.name} and member conversation.` },
-    ],
-  });
-
+  await writeAudit({ actorId: admin.id, action: 'SeedCreated', source: 'Development seed', entity: 'Development database' }, prisma);
   console.log('[seed] Development data created.');
   console.log('[seed] Admin (password sign-in): admin@ifsmhp.local / ChangeMeNow!2026');
   console.log('[seed] Member (email code): member@ifsmhp.local');

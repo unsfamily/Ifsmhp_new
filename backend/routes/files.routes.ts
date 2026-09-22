@@ -157,6 +157,19 @@ async function validateStoredUpload(
   return { mimeType, checksum };
 }
 
+async function persistUpload(file: Express.Multer.File, mimeType: string, checksum: string, uploaderId?: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PRIVATE') {
+  try {
+    return await prisma.$transaction(async tx => {
+      const record = await tx.fileObject.create({ data: { uploaderId, storageKey: path.basename(file.filename), originalName: file.originalname, mimeType, sizeBytes: file.size, checksum, visibility } });
+      await writeAudit({ actorId: uploaderId, actorRole: uploaderId ? undefined : 'UNAUTHENTICATED', action: 'FileUploaded', entity: `FileObject ${record.id}`, metadata: { fileId: record.id } }, tx);
+      return record;
+    });
+  } catch (error) {
+    await fsp.unlink(file.path).catch(cleanupError => logger.error('Uncommitted file cleanup failed', { code: cleanupError.code }));
+    throw error;
+  }
+}
+
 router.post(
   '/registration',
   parseMulter(registrationUpload.single('file')),
@@ -169,17 +182,7 @@ router.post(
       validateExtension: true,
       maxMb: 10,
     });
-    const record = await prisma.fileObject.create({
-      data: {
-        uploaderId: null,
-        storageKey: path.basename(file.filename),
-        originalName: file.originalname,
-        mimeType,
-        sizeBytes: file.size,
-        checksum,
-        visibility: 'PRIVATE',
-      },
-    });
+    const record = await persistUpload(file, mimeType, checksum);
 
     sendSuccess(
       res,
@@ -206,7 +209,12 @@ router.delete(
       throw ApiError.notFound('Uploaded document not found');
     }
 
-    await prisma.fileObject.update({ where: { id: file.id }, data: { deletedAt: new Date() } });
+    const removed = await prisma.$transaction(async tx => {
+      const removed = await tx.fileObject.updateMany({ where: { id: file.id, deletedAt: null, uploaderId: null }, data: { deletedAt: new Date() } });
+      if (removed.count) await writeAudit({ actorRole: 'UNAUTHENTICATED', action: 'FileUploadRemoved', entity: `FileObject ${file.id}` }, tx);
+      return removed.count > 0;
+    });
+    if (!removed) throw ApiError.notFound('Uploaded document not found');
     await fsp.unlink(assertSafePath(file.storageKey)).catch(() => undefined);
     sendSuccess(res, { removed: true }, 'Registration document removed');
   }),
@@ -226,17 +234,7 @@ router.post(
       allowTextLike: true,
       maxMb: env.MAX_UPLOAD_MB,
     });
-    const record = await prisma.fileObject.create({
-      data: {
-        uploaderId: req.user!.id,
-        storageKey: path.basename(file.filename),
-        originalName: file.originalname,
-        mimeType,
-        sizeBytes: file.size,
-        checksum,
-        visibility: req.body?.visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE',
-      },
-    });
+    const record = await persistUpload(file, mimeType, checksum, req.user!.id, req.body?.visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE');
     sendSuccess(res, { id: record.id, name: record.originalName, mimeType: record.mimeType, sizeBytes: record.sizeBytes }, 'File uploaded', 201);
   }),
 );
@@ -291,22 +289,11 @@ router.get(
     const action = req.query.action ?? 'download';
     if (!['preview', 'download'].includes(String(action))) throw ApiError.unprocessable('Invalid file action');
 
-    if (user.role === 'ADMIN' || file.visibility !== 'PUBLIC') {
-      await writeAudit({
-        actorId: user.id,
-        actorLabel: user.id,
-        actorRole: user.role,
-        action: 'FileDownloaded',
-        entity: `FileObject ${file.id}`,
-        severity: 'INFO',
-        description: `Downloaded ${file.originalName}`,
-      });
-    }
-
     const absolute = assertSafePath(file.storageKey);
     await fsp.access(absolute, fs.constants.R_OK).catch(() => {
       throw ApiError.notFound('File not found');
     });
+    if (req.method === 'GET' && (user.role === 'ADMIN' || file.visibility !== 'PUBLIC')) await writeAudit({ actorId: user.id, action: file.credentials.length ? 'CredentialAccessGranted' : 'FileAccessGranted', entity: `FileObject ${file.id}`, outcome: 'ACCESS_GRANTED', metadata: { fileId: file.id } });
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
     if (req.method === 'GET' && context && context.message.conversation.kind === 'CRO' && !context.message.internal && context.message.senderId !== user.id) {
