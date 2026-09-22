@@ -351,6 +351,7 @@ model FileObject {
   communityImages    Community[] @relation("CommunityImage")
   communityBanners   Community[] @relation("CommunityBanner")
   communityAttachments CommunityAttachment[]
+  communityEvidence CommunityReportEvidence[]
   eventCovers        Event[]                    @relation("EventCover")
   galleryItems       GalleryItem[]
   inquiryAttachments ContactInquiryAttachment[]
@@ -1282,6 +1283,11 @@ model CommunityReport {
   reportedMember CommunityMembership? @relation(fields: [reportedMemberId], references: [id], onDelete: SetNull)
   reportedMessage CommunityMessage? @relation(fields: [reportedMessageId], references: [id], onDelete: SetNull)
   assignedAdmin User? @relation("CommunityAssignee", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  revision Int @default(0)
+  evidence Json?
+  evidenceFiles CommunityReportEvidence[]
+  submissions CommunityReportSubmission[]
+  operations CommunityReportOperation[]
   actionHistory CommunityModerationAction[]
   @@index([communityId, status, createdAt])
   @@index([reporterId, reportedMessageId])
@@ -1297,4 +1303,37 @@ model CommunityModerationAction {
   report CommunityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   actor User @relation(fields: [actorId], references: [id])
   @@index([reportId, createdAt])
+}
+
+// File references outlive edits/deletion of the original message.
+model CommunityReportEvidence {
+  reportId String
+  attachmentId String
+  fileId String
+  report CommunityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  file FileObject @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  @@id([reportId, attachmentId])
+  @@index([fileId])
+}
+
+model CommunityReportSubmission {
+  reporterId String
+  submissionId String
+  reportId String
+  requestHash String
+  created Boolean
+  createdAt DateTime @default(now())
+  report CommunityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  @@id([reporterId, submissionId])
+  @@index([reportId])
+}
+
+model CommunityReportOperation {
+  reportId String
+  operationId String
+  actorId String
+  requestHash String
+  createdAt DateTime @default(now())
+  report CommunityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  @@id([reportId, operationId])
 }

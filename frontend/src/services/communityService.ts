@@ -1,5 +1,5 @@
 import { apiClient } from '../api/client';
-import type { CommunityCapabilities, CommunityUploadPolicy, Community, CommunityConversation, CommunityMember, CommunityMessage, PaginatedCommunityResult, QueryParams } from '../types/community';
+import type { ReportReceipt, CommunityCapabilities, CommunityUploadPolicy, Community, CommunityConversation, CommunityMember, CommunityMessage, PaginatedCommunityResult, QueryParams } from '../types/community';
 
 interface Envelope<T> { success: true; data: T; }
 const data = <T>(response: { data: Envelope<T> }) => response.data.data;
@@ -19,6 +19,6 @@ export const communityService = {
   async sendMessage(conversationId: string, content: string, replyToId?: string, attachments: File[] = []) { const body = new FormData(); body.append('content', content); if (replyToId) body.append('replyToId', replyToId); attachments.forEach((file) => body.append('attachments', file)); return data(await apiClient.post<Envelope<CommunityMessage>>(`/community/conversations/${conversationId}/messages`, body, { headers: { 'Content-Type': 'multipart/form-data' } })); },
   async updateMessage(id: string, content: string) { return data(await apiClient.patch<Envelope<CommunityMessage>>(`/community/messages/${id}`, { content })); },
   async deleteMessage(id: string) { return data(await apiClient.delete<Envelope<null>>(`/community/messages/${id}`)); },
-  async reportMessage(id: string, reason: string, notes?: string) { return data(await apiClient.post<Envelope<null>>(`/community/messages/${id}/report`, { reason, notes })); },
-  async reportMember(id: string, communityId: string, reason: string, notes?: string) { return data(await apiClient.post<Envelope<null>>(`/community/members/${id}/report`, { communityId, reason, notes })); },
+  async reportMessage(id: string, reason: string, submissionId: string, notes?: string) { return data(await apiClient.post<Envelope<ReportReceipt>>(`/community/messages/${id}/report`, { reason, notes, submissionId })); },
+  async reportMember(id: string, communityId: string, reason: string, submissionId: string, notes?: string) { return data(await apiClient.post<Envelope<ReportReceipt>>(`/community/members/${id}/report`, { communityId, reason, notes, submissionId })); },
 };

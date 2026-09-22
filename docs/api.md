@@ -118,3 +118,22 @@ Files are never served statically. Private file access is allowed to admins, upl
 ## Gallery management
 
 Collection/photo CRUD, uploads, publication controls, ordering and image routes are documented in [Media Gallery Management](gallery-management.md). Existing gallery listing routes retain their response shapes.
+
+
+## Routed Community reports and moderation
+
+These endpoints are separate from the legacy `/members/me/community` discussion APIs. All paths below use `/api/v1`; authenticated administrators and assigned community moderators can review reports, while submission requires active community access.
+
+| Method | Path | Contract |
+| --- | --- | --- |
+| POST | `/community/messages/:id/report` | Message, reply, and attachment report; `submissionId` UUID, `reason`, optional `notes` |
+| POST | `/community/members/:id/report` | Member report; same fields plus `communityId` |
+| GET | `/admin/community/reports` | Paginated reports; `search`, `status`, `communityId`, `dateFrom`, `page`, `limit` |
+| GET | `/admin/community/reports/:id` | Current content, original evidence, revision, target version, eligible actions, and history |
+| PATCH | `/admin/community/reports/:id` | `status`, optional `resolutionNotes` (required for closure), and decision preconditions |
+| POST | `/admin/community/reports/:id/actions` | `action`, required `notes`, and decision preconditions |
+| GET | `/admin/community/reports/:id/evidence/:attachmentId` | Reviewer-only retained attachment download; authorization is checked on every request |
+
+Submission returns `{ reportId, status, created, duplicate }`. Reusing an identical submission UUID returns the original receipt; another UUID for the same active reporter/target returns a duplicate receipt. Decision preconditions are `operationId` UUID, `expectedRevision` integer, and `expectedTargetVersion` from the reviewed report. Exact operation retries do not repeat effects; stale versions or conflicting ID reuse return 409, and missing/invalid fields return 422.
+
+Enforcement starts review without closing. Resolve/Dismiss explicitly close; `REOPEN_REPORT` explicitly reopens and clears resolution notes. Legacy reports have null original evidence. See [Community workflow](community-workflow.md#reporting-and-moderation) for eligibility, evidence retention/access, request examples, migration, coordinated deployment, and verification results.

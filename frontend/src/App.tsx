@@ -127,6 +127,7 @@ export default function App() {
         </Route>
 
         <Route path="admin/community" element={<RequireCommunityManager><AdminLayout /></RequireCommunityManager>}>
+          <Route index element={<RequireAuth role="ADMIN"><AdminCommunityDashboard /></RequireAuth>} />
           <Route path="members" element={<AdminCommunityMembersPage />} />
           <Route path="chats" element={<AdminCommunityChatsPage />} />
           <Route path="moderation" element={<AdminCommunityModerationPage />} />
@@ -142,7 +143,6 @@ export default function App() {
           <Route path="publications" element={<AdminPublicationsPage />} />
           <Route path="publications/:id" element={<AdminPublicationDetailPage />} />
           <Route path="gallery" element={<AdminGalleryPage />} />
-          <Route path="community" element={<AdminCommunityDashboard />} />
           <Route path="community/communities" element={<AdminCommunitiesPage />} />
 
           <Route path="support" element={<AdminSupportPage />} />

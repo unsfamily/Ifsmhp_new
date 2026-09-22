@@ -17,13 +17,14 @@ export function useCommunityResource<T>(key: string | null, loader: () => Promis
   const generation = useRef(0);
   const mounted = useRef(true);
   const [state, setState] = useState<{ identity: string; data: T | null; loading: boolean; error: string | null }>({ identity, data: null, loading: key !== null, error: null });
-  const refresh = useCallback((silent = true): Promise<T | undefined> => {
+  const refresh = useCallback((silent = true, force = false): Promise<T | undefined> => {
     if (key === null) return Promise.resolve(undefined);
-    if (flight.current?.identity === identity) return flight.current.promise;
+    if (!force && flight.current?.identity === identity) return flight.current.promise;
     const version = ++generation.current;
     if (!silent) setState(s => ({ ...s, identity, loading: true, error: null }));
     const promise = read.current().then(data => {
-      if (mounted.current && current.current === identity && generation.current === version) setState({ identity, data, loading: false, error: null });
+      if (!mounted.current || current.current !== identity || generation.current !== version) return undefined;
+      setState({ identity, data, loading: false, error: null });
       return data;
     }).catch(error => {
       if (mounted.current && current.current === identity && generation.current === version) setState(s => ({ identity, data: accessLost(error) ? null : s.identity === identity ? s.data : null, loading: false, error: normalizeError(error).message }));
@@ -37,7 +38,7 @@ export function useCommunityResource<T>(key: string | null, loader: () => Promis
     setState({ identity, data: null, loading: key !== null, error: null });
     void refresh(false);
     const update = () => { if (!document.hidden) void refresh(); };
-    const changed = () => { const pending = flight.current?.promise; if (pending) void pending.finally(update); else update(); };
+    const changed = () => { void refresh(true, true); };
     const timer = window.setInterval(update, interval);
     window.addEventListener('focus', update); window.addEventListener('online', update); window.addEventListener(COMMUNITY_CHANGED, changed); document.addEventListener('visibilitychange', update);
     return () => { window.clearInterval(timer); window.removeEventListener('focus', update); window.removeEventListener('online', update); window.removeEventListener(COMMUNITY_CHANGED, changed); document.removeEventListener('visibilitychange', update); };
@@ -60,7 +61,7 @@ export function useCommunityFeed<T extends { id: string }>(key: string | null, l
     if (moreBusy.current || !resource.data || resource.data.loaded >= resource.data.pages) return;
     moreBusy.current = true;
     pages.current++;
-    await resource.refresh();
+    await resource.refresh(true, true);
     moreBusy.current = false;
   };
   return { ...resource, items: resource.data?.items ?? [], hasMore: !!resource.data && resource.data.loaded < resource.data.pages, loadMore };

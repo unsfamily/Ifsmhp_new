@@ -28,6 +28,7 @@ export default function CommunityPage() {
   const [reply, setReply] = useState<CommunityMessage | null>(null); const [editing, setEditing] = useState<CommunityMessage | null>(null); const [editText, setEditText] = useState(''); const [deleting, setDeleting] = useState<CommunityMessage | null>(null);
   const [reporting, setReporting] = useState<{ kind: 'message' | 'member'; id: string } | null>(null); const [reportReason, setReportReason] = useState('');
   const [reportError, setReportError] = useState(''); const reportLock = useRef(false); const reportVersion = useRef(0);
+  const submission = useRef<{ key: string; id: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; error?: boolean } | null>(null); const [mobileView, setMobileView] = useState<'list' | 'community' | 'chat'>('list');
   const list = useCommunityFeed(JSON.stringify(['member-communities', search, visibility, mine]), page => mine ? communityService.getMyCommunities({ page, search, visibility, limit: 50 }) : communityService.getCommunities({ page, search, visibility, limit: 50 }));
   const detail = useCommunityResource(selectedId ? `member-community:${selectedId}` : null, () => communityService.getCommunity(selectedId!), 8000);
@@ -80,10 +81,13 @@ export default function CommunityPage() {
     reportLock.current = true; setBusy(true); setReportError('');
     const version = reportVersion.current;
     try {
-      if (reporting.kind === 'message') await communityService.reportMessage(reporting.id, reportReason);
-      else await communityService.reportMember(reporting.id, selected.id, reportReason);
+      const key = JSON.stringify([version, reporting, selected.id, reportReason.trim()]);
+      if (submission.current?.key !== key) submission.current = { key, id: crypto.randomUUID() };
+      const receipt = reporting.kind === 'message'
+        ? await communityService.reportMessage(reporting.id, reportReason, submission.current.id)
+        : await communityService.reportMember(reporting.id, selected.id, reportReason, submission.current.id);
       if (version !== reportVersion.current) return;
-      closeReport(); communityChanged(); notify('Report submitted for review.');
+      closeReport(); communityChanged(); notify(receipt.created ? 'Report submitted for review.' : 'You have already reported this content. Your report is awaiting review.');
     } catch (failure) {
       if (version !== reportVersion.current) return;
       const problem = normalizeError(failure);

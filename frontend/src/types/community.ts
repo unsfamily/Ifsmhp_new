@@ -3,7 +3,7 @@ export type CommunityStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 export type MembershipStatus = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'BLOCKED';
 export type CommunityRole = 'MEMBER' | 'MODERATOR' | 'ADMIN';
 export type ReportStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'DISMISSED';
-export type ModerationAction = 'HIDE_CONTENT' | 'RESTORE_CONTENT' | 'WARN_MEMBER' | 'SUSPEND_MEMBER' | 'BLOCK_MEMBER' | 'RESOLVE_REPORT' | 'DISMISS_REPORT';
+export type ModerationAction = 'HIDE_CONTENT' | 'RESTORE_CONTENT' | 'WARN_MEMBER' | 'SUSPEND_MEMBER' | 'BLOCK_MEMBER' | 'RESOLVE_REPORT' | 'DISMISS_REPORT' | 'REOPEN_REPORT';
 
 export interface Community {
   id: string; name: string; slug: string; description: string; category: string;
@@ -41,11 +41,20 @@ export interface MessageAttachment {
   id: string; fileName: string; fileUrl: string; fileType: string; fileSize?: number;
 }
 
+export interface ReportPreconditions { operationId: string; expectedRevision: number; expectedTargetVersion: string; }
+export interface ReportReceipt { reportId: string; status: ReportStatus; created: boolean; duplicate: boolean; }
+export interface ReportEvidence {
+  kind: 'message' | 'member'; capturedAt: string;
+  message: { id: string; content: string; author: { id: string; fullName: string }; conversation: { id: string; title: string }; replyToId: string | null; createdAt: string; updatedAt: string } | null;
+  member: { id: string; user: { id: string; fullName: string; role: string }; status: MembershipStatus; role: CommunityRole; joinedAt: string | null; removedAt: string | null } | null;
+  attachments: Omit<MessageAttachment, 'fileUrl'>[];
+}
 export interface CommunityReport {
   id: string; communityId: string; communityName: string; reporterId: string;
-  reporterName: string; reportedMemberId?: string; reportedMemberName?: string;
+  reporterName: string; targetMemberState?: string; reportedMemberId?: string; reportedMemberName?: string;
   reportedMessage?: CommunityMessage; reason: string; notes?: string;
   status: ReportStatus; assignedAdminName?: string; resolutionNotes?: string;
+  revision: number; targetVersion: string; evidence: ReportEvidence | null;
   availableActions: ModerationAction[];
   createdAt: string; updatedAt: string;
   actionHistory?: ModerationHistoryItem[];

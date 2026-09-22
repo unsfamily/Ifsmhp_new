@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import { assertSafePath } from '../utils/fileStorage';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth';
@@ -54,6 +56,18 @@ communityAdminRoutes.patch('/conversations/:id', endpoint(req => chat.lockConver
 communityAdminRoutes.patch('/messages/:id', endpoint(req => chat.changeMessage(req.user!, req.params.id!, req.body, true)));
 communityAdminRoutes.delete('/messages/:id', endpoint(req => chat.changeMessage(req.user!, req.params.id!, {}, true, true)));
 communityAdminRoutes.get('/reports', endpoint(req => moderation.reports(req.user!, req.query)));
+communityAdminRoutes.get('/reports/:id/evidence/:attachmentId', asyncHandler(async (req, res) => {
+  const file = await moderation.evidenceFile(req.user!, req.params.id!, req.params.attachmentId!);
+  const path = assertSafePath(file.storageKey);
+  await fs.promises.access(path, fs.constants.R_OK).catch(() => { throw ApiError.notFound('Evidence file not found'); });
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Content-Type', file.mimeType);
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
+  const stream = fs.createReadStream(path);
+  stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); stream.pipe(res);
+}));
 communityAdminRoutes.get('/reports/:id', endpoint(req => moderation.reportDetail(req.user!, req.params.id!)));
 communityAdminRoutes.patch('/reports/:id', endpoint(req => moderation.updateReport(req.user!, req.params.id!, req.body)));
 communityAdminRoutes.post('/reports/:id/actions', endpoint(req => moderation.updateReport(req.user!, req.params.id!, req.body, true)));

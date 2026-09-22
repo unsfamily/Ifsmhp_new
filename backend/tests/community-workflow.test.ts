@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
@@ -18,6 +19,13 @@ const actors: Actor[] = [];
 let id: string, conversationId: string;
 const payload = { name: 'Clinical Network', slug: `${prefix}-clinical`, description: 'Research and collaboration', category: 'Clinical', visibility: 'PUBLIC', status: 'ACTIVE' };
 const as = (actor: Actor, method: 'get' | 'post' | 'patch' | 'delete', url: string) => request(app)[method](`${root}${url}`).set('Authorization', `Bearer ${actor.token}`);
+// Existing lifecycle cases use fresh preconditions; conflict/retry cases below send explicit versions.
+const decisionAs = (who: Actor, method: 'post' | 'patch', url: string) => ({
+  async send(body: Record<string, unknown>) {
+    const report = (await as(admin, 'get', url.replace(/\/actions$/, ''))).body.data;
+    return as(who, method, url).send({ operationId: randomUUID(), expectedRevision: report.revision, expectedTargetVersion: report.targetVersion, ...body });
+  },
+});
 async function actor(name: string, role: 'ADMIN' | 'MEMBER' | 'APPLICANT' = 'MEMBER', status: 'ACTIVE' | 'SUSPENDED' = 'ACTIVE') {
   const user = await prisma.user.create({ data: { fullName: name, email: `${prefix}-${name}@example.test`, role, status } });
   if (role === 'MEMBER') await prisma.memberProfile.create({ data: { userId: user.id, institution: 'Test institute', professionalType: 'Scientist' } });
@@ -196,119 +204,124 @@ describe('Messages, moderation and protected files', () => {
   });
   it('records reports, history, warnings and membership moderation', async () => {
     const message = (await send()).body.data;
-    expect((await as(bob, 'post', `/community/messages/${message.id}/report`).send({ reason: 'Needs review' })).status).toBe(201);
-    await as(bob, 'post', `/community/messages/${message.id}/report`).send({ reason: 'Needs review' });
+    expect((await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Needs review' })).status).toBe(201);
+    await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Needs review' });
     const listed = (await as(moderator, 'get', '/admin/community/reports?search=Needs%20review')).body.data.items;
     expect(listed.length).toBe(1); const report = listed[0];
-    expect((await as(moderator, 'patch', `/admin/community/reports/${report.id}`).send({ status: 'UNDER_REVIEW' })).body.data.assignedAdminName).toBe('moderator');
+    expect((await decisionAs(moderator, 'patch', `/admin/community/reports/${report.id}`).send({ status: 'UNDER_REVIEW' })).body.data.assignedAdminName).toBe('moderator');
     for (const action of ['HIDE_CONTENT', 'RESTORE_CONTENT', 'WARN_MEMBER', 'SUSPEND_MEMBER', 'BLOCK_MEMBER', 'RESOLVE_REPORT']) {
-      const result = await as(moderator, 'post', `/admin/community/reports/${report.id}/actions`).send({ action, notes: 'Documented decision' });
+      const result = await decisionAs(moderator, 'post', `/admin/community/reports/${report.id}/actions`).send({ action, notes: 'Documented decision' });
       expect(result.status, JSON.stringify(result.body)).toBe(200);
     }
     const detail = (await as(moderator, 'get', `/admin/community/reports/${report.id}`)).body.data;
     expect(detail.status).toBe('RESOLVED'); expect(detail.actionHistory.length).toBe(7);
     expect(await prisma.notification.count({ where: { userId: alice.id, type: 'community' } })).toBeGreaterThan(0);
-    expect((await as(moderator, 'patch', `/admin/community/reports/${report.id}`).send({ status: 'DISMISSED' })).status).toBe(422);
-    expect((await as(moderator, 'patch', `/admin/community/reports/${report.id}`).send({ status: 'DISMISSED', resolutionNotes: 'Closed' })).status).toBe(200);
+    expect((await decisionAs(moderator, 'patch', `/admin/community/reports/${report.id}`).send({ status: 'DISMISSED' })).status).toBe(422);
+    expect((await decisionAs(moderator, 'patch', `/admin/community/reports/${report.id}`).send({ status: 'DISMISSED', resolutionNotes: 'Closed' })).status).toBe(200);
   });
   it('supports member reports and rejects mismatched communities', async () => {
     const mid = await memberId(alice);
-    expect((await as(bob, 'post', `/community/members/${mid}/report`).send({ communityId: 'wrong', reason: 'Review' })).status).toBe(404);
-    expect((await as(bob, 'post', `/community/members/${mid}/report`).send({ communityId: id, reason: 'Review' })).status).toBe(201);
+    expect((await as(bob, 'post', `/community/members/${mid}/report`).send({ submissionId: randomUUID(), communityId: 'wrong', reason: 'Review' })).status).toBe(404);
+    expect((await as(bob, 'post', `/community/members/${mid}/report`).send({ submissionId: randomUUID(), communityId: id, reason: 'Review' })).status).toBe(201);
   });
   it('reports administrator messages without creating a membership and deduplicates concurrently', async () => {
     const author = await actor('second-administrator', 'ADMIN');
     const sent = await as(author, 'post', `/admin/community/conversations/${conversationId}/messages`).send({ content: 'Administrator announcement' });
     expect(sent.status).toBe(201);
     const messageId = sent.body.data.id;
-    const responses = await Promise.all([1, 2].map(() => as(bob, 'post', `/community/messages/${messageId}/report`).send({ reason: 'Review administrator message' })));
+    const responses = await Promise.all([1, 2].map(() => as(bob, 'post', `/community/messages/${messageId}/report`).send({ submissionId: randomUUID(), reason: 'Review administrator message' })));
     expect(responses.map(r => r.status)).toEqual([201, 201]);
     const rows = (await as(admin, 'get', '/admin/community/reports?search=second-administrator')).body.data.items;
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ reportedMemberName: 'second-administrator', reportedMessage: { id: messageId }, availableActions: ['HIDE_CONTENT', 'RESOLVE_REPORT', 'DISMISS_REPORT'] });
     expect(rows[0].reportedMemberId).toBeUndefined();
     expect(await prisma.communityMembership.count({ where: { communityId: id, userId: author.id } })).toBe(0);
-    expect((await as(author, 'post', `/community/messages/${messageId}/report`).send({ reason: 'Own message' })).status).toBe(422);
-    expect((await as(admin, 'post', `/admin/community/reports/${rows[0].id}/actions`).send({ action: 'WARN_MEMBER', notes: 'Unavailable' })).status).toBe(409);
+    expect((await as(author, 'post', `/community/messages/${messageId}/report`).send({ submissionId: randomUUID(), reason: 'Own message' })).status).toBe(422);
+    expect((await decisionAs(admin, 'post', `/admin/community/reports/${rows[0].id}/actions`).send({ action: 'WARN_MEMBER', notes: 'Unavailable' })).status).toBe(409);
   });
   it('accepts direct member reports only for visible directory members', async () => {
     const mid = await memberId(alice);
     for (const status of ['PENDING', 'REJECTED', 'SUSPENDED', 'BLOCKED'] as const) {
       await prisma.communityMembership.update({ where: { id: mid }, data: { status } });
-      expect((await as(bob, 'post', `/community/members/${mid}/report`).send({ communityId: id, reason: 'Invisible member' })).status).toBe(404);
+      expect((await as(bob, 'post', `/community/members/${mid}/report`).send({ submissionId: randomUUID(), communityId: id, reason: 'Invisible member' })).status).toBe(404);
     }
     await prisma.communityMembership.update({ where: { id: mid }, data: { status: 'ACTIVE', removedAt: new Date() } });
-    expect((await as(bob, 'post', `/community/members/${mid}/report`).send({ communityId: id, reason: 'Removed member' })).status).toBe(404);
+    expect((await as(bob, 'post', `/community/members/${mid}/report`).send({ submissionId: randomUUID(), communityId: id, reason: 'Removed member' })).status).toBe(404);
     const inactiveMembership = await prisma.communityMembership.create({ data: { communityId: id, userId: inactive.id, status: 'ACTIVE' } });
-    expect((await as(bob, 'post', `/community/members/${inactiveMembership.id}/report`).send({ communityId: id, reason: 'Inactive account' })).status).toBe(404);
+    expect((await as(bob, 'post', `/community/members/${inactiveMembership.id}/report`).send({ submissionId: randomUUID(), communityId: id, reason: 'Inactive account' })).status).toBe(404);
     expect(await prisma.communityReport.count({ where: { communityId: id } })).toBe(0);
   });
   it('keeps historical messages reportable after their authors leave', async () => {
     const message = (await send()).body.data;
     await as(alice, 'delete', `/community/communities/${id}/membership`);
-    expect((await as(bob, 'post', `/community/messages/${message.id}/report`).send({ reason: 'Historical message' })).status).toBe(201);
+    expect((await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Historical message' })).status).toBe(201);
     const report = (await as(admin, 'get', '/admin/community/reports?search=Historical')).body.data.items[0];
     expect(report.reportedMemberName).toBe('alice');
     expect(report.availableActions).toEqual(['HIDE_CONTENT', 'RESOLVE_REPORT', 'DISMISS_REPORT']);
-    expect((await as(admin, 'post', `/admin/community/reports/${report.id}/actions`).send({ action: 'HIDE_CONTENT', notes: 'Hidden after departure' })).status).toBe(200);
+    expect((await decisionAs(admin, 'post', `/admin/community/reports/${report.id}/actions`).send({ action: 'HIDE_CONTENT', notes: 'Hidden after departure' })).status).toBe(200);
   });
   it('offers and enforces actions for the current actor and target', async () => {
     const mid = await memberId(alice);
-    await as(bob, 'post', `/community/members/${mid}/report`).send({ communityId: id, reason: 'Member eligibility' });
+    await as(bob, 'post', `/community/members/${mid}/report`).send({ submissionId: randomUUID(), communityId: id, reason: 'Member eligibility' });
     const report = (await as(admin, 'get', '/admin/community/reports?search=Member%20eligibility')).body.data.items[0];
     expect(report.availableActions).toEqual(['WARN_MEMBER', 'SUSPEND_MEMBER', 'BLOCK_MEMBER', 'RESOLVE_REPORT', 'DISMISS_REPORT']);
-    expect((await as(admin, 'post', `/admin/community/reports/${report.id}/actions`).send({ action: 'HIDE_CONTENT', notes: 'No message' })).status).toBe(409);
+    expect((await decisionAs(admin, 'post', `/admin/community/reports/${report.id}/actions`).send({ action: 'HIDE_CONTENT', notes: 'No message' })).status).toBe(409);
     await as(admin, 'patch', `/admin/community/members/${mid}/role`).send({ role: 'MODERATOR' });
     expect((await as(moderator, 'get', `/admin/community/reports/${report.id}`)).body.data.availableActions).toEqual(['RESOLVE_REPORT', 'DISMISS_REPORT']);
-    expect((await as(moderator, 'post', `/admin/community/reports/${report.id}/actions`).send({ action: 'BLOCK_MEMBER', notes: 'Protected target' })).status).toBe(409);
+    expect((await decisionAs(moderator, 'post', `/admin/community/reports/${report.id}/actions`).send({ action: 'BLOCK_MEMBER', notes: 'Protected target' })).status).toBe(409);
     expect((await as(alice, 'get', `/admin/community/reports/${report.id}`)).body.data.availableActions).toEqual(['RESOLVE_REPORT', 'DISMISS_REPORT']);
     expect((await as(admin, 'get', `/admin/community/reports/${report.id}`)).body.data.availableActions).toContain('BLOCK_MEMBER');
     expect(await prisma.communityModerationAction.count({ where: { reportId: report.id } })).toBe(0);
     await as(admin, 'patch', `/admin/community/members/${await memberId(moderator)}/role`).send({ role: 'MEMBER' });
     expect((await as(moderator, 'get', `/admin/community/reports/${report.id}`)).status).toBe(403);
-    expect((await as(moderator, 'post', `/admin/community/reports/${report.id}/actions`).send({ action: 'RESOLVE_REPORT', notes: 'Revoked' })).status).toBe(403);
+    expect((await decisionAs(moderator, 'post', `/admin/community/reports/${report.id}/actions`).send({ action: 'RESOLVE_REPORT', notes: 'Revoked' })).status).toBe(403);
   });
   it('starts review once and preserves the reviewer across duplicate requests', async () => {
     const message = (await send()).body.data;
-    await as(bob, 'post', `/community/messages/${message.id}/report`).send({ reason: 'Review once' });
+    await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Review once' });
     const report = await prisma.communityReport.findFirstOrThrow({ where: { reportedMessageId: message.id } });
     const url = `/admin/community/reports/${report.id}`;
-    const responses = await Promise.all([1, 2].map(() => as(moderator, 'patch', url).send({ status: 'UNDER_REVIEW' })));
+    const current = (await as(moderator, 'get', url)).body.data;
+    const body = { status: 'UNDER_REVIEW', operationId: randomUUID(), expectedRevision: current.revision, expectedTargetVersion: current.targetVersion };
+    const responses = await Promise.all([1, 2].map(() => as(moderator, 'patch', url).send(body)));
     expect(responses.map(r => r.status)).toEqual([200, 200]);
-    const duplicate = (await as(admin, 'patch', url).send({ status: 'UNDER_REVIEW' })).body.data;
+    const duplicate = (await decisionAs(admin, 'patch', url).send({ status: 'UNDER_REVIEW' })).body.data;
     expect(duplicate.assignedAdminName).toBe('moderator'); expect(duplicate.actionHistory).toHaveLength(1);
     expect(await prisma.auditLog.count({ where: { entity: report.id, action: 'CommunityREPORT_UNDER_REVIEW' } })).toBe(1);
   });
   it('allows documented corrections on closed reports and clears stale resolution notes on reopening', async () => {
     const message = (await send()).body.data;
-    await as(bob, 'post', `/community/messages/${message.id}/report`).send({ reason: 'Correctable report' });
+    await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Correctable report' });
     const report = await prisma.communityReport.findFirstOrThrow({ where: { reportedMessageId: message.id } });
     const url = `/admin/community/reports/${report.id}`;
-    await as(admin, 'patch', url).send({ status: 'RESOLVED', resolutionNotes: 'Original resolution' });
-    const corrected = (await as(moderator, 'post', `${url}/actions`).send({ action: 'HIDE_CONTENT', notes: 'Correction after closing' })).body.data;
+    await decisionAs(admin, 'patch', url).send({ status: 'RESOLVED', resolutionNotes: 'Original resolution' });
+    const corrected = (await decisionAs(moderator, 'post', `${url}/actions`).send({ action: 'HIDE_CONTENT', notes: 'Correction after closing' })).body.data;
     expect(corrected).toMatchObject({ status: 'RESOLVED', resolutionNotes: 'Original resolution', assignedAdminName: 'moderator' });
     expect(corrected.availableActions).toContain('RESTORE_CONTENT'); expect(corrected.availableActions).not.toContain('HIDE_CONTENT');
-    expect((await as(admin, 'post', `${url}/actions`).send({ action: 'HIDE_CONTENT', notes: 'Stale modal' })).status).toBe(409);
-    const opened = (await as(admin, 'patch', url).send({ status: 'OPEN' })).body.data;
+    expect((await decisionAs(admin, 'post', `${url}/actions`).send({ action: 'HIDE_CONTENT', notes: 'Stale modal' })).status).toBe(409);
+    const opened = (await decisionAs(admin, 'patch', url).send({ status: 'OPEN' })).body.data;
     expect(opened.resolutionNotes).toBeUndefined(); expect(opened.actionHistory.at(-1).notes).toBe('Report reopened.');
-    await as(admin, 'post', `${url}/actions`).send({ action: 'DISMISS_REPORT', notes: 'Dismissed with notes' });
-    const reviewed = (await as(moderator, 'patch', url).send({ status: 'UNDER_REVIEW' })).body.data;
+    await decisionAs(admin, 'post', `${url}/actions`).send({ action: 'DISMISS_REPORT', notes: 'Dismissed with notes' });
+    expect((await decisionAs(moderator, 'patch', url).send({ status: 'UNDER_REVIEW' })).status).toBe(409);
+    await decisionAs(moderator, 'post', `${url}/actions`).send({ action: 'REOPEN_REPORT', notes: 'Reopen explicitly' });
+    const reviewed = (await decisionAs(moderator, 'patch', url).send({ status: 'UNDER_REVIEW' })).body.data;
     expect(reviewed.resolutionNotes).toBeUndefined(); expect(reviewed.actionHistory.at(-1).notes).toBe('Review started.');
     expect((await prisma.communityReport.findUniqueOrThrow({ where: { id: report.id } })).resolutionNotes).toBeNull();
   });
   it('rolls back target changes, notifications and history when audit persistence fails', async () => {
     const message = (await send()).body.data;
-    await as(bob, 'post', `/community/messages/${message.id}/report`).send({ reason: 'Atomic moderation' });
+    await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Atomic moderation' });
     const report = await prisma.communityReport.findFirstOrThrow({ where: { reportedMessageId: message.id } });
     const notifications = await prisma.notification.count({ where: { userId: alice.id } });
     for (const action of ['HIDE_CONTENT', 'WARN_MEMBER', 'SUSPEND_MEMBER', 'RESOLVE_REPORT']) {
       const failingAudit = vi.spyOn(communityAccess, 'audit').mockRejectedValueOnce(new Error('Injected audit failure'));
-      try { expect((await as(admin, 'post', `/admin/community/reports/${report.id}/actions`).send({ action, notes: 'Should roll back' })).status).toBe(500); }
+      try { expect((await decisionAs(admin, 'post', `/admin/community/reports/${report.id}/actions`).send({ action, notes: 'Should roll back' })).status).toBe(500); }
       finally { failingAudit.mockRestore(); }
       expect((await prisma.communityMessage.findUniqueOrThrow({ where: { id: message.id } })).isHidden).toBe(false);
       expect((await prisma.communityMembership.findUniqueOrThrow({ where: { id: await memberId(alice) } })).status).toBe('ACTIVE');
       expect(await prisma.notification.count({ where: { userId: alice.id } })).toBe(notifications);
       expect(await prisma.communityModerationAction.count({ where: { reportId: report.id } })).toBe(0);
+      expect(await prisma.communityReportOperation.count({ where: { reportId: report.id } })).toBe(0);
       expect(await prisma.communityReport.findUniqueOrThrow({ where: { id: report.id } })).toMatchObject({ status: 'OPEN', assignedAdminId: null, resolutionNotes: null });
     }
   });
@@ -319,7 +332,7 @@ describe('Messages, moderation and protected files', () => {
     const second = (await as(admin, 'get', url)).body.data;
     expect(second.pagination).toMatchObject({ page: 2, pages: 2, total: 12 });
     expect(second.items).toHaveLength(2);
-    for (const report of second.items) await as(admin, 'patch', `/admin/community/reports/${report.id}`).send({ status: 'RESOLVED', resolutionNotes: 'Cleared filtered page' });
+    for (const report of second.items) await decisionAs(admin, 'patch', `/admin/community/reports/${report.id}`).send({ status: 'RESOLVED', resolutionNotes: 'Cleared filtered page' });
     const clamped = (await as(admin, 'get', url)).body.data;
     expect(clamped.pagination).toMatchObject({ page: 1, pages: 1, total: 10 }); expect(clamped.items).toHaveLength(10);
     expect((await as(admin, 'get', `/admin/community/reports?communityId=${id}&status=RESOLVED`)).body.data.pagination.total).toBe(2);
@@ -329,20 +342,132 @@ describe('Messages, moderation and protected files', () => {
   it('returns safe report tombstones and revokes attachment access after deletion', async () => {
     const uploaded = await as(alice, 'post', `/community/conversations/${conversationId}/messages`).field('content', 'Reported attachment').attach('attachments', Buffer.from('Report evidence'), { filename: 'evidence.txt', contentType: 'text/plain' });
     const message = uploaded.body.data;
-    await as(bob, 'post', `/community/messages/${message.id}/report`).send({ reason: 'Attachment review' });
+    await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Attachment review' });
     const report = await prisma.communityReport.findFirstOrThrow({ where: { reportedMessageId: message.id } });
     const url = `/admin/community/reports/${report.id}`;
-    const hidden = (await as(moderator, 'post', `${url}/actions`).send({ action: 'HIDE_CONTENT', notes: 'Review attachment' })).body.data;
+    const hidden = (await decisionAs(moderator, 'post', `${url}/actions`).send({ action: 'HIDE_CONTENT', notes: 'Review attachment' })).body.data;
     expect(hidden.reportedMessage.attachments).toHaveLength(1);
     expect((await as(bob, 'get', message.attachments[0].fileUrl)).status).toBe(404);
     expect((await as(moderator, 'get', message.attachments[0].fileUrl)).status).toBe(200);
-    expect((await as(bob, 'post', `/community/messages/${message.id}/report`).send({ reason: 'Hidden content' })).status).toBe(404);
+    expect((await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Hidden content' })).status).toBe(404);
     await as(admin, 'delete', `/admin/community/messages/${message.id}`);
     for (const data of [(await as(admin, 'get', url)).body.data, (await as(admin, 'get', '/admin/community/reports?search=Attachment%20review')).body.data.items[0]]) {
       expect(data.reportedMessage).toMatchObject({ isDeleted: true, content: '', attachments: [] });
       expect(data.availableActions).not.toContain('RESTORE_CONTENT'); expect(data.availableActions).not.toContain('HIDE_CONTENT');
     }
     expect((await as(admin, 'get', message.attachments[0].fileUrl)).status).toBe(404);
+  });
+  it('preserves immutable reply evidence and retained files through edits and deletion', async () => {
+    const parent = (await send(alice, 'Parent message')).body.data;
+    const uploaded = await as(alice, 'post', `/community/conversations/${conversationId}/messages`).field('content', 'Original reply').field('replyToId', parent.id).attach('attachments', Buffer.from('Immutable bytes'), { filename: 'original.txt', contentType: 'text/plain' });
+    const message = uploaded.body.data;
+    const submitted = await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Reply evidence' });
+    const url = `/admin/community/reports/${submitted.body.data.reportId}`;
+    const original = (await as(admin, 'get', url)).body.data;
+    expect(original.evidence.message).toMatchObject({ content: 'Original reply', replyToId: parent.id, author: { id: alice.id }, conversation: { id: conversationId } });
+    await as(alice, 'patch', `/community/messages/${message.id}`).send({ content: 'Edited reply' });
+    const edited = (await as(admin, 'get', url)).body.data;
+    expect(edited.evidence).toEqual(original.evidence); expect(edited.reportedMessage.content).toBe('Edited reply');
+    expect(edited.targetVersion).not.toBe(original.targetVersion);
+    await as(alice, 'delete', `/community/messages/${message.id}`);
+    const attachmentId = original.evidence.attachments[0].id;
+    const evidenceUrl = `${url}/evidence/${attachmentId}`;
+    expect((await as(moderator, 'get', evidenceUrl)).text).toBe('Immutable bytes');
+    expect((await as(admin, 'get', evidenceUrl)).headers['cache-control']).toBe('private, no-store');
+    expect((await request(app).get(`${root}${evidenceUrl}`)).status).toBe(401);
+    for (const who of [alice, bob, outsider]) expect((await as(who, 'get', evidenceUrl)).status).toBe(403);
+    expect((await as(admin, 'get', message.attachments[0].fileUrl)).status).toBe(404);
+    expect((await as(admin, 'get', url)).body.data.evidence).toEqual(original.evidence);
+    const other = (await as(admin, 'post', '/admin/community/communities').send({ ...payload, slug: `${prefix}-other-evidence` })).body.data;
+    await join(outsider, other.id);
+    const otherMembership = await prisma.communityMembership.findUniqueOrThrow({ where: { communityId_userId: { communityId: other.id, userId: outsider.id } } });
+    await as(admin, 'patch', `/admin/community/members/${otherMembership.id}/role`).send({ role: 'MODERATOR' });
+    expect((await as(outsider, 'get', evidenceUrl)).status).toBe(404);
+    // Even a hard deletion of the message cannot release retained evidence bytes.
+    await prisma.communityMessage.delete({ where: { id: message.id } });
+    const reference = await prisma.communityReportEvidence.findFirstOrThrow({ where: { reportId: original.id } });
+    await expect(prisma.fileObject.delete({ where: { id: reference.fileId } })).rejects.toThrow();
+    expect((await as(admin, 'get', evidenceUrl)).text).toBe('Immutable bytes');
+    await as(admin, 'patch', `/admin/community/members/${await memberId(moderator)}/role`).send({ role: 'MEMBER' });
+    expect((await as(moderator, 'get', evidenceUrl)).status).toBe(403);
+  });
+  it('returns stable submission receipts after closure and rejects reused keys with different input', async () => {
+    const message = (await send()).body.data;
+    const url = `/community/messages/${message.id}/report`;
+    const body = { submissionId: randomUUID(), reason: 'Reliable submission' };
+    const created = (await as(bob, 'post', url).send(body)).body.data;
+    expect(created).toMatchObject({ created: true, duplicate: false, status: 'OPEN' });
+    expect((await as(bob, 'post', url).send(body)).body.data).toEqual(created);
+    const duplicateBody = { ...body, submissionId: randomUUID() };
+    expect((await as(bob, 'post', url).send(duplicateBody)).body.data).toMatchObject({ reportId: created.reportId, created: false, duplicate: true });
+    await decisionAs(admin, 'post', `/admin/community/reports/${created.reportId}/actions`).send({ action: 'RESOLVE_REPORT', notes: 'Closed' });
+    await as(admin, 'delete', `/admin/community/messages/${message.id}`);
+    expect((await as(bob, 'post', url).send(body)).body.data).toMatchObject({ reportId: created.reportId, status: 'RESOLVED', created: true });
+    expect((await as(bob, 'post', url).send(duplicateBody)).body.data).toMatchObject({ reportId: created.reportId, created: false });
+    expect((await as(bob, 'post', url).send({ ...body, reason: 'Changed input' })).status).toBe(409);
+    expect(await prisma.communityReport.count({ where: { reportedMessageId: message.id } })).toBe(1);
+  });
+  it('checks mutation preconditions and serializes concurrent reviewers without duplicate warnings', async () => {
+    const message = (await send()).body.data;
+    const created = (await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Concurrent review' })).body.data;
+    const url = `/admin/community/reports/${created.reportId}`;
+    const report = (await as(admin, 'get', url)).body.data;
+    const body = { action: 'WARN_MEMBER', notes: 'One warning', operationId: randomUUID(), expectedRevision: report.revision, expectedTargetVersion: report.targetVersion };
+    const before = await prisma.notification.count({ where: { userId: alice.id } });
+    const responses = await Promise.all([as(admin, 'post', `${url}/actions`).send(body), as(moderator, 'post', `${url}/actions`).send({ ...body, operationId: randomUUID() })]);
+    expect(responses.map(r => r.status).sort()).toEqual([200, 409]);
+    const winner = responses[0].status === 200 ? admin : moderator;
+    // The first operation is retried only if it won; otherwise use its own conflict to prove it didn't run.
+    if (winner === admin) {
+      expect((await as(admin, 'post', `${url}/actions`).send(body)).status).toBe(200);
+      expect((await as(admin, 'post', `${url}/actions`).send({ ...body, notes: 'Changed warning' })).status).toBe(409);
+    }
+    expect(await prisma.notification.count({ where: { userId: alice.id } })).toBe(before + 1);
+    const current = (await as(admin, 'get', url)).body.data;
+    expect(current).toMatchObject({ status: 'UNDER_REVIEW', revision: 1 }); expect(current.actionHistory).toHaveLength(1);
+    expect((await as(admin, 'post', `${url}/actions`).send({ action: 'WARN_MEMBER', notes: 'Missing preconditions' })).status).toBe(422);
+    expect((await as(bob, 'post', `/community/messages/${message.id}/report`).send({ reason: 'Missing submission ID' })).status).toBe(422);
+  });
+  it('replays identical warnings safely and rejects changes to content or membership after review', async () => {
+    const message = (await send()).body.data;
+    const created = (await as(bob, 'post', `/community/messages/${message.id}/report`).send({ submissionId: randomUUID(), reason: 'Target versions' })).body.data;
+    const url = `/admin/community/reports/${created.reportId}`;
+    const report = (await as(admin, 'get', url)).body.data;
+    const body = { action: 'WARN_MEMBER', notes: 'Exactly once', operationId: randomUUID(), expectedRevision: report.revision, expectedTargetVersion: report.targetVersion };
+    const before = await prisma.notification.count({ where: { userId: alice.id } });
+    const retries = await Promise.all([1, 2, 3].map(() => as(admin, 'post', `${url}/actions`).send(body)));
+    expect(retries.map(r => r.status)).toEqual([200, 200, 200]);
+    expect(await prisma.notification.count({ where: { userId: alice.id } })).toBe(before + 1);
+    const current = (await as(admin, 'get', url)).body.data;
+    await as(alice, 'patch', `/community/messages/${message.id}`).send({ content: 'Changed after review' });
+    expect((await as(admin, 'post', `${url}/actions`).send({ ...body, operationId: randomUUID(), expectedRevision: current.revision, expectedTargetVersion: current.targetVersion })).status).toBe(409);
+    const edited = (await as(admin, 'get', url)).body.data;
+    await as(admin, 'patch', `/admin/community/members/${await memberId(alice)}/status`).send({ status: 'BLOCKED', reason: 'Membership action' });
+    expect((await as(admin, 'post', `${url}/actions`).send({ ...body, action: 'SUSPEND_MEMBER', operationId: randomUUID(), expectedRevision: edited.revision, expectedTargetVersion: edited.targetVersion })).status).toBe(409);
+    const blocked = (await as(admin, 'get', url)).body.data;
+    expect(blocked.availableActions).not.toContain('SUSPEND_MEMBER'); expect(blocked.availableActions).not.toContain('BLOCK_MEMBER');
+    expect((await decisionAs(admin, 'post', `${url}/actions`).send({ action: 'SUSPEND_MEMBER', notes: 'Never downgrade block' })).status).toBe(409);
+    expect((await prisma.communityMembership.findUniqueOrThrow({ where: { id: await memberId(alice) } })).status).toBe('BLOCKED');
+  });
+  it('rolls back new evidence and submission receipts when creation fails', async () => {
+    const message = (await send()).body.data;
+    const body = { submissionId: randomUUID(), reason: 'Atomic evidence creation' };
+    const failingAudit = vi.spyOn(communityAccess, 'audit').mockRejectedValueOnce(new Error('Injected report audit failure'));
+    try { expect((await as(bob, 'post', `/community/messages/${message.id}/report`).send(body)).status).toBe(500); }
+    finally { failingAudit.mockRestore(); }
+    expect(await prisma.communityReport.count({ where: { reportedMessageId: message.id } })).toBe(0);
+    expect(await prisma.communityReportSubmission.count({ where: { submissionId: body.submissionId } })).toBe(0);
+    expect((await as(bob, 'post', `/community/messages/${message.id}/report`).send(body)).body.data.created).toBe(true);
+  });
+  it('leaves legacy evidence unavailable and captures member identity only at submission', async () => {
+    const legacy = await prisma.communityReport.create({ data: { communityId: id, reporterId: bob.id, reason: 'Legacy report' } });
+    expect((await as(admin, 'get', `/admin/community/reports/${legacy.id}`)).body.data.evidence).toBeNull();
+    const receipt = (await as(bob, 'post', `/community/members/${await memberId(alice)}/report`).send({ submissionId: randomUUID(), communityId: id, reason: 'Member snapshot' })).body.data;
+    const url = `/admin/community/reports/${receipt.reportId}`;
+    const original = (await as(admin, 'get', url)).body.data.evidence;
+    expect(original).toMatchObject({ kind: 'member', message: null, member: { user: { id: alice.id, fullName: 'alice' }, status: 'ACTIVE', role: 'MEMBER' } });
+    await decisionAs(admin, 'post', `${url}/actions`).send({ action: 'BLOCK_MEMBER', notes: 'Restrict member' });
+    expect((await as(admin, 'get', url)).body.data.evidence).toEqual(original);
   });
   it('validates uploaded bytes and revokes file access even for uploaders', async () => {
     const upload = await as(alice, 'post', `/community/conversations/${conversationId}/messages`).field('content', 'Attached PDF').attach('attachments', Buffer.from('%PDF-1.7\nExample'), { filename: 'example.pdf', contentType: 'application/pdf' });

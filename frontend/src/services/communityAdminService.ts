@@ -1,7 +1,7 @@
 import { apiClient } from '../api/client';
 import type {
   CommunityOptions, Community, CommunityConversation, CommunityDashboardData, CommunityMember,
-  CommunityMessage, CommunityPayload, CommunityReport, CommunityRole, ModerationAction,
+  ReportPreconditions, CommunityMessage, CommunityPayload, CommunityReport, CommunityRole, ModerationAction,
   CommunityStatus, MembershipStatus, PaginatedCommunityResult, QueryParams,
 } from '../types/community';
 
@@ -48,6 +48,6 @@ export const communityAdminService = {
 
   async getReports(params: QueryParams = {}) { return data(await apiClient.get<Envelope<PaginatedCommunityResult<CommunityReport>>>('/admin/community/reports', { params })); },
   async getReport(id: string) { return data(await apiClient.get<Envelope<CommunityReport>>(`/admin/community/reports/${id}`)); },
-  async updateReport(id: string, payload: { status?: CommunityReport['status']; resolutionNotes?: string }) { return data(await apiClient.patch<Envelope<CommunityReport>>(`/admin/community/reports/${id}`, payload)); },
-  async createModerationAction(reportId: string, payload: { action: ModerationAction; notes: string }) { return data(await apiClient.post<Envelope<CommunityReport>>(`/admin/community/reports/${reportId}/actions`, payload)); },
+  async updateReport(id: string, payload: ReportPreconditions & { status: CommunityReport['status']; resolutionNotes?: string }) { return data(await apiClient.patch<Envelope<CommunityReport>>(`/admin/community/reports/${id}`, payload)); },
+  async createModerationAction(reportId: string, payload: ReportPreconditions & { action: ModerationAction; notes: string }) { return data(await apiClient.post<Envelope<CommunityReport>>(`/admin/community/reports/${reportId}/actions`, payload)); },
 };

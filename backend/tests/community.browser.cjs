@@ -22,6 +22,11 @@ async function actor(name, role = 'MEMBER') {
   return { ...user, token: signAccessToken({ sub: user.id, sessionId: session.id, role }) };
 }
 async function api(actor, url, method = 'GET', body) {
+  if (body && /\/community\/(messages|members)\/[^/]+\/report$/.test(url)) body = { submissionId: crypto.randomUUID(), ...body };
+  if (body && /\/admin\/community\/reports\/[^/]+(?:\/actions)?$/.test(url) && method !== 'GET' && !body.operationId) {
+    const report = await api(actor, url.replace(/\/actions$/, ''));
+    body = { operationId: crypto.randomUUID(), expectedRevision: report.revision, expectedTargetVersion: report.targetVersion, ...body };
+  }
   const response = await fetch(`${base}${url}`, { method, headers: { Authorization: `Bearer ${actor.token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const result = await response.json(); assert.ok(response.ok, JSON.stringify(result)); return result.data;
 }
@@ -195,8 +200,9 @@ async function run() {
   await adminPage.getByLabel('Notes / reason').fill('Preserve stale action notes');
   await api(admin, `/admin/community/reports/${reviewedReport.id}/actions`, 'POST', { action: 'HIDE_CONTENT', notes: 'Hidden in another session' });
   await adminPage.getByRole('button', { name: 'Apply action' }).click();
-  await adminPage.getByRole('alert').filter({ hasText: 'no longer available' }).waitFor();
+  await adminPage.getByRole('alert').filter({ hasText: 'changed. Review the latest state' }).waitFor();
   assert.equal(await adminPage.getByLabel('Notes / reason').inputValue(), 'Preserve stale action notes');
+  await adminPage.getByRole('button', { name: 'Review latest report', exact: true }).click();
   await adminPage.getByLabel('Action', { exact: true }).locator('option[value="RESTORE_CONTENT"]').waitFor({ state: 'attached' });
   assert.equal(await adminPage.getByLabel('Action', { exact: true }).inputValue(), '');
   assert.ok(await adminPage.getByRole('button', { name: 'Apply action' }).isDisabled());
@@ -208,13 +214,16 @@ async function run() {
   await adminPage.getByRole('button', { name: 'Refresh', exact: true }).click();
   const attachmentRow = adminPage.getByRole('row').filter({ hasText: 'Attachment evidence' });
   await attachmentRow.getByRole('button', { name: 'View report' }).click();
-  const evidenceDownload = adminPage.waitForEvent('download'); await adminPage.getByRole('dialog').getByRole('link', { name: 'research.pdf' }).click();
+  const evidenceDownload = adminPage.waitForEvent('download'); await adminPage.getByRole('region', { name: 'Original evidence' }).getByRole('link', { name: 'research.pdf' }).click();
   assert.equal((await evidenceDownload).suggestedFilename(), 'research.pdf');
   await screenshot(adminPage, 'moderation-attachment-details');
   const evidence = (await api(admin, '/admin/community/reports?search=Attachment%20evidence')).items[0];
   await api(admin, `/admin/community/messages/${evidence.reportedMessage.id}`, 'DELETE');
   await adminPage.getByRole('dialog').getByText('This message was deleted.', { exact: true }).waitFor();
-  assert.equal(await adminPage.getByRole('dialog').getByRole('link', { name: 'research.pdf' }).count(), 0);
+  assert.equal(await adminPage.getByRole('dialog').getByRole('link', { name: 'research.pdf' }).count(), 1);
+  const retainedDownload = adminPage.waitForEvent('download'); await adminPage.getByRole('region', { name: 'Original evidence' }).getByRole('link', { name: 'research.pdf' }).click();
+  assert.equal((await retainedDownload).suggestedFilename(), 'research.pdf');
+  await screenshot(adminPage, 'moderation-retained-evidence');
   await adminPage.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
   await attachmentRow.getByText('This message was deleted.', { exact: true }).waitFor();
   const mobileModeration = await pageFor(admin, true); await mobileModeration.goto(`${site}/admin/community/moderation`);

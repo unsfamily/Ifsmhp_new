@@ -119,7 +119,7 @@ export async function reorder(actor: AuthenticatedUser, kind: 'categories' | 'ph
 }
 // A tombstone is a durable cleanup queue; the retry script can resume unlinking
 // after a process crash. Shared legacy files are retained until unreferenced.
-const unreferenced = { galleryItems: { none: {} }, credentials: { none: {} }, projectFiles: { none: {} }, publicationFiles: { none: {} }, messageAttachments: { none: {} }, eventCovers: { none: {} }, inquiryAttachments: { none: {} }, communityImages: { none: {} }, communityBanners: { none: {} }, communityAttachments: { none: {} } } satisfies Prisma.FileObjectWhereInput;
+const unreferenced = { communityEvidence: { none: {} }, galleryItems: { none: {} }, credentials: { none: {} }, projectFiles: { none: {} }, publicationFiles: { none: {} }, messageAttachments: { none: {} }, eventCovers: { none: {} }, inquiryAttachments: { none: {} }, communityImages: { none: {} }, communityBanners: { none: {} }, communityAttachments: { none: {} } } satisfies Prisma.FileObjectWhereInput;
 export async function purgeGalleryFiles() {
   const files = await prisma.fileObject.findMany({ where: { galleryManaged: true, deletedAt: { not: null }, purgedAt: null, ...unreferenced } });
   for (const file of files) {

@@ -17,14 +17,15 @@ export const memberRoleBody = z.object({ role: z.enum(['MEMBER', 'MODERATOR']) }
 export const reasonBody = z.object({ reason: text(2000) }).strict();
 export const messageBody = z.object({ content: text(10000), replyToId: text(191).optional() }).strict();
 export const messagePatch = z.object({ content: text(10000).optional(), isPinned: z.boolean().optional(), isHidden: z.boolean().optional(), isRead: z.boolean().optional() }).strict().refine(v => Object.keys(v).length > 0, 'Choose an update.');
-export const reportBody = z.object({ reason: text(191), notes: text(5000).optional(), communityId: text(191).optional() }).strict();
-export const reportPatch = z.object({ status: reportStatus, resolutionNotes: text(5000).optional() }).strict().refine(
+export const reportBody = z.object({ submissionId: z.string().uuid(), reason: text(191), notes: text(5000).optional(), communityId: text(191).optional() }).strict();
+const decision = { operationId: z.string().uuid(), expectedRevision: z.number().int().nonnegative(), expectedTargetVersion: z.string().regex(/^[a-f0-9]{64}$/) };
+export const reportPatch = z.object({ ...decision, status: reportStatus, resolutionNotes: text(5000).optional() }).strict().refine(
   v => !['RESOLVED', 'DISMISSED'].includes(v.status) || !!v.resolutionNotes,
   { path: ['resolutionNotes'], message: 'Resolution notes are required.' },
 );
-export const moderationAction = z.enum(['HIDE_CONTENT', 'RESTORE_CONTENT', 'WARN_MEMBER', 'SUSPEND_MEMBER', 'BLOCK_MEMBER', 'RESOLVE_REPORT', 'DISMISS_REPORT']);
+export const moderationAction = z.enum(['HIDE_CONTENT', 'RESTORE_CONTENT', 'WARN_MEMBER', 'SUSPEND_MEMBER', 'BLOCK_MEMBER', 'RESOLVE_REPORT', 'DISMISS_REPORT', 'REOPEN_REPORT']);
 export type ModerationAction = z.infer<typeof moderationAction>;
-export const moderationBody = z.object({ action: moderationAction, notes: text(5000) }).strict();
+export const moderationBody = z.object({ ...decision, action: moderationAction, notes: text(5000) }).strict();
 const optionalFilter = <T extends z.ZodTypeAny>(schema: T) => z.preprocess(v => v === '' ? undefined : v, schema.optional());
 export const communityQuery = paginationQuerySchema.extend({
   search: z.string().trim().max(220).default(''),
