@@ -342,43 +342,6 @@ async function main(): Promise<void> {
     },
   });
 
-  const album = await prisma.galleryAlbum.create({
-    data: {
-      key: 'field-work',
-      label: 'Field Work',
-      coverGradient: 'from-forum-700 to-slateteal-500',
-      banners: {
-        create: {
-          eyebrow: 'IFSMHP Gallery',
-          title: 'Field Work',
-          lead: 'Development-only gallery records for public and member views.',
-          tagline: 'Community research in practice',
-          promptSubject: 'Mental health professionals collaborating in a workshop setting.',
-        },
-      },
-    },
-  });
-
-  await prisma.galleryItem.create({
-    data: {
-      albumId: album.id,
-      type: 'image',
-      title: 'Community Workshop Session',
-      caption: 'Development-only gallery item.',
-      capturedAt: new Date('2026-07-02T10:00:00Z'),
-      location: 'Bengaluru, India',
-      photographer: 'IFSMHP Secretariat',
-      aspect: '4:3',
-      sizeMB: 2.4,
-      resolution: '2400x1800',
-      views: 320,
-      downloads: 28,
-      starred: true,
-      creditLine: 'IFSMHP development seed',
-      tags: { create: [{ name: 'workshop' }, { name: 'community' }] },
-    },
-  });
-
   const conversation = await prisma.conversation.create({
     data: {
       subject: 'Publication review question',

@@ -114,3 +114,7 @@ All admin routes require an active `ADMIN` session.
 | `GET` | `/files/:id/download` | Authorized streaming download |
 
 Files are never served statically. Private file access is allowed to admins, uploaders, credential owners, project owners, publication authors, and conversation participants.
+
+## Gallery management
+
+Collection/photo CRUD, uploads, publication controls, ordering and image routes are documented in [Media Gallery Management](gallery-management.md). Existing gallery listing routes retain their response shapes.

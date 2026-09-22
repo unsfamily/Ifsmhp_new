@@ -40,6 +40,7 @@ const envSchema = z.object({
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
   COOKIE_DOMAIN: z.string().optional(),
   UPLOAD_STORAGE_PATH: z.string().default('./uploads'),
+  GALLERY_MAX_UPLOAD_MB: z.coerce.number().int().positive().max(1024).default(100),
   MAX_UPLOAD_MB: z.coerce.number().int().positive().default(25),
   SEED_ADMIN_EMAIL: z.string().email().default('admin@ifsmhp.local'),
   SEED_ADMIN_PASSWORD: z.string().min(12).default('ChangeMeNow!2026'),

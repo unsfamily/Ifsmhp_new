@@ -1,0 +1,16 @@
+ALTER TABLE `FileObject` ADD COLUMN `galleryManaged` BOOLEAN NOT NULL DEFAULT false, ADD COLUMN `purgedAt` DATETIME(3) NULL;
+ALTER TABLE `GalleryAlbum` ADD COLUMN `description` TEXT NULL, ADD COLUMN `displayOrder` INTEGER NOT NULL DEFAULT 0, ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), ADD COLUMN `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);
+UPDATE `GalleryAlbum` SET `description` = '';
+ALTER TABLE `GalleryAlbum` MODIFY `description` TEXT NOT NULL;
+ALTER TABLE `GalleryItem` ADD COLUMN `altText` TEXT NULL, ADD COLUMN `displayOrder` INTEGER NOT NULL DEFAULT 0, ADD COLUMN `width` INTEGER NULL, ADD COLUMN `height` INTEGER NULL, ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), ADD COLUMN `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);
+UPDATE `GalleryItem` SET `altText` = '', `createdAt` = `capturedAt`;
+ALTER TABLE `GalleryItem` MODIFY `altText` TEXT NOT NULL DEFAULT ('');
+CREATE TEMPORARY TABLE `GalleryAlbumOrder` AS SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS position FROM `GalleryAlbum`;
+UPDATE `GalleryAlbum` a JOIN `GalleryAlbumOrder` o ON a.id=o.id SET a.displayOrder=o.position;
+DROP TEMPORARY TABLE `GalleryAlbumOrder`;
+CREATE TEMPORARY TABLE `GalleryPhotoOrder` AS SELECT id, ROW_NUMBER() OVER (PARTITION BY albumId ORDER BY capturedAt, id) AS position FROM `GalleryItem`;
+UPDATE `GalleryItem` i JOIN `GalleryPhotoOrder` o ON i.id=o.id SET i.displayOrder=o.position;
+DROP TEMPORARY TABLE `GalleryPhotoOrder`;
+CREATE INDEX `GalleryItem_albumId_displayOrder_idx` ON `GalleryItem`(`albumId`, `displayOrder`);
+CREATE INDEX `GalleryItem_visibility_idx` ON `GalleryItem`(`visibility`);
+UPDATE `FileObject` SET `galleryManaged` = true WHERE id IN (SELECT fileId FROM `GalleryItem` WHERE fileId IS NOT NULL);

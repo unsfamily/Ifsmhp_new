@@ -345,6 +345,8 @@ model FileObject {
   projectFiles       ProjectFile[]
   publicationFiles   PublicationFile[]
   messageAttachments MessageAttachment[]
+  galleryManaged     Boolean @default(false)
+  purgedAt           DateTime?
   communityManaged   Boolean @default(false)
   communityImages    Community[] @relation("CommunityImage")
   communityBanners   Community[] @relation("CommunityBanner")
@@ -795,6 +797,10 @@ model EventResource {
 }
 
 model GalleryAlbum {
+  description   String          @db.Text
+  displayOrder  Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   id            String          @id @default(cuid())
   key           String          @unique
   label         String
@@ -805,6 +811,12 @@ model GalleryAlbum {
 }
 
 model GalleryItem {
+  altText      String         @db.Text
+  displayOrder Int            @default(0)
+  width        Int?
+  height       Int?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   id           String         @id @default(cuid())
   albumId      String
   fileId       String?
@@ -825,6 +837,9 @@ model GalleryItem {
   album        GalleryAlbum   @relation(fields: [albumId], references: [id], onDelete: Cascade)
   file         FileObject?    @relation(fields: [fileId], references: [id])
   tags         GalleryTag[]
+
+  @@index([albumId, displayOrder])
+  @@index([visibility])
 }
 
 model GalleryTag {

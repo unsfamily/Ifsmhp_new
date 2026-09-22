@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { galleryAdminRoutes, galleryPublicRoutes } from './gallery.routes';
 import communityRoutes, { communityAdminRoutes } from './community.routes';
 import healthRoutes from './health.routes';
 import adminRoutes from './admin.routes';
@@ -29,6 +30,7 @@ import notificationRoutes, { unsubscribeRouter } from './notifications.routes';
 const router = Router();
 
 router.use('/health', healthRoutes);
+router.use('/public/gallery', galleryPublicRoutes);
 router.use('/public', publicRoutes);
 router.use('/contact', contactRoutes);
 router.use('/publications', publicationsPublicRoutes);
@@ -38,6 +40,7 @@ router.use('/members', memberRoutes);
 router.use('/admin/announcements', announcementRoutes);
 router.use('/community', communityRoutes);
 router.use('/admin/community', communityAdminRoutes);
+router.use('/admin/gallery', galleryAdminRoutes);
 router.use('/admin', adminRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/announcements/unsubscribe', unsubscribeRouter);

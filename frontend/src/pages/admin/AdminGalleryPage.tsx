@@ -25,21 +25,16 @@ import {
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { Card } from '../../components/common/Card';
-import {
-  useGallery,
-  MAX_UPLOAD_SIZE_BYTES,
-  ACCEPTED_MIME_TYPES,
-  ACCEPTED_EXTENSIONS,
-} from '../../context/GalleryContext';
+import { useAdminGallery } from '../../context/GalleryContext';
+import GalleryImage from '../../components/gallery/GalleryImage';
+import { normalizeError } from '../../api/client';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import type { GalleryPolicy } from '../../services/galleryService';
 import type {
   GalleryCategory,
   GalleryPhoto,
   PhotoUploadTask,
 } from '../../types/gallery';
-
-const MAX_UPLOAD_MB = MAX_UPLOAD_SIZE_BYTES / (1024 * 1024);
-const ACCEPTED_FILE_ATTR =
-  ACCEPTED_MIME_TYPES.join(',') + ',' + ACCEPTED_EXTENSIONS.map((e) => `.${e}`).join(',');
 
 type TabId = 'categories' | 'photos' | 'upload';
 
@@ -64,21 +59,18 @@ export default function AdminGalleryPage() {
     deleteCategory,
     toggleCategoryPublished,
     reorderCategory,
-    addPhoto,
     updatePhoto,
     deletePhoto,
     togglePhotoPublished,
     movePhoto,
     reorderPhoto,
-    getCategoryPhotos,
-    validateFile,
-    simulateUpload,
-    resetStore,
-  } = useGallery();
+    uploadPhoto, loading, error, refresh, policy, setPhotoFilters,
+  } = useAdminGallery();
 
   const [activeTab, setActiveTab] = useState<TabId>('categories');
 
   const [catFilter, setCatFilter] = useState<string>('all');
+  useEffect(() => { if (!loading && catFilter !== 'all' && !categories.some(c => c.id === catFilter)) setCatFilter('all'); }, [loading, catFilter, categories]);
   const [catSearch, setCatSearch] = useState('');
 
   const sortedCategories = useMemo(
@@ -86,29 +78,20 @@ export default function AdminGalleryPage() {
     [categories]
   );
 
-  const filteredPhotos = useMemo(() => {
-    let list: GalleryPhoto[];
-    if (catFilter === 'all') {
-      list = [...photos];
-    } else {
-      list = getCategoryPhotos(catFilter);
-    }
-    if (catSearch.trim().length > 0) {
-      const q = catSearch.trim().toLowerCase();
-      list = list.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.caption.toLowerCase().includes(q) ||
-          p.altText.toLowerCase().includes(q)
-      );
-    }
-    return list.sort((a, b) => {
-      if (a.categoryId === b.categoryId) return a.displayOrder - b.displayOrder;
-      const catA = categories.find((c) => c.id === a.categoryId)?.displayOrder ?? 999;
-      const catB = categories.find((c) => c.id === b.categoryId)?.displayOrder ?? 999;
-      return catA - catB;
-    });
-  }, [photos, catFilter, catSearch, categories, getCategoryPhotos]);
+  const filteredPhotos = photos;
+  const search = useDebouncedValue(catSearch);
+  useEffect(() => { setPhotoFilters({ categoryId: catFilter, search }); }, [catFilter, search, setPhotoFilters]);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [notice, setNotice] = useState<{ message: string; error?: boolean } | null>(null);
+  const run = async (operation: () => Promise<unknown>, message: string) => {
+    if (busyRef.current) return false;
+    busyRef.current = true; setBusy(true); setNotice(null);
+    try { await operation(); setNotice({ message }); return true; }
+    catch (failure) { const details = normalizeError(failure); setNotice({ message: Object.values(details.fieldErrors).join(' ') || details.message, error: true }); return false; }
+    finally { busyRef.current = false; setBusy(false); }
+  };
+  const MAX_UPLOAD_MB = policy ? policy.maxBytes / 1024 / 1024 : '…';
 
   const [editingCategory, setEditingCategory] = useState<GalleryCategory | null>(null);
   const [newCatOpen, setNewCatOpen] = useState(false);
@@ -123,73 +106,36 @@ export default function AdminGalleryPage() {
   const uploadingRef = useRef(false);
 
   useEffect(() => {
-    if (!sortedCategories.find((c) => c.id === defaultUploadCategoryId) && sortedCategories[0]) {
-      setDefaultUploadCategoryId(sortedCategories[0].id);
+    if (!loading && !sortedCategories.find((c) => c.id === defaultUploadCategoryId)) {
+      setDefaultUploadCategoryId(sortedCategories[0]?.id ?? '');
     }
-  }, [sortedCategories, defaultUploadCategoryId]);
+  }, [sortedCategories, defaultUploadCategoryId, loading]);
 
+  const uploadController = useRef<AbortController | null>(null);
+  useEffect(() => () => uploadController.current?.abort(), []);
   useEffect(() => {
     if (uploadingRef.current) return;
-    const queued = uploadTasks.find((t) => t.status === 'queued');
+    const queued = uploadTasks.find(t => t.status === 'queued');
     if (!queued) return;
     uploadingRef.current = true;
-    simulateUpload(queued.file).then((task) => {
-      setUploadTasks((prev) =>
-        prev.map((p) => (p.id === task.id ? task : p))
-      );
-      if (task.status === 'success' && task.photo) {
-        let overrideCatId = task.photo.categoryId;
-        if (
-          defaultUploadCategoryId &&
-          sortedCategories.some((c) => c.id === defaultUploadCategoryId)
-        ) {
-          overrideCatId = defaultUploadCategoryId;
-        }
-        addPhoto({
-          ...task.photo,
-          categoryId: overrideCatId,
-          title: queued.file.name.replace(/\.[^.]+$/, ''),
-          caption: '',
-          altText: '',
-        });
-      }
-      uploadingRef.current = false;
-    });
-  }, [uploadTasks, simulateUpload, addPhoto, defaultUploadCategoryId, sortedCategories]);
+    const controller = new AbortController(); uploadController.current = controller;
+    const update = (patch: Partial<PhotoUploadTask>) => setUploadTasks(previous => previous.map(task => task.id === queued.id ? { ...task, ...patch } : task));
+    update({ status: 'uploading' });
+    void uploadPhoto(queued.file, queued.categoryId, controller.signal, progress => update({ progress }))
+      .then(photo => { if (!controller.signal.aborted) update({ photo, status: 'success', progress: 100 }); })
+      .catch(failure => { if (!controller.signal.aborted) update({ status: 'error', error: normalizeError(failure).message }); })
+      .finally(() => { uploadingRef.current = false; if (!controller.signal.aborted) setUploadTasks(previous => [...previous]); });
+  }, [uploadTasks, uploadPhoto]);
 
   const handleFiles = (files: FileList | File[]) => {
-    const arr = Array.from(files);
-    if (arr.length === 0) return;
-    const next: PhotoUploadTask[] = [];
-    for (const file of arr) {
-      const valid = validateFile(file);
-      if (valid.ok) {
-        next.push({
-          id: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          file,
-          name: file.name,
-          sizeBytes: file.size,
-          progress: 0,
-          status: 'queued',
-          error: null,
-          photo: null,
-          previewUrl: null,
-        });
-      } else {
-        next.push({
-          id: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          file,
-          name: file.name,
-          sizeBytes: file.size,
-          progress: 0,
-          status: 'error',
-          error: valid.message,
-          photo: null,
-          previewUrl: null,
-        });
-      }
-    }
-    setUploadTasks((prev) => [...prev, ...next]);
+    if (!policy || !defaultUploadCategoryId) return;
+    const next = Array.from(files).map((file): PhotoUploadTask => {
+      const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+      const error = !file.size ? 'Choose a non-empty image.' : !policy.extensions.includes(extension) || !policy.mimeTypes.includes(file.type) ? 'Choose a JPEG, PNG, or WebP image.' : file.size > policy.maxBytes ? `Image exceeds ${MAX_UPLOAD_MB} MB.` : null;
+      return { id: crypto.randomUUID(), categoryId: defaultUploadCategoryId, file, name: file.name, sizeBytes: file.size, status: error ? 'error' : 'queued', error, progress: 0, photo: null, previewUrl: null };
+    });
+    setUploadTasks(previous => [...previous, ...next]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const photoCatForSelect = (p: GalleryPhoto) =>
@@ -214,13 +160,10 @@ export default function AdminGalleryPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            onClick={() => {
-              if (window.confirm('Reset gallery to defaults? This will erase all changes.')) {
-                resetStore();
-              }
-            }}
+            disabled={busy || loading}
+            onClick={() => void refresh()}
           >
-            <RotateCcw className="h-4 w-4" /> Reset to defaults
+            <RotateCcw className="h-4 w-4" /> Refresh
           </Button>
           <Button
             onClick={() => setActiveTab('upload')}
@@ -253,49 +196,55 @@ export default function AdminGalleryPage() {
         })}
       </div>
 
+      {loading && <p role="status" className="text-sm text-ink-muted">Loading gallery…</p>}
+      {error && <div role="alert" className="rounded-lg bg-danger-50 p-3 text-danger-700">{error} <button className="underline" onClick={() => void refresh()}>Retry</button></div>}
+      {notice && <div role={notice.error ? 'alert' : 'status'} className={`rounded-lg p-3 text-sm ${notice.error ? 'bg-danger-50 text-danger-700' : 'bg-forum-50 text-forum-900'}`}>{notice.message}</div>}
+      <fieldset disabled={busy || loading || uploadTasks.some(t => t.status === 'uploading')} className="min-w-0 space-y-6">
       {activeTab === 'categories' ? (
         <CategoriesPanel
           categories={sortedCategories}
-          getCount={(id) => photos.filter((p) => p.categoryId === id).length}
-          onEdit={setEditingCategory}
+          getCount={(id) => categories.find(c => c.id === id)?.photoCount ?? 0}
+          onEdit={c => { setNotice(null); setEditingCategory(c); }}
           onDelete={(c) => {
             if (
               window.confirm(
                 `Delete category "${c.name}"? All photographs inside it will also be removed. This cannot be undone.`
               )
             ) {
-              deleteCategory(c.id);
+              void run(() => deleteCategory(c.id), 'Collection deleted.');
             }
           }}
-          onReorderUp={(c) => reorderCategory(c.id, -1)}
-          onReorderDown={(c) => reorderCategory(c.id, 1)}
-          onTogglePublish={toggleCategoryPublished}
-          onNew={() => setNewCatOpen(true)}
+          onReorderUp={(c) => void run(() => reorderCategory(c.id, -1), 'Collection order updated.')}
+          onReorderDown={(c) => void run(() => reorderCategory(c.id, 1), 'Collection order updated.')}
+          onTogglePublish={id => void run(() => toggleCategoryPublished(id), 'Collection status updated.')}
+          onNew={() => { setNotice(null); setNewCatOpen(true); }}
         />
       ) : null}
 
       {activeTab === 'photos' ? (
         <PhotosPanel
           photos={filteredPhotos}
+          loading={loading}
+          loadError={error}
           categories={sortedCategories}
           catFilter={catFilter}
           setCatFilter={setCatFilter}
           catSearch={catSearch}
           setCatSearch={setCatSearch}
-          onEdit={setEditingPhoto}
+          onEdit={p => { setNotice(null); setEditingPhoto(p); }}
           onDelete={(p) => {
             if (
               window.confirm(
                 `Delete photograph "${p.title}"? This cannot be undone.`
               )
             ) {
-              deletePhoto(p.id);
+              void run(() => deletePhoto(p.id), 'Photograph deleted.');
             }
           }}
-          onReorderUp={(p) => reorderPhoto(p.id, -1)}
-          onReorderDown={(p) => reorderPhoto(p.id, 1)}
-          onTogglePublish={togglePhotoPublished}
-          onMove={(p, target) => movePhoto(p.id, target)}
+          onReorderUp={(p) => void run(() => reorderPhoto(p.id, -1), 'Photo order updated.')}
+          onReorderDown={(p) => void run(() => reorderPhoto(p.id, 1), 'Photo order updated.')}
+          onTogglePublish={id => void run(() => togglePhotoPublished(id), 'Photo status updated.')}
+          onMove={(p, target) => void run(() => movePhoto(p.id, target), 'Photograph moved.')}
           photoCatForSelect={photoCatForSelect}
           onUploadTab={() => setActiveTab('upload')}
         />
@@ -312,25 +261,23 @@ export default function AdminGalleryPage() {
           setIsDragging={setIsDragging}
           fileInputRef={fileInputRef}
           handleFiles={handleFiles}
+          policy={policy}
         />
       ) : null}
 
+      </fieldset>
       {editingCategory || newCatOpen ? (
         <CategoryDialog
           initial={editingCategory}
+          busy={busy}
+          serverError={notice?.error ? notice.message : null}
           existingNames={categories.map((c) => c.name)}
           onClose={() => {
-            setEditingCategory(null);
-            setNewCatOpen(false);
+            if (!busy) { setEditingCategory(null); setNewCatOpen(false); }
           }}
-          onSave={(data) => {
-            if (editingCategory) {
-              updateCategory(editingCategory.id, data);
-            } else {
-              createCategory(data);
-            }
-            setEditingCategory(null);
-            setNewCatOpen(false);
+          onSave={async (data) => {
+            const ok = await run(() => editingCategory ? updateCategory(editingCategory.id, data) : createCategory(data), editingCategory ? 'Collection updated.' : 'Collection created.');
+            if (ok) { setEditingCategory(null); setNewCatOpen(false); }
           }}
         />
       ) : null}
@@ -338,16 +285,12 @@ export default function AdminGalleryPage() {
       {editingPhoto ? (
         <PhotoDialog
           photo={editingPhoto}
+          busy={busy}
+          serverError={notice?.error ? notice.message : null}
           categories={sortedCategories}
-          onClose={() => setEditingPhoto(null)}
-          onSave={(patch) => {
-            if (patch.categoryId && patch.categoryId !== editingPhoto.categoryId) {
-              movePhoto(editingPhoto.id, patch.categoryId);
-            }
-            const { categoryId, ...rest } = patch;
-            void categoryId;
-            updatePhoto(editingPhoto.id, rest);
-            setEditingPhoto(null);
+          onClose={() => { if (!busy) setEditingPhoto(null); }}
+          onSave={async (patch) => {
+            if (await run(() => updatePhoto(editingPhoto.id, patch), 'Photograph updated.')) setEditingPhoto(null);
           }}
         />
       ) : null}
@@ -546,6 +489,8 @@ function CategoriesPanel({
 }
 
 function PhotosPanel({
+  loading,
+  loadError,
   photos,
   categories,
   catFilter,
@@ -562,6 +507,8 @@ function PhotosPanel({
   onUploadTab,
 }: {
   photos: GalleryPhoto[];
+  loading: boolean;
+  loadError: string;
   categories: GalleryCategory[];
   catFilter: string;
   setCatFilter: (v: string) => void;
@@ -617,7 +564,7 @@ function PhotosPanel({
         </div>
       </div>
 
-      {photos.length === 0 ? (
+      {photos.length === 0 ? (loading || loadError ? null : (
         <Card className="p-10 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-forum-50 text-forum-400 ring-1 ring-forum-100">
             <Images className="h-6 w-6" />
@@ -627,7 +574,7 @@ function PhotosPanel({
             Try another collection or upload new photographs.
           </p>
         </Card>
-      ) : (
+      )) : (
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-paper-border">
@@ -657,15 +604,12 @@ function PhotosPanel({
               </thead>
               <tbody className="divide-y divide-paper-border bg-white">
                 {photos.map((p) => {
-                  const categorySiblings = photos.filter(
-                    (q) => q.categoryId === p.categoryId
-                  );
-                  const siblingIndex = categorySiblings.findIndex((q) => q.id === p.id);
+                  const siblingCount = categories.find(c => c.id === p.categoryId)?.photoCount ?? 0;
                   return (
                     <tr key={p.id} className="hover:bg-forum-50/30 transition-colors">
                       <td className="px-4 py-3 align-top">
                         <div className="h-16 w-20 overflow-hidden rounded-lg ring-1 ring-paper-border bg-forum-100">
-                          <img
+                          <GalleryImage
                             src={p.imageUrl}
                             alt={p.altText || p.title}
                             className="h-full w-full object-cover"
@@ -718,7 +662,7 @@ function PhotosPanel({
                           <div className="flex flex-col">
                             <button
                               type="button"
-                              disabled={siblingIndex <= 0}
+                              disabled={p.displayOrder <= 1}
                               onClick={() => onReorderUp(p)}
                               className="h-6 w-6 rounded-md text-forum-600 hover:bg-forum-100 disabled:opacity-30 inline-flex items-center justify-center"
                               aria-label="Reorder up"
@@ -727,7 +671,7 @@ function PhotosPanel({
                             </button>
                             <button
                               type="button"
-                              disabled={siblingIndex >= categorySiblings.length - 1}
+                              disabled={p.displayOrder >= siblingCount}
                               onClick={() => onReorderDown(p)}
                               className="h-6 w-6 rounded-md text-forum-600 hover:bg-forum-100 disabled:opacity-30 inline-flex items-center justify-center"
                               aria-label="Reorder down"
@@ -740,6 +684,7 @@ function PhotosPanel({
                       <td className="px-4 py-3 align-top">
                         <button
                           type="button"
+                          aria-label={p.published ? 'Unpublish' : 'Publish'}
                           onClick={() => onTogglePublish(p.id)}
                           className={`group relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
                             p.published ? 'bg-forum-900' : 'bg-ink-subtle/25'
@@ -805,6 +750,7 @@ function UploadPanel({
   setIsDragging,
   fileInputRef,
   handleFiles,
+  policy,
 }: {
   categories: GalleryCategory[];
   defaultCategoryId: string;
@@ -815,7 +761,11 @@ function UploadPanel({
   setIsDragging: (v: boolean) => void;
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
   handleFiles: (f: FileList | File[]) => void;
+  policy: GalleryPolicy | null;
 }) {
+  const MAX_UPLOAD_MB = (policy?.maxBytes ?? 0) / 1024 / 1024;
+  const ACCEPTED_EXTENSIONS = policy?.extensions ?? [];
+  const ACCEPTED_FILE_ATTR = [...(policy?.mimeTypes ?? []), ...ACCEPTED_EXTENSIONS.map(e => `.${e}`)].join(',');
   const anyQueued = uploadTasks.some((t) => t.status === 'queued' || t.status === 'uploading');
   const successCount = uploadTasks.filter((t) => t.status === 'success').length;
   const errorCount = uploadTasks.filter((t) => t.status === 'error').length;
@@ -828,9 +778,8 @@ function UploadPanel({
         </h2>
         <p className="text-sm text-ink-muted mt-1">
           Drop images below, or click to browse. You can queue multiple
-          photographs at once. A compressed web-optimised preview is generated
-          automatically for the homepage while the original high-resolution
-          file is preserved in storage.
+          photographs at once. Original images are stored securely and displayed
+          in the gallery when published.
         </p>
       </div>
 
@@ -991,7 +940,7 @@ function UploadPanel({
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-paper-border bg-forum-50 flex items-center justify-center">
                       {t.previewUrl ? (
-                        <img
+                        <GalleryImage
                           src={t.previewUrl}
                           alt=""
                           className="h-full w-full object-cover"
@@ -1079,7 +1028,11 @@ function CategoryDialog({
   existingNames,
   onClose,
   onSave,
+  busy,
+  serverError,
 }: {
+  busy: boolean;
+  serverError: string | null;
   initial: GalleryCategory | null;
   existingNames: string[];
   onClose: () => void;
@@ -1088,7 +1041,7 @@ function CategoryDialog({
     description: string;
     displayOrder: number;
     published: boolean;
-  }) => void;
+  }) => Promise<void>;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
@@ -1110,7 +1063,7 @@ function CategoryDialog({
       setError('A category with this name already exists.');
       return;
     }
-    onSave({
+    void onSave({
       name: trimmed,
       description: description.trim(),
       displayOrder: Number.isFinite(displayOrder) ? displayOrder : 10,
@@ -1124,10 +1077,13 @@ function CategoryDialog({
       onClick={onClose}
     >
       <form
+        role="dialog" aria-modal="true"
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
         className="w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl ring-1 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
       >
+        <fieldset disabled={busy} className="min-w-0 overflow-y-auto">
+        {serverError && <p role="alert" className="m-4 rounded-lg bg-danger-50 p-3 text-sm text-danger-700">{serverError}</p>}
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-paper-border bg-forum-50/60">
           <div>
             <h3 className="font-display text-lg font-semibold text-forum-900">
@@ -1190,6 +1146,7 @@ function CategoryDialog({
               <div className="h-11 rounded-xl border border-paper-border bg-white px-3 flex items-center gap-3">
                 <button
                   type="button"
+                  aria-label="Published"
                   onClick={() => setPublished((v) => !v)}
                   className={`group relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
                     published ? 'bg-forum-900' : 'bg-ink-subtle/25'
@@ -1228,6 +1185,7 @@ function CategoryDialog({
             <Save className="h-4 w-4" /> {initial ? 'Save changes' : 'Create category'}
           </Button>
         </div>
+        </fieldset>
       </form>
     </div>
   );
@@ -1238,11 +1196,15 @@ function PhotoDialog({
   categories,
   onClose,
   onSave,
+  busy,
+  serverError,
 }: {
   photo: GalleryPhoto;
+  busy: boolean;
+  serverError: string | null;
   categories: GalleryCategory[];
   onClose: () => void;
-  onSave: (patch: Partial<Omit<GalleryPhoto, 'id' | 'uploadedAt' | 'createdAt'>>) => void;
+  onSave: (patch: Partial<Pick<GalleryPhoto, 'categoryId' | 'title' | 'caption' | 'altText' | 'published' | 'displayOrder'>>) => Promise<void>;
 }) {
   const [title, setTitle] = useState(photo.title ?? '');
   const [caption, setCaption] = useState(photo.caption ?? '');
@@ -1254,18 +1216,18 @@ function PhotoDialog({
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!title.trim()) { setError('Please enter a photograph title.'); return; }
     if (!categories.some((c) => c.id === categoryId)) {
       setError('Please assign a valid category.');
       return;
     }
-    onSave({
+    void onSave({
       title: title.trim(),
       caption: caption.trim(),
       altText: altText.trim(),
       displayOrder: Number.isFinite(displayOrder) ? displayOrder : 1,
       published,
       categoryId,
-      updatedAt: new Date().toISOString(),
     });
   };
 
@@ -1275,10 +1237,13 @@ function PhotoDialog({
       onClick={onClose}
     >
       <form
+        role="dialog" aria-modal="true"
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
         className="w-full sm:max-w-3xl bg-white rounded-t-3xl sm:rounded-3xl ring-1 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
       >
+        <fieldset disabled={busy} className="min-w-0 overflow-y-auto">
+        {serverError && <p role="alert" className="m-4 rounded-lg bg-danger-50 p-3 text-sm text-danger-700">{serverError}</p>}
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-paper-border bg-forum-50/60">
           <div>
             <h3 className="font-display text-lg font-semibold text-forum-900">
@@ -1303,7 +1268,7 @@ function PhotoDialog({
                 Preview
               </label>
               <div className="overflow-hidden rounded-2xl ring-1 ring-paper-border bg-forum-100 aspect-video">
-                <img
+                <GalleryImage
                   src={photo.imageUrl}
                   alt={photo.altText || photo.title}
                   className="h-full w-full object-cover"
@@ -1413,7 +1378,8 @@ function PhotoDialog({
                 <div className="h-11 rounded-xl border border-paper-border bg-white px-3 flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => setPublished((v) => !v)}
+                    aria-label="Published"
+                  onClick={() => setPublished((v) => !v)}
                     aria-pressed={published}
                     className={`group relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
                       published ? 'bg-forum-900' : 'bg-ink-subtle/25'
@@ -1452,6 +1418,7 @@ function PhotoDialog({
             <Save className="h-4 w-4" /> Save photograph
           </Button>
         </div>
+        </fieldset>
       </form>
     </div>
   );

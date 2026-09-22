@@ -1,3 +1,4 @@
+import { authorizeGalleryFile } from '../services/gallery.service';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
@@ -255,13 +256,17 @@ router.get(
     if (!file || file.deletedAt) throw ApiError.notFound('File not found');
 
     const user = req.user!;
+    if (file.galleryManaged || await prisma.galleryItem.count({ where: { fileId: file.id } })) {
+      await authorizeGalleryFile(file.id, user.role === 'ADMIN');
+      res.setHeader('Cache-Control', 'private, no-store');
+    }
     // Community assets have revocable, contextual access even for their uploader.
     if (file.communityManaged) {
       await authorizeCommunityFile(user, file.id);
       res.setHeader('Cache-Control', 'private, no-store');
       res.setHeader('X-Content-Type-Options', 'nosniff');
     }
-    const allowed = file.communityManaged ||
+    const allowed = file.galleryManaged || file.communityManaged ||
       user.role === 'ADMIN' ||
       file.visibility === 'PUBLIC' ||
       file.uploaderId === user.id ||

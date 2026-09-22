@@ -1,3 +1,4 @@
+import GalleryImage from './GalleryImage';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Images,
@@ -113,7 +114,7 @@ function PhotoGrid({
             className={`group relative block w-full overflow-hidden rounded-2xl ${aspectClass} bg-gradient-to-br from-forum-800 via-forum-600 to-brass-500 text-left ring-1 ring-paper-border shadow-sm transition-all duration-300 hover:shadow-xl hover:ring-forum-900/15`}
             aria-label={`Open ${photo.title}`}
           >
-            <img
+            <GalleryImage
               src={photo.imageUrl}
               alt={photo.altText || photo.title}
               className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.04]"
@@ -264,7 +265,7 @@ function Lightbox({
         <div className="grid grid-cols-1 md:grid-cols-5 gap-0 overflow-y-auto">
           <div className="md:col-span-3 bg-forum-950 border-b md:border-b-0 md:border-r border-paper-border relative">
             <div className="min-h-[280px] sm:min-h-[380px] md:min-h-[540px] flex items-center justify-center p-3 sm:p-5">
-              <img
+              <GalleryImage
                 src={photo.imageUrl}
                 alt={photo.altText || photo.title}
                 className="max-h-[72vh] w-auto max-w-full h-auto object-contain rounded-xl shadow-2xl ring-1 ring-white/10"
@@ -331,8 +332,9 @@ export default function GallerySection({
 }: {
   sectionId?: string;
 }) {
-  const { categories, applyFilters, getCategoryPhotos } = useGallery();
+  const { categories, applyFilters, getCategoryPhotos, loading, error, refresh } = useGallery();
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL_MEDIA_ID);
+  useEffect(() => { if (!loading && !categories.some(c => c.id === selectedCategory)) setSelectedCategory(ALL_MEDIA_ID); }, [categories, loading, selectedCategory]);
 
   const sortedCategories = useMemo(
     () =>
@@ -364,6 +366,7 @@ export default function GallerySection({
   }, [selectedCategory, filtered]);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  useEffect(() => { if (lightboxIndex !== null && !flatPhotosPool[lightboxIndex]) setLightboxIndex(null); }, [flatPhotosPool, lightboxIndex]);
 
   const openFromCategory = (idx: number, categoryId: string) => {
     if (selectedCategory === ALL_MEDIA_ID) {
@@ -399,6 +402,8 @@ export default function GallerySection({
       className="scroll-mt-24 bg-paper relative overflow-hidden"
       aria-label="IFSMHP Media Gallery"
     >
+      {loading && <p role="status" className="p-4 text-center text-ink-muted">Loading gallery…</p>}
+      {error && <div role="alert" className="p-4 text-center text-danger-600">{error} <button className="underline" onClick={() => void refresh()}>Retry</button></div>}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-forum-200 to-transparent"
         aria-hidden
@@ -434,7 +439,7 @@ export default function GallerySection({
           />
         </div>
 
-        {selectedCategory === ALL_MEDIA_ID ? (
+        {loading || error ? null : selectedCategory === ALL_MEDIA_ID ? (
           <div className="space-y-14 sm:space-y-16">
             {filtered.groupedByCategory.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-forum-200 bg-forum-50/40 p-10 text-center">

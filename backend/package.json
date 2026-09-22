@@ -22,6 +22,8 @@
     "db:backfill-events": "tsx scripts/backfill-events.ts",
     "db:backfill-document-exchange": "tsx scripts/backfill-document-exchange.ts",
     "db:seed": "tsx database/prisma/seed.ts",
+    "gallery:purge": "tsx scripts/purge-gallery-files.ts",
+    "test:gallery:browser": "node tests/gallery.browser.cjs",
     "db:studio": "prisma studio"
   },
   "prisma": {
@@ -46,6 +48,7 @@
     "multer": "^2.2.0",
     "nanoid": "^6.0.1",
     "nodemailer": "^9.0.6",
+    "sharp": "^0.35.4",
     "zod": "^3.24.1"
   },
   "devDependencies": {

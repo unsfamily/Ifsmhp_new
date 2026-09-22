@@ -260,9 +260,9 @@ export async function gallery(req: Request, admin = false) {
   const type = String(req.query.type ?? 'all');
   const q = String(req.query.q ?? '').trim();
   const where: Prisma.GalleryItemWhereInput = {
-    ...(admin ? {} : { visibility: 'PUBLIC' }),
+    ...(admin ? {} : { visibility: 'PUBLIC', album: { visibility: 'PUBLIC' }, file: { is: { deletedAt: null } } }),
     ...(type !== 'all' ? { type } : {}),
-    ...(albumKey !== 'all' ? { album: { key: albumKey } } : {}),
+    ...(albumKey !== 'all' ? { album: { key: albumKey, ...(admin ? {} : { visibility: 'PUBLIC' }) } } : {}),
     ...(q ? { OR: [{ title: { contains: q } }, { caption: { contains: q } }, { location: { contains: q } }] } : {}),
   };
   const [items, total, albums, banners] = await Promise.all([
@@ -273,8 +273,8 @@ export async function gallery(req: Request, admin = false) {
       orderBy: { capturedAt: 'desc' },
     }),
     prisma.galleryItem.count({ where }),
-    prisma.galleryAlbum.findMany({ include: { _count: { select: { items: true } } } }),
-    prisma.galleryBanner.findMany({ include: { album: true } }),
+    prisma.galleryAlbum.findMany({ where: admin ? {} : { visibility: 'PUBLIC' }, include: { _count: { select: { items: admin ? true : { where: { visibility: 'PUBLIC', file: { is: { deletedAt: null } } } } } } } }),
+    prisma.galleryBanner.findMany({ where: admin ? {} : { album: { visibility: 'PUBLIC' } }, include: { album: true } }),
   ]);
   return {
     albums: albums.map((a) => ({ key: a.key, label: a.label, count: a._count.items, coverGradient: a.coverGradient })),

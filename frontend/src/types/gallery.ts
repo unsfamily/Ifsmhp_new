@@ -1,5 +1,6 @@
 export interface GalleryCategory {
   id: string;
+  photoCount: number;
   name: string;
   description: string;
   displayOrder: number;
@@ -36,6 +37,7 @@ export interface GalleryFilters {
 export type UploadStatus = 'queued' | 'uploading' | 'success' | 'error';
 
 export interface PhotoUploadTask {
+  categoryId: string;
   id: string;
   file: File;
   name: string;
@@ -46,14 +48,3 @@ export interface PhotoUploadTask {
   photo: GalleryPhoto | null;
   previewUrl: string | null;
 }
-
-export const DEFAULT_CATEGORY_ORDER = [
-  'all',
-  'jrf-events',
-  'recognition-conclave-2025',
-  'awards',
-  'the-forum',
-  'general-events',
-] as const;
-
-export type GalleryCategoryKey = (typeof DEFAULT_CATEGORY_ORDER)[number];
