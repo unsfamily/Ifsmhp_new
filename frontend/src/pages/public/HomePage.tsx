@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   Users,
   HeartHandshake,
@@ -35,6 +35,10 @@ const stats = [
   { value: '154', label: 'Mental Health Professionals', icon: HeartHandshake },
   { value: '1,000', label: 'Target Members by 2027', icon: Target },
 ];
+
+const statTarget = (value: string) => Number(value.replace(/[^0-9]/g, ''));
+const formatStatValue = (number: number, source: string) =>
+  `${new Intl.NumberFormat('en-US').format(number)}${source.trim().endsWith('+') ? '+' : ''}`;
 
 const memberBenefits = [
   {
@@ -355,25 +359,7 @@ export default function HomePage() {
       </section>
 
       <Section bg="paper" className="-mt-8 sm:-mt-12">
-        <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={stat.label}
-                className="rounded-xl border border-paper-border bg-paper-raised p-5 shadow-sm sm:p-6"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-forum-50 text-forum-700">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <p className="mt-4 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">
-                  {stat.value}
-                </p>
-                <p className="mt-1 text-sm text-ink-muted">{stat.label}</p>
-              </div>
-            );
-          })}
-        </div>
+        <HomeStatistics />
       </Section>
 
       <Section bg="forum">
@@ -561,6 +547,96 @@ function MemberBenefitsNetwork({ benefits }: { benefits: typeof memberBenefits }
         </article>
       ))}
     </div>
+  );
+}
+
+function HomeStatistics() {
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const element = sectionRef.current;
+    if (!element) return;
+
+    if (!('IntersectionObserver' in window)) {
+      setVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.22 },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={sectionRef} className={`home-stats ${visible ? 'is-visible' : ''}`}>
+      <div className="home-stats-connector" aria-hidden="true" />
+      <div className="home-stats-grid">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          const targetCard = index === stats.length - 1;
+          return (
+            <article
+              key={stat.label}
+              className={`home-stats-card ${targetCard ? 'home-stats-card-target' : ''}`}
+              style={{ '--stat-index': index } as React.CSSProperties}
+            >
+              <div className={`home-stats-icon ${targetCard ? 'home-stats-icon-target' : ''}`}>
+                <Icon className="relative z-10 h-7 w-7" />
+              </div>
+              <AnimatedStatValue value={stat.value} active={visible} delay={index * 140} />
+              <p className="home-stats-label">{stat.label}</p>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AnimatedStatValue({ value, active, delay }: { value: string; active: boolean; delay: number }) {
+  const target = statTarget(value);
+  const [display, setDisplay] = useState(() => formatStatValue(0, value));
+
+  useEffect(() => {
+    if (!active) return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion) {
+      setDisplay(value);
+      return;
+    }
+
+    let frame = 0;
+    let startedAt = 0;
+    const timeout = window.setTimeout(() => {
+      const tick = (time: number) => {
+        if (!startedAt) startedAt = time;
+        const progress = Math.min((time - startedAt) / 1250, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        setDisplay(formatStatValue(Math.round(target * eased), value));
+        if (progress < 1) frame = window.requestAnimationFrame(tick);
+      };
+      frame = window.requestAnimationFrame(tick);
+    }, delay);
+
+    return () => {
+      window.clearTimeout(timeout);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [active, delay, target, value]);
+
+  return (
+    <p className="home-stats-value" aria-label={value}>
+      <span aria-hidden="true">{display}</span>
+    </p>
   );
 }
 
