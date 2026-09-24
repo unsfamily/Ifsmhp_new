@@ -22,8 +22,8 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { SelectInput, TextInput } from '../../components/common/Input';
 import { adminApi } from '../../api/admin';
-import type { ConversationDetail, ConversationMessage, ConversationRow, ConversationsResult } from '../../api/messaging';
-import { formatRelative, formatResponseTime, openAttachmentInTab } from '../../api/messaging';
+import type { ConversationDetail, ConversationRow, ConversationsResult } from '../../api/messaging';
+import { formatRelative, formatResponseTime } from '../../api/messaging';
 import { normalizeError } from '../../api/client';
 import { useApiData } from '../../hooks/useApiData';
 import { usePolledApiData } from '../../hooks/usePolledApiData';
@@ -146,15 +146,6 @@ export default function AdminMessagesPage() {
       setSendError(normalizeError(err).message || 'Could not send that reply.');
     } finally {
       setSending(false);
-    }
-  };
-
-  const openAttachment = async (attachment: ConversationMessage['attachments'][number]) => {
-    setSendError(null);
-    try {
-      await openAttachmentInTab(attachment.id, attachment.attachmentId);
-    } catch (err) {
-      setSendError(normalizeError(err).message || 'Could not open that attachment.');
     }
   };
 
@@ -341,7 +332,6 @@ export default function AdminMessagesPage() {
                   messages={thread?.messages ?? []}
                   conversationId={selected.id}
                   className="max-h-[400px] p-4 sm:p-6"
-                  onOpenAttachment={openAttachment}
                 />
               )}
               <div className="border-t border-paper-border p-4 sm:p-6">

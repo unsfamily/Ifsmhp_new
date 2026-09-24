@@ -1,6 +1,7 @@
 export type CommunityVisibility = 'PUBLIC' | 'PRIVATE';
 export type CommunityStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 export type MembershipStatus = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'BLOCKED';
+export type MemberStatusAction = 'APPROVE' | 'REJECT' | 'BLOCK' | 'UNBLOCK' | 'SUSPEND' | 'UNSUSPEND';
 export type CommunityRole = 'MEMBER' | 'MODERATOR' | 'ADMIN';
 export type ReportStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'DISMISSED';
 export type ModerationAction = 'HIDE_CONTENT' | 'RESTORE_CONTENT' | 'WARN_MEMBER' | 'SUSPEND_MEMBER' | 'BLOCK_MEMBER' | 'RESOLVE_REPORT' | 'DISMISS_REPORT' | 'REOPEN_REPORT';
@@ -18,6 +19,7 @@ export interface Community {
 export interface CommunityMember {
   id: string; userId: string; communityId: string; fullName: string; email?: string;
   profileImageUrl?: string; role: CommunityRole; status: MembershipStatus;
+  availableStatusActions?: MemberStatusAction[];
   communityName: string; communitiesJoined?: number; messageCount?: number;
   recentActivity?: { id: string; description: string; createdAt: string }[];
   reportCount?: number; joinedAt?: string; requestedAt?: string; lastActiveAt?: string;

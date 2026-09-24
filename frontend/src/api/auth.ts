@@ -1,4 +1,4 @@
-import { apiClient, setAccessToken } from './client';
+import { apiClient, setAccessToken, getSessionGeneration } from './client';
 
 export type Role = 'APPLICANT' | 'MEMBER' | 'ADMIN';
 export type Status = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'DEACTIVATED';
@@ -73,7 +73,9 @@ export interface OtpRequestResult {
 
 /** Password sign-in. Retained for administrators only. */
 export async function login(payload: { email: string; password: string; remember?: boolean }) {
+  const generation = getSessionGeneration();
   const response = await apiClient.post<Envelope<{ accessToken: string; user: SessionUser }>>('/auth/login', payload);
+  if (generation !== getSessionGeneration()) throw new Error('The session changed. Please sign in again.');
   setAccessToken(response.data.data.accessToken);
   return response.data.data.user;
 }
@@ -120,10 +122,12 @@ export async function resendOtp(payload: { purpose: OtpPurpose; email: string })
 
 /** Verifies a code, completing either registration or login. */
 export async function verifyOtp(payload: { purpose: OtpPurpose; email: string; code: string }) {
+  const generation = getSessionGeneration();
   const response = await apiClient.post<Envelope<{ accessToken: string; user: SessionUser }>>(
     '/auth/otp/verify',
     payload,
   );
+  if (generation !== getSessionGeneration()) throw new Error('The session changed. Please sign in again.');
   setAccessToken(response.data.data.accessToken);
   return response.data.data.user;
 }
@@ -134,6 +138,6 @@ export async function currentUser() {
 }
 
 export async function logout() {
-  await apiClient.post('/auth/logout').catch(() => undefined);
   setAccessToken(null);
+  await apiClient.post('/auth/logout').catch(() => undefined);
 }

@@ -114,6 +114,7 @@ async function memberDto(row: MemberRow, manage: boolean, actor: Actor, db: DB =
   return { id: row.id, userId: row.userId, communityId: row.communityId, fullName: row.user.fullName, email: manage ? row.user.email : undefined,
     role: row.role, status: row.status, communityName: row.community.name, joinedAt: row.joinedAt ?? undefined, requestedAt: row.requestedAt, lastActiveAt: row.lastActiveAt ?? undefined,
     communitiesJoined: manage ? communitiesJoined : undefined, messageCount, reportCount,
+    ...(manage ? { availableStatusActions: availableMemberStatusActions(actor, row) } : {}),
   };
 }
 export async function members(actor: Actor, raw: unknown, communityId?: string) {
@@ -138,6 +139,12 @@ export async function memberDetail(actor: Actor, id: string, db: DB = prisma) {
 export function assertMemberTarget(actor: Actor, target: MemberRow) {
   if (target.user.role === 'ADMIN' || target.role === 'ADMIN' || target.userId === actor.id || (actor.role !== 'ADMIN' && target.role !== 'MEMBER')) throw ApiError.forbidden('This membership is protected.');
 }
+function availableMemberStatusActions(actor: Actor, target: MemberRow): input.MemberStatusAction[] {
+  if (target.removedAt) return [];
+  try { assertMemberTarget(actor, target); }
+  catch (error) { if (error instanceof ApiError && error.statusCode === 403) return []; throw error; }
+  return input.memberStatusTransitions[target.status].map(transition => transition.action);
+}
 export async function changeMember(actor: Actor, id: string, raw: unknown, kind: 'status' | 'role' | 'remove') {
   const row = await prisma.communityMembership.findUnique({ where: { id }, include: memberInclude });
   if (!row) throw ApiError.notFound('Member not found');
@@ -154,8 +161,12 @@ export async function changeMember(actor: Actor, id: string, raw: unknown, kind:
     } else if (kind === 'remove') data = { reason: input.reasonBody.parse(raw).reason, removedAt: new Date(), role: 'MEMBER' };
     else {
       const body = input.memberStatusBody.parse(raw);
-      if (body.status === 'PENDING') throw ApiError.unprocessable('Pending status is reserved for join requests.');
-      data = { ...body, ...(body.status === 'ACTIVE' ? { joinedAt: target.joinedAt ?? new Date() } : {}) };
+      if (body.expectedStatus !== target.status) throw ApiError.conflict('Membership status changed. Refresh and review the current status before confirming another action.');
+      const transition = input.memberStatusTransitions[target.status].find(item => item.status === body.status);
+      if (!transition || !availableMemberStatusActions(actor, target).includes(transition.action)) throw ApiError.conflict('This status change is not available for the current membership.');
+      data = { status: body.status, reason: body.reason || null,
+        ...(transition.action === 'APPROVE' ? { joinedAt: target.joinedAt ?? new Date() } : {}) };
+
     }
     const updated = await db.communityMembership.update({ where: { id }, data });
     if (Object.entries(data).some(([k, v]) => JSON.stringify(target[k as keyof typeof target]) !== JSON.stringify(v))) await audit(db, actor, `Membership${kind}`, id, safeChanges(changesBetween(target, updated)));

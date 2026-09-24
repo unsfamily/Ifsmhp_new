@@ -371,11 +371,28 @@ export const apiClient = axios.create({
   timeout: 15_000,
 });
 
+export const SESSION_CHANGED = 'ifsmhp:session-changed';
+let sessionGeneration = 0;
+export const getSessionGeneration = () => sessionGeneration;
+/** UI cancellation identity only; the server remains the authentication authority. */
+export function attachmentSessionIdentity(token = accessToken): string | null {
+  if (!token) return null;
+  try { const payload = JSON.parse(atob(token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/'))); return `${payload.sub}:${payload.sessionId}`; }
+  catch { return token; }
+}
 export function setAccessToken(token: string | null) {
+  const previous = attachmentSessionIdentity();
   accessToken = token;
   if (token) localStorage.setItem('ifsmhp.accessToken', token);
   else localStorage.removeItem('ifsmhp.accessToken');
+  if (previous !== attachmentSessionIdentity() || token === null) {
+    sessionGeneration++;
+    window.dispatchEvent(new Event(SESSION_CHANGED));
+  }
 }
+window.addEventListener('storage', event => {
+  if (event.key === 'ifsmhp.accessToken') setAccessToken(event.newValue);
+});
 
 /**
  * Lets callers ask whether a session is even plausible before probing the API.
@@ -385,34 +402,94 @@ export function getAccessToken() {
   return accessToken;
 }
 
+type SessionRequest = AxiosRequestConfig & { _retry?: boolean; _sessionGeneration?: number };
+const authOperation = (url = '') => /\/auth\/(?!me(?:$|[?]))/.test(url);
+const staleSession = () => new axios.CanceledError('The session changed. Please retry from the current account.');
+let refreshFlight: { generation: number; promise: Promise<void> } | null = null;
+
+function refreshSession(generation: number): Promise<void> {
+  if (refreshFlight?.generation === generation) return refreshFlight.promise;
+  const startingToken = accessToken;
+  const renew = async () => {
+    if (generation !== sessionGeneration) throw staleSession();
+    // A sibling tab can finish renewal while this tab waits for the lock.
+    const stored = localStorage.getItem('ifsmhp.accessToken');
+    if (stored !== accessToken) setAccessToken(stored);
+    if (generation !== sessionGeneration) throw staleSession();
+    if (accessToken !== startingToken) return;
+    try {
+      const response = await apiClient.post<{ success: true; data: { accessToken: string } }>('/auth/refresh');
+      if (generation !== sessionGeneration) throw staleSession();
+      if (accessToken !== startingToken) return;
+      const token = response.data.data.accessToken;
+      if (typeof token !== 'string' || !token || attachmentSessionIdentity(token) !== attachmentSessionIdentity()) {
+        throw new Error('The server returned an invalid session. Please sign in again.');
+      }
+      setAccessToken(token);
+    } catch (error) {
+      if (generation !== sessionGeneration) throw staleSession();
+      if (accessToken !== startingToken) return;
+      // Transport/server failures are recoverable. Only a definitive rejection
+      // invalidates this session, and never a session established meanwhile.
+      if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)) setAccessToken(null);
+      throw error;
+    }
+  };
+  // Cookie rotation is shared by tabs, so coordinate there too when supported.
+  // The in-memory flight below also covers browsers without the Web Locks API.
+  const work = (async () => {
+    if (typeof navigator !== 'undefined' && navigator.locks) await navigator.locks.request('ifsmhp:session-refresh', renew);
+    else await renew();
+  })();
+  const promise = work.finally(() => { if (refreshFlight?.promise === promise) refreshFlight = null; });
+  refreshFlight = { generation, promise };
+  return promise;
+}
+
 apiClient.interceptors.request.use((config) => {
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
-  }
+  const request = config as typeof config & SessionRequest;
+  if (request._sessionGeneration !== undefined && request._sessionGeneration !== sessionGeneration && !authOperation(request.url)) throw staleSession();
+  request._sessionGeneration = sessionGeneration;
+  if (accessToken) config.headers.set('Authorization', `Bearer ${accessToken}`);
+  else config.headers.delete('Authorization');
   return config;
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const request = response.config as SessionRequest;
+    if (!authOperation(request.url) && request._sessionGeneration !== sessionGeneration) throw staleSession();
+    return response;
+  },
   async (error: AxiosError<ApiFailure>) => {
-    const original = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
-    const refreshUrl = '/auth/refresh';
-    if (error.response?.status === 401 && original && !original._retry && !original.url?.includes('/auth/refresh')) {
-      original._retry = true;
+    if (error.response?.data instanceof Blob && error.response.data.size <= 65536) {
       try {
-        const refreshed = await apiClient.post<{ success: true; data: { accessToken: string } }>(refreshUrl);
-        setAccessToken(refreshed.data.data.accessToken);
-        original.headers = AxiosHeaders.from(original.headers ?? {});
-        original.headers.set('Authorization', `Bearer ${refreshed.data.data.accessToken}`);
+        const data = JSON.parse(await error.response.data.text());
+        if (typeof data?.message === 'string' && Array.isArray(data.errors)) error.response.data = data;
+      } catch { /* Non-JSON failures retain their HTTP status. */ }
+    }
+    const original = error.config as (typeof error.config & SessionRequest) | undefined;
+    if (original && !authOperation(original.url)) {
+      if (original._sessionGeneration !== sessionGeneration) throw staleSession();
+      if (error.response?.status === 401 && accessToken) {
+        const sentToken = AxiosHeaders.from(original.headers).get('Authorization');
+        if (original._retry) {
+          if (sentToken === `Bearer ${accessToken}`) setAccessToken(null);
+          throw error;
+        }
+        original._retry = true;
+        // A delayed 401 for the old access token can arrive after renewal.
+        // Reuse the current token without rotating the refresh cookie again.
+        if (sentToken === `Bearer ${accessToken}`) await refreshSession(sessionGeneration);
+        if (original._sessionGeneration !== sessionGeneration || !accessToken) throw staleSession();
         return apiClient(original);
-      } catch {
-        setAccessToken(null);
       }
     }
 
-    const mockResp = (original?.url?.startsWith('/admin/audit-log') || original?.url?.startsWith('/admin/profile') || original?.url?.startsWith('/admin/settings') || original?.url?.startsWith('/public/settings')) ? null : tryMockFallback(error);
+    // Real authentication and Community requests must never become demo data.
+    const noMock = /\/auth(?:\/|$)|\/(?:admin\/)?community(?:\/|$)|\/admin\/(?:audit-log|profile|settings)|\/public\/settings/.test(original?.url ?? '');
+    const mockResp = noMock ? null : tryMockFallback(error);
     if (mockResp) return mockResp;
-
     throw error;
   },
 );

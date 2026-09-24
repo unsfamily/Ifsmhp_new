@@ -9,10 +9,19 @@ export const communityBody = z.object({
   name: text(191), slug: text(191).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use lowercase letters, numbers, and hyphens.'),
   description: text(10000), category: text(191), visibility: z.enum(['PUBLIC', 'PRIVATE']), status: communityStatus,
 }).strict();
-export const memberStatusBody = z.object({ status: membershipStatus, reason: text(2000).optional() }).strict().refine(
+export const memberStatusBody = z.object({ status: membershipStatus, expectedStatus: membershipStatus, reason: z.string().trim().max(2000).optional() }).strict().refine(
   v => !['REJECTED', 'SUSPENDED', 'BLOCKED'].includes(v.status) || !!v.reason,
   { path: ['reason'], message: 'A reason is required.' },
 );
+/** Directory decisions only; report enforcement keeps its existing escalation rules. */
+export type MemberStatusAction = 'APPROVE' | 'REJECT' | 'BLOCK' | 'UNBLOCK' | 'SUSPEND' | 'UNSUSPEND';
+export const memberStatusTransitions: Record<z.infer<typeof membershipStatus>, { action: MemberStatusAction; status: z.infer<typeof membershipStatus> }[]> = {
+  PENDING: [{ action: 'APPROVE', status: 'ACTIVE' }, { action: 'REJECT', status: 'REJECTED' }],
+  ACTIVE: [{ action: 'BLOCK', status: 'BLOCKED' }, { action: 'SUSPEND', status: 'SUSPENDED' }],
+  BLOCKED: [{ action: 'UNBLOCK', status: 'ACTIVE' }],
+  SUSPENDED: [{ action: 'UNSUSPEND', status: 'ACTIVE' }],
+  REJECTED: [],
+};
 export const memberRoleBody = z.object({ role: z.enum(['MEMBER', 'MODERATOR']) }).strict();
 export const reasonBody = z.object({ reason: text(2000) }).strict();
 export const messageBody = z.object({ content: text(10000), replyToId: text(191).optional() }).strict();

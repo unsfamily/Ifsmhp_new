@@ -25,8 +25,8 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { TextArea } from '../../components/common/Input';
 import { adminApi } from '../../api/admin';
-import type { ConversationDetail, ConversationMessage } from '../../api/messaging';
-import { formatRelative, formatResponseTime, openAttachmentInTab } from '../../api/messaging';
+import type { ConversationDetail } from '../../api/messaging';
+import { formatRelative, formatResponseTime } from '../../api/messaging';
 import { normalizeError } from '../../api/client';
 import { usePolledApiData } from '../../hooks/usePolledApiData';
 import { useAttachments } from '../../hooks/useAttachments';
@@ -102,15 +102,6 @@ export default function AdminMessagesDetailPage() {
       setActionError(normalizeError(err).message || 'Could not post that message.');
     } finally {
       setSending(null);
-    }
-  };
-
-  const openAttachment = async (attachment: ConversationMessage['attachments'][number]) => {
-    setActionError(null);
-    try {
-      await openAttachmentInTab(attachment.id, attachment.attachmentId);
-    } catch (err) {
-      setActionError(normalizeError(err).message || 'Could not open that attachment.');
     }
   };
 
@@ -198,7 +189,6 @@ export default function AdminMessagesDetailPage() {
               conversationId={conv.id}
               className="max-h-[520px]"
               emptyLabel="No message history in this conversation."
-              onOpenAttachment={openAttachment}
             />
 
             <div className="border-t border-paper-border p-4 sm:p-5">

@@ -130,12 +130,34 @@ All admin routes require an active `ADMIN` session.
 | `POST` | `/files/upload` | Authenticated upload with size, MIME, and magic-byte checks |
 | `GET` | `/files/:id/download` | Authorized streaming download |
 
-Files are never served statically. Private file access is allowed to admins, uploaders, credential owners, project owners, publication authors, and conversation participants.
+Files are never served statically. `GET /files/:id/download` accepts optional `attachmentId` (the message attachment ID, distinct from the file ID) and `action=preview|download` (default `download`). Invalid/duplicate/unknown query values return field-level 422 errors. Authentication is required. Chat access requires an active account and a stored session: administrators retain CRO review access, and members must participate in a non-internal message's conversation. Explicit attachment context is checked before every generic grant; neither uploader ownership nor a PUBLIC flag bypasses chat authorization. Independently authorized credential/project/publication access remains available without a conflicting chat context; uploaders can retrieve unattached uploads. Gallery, avatar and Community restrictions still apply.
+
+Successful responses stream the original bytes with safe original-filename Content-Disposition, verified MIME type, Content-Length, `Cache-Control: private, no-store`, and `X-Content-Type-Options: nosniff`. Missing, deleted, unreadable, empty, size-mismatched or unsafe-path files return a safe 404 JSON envelope before streaming. Authentication failures return 401; forbidden attachment contexts return 404. After streaming starts, a read failure terminates the response, making the incomplete transfer fail. Access audits record ACCESS_GRANTED after authorization and opening; contextual opening receipts describe server delivery, not completion of a save on the user's device.
+
+The frontend uses bearer-authenticated blob requests with a 120-second timeout; credentials never appear in download URLs. See [CRO attachment behavior and verification](chat-attachment-downloads.md).
 
 ## Gallery management
 
 Collection/photo CRUD, uploads, publication controls, ordering and image routes are documented in [Media Gallery Management](gallery-management.md). Existing gallery listing routes retain their response shapes.
 
+
+## Community member status recovery
+
+`GET /admin/community/members` and `GET /admin/community/members/:id` add `availableStatusActions`, calculated from current membership status and reviewer authorization. Member-facing lists do not include administrative actions.
+
+`PATCH /admin/community/members/:id/status` retains its success envelope and now requires `{ status, expectedStatus, reason? }`. Both statuses use the existing membership enum. Reasons are required for Block, Suspend and Reject, optional for restoration/approval, trimmed, and limited to 2,000 characters. Omitted or blank restoration reasons clear the current restriction note.
+
+| Starting status | Action → destination |
+| --- | --- |
+| ACTIVE | BLOCK → BLOCKED; SUSPEND → SUSPENDED |
+| BLOCKED | UNBLOCK → ACTIVE |
+| SUSPENDED | UNSUSPEND → ACTIVE |
+| PENDING | APPROVE → ACTIVE; REJECT → REJECTED |
+| REJECTED | No directory status action |
+
+For example, Unblock sends `{ "status": "ACTIVE", "expectedStatus": "BLOCKED" }`. The API returns 409 for stale starting states, duplicate completed requests or unsupported transitions, and field-level 422 errors for malformed input. Authorization and protected-target rules remain enforced. Status and its audit entry commit in one transaction; failed requests do not partially persist. Restoration retains role/join date and affects only that community membership. Report enforcement retains its separate escalation rules and report lifecycle.
+
+Release frontend/API together because `expectedStatus` is required. No migration or historical rewrite is needed. See [implementation and verification](community-member-status.md).
 
 ## Routed Community reports and moderation
 
@@ -166,3 +188,7 @@ Audit listing and CSV export additionally support the exact `actorId` query para
 ### Administration Settings
 
 `GET /admin/settings` now returns `{ values, defaults, sections, deployment }` rather than raw setting rows. `PATCH /admin/settings/:section` accepts `{ expectedRevision, values }` and atomically saves changed supported keys with an audit event. Both require an active administrator with a real stored session. Stale revisions return 409; invalid or unsupported fields return 422. `GET /public/settings` returns only the public branding, contact, formatting, notice and privacy-contact allowlist. See [Administration Settings](administration-settings.md) for the registry, defaults, unavailable capabilities, migration/initialization steps and verification results.
+
+### Authentication recovery for Community clients
+
+Concurrent protected-request 401 responses share one refresh operation. Successful renewal retries each request once; a repeated 401 or definitive refresh rejection clears authentication. Transient refresh errors remain retryable and do not fabricate success or sign the user out. Refresh-cookie rotation rechecks revocation, expiration, account eligibility, and the original cookie hash atomically. Stale/reused cookies receive 401 without a new cookie. Session changes invalidate earlier requests and reload verified account identity. See [Community session recovery](community-session-recovery.md) for validation and rollout details.

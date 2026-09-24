@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { normalizeError } from '../api/client';
+import { normalizeError, SESSION_CHANGED, attachmentSessionIdentity, getAccessToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import type { PaginatedCommunityResult } from '../types/community';
 
@@ -9,16 +9,17 @@ export const accessLost = (error: unknown) => [401, 403, 404].includes(normalize
 
 /** Latest request wins; silent polling never replaces input or flashes skeletons. */
 export function useCommunityResource<T>(key: string | null, loader: () => Promise<T>, interval = 15000) {
-  const { user } = useAuth();
-  const identity = `${user?.id ?? ''}:${key}`;
+  const { user, loading: authLoading } = useAuth();
+  const enabled = key !== null && !authLoading && !!user && !!getAccessToken();
+  const identity = `${attachmentSessionIdentity() ?? ''}:${user?.id ?? ''}:${user?.role ?? ''}:${key}`;
   const current = useRef(identity); current.current = identity;
   const read = useRef(loader); read.current = loader;
   const flight = useRef<{ identity: string; promise: Promise<T | undefined> } | null>(null);
   const generation = useRef(0);
   const mounted = useRef(true);
-  const [state, setState] = useState<{ identity: string; data: T | null; loading: boolean; error: string | null }>({ identity, data: null, loading: key !== null, error: null });
+  const [state, setState] = useState<{ identity: string; data: T | null; loading: boolean; error: string | null }>({ identity, data: null, loading: enabled, error: null });
   const refresh = useCallback((silent = true, force = false): Promise<T | undefined> => {
-    if (key === null) return Promise.resolve(undefined);
+    if (!enabled || !getAccessToken()) return Promise.resolve(undefined);
     if (!force && flight.current?.identity === identity) return flight.current.promise;
     const version = ++generation.current;
     if (!silent) setState(s => ({ ...s, identity, loading: true, error: null }));
@@ -32,18 +33,29 @@ export function useCommunityResource<T>(key: string | null, loader: () => Promis
     }).finally(() => { if (flight.current?.promise === promise) flight.current = null; });
     flight.current = { identity, promise };
     return promise;
-  }, [identity, key]);
+  }, [identity, enabled]);
+  const replaceData = useCallback((update: (data: T | null) => T | null) => {
+    if (!mounted.current || current.current !== identity) return;
+    generation.current++; flight.current = null;
+    setState(s => ({ identity, data: update(s.identity === identity ? s.data : null), loading: false, error: null }));
+  }, [identity]);
+  useEffect(() => {
+    const clear = () => { generation.current++; flight.current = null; setState({ identity, data: null, loading: false, error: null }); };
+    window.addEventListener(SESSION_CHANGED, clear);
+    return () => window.removeEventListener(SESSION_CHANGED, clear);
+  }, [identity]);
   useEffect(() => { const requestGeneration = generation; mounted.current = true; return () => { mounted.current = false; requestGeneration.current++; flight.current = null; }; }, []);
   useEffect(() => {
-    setState({ identity, data: null, loading: key !== null, error: null });
+    setState({ identity, data: null, loading: enabled, error: null });
+    if (!enabled) return;
     void refresh(false);
     const update = () => { if (!document.hidden) void refresh(); };
     const changed = () => { void refresh(true, true); };
     const timer = window.setInterval(update, interval);
     window.addEventListener('focus', update); window.addEventListener('online', update); window.addEventListener(COMMUNITY_CHANGED, changed); document.addEventListener('visibilitychange', update);
     return () => { window.clearInterval(timer); window.removeEventListener('focus', update); window.removeEventListener('online', update); window.removeEventListener(COMMUNITY_CHANGED, changed); document.removeEventListener('visibilitychange', update); };
-  }, [identity, key, interval, refresh]);
-  return { ...(state.identity === identity ? state : { data: null, loading: key !== null, error: null }), refresh };
+  }, [identity, enabled, interval, refresh]);
+  return { ...(state.identity === identity ? state : { data: null, loading: enabled, error: null }), refresh, replaceData };
 }
 
 /** Incremental pages in the existing panels; every loaded page is revalidated. */

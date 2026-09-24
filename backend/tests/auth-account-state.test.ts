@@ -14,6 +14,7 @@ vi.mock('../services/mail.service', () => ({
 
 import { createApp } from '../app';
 import { prisma } from '../config/database';
+import { hashPassword } from '../utils/security';
 
 /**
  * How the auth surface answers for each account state.
@@ -248,5 +249,66 @@ describe('login OTP resend — parity with request', () => {
     const response = await resendOtp(email('nobody'));
 
     expect(response.status).toBe(404);
+  });
+});
+
+describe('refresh session concurrency and revocation', () => {
+  async function session(key: string) {
+    const user = await makeUser(key, { role: 'ADMIN' });
+    const password = 'SessionVerification!2026';
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
+    const login = await request(app).post('/api/v1/auth/login').send({ email: user.email, password });
+    expect(login.status).toBe(200);
+    const stored = await prisma.session.findFirstOrThrow({ where: { userId: user.id } });
+    return { user, stored, cookie: login.headers['set-cookie'], token: login.body.data.accessToken };
+  }
+  it('rotates once and rejects reuse of the old cookie without changing the new session', async () => {
+    const fixture = await session('rotation');
+    const first = await request(app).post('/api/v1/auth/refresh').set('Cookie', fixture.cookie);
+    expect(first.status).toBe(200);
+    const rotated = await prisma.session.findUniqueOrThrow({ where: { id: fixture.stored.id } });
+    const retry = await request(app).post('/api/v1/auth/refresh').set('Cookie', fixture.cookie);
+    expect(retry.status).toBe(401); expect(retry.headers['set-cookie']).toBeUndefined();
+    expect(await prisma.session.findUnique({ where: { id: fixture.stored.id } })).toEqual(rotated);
+    expect((await request(app).get('/api/v1/auth/me').auth(first.body.data.accessToken, { type: 'bearer' })).status).toBe(200);
+  });
+  it('denies revoked sessions on refresh and protected routes', async () => {
+    const fixture = await session('revoked-refresh');
+    await prisma.session.update({ where: { id: fixture.stored.id }, data: { revokedAt: new Date() } });
+    expect((await request(app).post('/api/v1/auth/refresh').set('Cookie', fixture.cookie)).status).toBe(401);
+    expect((await request(app).get('/api/v1/community/communities').auth(fixture.token, { type: 'bearer' })).status).toBe(401);
+  });
+  it('allows exactly one simultaneous rotation of the same cookie', async () => {
+    const fixture = await session('concurrent-refresh');
+    const responses = await Promise.all([1, 2, 3].map(() => request(app).post('/api/v1/auth/refresh').set('Cookie', fixture.cookie)));
+    expect(responses.map(r => r.status).sort()).toEqual([200, 401, 401]);
+    expect(responses.filter(r => r.headers['set-cookie'])).toHaveLength(1);
+  });
+  it('rechecks revocation between reading and rotating the session', async () => {
+    const fixture = await session('revoke-during-refresh');
+    const originalUpdate = prisma.session.updateMany;
+    const update = originalUpdate.bind(prisma.session);
+    const spy = vi.spyOn(prisma.session, 'updateMany').mockImplementationOnce(async args => {
+      await prisma.session.update({ where: { id: fixture.stored.id }, data: { revokedAt: new Date() } });
+      return update(args);
+    });
+    try {
+      const response = await request(app).post('/api/v1/auth/refresh').set('Cookie', fixture.cookie);
+      expect(response.status).toBe(401); expect(response.headers['set-cookie']).toBeUndefined();
+      expect((await prisma.session.findUniqueOrThrow({ where: { id: fixture.stored.id } })).tokenHash).toBe(fixture.stored.tokenHash);
+    } finally { spy.mockRestore(); prisma.session.updateMany = originalUpdate; }
+  });
+  it('rechecks account eligibility between reading and rotating the session', async () => {
+    const fixture = await session('disable-during-refresh');
+    const originalUpdate = prisma.session.updateMany;
+    const update = originalUpdate.bind(prisma.session);
+    const spy = vi.spyOn(prisma.session, 'updateMany').mockImplementationOnce(async args => {
+      await prisma.user.update({ where: { id: fixture.user.id }, data: { status: 'SUSPENDED' } });
+      return update(args);
+    });
+    try {
+      const response = await request(app).post('/api/v1/auth/refresh').set('Cookie', fixture.cookie);
+      expect(response.status).toBe(401); expect(response.headers['set-cookie']).toBeUndefined();
+    } finally { spy.mockRestore(); prisma.session.updateMany = originalUpdate; }
   });
 });

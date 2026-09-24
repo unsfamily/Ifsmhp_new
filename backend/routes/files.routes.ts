@@ -6,6 +6,7 @@ import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import { Router, type RequestHandler } from 'express';
 import multer from 'multer';
+import { z } from 'zod';
 import { requireAuth } from '../middleware/auth';
 import { env } from '../config';
 import { prisma } from '../config/database';
@@ -91,6 +92,14 @@ function mimeForExtension(extension: string) {
       return 'image/jpeg';
     case '.png':
       return 'image/png';
+    case '.webp':
+      return 'image/webp';
+    case '.xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case '.txt':
+      return 'text/plain';
+    case '.csv':
+      return 'text/csv';
     case '.ppt':
       return 'application/vnd.ms-powerpoint';
     case '.pptx':
@@ -98,6 +107,13 @@ function mimeForExtension(extension: string) {
     default:
       return null;
   }
+}
+
+function originalFilename(name: string) {
+  // Browser multipart filenames arrive through Busboy's Latin-1 header parser.
+  // Decode only lossless UTF-8 sequences; retain genuine Latin-1 clients.
+  const decoded = Buffer.from(name, 'latin1').toString('utf8');
+  return [...name].every(character => character.charCodeAt(0) <= 255) && !decoded.includes('\ufffd') ? decoded : name;
 }
 
 function declaredMime(file: Express.Multer.File) {
@@ -161,7 +177,7 @@ async function validateStoredUpload(
 async function persistUpload(file: Express.Multer.File, mimeType: string, checksum: string, uploaderId?: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PRIVATE') {
   try {
     return await prisma.$transaction(async tx => {
-      const record = await tx.fileObject.create({ data: { uploaderId, storageKey: path.basename(file.filename), originalName: file.originalname, mimeType, sizeBytes: file.size, checksum, visibility } });
+      const record = await tx.fileObject.create({ data: { uploaderId, storageKey: path.basename(file.filename), originalName: originalFilename(file.originalname), mimeType, sizeBytes: file.size, checksum, visibility } });
       await writeAudit({ actorId: uploaderId, actorRole: uploaderId ? undefined : 'UNAUTHENTICATED', action: 'FileUploaded', entity: `FileObject ${record.id}`, metadata: { fileId: record.id } }, tx);
       return record;
     });
@@ -242,7 +258,11 @@ router.post(
 
 router.get(
   '/:id/download',
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req, res, next) => {
+    const { attachmentId, action } = z.object({
+      attachmentId: z.string().min(1).max(191).optional(),
+      action: z.enum(['preview', 'download']).default('download'),
+    }).strict().parse(req.query);
     const file = await prisma.fileObject.findUnique({
       where: { id: req.params.id },
       include: {
@@ -255,6 +275,11 @@ router.get(
     if (!file || file.deletedAt) throw ApiError.notFound('File not found');
 
     const user = req.user!;
+    const context = attachmentId === undefined ? undefined : file.messageAttachments.find(a => a.id === attachmentId);
+    const canReadMessage = (item: typeof file.messageAttachments[number]) => user.role === 'ADMIN' ||
+      (user.role === 'MEMBER' && !item.message.internal && item.message.conversation.participants.some(p => p.userId === user.id));
+    if (attachmentId !== undefined && (!context || !canReadMessage(context))) throw ApiError.notFound('Attachment not found');
+    if (file.messageAttachments.length && (!user.sessionId || user.status !== 'ACTIVE')) throw ApiError.notFound('Attachment not found');
     if (file.avatarManaged) {
       if (!user.sessionId) throw ApiError.notFound('File not found');
       await authorizeAvatar(file.id, user.id);
@@ -272,43 +297,55 @@ router.get(
     }
     const allowed = file.galleryManaged || file.communityManaged ||
       user.role === 'ADMIN' ||
-      file.visibility === 'PUBLIC' ||
-      file.uploaderId === user.id ||
+      (!file.messageAttachments.length && (file.visibility === 'PUBLIC' || file.uploaderId === user.id)) ||
       file.credentials.some((item) => item.profile.userId === user.id) ||
-      file.projectFiles.some((item) => item.project.ownerId === user.id) ||
+      file.projectFiles.some((item) => !item.project.deletedAt && item.project.ownerId === user.id) ||
       file.publicationFiles.some((item) => item.publication.authorId === user.id) ||
       // Attaching a file to a message is what grants the other participants
       // download rights — but an internal note is admin-only, so a file on one
       // must not become readable by the member through this branch. Admins
       // still reach it via the role check above.
-      file.messageAttachments.some(
-        (item) => !item.message.internal && item.message.conversation.participants.some((p) => p.userId === user.id),
-      );
+      file.messageAttachments.some(canReadMessage);
 
     if (!allowed) throw ApiError.notFound('File not found');
 
-    const attachmentId = req.query.attachmentId;
-    const context = attachmentId === undefined ? undefined : file.messageAttachments.find(a => a.id === attachmentId);
-    if (attachmentId !== undefined && (!context || (user.role !== 'ADMIN' && (context.message.internal || !context.message.conversation.participants.some(p => p.userId === user.id))))) {
-      throw ApiError.notFound('Attachment not found');
+    // Open before sending headers or auditing access. Resolve symlinks too, and
+    // stream this same descriptor so an unlink between check and read is safe.
+    let handle: Awaited<ReturnType<typeof fsp.open>> | undefined;
+    try {
+      const root = await fsp.realpath(uploadRoot);
+      const absolute = await fsp.realpath(assertSafePath(file.storageKey));
+      if (!absolute.startsWith(root + path.sep)) throw new Error('Outside storage');
+      handle = await fsp.open(absolute, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.size === 0 || stat.size !== file.sizeBytes) throw new Error('Unavailable bytes');
+    } catch {
+      await handle?.close().catch(() => undefined);
+      throw ApiError.notFound('File is unavailable');
     }
-    const action = req.query.action ?? 'download';
-    if (!['preview', 'download'].includes(String(action))) throw ApiError.unprocessable('Invalid file action');
-
-    const absolute = assertSafePath(file.storageKey);
-    await fsp.access(absolute, fs.constants.R_OK).catch(() => {
-      throw ApiError.notFound('File not found');
-    });
-    if (req.method === 'GET' && (user.role === 'ADMIN' || file.visibility !== 'PUBLIC')) await writeAudit({ actorId: user.id, action: file.credentials.length ? 'CredentialAccessGranted' : 'FileAccessGranted', entity: `FileObject ${file.id}`, outcome: 'ACCESS_GRANTED', metadata: { fileId: file.id } });
+    try {
+      if (req.method === 'GET' && (user.role === 'ADMIN' || file.visibility !== 'PUBLIC' || file.messageAttachments.length)) await writeAudit({ actorId: user.id, action: file.credentials.length ? 'CredentialAccessGranted' : 'FileAccessGranted', entity: `FileObject ${file.id}`, outcome: 'ACCESS_GRANTED', metadata: { fileId: file.id } });
+    } catch (error) { await handle.close(); throw error; }
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', file.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
+    res.setHeader('Content-Length', file.sizeBytes);
+    res.attachment([...file.originalName].map(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 || '/\\'.includes(character) ? '_' : character).join(''));
+    // attachment() infers MIME from the extension; use the verified stored MIME.
+    res.setHeader('Content-Type', file.mimeType);
     if (req.method === 'GET' && context && context.message.conversation.kind === 'CRO' && !context.message.internal && context.message.senderId !== user.id) {
       res.once('finish', () => {
-        void recordOpening(context.id, user.id, action as 'preview' | 'download').catch(error => logger.error('Attachment receipt failed', { error: String(error) }));
+        if (res.statusCode === 200) void recordOpening(context.id, user.id, action).catch(error => logger.error('Attachment receipt failed', { error: String(error) }));
       });
     }
-    const stream = fs.createReadStream(absolute);
-    stream.on('error', () => res.destroy());
+    const stream = handle.createReadStream();
+    stream.on('error', () => {
+      if (res.headersSent) res.destroy();
+      else {
+        res.removeHeader('Content-Length'); res.removeHeader('Content-Disposition'); res.removeHeader('Content-Type');
+        next(ApiError.notFound('File is unavailable'));
+      }
+    });
     res.on('close', () => stream.destroy());
     stream.pipe(res);
   }),

@@ -127,7 +127,7 @@ describe('Membership and scoped moderator authorization', () => {
     expect((await join()).body.data.membershipStatus).toBe('PENDING');
     expect((await as(alice, 'get', `/community/communities/${id}/conversations`)).status).toBe(404);
     expect((await as(alice, 'delete', `/community/communities/${id}/join-request`)).status).toBe(200);
-    await join(); await as(admin, 'patch', `/admin/community/members/${await memberId(alice)}/status`).send({ status: 'ACTIVE' });
+    await join(); await as(admin, 'patch', `/admin/community/members/${await memberId(alice)}/status`).send({ status: 'ACTIVE', expectedStatus: 'PENDING' });
     expect((await send()).status).toBe(201);
     expect((await as(alice, 'delete', `/community/communities/${id}/membership`)).status).toBe(200);
     expect((await send()).status).toBe(404);
@@ -138,9 +138,11 @@ describe('Membership and scoped moderator authorization', () => {
     expect(await prisma.communityMembership.count({ where: { communityId: id, userId: alice.id } })).toBe(1);
   });
   it.each(['REJECTED', 'SUSPENDED', 'BLOCKED'])('cannot bypass %s through join/cancel/leave', async status => {
+    if (status === 'REJECTED') await prisma.community.update({ where: { id }, data: { visibility: 'PRIVATE' } });
     await join(); const mid = await memberId(alice);
-    expect((await as(admin, 'patch', `/admin/community/members/${mid}/status`).send({ status })).status).toBe(422);
-    expect((await as(admin, 'patch', `/admin/community/members/${mid}/status`).send({ status, reason: 'Review decision' })).status).toBe(200);
+    const expectedStatus = status === 'REJECTED' ? 'PENDING' : 'ACTIVE';
+    expect((await as(admin, 'patch', `/admin/community/members/${mid}/status`).send({ status, expectedStatus })).status).toBe(422);
+    expect((await as(admin, 'patch', `/admin/community/members/${mid}/status`).send({ status, expectedStatus, reason: 'Review decision' })).status).toBe(200);
     expect((await join()).status).toBe(403);
     expect((await as(alice, 'delete', `/community/communities/${id}/membership`)).status).toBe(403);
     expect((await as(alice, 'delete', `/community/communities/${id}/join-request`)).status).toBe(403);
@@ -149,8 +151,8 @@ describe('Membership and scoped moderator authorization', () => {
   it('allows moderator decisions only for ordinary members in assigned communities', async () => {
     await promote(); await join();
     const mid = await memberId(alice);
-    expect((await as(moderator, 'patch', `/admin/community/members/${mid}/status`).send({ status: 'SUSPENDED', reason: 'Review' })).status).toBe(200);
-    expect((await as(moderator, 'patch', `/admin/community/members/${mid}/status`).send({ status: 'ACTIVE' })).status).toBe(200);
+    expect((await as(moderator, 'patch', `/admin/community/members/${mid}/status`).send({ status: 'SUSPENDED', expectedStatus: 'ACTIVE', reason: 'Review' })).status).toBe(200);
+    expect((await as(moderator, 'patch', `/admin/community/members/${mid}/status`).send({ status: 'ACTIVE', expectedStatus: 'SUSPENDED' })).status).toBe(200);
     expect((await as(moderator, 'patch', `/admin/community/members/${mid}/role`).send({ role: 'MODERATOR' })).status).toBe(403);
     expect((await as(moderator, 'delete', `/admin/community/members/${await memberId(admin)}`).send({ reason: 'No' })).status).toBe(403);
     const second = (await as(admin, 'post', '/admin/community/communities').send({ ...payload, slug: `${prefix}-other` })).body.data;
@@ -443,7 +445,7 @@ describe('Messages, moderation and protected files', () => {
     await as(alice, 'patch', `/community/messages/${message.id}`).send({ content: 'Changed after review' });
     expect((await as(admin, 'post', `${url}/actions`).send({ ...body, operationId: randomUUID(), expectedRevision: current.revision, expectedTargetVersion: current.targetVersion })).status).toBe(409);
     const edited = (await as(admin, 'get', url)).body.data;
-    await as(admin, 'patch', `/admin/community/members/${await memberId(alice)}/status`).send({ status: 'BLOCKED', reason: 'Membership action' });
+    await as(admin, 'patch', `/admin/community/members/${await memberId(alice)}/status`).send({ status: 'BLOCKED', expectedStatus: 'ACTIVE', reason: 'Membership action' });
     expect((await as(admin, 'post', `${url}/actions`).send({ ...body, action: 'SUSPEND_MEMBER', operationId: randomUUID(), expectedRevision: edited.revision, expectedTargetVersion: edited.targetVersion })).status).toBe(409);
     const blocked = (await as(admin, 'get', url)).body.data;
     expect(blocked.availableActions).not.toContain('SUSPEND_MEMBER'); expect(blocked.availableActions).not.toContain('BLOCK_MEMBER');
@@ -479,7 +481,7 @@ describe('Messages, moderation and protected files', () => {
     expect((await as(alice, 'get', file.fileUrl)).status).toBe(404);
     expect((await as(moderator, 'get', file.fileUrl)).status).toBe(200);
     await as(moderator, 'patch', `/admin/community/messages/${message.id}`).send({ isHidden: false });
-    await as(admin, 'patch', `/admin/community/members/${await memberId(alice)}/status`).send({ status: 'SUSPENDED', reason: 'Review' });
+    await as(admin, 'patch', `/admin/community/members/${await memberId(alice)}/status`).send({ status: 'SUSPENDED', expectedStatus: 'ACTIVE', reason: 'Review' });
     expect((await as(alice, 'get', file.fileUrl)).status).toBe(404);
     expect((await as(bob, 'get', file.fileUrl)).headers['cache-control']).toBe('private, no-store');
     await as(admin, 'delete', `/admin/community/messages/${message.id}`);

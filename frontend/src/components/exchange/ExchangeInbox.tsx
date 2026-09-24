@@ -20,7 +20,7 @@ const inputClass = 'min-w-0 rounded-md border border-paper-border bg-paper px-3 
 const stamp = (value: string) => new Date(value).toLocaleString();
 type Item = ExchangeDocument | ExchangeConversation | ExchangeVideo | ExchangeAnnouncement;
 
-function Thread({ id, back, preview, changed }: { id: string; back: () => void; preview: (file: PreviewDocument) => void; changed: () => void }) {
+function Thread({ id, back, changed }: { id: string; back: () => void; changed: () => void }) {
   const thread = usePolledApiData(() => memberApi.conversation(id), [id], 15000);
   const [reply, setReply] = useState('');
   const [error, setError] = useState('');
@@ -45,7 +45,7 @@ function Thread({ id, back, preview, changed }: { id: string; back: () => void; 
     <Button variant="ghost" size="sm" onClick={back}><ArrowLeft className="h-4 w-4" />All conversations</Button>
     {thread.initialLoading && <p role="status" className="py-6 text-sm">Loading conversation...</p>}
     {thread.error && <p role="alert" className="py-4 text-sm text-danger-600">{thread.error}<Button variant="ghost" size="sm" onClick={thread.refresh}><RefreshCw className="h-4 w-4" />Retry</Button></p>}
-    {thread.data && <><h3 className="mt-4 break-words font-semibold">{thread.data.subject}</h3><MessageThread messages={thread.data.messages} conversationId={id} onOpenAttachment={preview} />
+    {thread.data && <><h3 className="mt-4 break-words font-semibold">{thread.data.subject}</h3><MessageThread messages={thread.data.messages} conversationId={id} />
       <form className="space-y-3 border-t border-paper-border pt-4" onSubmit={e => { e.preventDefault(); void send(); }}>
         <textarea aria-label="Reply" value={reply} disabled={busy} maxLength={10000} onChange={e => { setReply(e.target.value); setError(''); setSuccess(false); }} className={`${inputClass} min-h-24 w-full`} placeholder="Write a reply..." />
         <ComposerAttachments attachments={files.attachments} fileError={files.fileError} links={files.links} disabled={busy} onAddFiles={files.addFiles} onRemoveFile={files.remove} onRetryFile={files.retry} onAddLink={files.addLink} onRemoveLink={files.removeLink} />
@@ -89,7 +89,7 @@ function OtherExchangeInbox({ view, revision, close, changed }: InboxProps) {
   };
   return <Card><CardContent className="p-6">
     <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-xl font-semibold text-forum-900">{titles[view]}</h2><button title="Close view" aria-label="Close view" onClick={close} className="shrink-0 text-ink-muted"><X className="h-5 w-5" /></button></div>
-    {selected ? <Thread key={selected} id={selected} back={() => { setSelected(null); refresh(); }} preview={setPreview} changed={refresh} /> : <>
+    {selected ? <Thread key={selected} id={selected} back={() => { setSelected(null); refresh(); }} changed={refresh} /> : <>
       {view === 'documents' && <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <label className={`flex items-center gap-2 ${inputClass}`}><Search className="h-4 w-4 shrink-0 text-ink-muted" /><input aria-label="Search documents" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents" maxLength={220} className="min-w-0 w-full bg-transparent outline-none" /></label>
         <select aria-label="File type" value={type} onChange={e => { setType(e.target.value); setPage(1); }} className={inputClass}>{['All', 'PDF', 'DOC', 'SHEET', 'SLIDES', 'IMAGE', 'FILE'].map(value => <option key={value} value={value}>{value === 'All' ? 'All file types' : value}</option>)}</select>

@@ -20,8 +20,8 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { SelectInput, TextArea, TextInput } from '../../components/common/Input';
 import { memberApi } from '../../api/member';
-import type { ConversationDetail, ConversationMessage, ConversationsResult } from '../../api/messaging';
-import { formatRelative, formatResponseTime, openAttachmentInTab } from '../../api/messaging';
+import type { ConversationDetail, ConversationsResult } from '../../api/messaging';
+import { formatRelative, formatResponseTime } from '../../api/messaging';
 import { normalizeError } from '../../api/client';
 import { usePolledApiData } from '../../hooks/usePolledApiData';
 import { useAttachments } from '../../hooks/useAttachments';
@@ -139,15 +139,6 @@ export default function MessagesPage() {
       setCreateError(normalizeError(err).message || 'Could not start that conversation.');
     } finally {
       setCreating(false);
-    }
-  };
-
-  const openAttachment = async (attachment: ConversationMessage['attachments'][number]) => {
-    setActionError(null);
-    try {
-      await openAttachmentInTab(attachment.id, attachment.attachmentId);
-    } catch (err) {
-      setActionError(normalizeError(err).message || 'Could not open that attachment.');
     }
   };
 
@@ -374,7 +365,6 @@ export default function MessagesPage() {
                     messages={thread?.messages ?? []}
                     conversationId={selected.id}
                     className="max-h-[460px]"
-                    onOpenAttachment={openAttachment}
                   />
                 )}
 

@@ -3,7 +3,8 @@
  * CRO" screen. Both sides read the same serializer on the server, so the types
  * live here rather than being declared twice.
  */
-import { apiClient } from './client';
+import axios from 'axios';
+import { apiClient, attachmentSessionIdentity, normalizeError, SESSION_CHANGED } from './client';
 
 /** Lowercased `senderRole`. 'system' has no server equivalent yet. */
 export type MessageWho = 'member' | 'admin' | 'system';
@@ -78,28 +79,61 @@ export interface MessageExtras {
  * Fetches an attachment as a blob. Downloads go through the API rather than a
  * plain href because the route is bearer-authenticated and access-logged.
  */
-export async function fetchAttachment(fileId: string, attachmentId?: string, action: 'preview' | 'download' = 'preview'): Promise<Blob> {
-  const res = await apiClient.get(`/files/${fileId}/download`, { responseType: 'blob', params: { attachmentId, action } });
-  return res.data as Blob;
+export async function fetchAttachment(fileId: string, attachmentId?: string, action: 'preview' | 'download' = 'preview', signal?: AbortSignal): Promise<Blob> {
+  const identity = attachmentSessionIdentity();
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  window.addEventListener(SESSION_CHANGED, cancel);
+  signal?.addEventListener('abort', cancel);
+  if (signal?.aborted) cancel();
+  try {
+    const res = await apiClient.get(`/files/${fileId}/download`, {
+      responseType: 'blob', params: { attachmentId, action }, timeout: 120_000, signal: controller.signal,
+    });
+    if (controller.signal.aborted || identity !== attachmentSessionIdentity()) throw new axios.CanceledError();
+    if (!(res.data instanceof Blob) || !res.data.size) throw new Error('File is unavailable.');
+    return res.data;
+  } finally {
+    window.removeEventListener(SESSION_CHANGED, cancel);
+    signal?.removeEventListener('abort', cancel);
+  }
 }
 
-/** Opens an attachment in a new tab. */
+export function attachmentError(error: unknown): string {
+  const failure = normalizeError(error);
+  if (failure.status === 401 || axios.isCancel(error) && !attachmentSessionIdentity()) return 'Your session has expired. Sign in again to access this attachment.';
+  if (failure.status === 403) return 'You no longer have permission to access this attachment.';
+  if (failure.status === 404) return 'This attachment is unavailable. It may have been removed.';
+  if (error instanceof Error && error.message === 'File is unavailable.') return error.message;
+  return failure.message;
+}
+
+/** Legacy non-chat callers open the tab synchronously to avoid popup blocking. */
 export async function openAttachmentInTab(fileId: string, attachmentId?: string) {
-  const url = URL.createObjectURL(await fetchAttachment(fileId, attachmentId));
-  window.open(url, '_blank', 'noopener,noreferrer');
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  const tab = window.open('about:blank', '_blank');
+  if (!tab) throw new Error('Allow popups to preview this file.');
+  tab.opener = null;
+  try {
+    const url = URL.createObjectURL(await fetchAttachment(fileId, attachmentId));
+    tab.location.replace(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) { tab.close(); throw error; }
 }
 
-/** Saves an attachment under its original name. */
-export async function downloadAttachment(fileId: string, fileName: string, attachmentId?: string) {
-  const url = URL.createObjectURL(await fetchAttachment(fileId, attachmentId, 'download'));
+/** Starts a browser download; it cannot confirm that the user saved the file. */
+export async function downloadAttachment(fileId: string, fileName: string, attachmentId?: string, signal?: AbortSignal) {
+  const identity = attachmentSessionIdentity();
+  const blob = await fetchAttachment(fileId, attachmentId, 'download', signal);
+  if (signal?.aborted || identity !== attachmentSessionIdentity()) throw new axios.CanceledError();
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;
   document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  try { a.click(); } finally {
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
 }
 
 /** Renders a minute count as the UI shows turnaround ("2.1 h", "35 min"). */

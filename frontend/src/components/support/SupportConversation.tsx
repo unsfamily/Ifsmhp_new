@@ -4,7 +4,6 @@ import { supportApi, type SupportDetail } from '../../api/support';
 import { adminApi } from '../../api/admin';
 import { memberApi } from '../../api/member';
 import { normalizeError } from '../../api/client';
-import { downloadAttachment } from '../../api/messaging';
 import { MessageBubble } from '../messaging/MessageThread';
 import { TextArea } from '../common/Input';
 import Badge from '../common/Badge';
@@ -34,8 +33,7 @@ export default function SupportConversation({ detail, admin, onSent }: { detail:
     finally { setSending(false); }
   };
   return <div className="space-y-4" style={{ overflowWrap: 'anywhere' }}>
-    {detail.messages.length ? detail.messages.map((message) => <MessageBubble key={message.id} message={message}
-      onOpenAttachment={(file) => void downloadAttachment(file.id, file.name).catch(() => setError('This attachment could not be downloaded. It may no longer be available.'))} />)
+    {detail.messages.length ? detail.messages.map((message) => <MessageBubble key={message.id} message={message} />)
       : <p className="text-sm text-ink-muted">No conversation messages yet.</p>}
     <form className="border-t border-paper-border pt-4 mt-6" onSubmit={(event) => void send(event)}>
       <TextArea ref={composer} id="support-reply" rows={3} label={admin ? 'Send a message to the member' : 'Message CRO'}

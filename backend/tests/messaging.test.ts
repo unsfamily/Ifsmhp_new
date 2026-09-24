@@ -115,7 +115,7 @@ async function wipe() {
   }
   await prisma.conversation.deleteMany({ where: { subject: { contains: PREFIX } } });
   // FileObject.uploader is optional, so deleting the user only nulls the column.
-  const stored = await prisma.fileObject.findMany({ where: { storageKey: { startsWith: `${PREFIX}-` } }, select: { id: true, storageKey: true } });
+  const stored = await prisma.fileObject.findMany({ where: { OR: [{ storageKey: { startsWith: `${PREFIX}-` } }, { originalName: { startsWith: `${PREFIX}-` } }] }, select: { id: true, storageKey: true } });
   if (stored.length) {
     await prisma.fileObject.deleteMany({ where: { id: { in: stored.map((f) => f.id) } } });
     await Promise.all(stored.map((f) => fsp.unlink(path.join(uploadRoot, f.storageKey)).catch(() => undefined)));
@@ -603,5 +603,128 @@ describe('GET /api/v1/members/me/documents', () => {
     const notes = res.body.data.items.map((d: { note: string }) => d.note).join(' | ');
     expect(names).not.toContain(`${PREFIX}-secret.pdf`);
     expect(notes).not.toMatch(/must never read/);
+  });
+});
+
+describe('CRO attachment transfers', () => {
+  const formats = [
+    ['pdf', 'application/pdf'], ['doc', 'application/msword'],
+    ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    ['ppt', 'application/vnd.ms-powerpoint'], ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    ['jpeg', 'image/jpeg'], ['jpg', 'image/jpeg'], ['png', 'image/png'], ['webp', 'image/webp'], ['txt', 'text/plain'], ['csv', 'text/csv'],
+  ];
+  for (const sender of ['member', 'admin'] as const) it.each(formats)(`${sender} → recipient preserves %s bytes, names, contextual access and receipts`, async (extension, mime) => {
+    const bytes = await fsp.readFile(path.join(__dirname, 'fixtures/chat', `sample.${extension === 'jpg' ? 'jpeg' : extension}`));
+    const name = `${PREFIX}-résumé.${extension}`;
+    const send = sender === 'member' ? asMember : asAdmin;
+    const receive = sender === 'member' ? asAdmin : asMember;
+    const upload = await send('post', '/api/v1/files/upload').attach('file', bytes, { filename: name, contentType: 'application/octet-stream' });
+    expect(upload.status, JSON.stringify(upload.body)).toBe(201);
+    expect(upload.body.data.name).toBe(name); expect(upload.body.data.mimeType).toBe(mime);
+    const fileId = upload.body.data.id;
+    const conversation = await makeConversation({ withAdmin: false });
+    const prefix = sender === 'member' ? '/members/me' : '/admin';
+    const sent = await send('post', `/api/v1${prefix}/conversations/${conversation.id}/messages`).send({ body: 'File transfer', fileIds: [fileId] });
+    expect(sent.status).toBe(200);
+    const recipientPrefix = sender === 'member' ? '/admin' : '/members/me';
+    const view = await receive('get', `/api/v1${recipientPrefix}/conversations/${conversation.id}`);
+    const attachment = view.body.data.messages.at(-1).attachments[0];
+    expect(attachment.id).toBe(fileId); expect(attachment.attachmentId).not.toBe(fileId);
+    for (const action of ['download', 'preview']) {
+      const response = await receive('get', `/api/v1/files/${fileId}/download`).query({ attachmentId: attachment.attachmentId, action }).buffer(true).parse((res, cb) => {
+        const chunks: Buffer[] = []; res.on('data', chunk => chunks.push(Buffer.from(chunk))); res.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
+      expect(response.status).toBe(200); expect(response.body).toEqual(bytes);
+      expect(response.headers['content-length']).toBe(String(bytes.length));
+      expect(response.headers['content-disposition']).toContain('attachment;');
+      expect(response.headers['content-disposition']).toContain(extension);
+      expect(response.headers['content-type']).toContain(mime);
+      expect(response.headers['cache-control']).toBe('private, no-store');
+      expect(response.headers['x-content-type-options']).toBe('nosniff');
+    }
+    expect((await asStranger('get', `/api/v1/files/${fileId}/download`)).status).toBe(404);
+    await vi.waitFor(async () => expect(await prisma.attachmentOpen.count({ where: { attachmentId: attachment.attachmentId } })).toBe(1));
+  });
+
+  it('validates context before public flags, uploader grants and unrelated legitimate file ownership', async () => {
+    const conversation = await makeConversation();
+    const file = await makeFile(memberId, undefined, true);
+    await prisma.fileObject.update({ where: { id: file.id }, data: { visibility: 'PUBLIC' } });
+    const message = await prisma.message.create({ data: { conversationId: conversation.id, senderId: adminId, senderName: 'CRO', senderRole: 'ADMIN', body: 'Internal', internal: true, attachments: { create: { fileId: file.id } } }, include: { attachments: true } });
+    for (const query of [{}, { attachmentId: message.attachments[0]!.id }, { attachmentId: 'wrong' }]) {
+      expect((await asMember('get', `/api/v1/files/${file.id}/download`).query(query)).status).toBe(404);
+      expect((await asStranger('get', `/api/v1/files/${file.id}/download`).query(query)).status).toBe(404);
+    }
+    expect((await asAdmin('get', `/api/v1/files/${file.id}/download`).query({ attachmentId: 'wrong' })).status).toBe(404);
+    expect((await asAdmin('get', `/api/v1/files/${file.id}/download`).query({ attachmentId: message.attachments[0]!.id })).status).toBe(200);
+    const other = await makeFile(memberId, undefined, true);
+    expect((await asMember('get', `/api/v1/files/${other.id}/download`)).status).toBe(200);
+    expect((await asMember('get', `/api/v1/files/${other.id}/download`).query({ attachmentId: message.attachments[0]!.id })).status).toBe(404);
+    for (const query of [{ action: 'open' }, { attachmentId: '' }, { action: ['preview', 'download'] }, { unexpected: 'value' }]) {
+      expect((await asAdmin('get', `/api/v1/files/${file.id}/download`).query(query)).status).toBe(422);
+    }
+  });
+
+  it('keeps independent project access but never lets it bypass an explicit chat context', async () => {
+    const file = await makeFile(adminId, undefined, true);
+    const conversation = await makeConversation();
+    const message = await prisma.message.create({ data: { conversationId: conversation.id, senderId: adminId, senderName: 'CRO', senderRole: 'ADMIN', body: 'Internal', internal: true, attachments: { create: { fileId: file.id } } }, include: { attachments: true } });
+    const project = await prisma.project.create({ data: { ownerId: memberId, title: 'Independent access', category: 'Research', description: 'Shared project file', files: { create: { fileId: file.id, kind: 'Document' } } } });
+    const url = `/api/v1/files/${file.id}/download`;
+    expect((await asMember('get', url)).status).toBe(200);
+    expect((await asMember('get', url).query({ attachmentId: message.attachments[0]!.id })).status).toBe(404);
+    await prisma.project.update({ where: { id: project.id }, data: { deletedAt: new Date() } });
+    expect((await asMember('get', url)).status).toBe(404);
+  });
+
+  it('returns a JSON unavailable response on early stream failure, never an empty successful download', async () => {
+    const file = await makeFile(memberId, undefined, true);
+    const open = fsp.open.bind(fsp);
+    const injected = vi.spyOn(fsp, 'open').mockImplementationOnce(async (...args) => {
+      const handle = await open(...args);
+      const create = handle.createReadStream.bind(handle);
+      vi.spyOn(handle, 'createReadStream').mockImplementationOnce(options => {
+        const stream = create(options); stream.destroy(new Error('Injected read failure')); return stream;
+      });
+      return handle;
+    });
+    try {
+      const response = await asMember('get', `/api/v1/files/${file.id}/download`);
+      expect(response.status).toBe(404); expect(response.body.message).toBe('File is unavailable');
+      expect(response.headers['content-disposition']).toBeUndefined();
+    } finally { injected.mockRestore(); }
+  });
+
+  it('denies anonymous, inactive and revoked-session downloads', async () => {
+    const file = await makeFile(adminId, undefined, true);
+    const url = `/api/v1/files/${file.id}/download`;
+    expect((await request(app).get(url)).status).toBe(401);
+    await prisma.user.update({ where: { id: adminId }, data: { status: 'SUSPENDED' } });
+    expect((await asAdmin('get', url)).status).toBe(401);
+    await prisma.user.update({ where: { id: adminId }, data: { status: 'ACTIVE' } });
+    await prisma.session.updateMany({ where: { userId: adminId }, data: { revokedAt: new Date() } });
+    expect((await asAdmin('get', url)).status).toBe(401);
+  });
+
+  it.each(['missing', 'deleted', 'empty', 'size', 'unreadable', 'directory', 'symlink', 'traversal'])('safely rejects %s storage without access-granted auditing', async kind => {
+    const file = await makeFile(memberId, undefined, true);
+    const absolute = path.join(uploadRoot, file.storageKey);
+    if (kind === 'missing') await fsp.unlink(absolute);
+    if (kind === 'deleted') await prisma.fileObject.update({ where: { id: file.id }, data: { deletedAt: new Date() } });
+    if (kind === 'empty') await fsp.writeFile(absolute, '');
+    if (kind === 'size') await fsp.writeFile(absolute, 'truncated');
+    if (kind === 'unreadable') await fsp.chmod(absolute, 0);
+    if (kind === 'directory') { await fsp.unlink(absolute); await fsp.mkdir(absolute); }
+    if (kind === 'symlink') { await fsp.unlink(absolute); await fsp.symlink('/etc/hosts', absolute); }
+    if (kind === 'traversal') await prisma.fileObject.update({ where: { id: file.id }, data: { storageKey: '../outside' } });
+    const before = await prisma.auditLog.count({ where: { actorId: memberId, action: 'FileAccessGranted' } });
+    const response = await asMember('get', `/api/v1/files/${file.id}/download`);
+    expect(response.status).toBe(404); expect(response.body.message).not.toContain(uploadRoot);
+    expect(response.headers['content-disposition']).toBeUndefined();
+    expect(await prisma.auditLog.count({ where: { actorId: memberId, action: 'FileAccessGranted' } })).toBe(before);
+    if (kind === 'unreadable') await fsp.chmod(absolute, 0o600);
+    if (kind === 'directory') await fsp.rmdir(absolute);
+    if (kind === 'traversal') await prisma.fileObject.update({ where: { id: file.id }, data: { storageKey: file.storageKey } });
   });
 });

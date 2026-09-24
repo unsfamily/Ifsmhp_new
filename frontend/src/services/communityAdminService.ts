@@ -30,7 +30,7 @@ export const communityAdminService = {
 
   async getMembers(params: QueryParams = {}) { return data(await apiClient.get<Envelope<PaginatedCommunityResult<CommunityMember>>>('/admin/community/members', { params })); },
   async getMember(id: string) { return data(await apiClient.get<Envelope<CommunityMember>>(`/admin/community/members/${id}`)); },
-  async updateMemberStatus(id: string, status: MembershipStatus, reason?: string) { return data(await apiClient.patch<Envelope<CommunityMember>>(`/admin/community/members/${id}/status`, { status, reason })); },
+  async updateMemberStatus(id: string, status: MembershipStatus, expectedStatus: MembershipStatus, reason?: string) { return data(await apiClient.patch<Envelope<CommunityMember>>(`/admin/community/members/${id}/status`, { status, expectedStatus, reason })); },
   async updateMemberRole(id: string, role: CommunityRole) { return data(await apiClient.patch<Envelope<CommunityMember>>(`/admin/community/members/${id}/role`, { role })); },
   async removeMember(id: string, reason: string) { return data(await apiClient.delete<Envelope<null>>(`/admin/community/members/${id}`, { data: { reason } })); },
 

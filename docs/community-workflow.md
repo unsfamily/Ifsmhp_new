@@ -114,3 +114,9 @@ Verified on 2026-09-22 with isolated MySQL, stored files, and real authenticatio
 - The additive migration was applied to isolated MySQL first, then local `ifsmhp_platform`. Local reports/history were backed up to `/private/tmp/ifsmhp-moderation-before-migration-20260922.json` (both were empty). No seed/reset was run on the local application database.
 
 The built API/frontend must be released together for any hosted environment. This workspace has no configured deployment target; no remote deployment is implied by the local migration/build checks.
+
+## Member Directory recovery actions
+
+Block/Unblock and Suspend/Unsuspend use explicit eligible actions and transactional status preconditions. See [the status recovery contract, scope and verification](community-member-status.md); status requests now require `expectedStatus`. Report enforcement and closure behavior remain unchanged.
+
+Session expiry, concurrent refresh, and access recovery: [Community session recovery](community-session-recovery.md).

@@ -460,10 +460,14 @@ export async function refresh(req: Request, res: Response) {
 
   const nextRefresh = randomToken(48);
   const expiresAt = addDays(new Date(), env.REFRESH_TOKEN_TTL_DAYS);
-  await prisma.session.update({
-    where: { id: session.id },
+  // Revocation or another rotation may happen after the initial read. Only
+  // the still-current, eligible session may install a replacement cookie.
+  const rotated = await prisma.session.updateMany({
+    where: { id: session.id, tokenHash: sha256(refreshToken), revokedAt: null, expiresAt: { gt: new Date() },
+      user: { deletedAt: null, OR: [{ status: 'ACTIVE' }, { role: 'APPLICANT' }] } },
     data: { tokenHash: sha256(nextRefresh), expiresAt },
   });
+  if (!rotated.count) throw new ApiError(401, 'Invalid or expired refresh token');
 
   res.cookie('refreshToken', nextRefresh, { ...refreshCookieOptions(), expires: expiresAt });
   return {

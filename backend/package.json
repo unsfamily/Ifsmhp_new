@@ -32,7 +32,10 @@
     "db:initialize-settings": "tsx scripts/initialize-settings.ts",
     "test:settings:browser": "node tests/settings.browser.cjs",
     "test:member-phone:browser": "node tests/member-phone.browser.cjs",
-    "test:project-timeline:browser": "node tests/project-timeline.browser.cjs"
+    "test:project-timeline:browser": "node tests/project-timeline.browser.cjs",
+    "test:chat-attachments:browser": "node tests/chat-attachments.browser.cjs",
+    "test:member-status:browser": "node tests/community-member-status.browser.cjs",
+    "test:community-session:browser": "node tests/community-session.browser.cjs"
   },
   "prisma": {
     "schema": "database/prisma/schema.prisma",
