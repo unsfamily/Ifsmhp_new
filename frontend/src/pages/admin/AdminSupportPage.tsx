@@ -77,7 +77,7 @@ function AdminSupportList() {
       <div className="grid gap-4 sm:grid-cols-4">
         {[
           { label: 'Open Tickets', value: stats?.open.toString() ?? '...', icon: Headphones, color: 'forum', note: stats ? `${stats.urgent} urgent` : '' },
-          { label: 'Over SLA', value: stats?.overSla.toString() ?? '...', icon: AlertCircle, color: 'brass', note: '≥ 5 days in queue', warn: !!stats?.overSla },
+          { label: 'Over SLA', value: stats?.overSla.toString() ?? '...', icon: AlertCircle, color: 'brass', note: `≥ ${stats?.slaTargetDays ?? '—'} days in queue`, warn: !!stats?.overSla },
           { label: 'Approved / Week', value: stats?.approvedWeek.toString() ?? '...', icon: CheckCircle2, color: 'slateteal', note: stats ? `Of ${stats.triagedWeek} triaged` : '' },
           { label: 'Closed / Month', value: stats?.closedMonth.toString() ?? '...', icon: CheckCircle2, color: 'forum', note: `Avg. resolution: ${supportDays(stats?.avgResolutionDays)}` },
         ].map((k) => {

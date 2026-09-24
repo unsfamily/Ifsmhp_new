@@ -335,8 +335,6 @@ router.post('/reports/:reportKey/run', validate({ params: reportKeyParams, query
   sendSuccess(res, await reports.runReport(req.params.reportKey!, range, req.user!.id), 'Report generated');
 }));
 
-router.get('/settings', asyncHandler(async (_req, res) => {
-  sendSuccess(res, await service.adminSettings(), 'Platform settings');
-}));
+
 
 export default router;

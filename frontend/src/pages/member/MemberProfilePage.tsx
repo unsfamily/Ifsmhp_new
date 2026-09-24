@@ -214,7 +214,7 @@ function ScientistProfile() {
               Education & Qualifications
             </h3>
           </CardHeader>
-          <CardContent className="pt-0 space-y-5">
+          <CardContent className="pt-0 space-y-5 mt-4">
             {education.length === 0 && <p className="text-sm text-ink-muted">{emptyText('No education or qualifications provided.')}</p>}
             {education.map((ed, i) => (
               <div key={ed.id} className="flex gap-4">
@@ -246,7 +246,7 @@ function ScientistProfile() {
               Research Interests
             </h3>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent className="pt-0 mt-4">
             <div className="flex flex-wrap gap-2">
               {!profile?.researchInterests.length && <p className="text-sm text-ink-muted">{emptyText('No research interests provided.')}</p>}
               {(profile?.researchInterests ?? []).map((t, index) => (
@@ -292,7 +292,7 @@ function ScientistProfile() {
             <p className="text-xs text-ink-subtle mt-0.5">Documents submitted with your IFSMHP application</p>
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 mt-4">
           {documentError && (
             <div className="mb-4 rounded-lg border border-danger-600/20 bg-danger-100 p-3 text-sm text-danger-600">
               {documentError}
@@ -379,7 +379,7 @@ function ScientistProfile() {
             Add Publication
           </Button>
         </CardHeader>
-        <CardContent className="pt-0 divide-y divide-paper-border">
+        <CardContent className="pt-0 divide-y divide-paper-border mt-4">
           {publications.length === 0 && <p className="text-sm text-ink-muted">{emptyText('No published works yet.')}</p>}
           {publications.map((p) => (
             <div key={p.id} className="py-4 first:pt-0 last:pb-0 flex items-start gap-4">

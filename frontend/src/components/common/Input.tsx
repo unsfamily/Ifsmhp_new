@@ -59,10 +59,11 @@ export const TextInput = forwardRef<
               : 'border-paper-border focus:border-forum-600 focus:ring-forum-600'
           }`}
           {...rest}
+          aria-describedby={[rest['aria-describedby'], error ? `${id}-error` : hint ? `${id}-hint` : undefined].filter(Boolean).join(' ') || undefined}
         />
       </div>
-      {error && <p className="mt-1 text-xs text-danger-600">{error}</p>}
-      {hint && !error && <p className="mt-1 text-xs text-ink-subtle">{hint}</p>}
+      {error && <p id={`${id}-error`} role="alert" className="mt-1 text-xs text-danger-600">{error}</p>}
+      {hint && !error && <p id={`${id}-hint`} className="mt-1 text-xs text-ink-subtle">{hint}</p>}
     </div>
   );
 });

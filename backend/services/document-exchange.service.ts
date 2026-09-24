@@ -92,7 +92,7 @@ export async function listItems(userId: string, raw: unknown) {
 
 async function verifyFiles(tx: Prisma.TransactionClient, userId: string, ids: string[]) {
   if (new Set(ids).size !== ids.length) throw ApiError.unprocessable('Select each file only once.');
-  const files = await tx.fileObject.findMany({ where: { id: { in: ids }, uploaderId: userId, deletedAt: null, visibility: 'PRIVATE' } });
+  const files = await tx.fileObject.findMany({ where: { id: { in: ids }, uploaderId: userId, deletedAt: null, avatarManaged: false, visibility: 'PRIVATE' } });
   if (files.length !== ids.length) throw ApiError.notFound('Uploaded document not found');
   const { fileTypeFromFile } = await import('file-type');
   for (const file of files) {

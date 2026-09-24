@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Clock, ShieldCheck, CheckCircle2, XCircle, AlertTriangle, Download, User, Eye, ChevronRight, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
@@ -23,7 +24,8 @@ const initial: AuditFilters = { search: '', actorRole: '', module: '', action: '
 
 export default function AdminAuditLogPage() {
   const { user } = useAuth();
-  const [filters, setFilters] = useState(initial), [query, setQuery] = useState(''), [page, setPage] = useState(1), [expandedId, setExpandedId] = useState<string | null>(null);
+  const [urlParams] = useSearchParams();
+  const [filters, setFilters] = useState<AuditFilters>(() => ({ ...initial, actorId: urlParams.get('actorId') ?? '', module: urlParams.get('module') ?? '' })), [query, setQuery] = useState(''), [page, setPage] = useState(1), [expandedId, setExpandedId] = useState<string | null>(null);
   const search = useDebouncedValue(query), [exporting, setExporting] = useState(false), [exportError, setExportError] = useState('');
   const exportRequest = useRef<AbortController | null>(null);
   const params = useMemo(() => ({ ...filters, search }), [filters, search]);
@@ -32,6 +34,7 @@ export default function AdminAuditLogPage() {
   useEffect(() => { if (data && page !== data.pagination.page) setPage(data.pagination.page); }, [data, page]);
   useEffect(() => { setExpandedId(null); setExportError(''); return () => exportRequest.current?.abort(); }, [user?.id, user?.role]);
   useEffect(() => { if (denied) { exportRequest.current?.abort(); setExpandedId(null); } }, [denied]);
+  useEffect(() => { setFilters(f => ({ ...f, actorId: urlParams.get('actorId') ?? '', module: urlParams.get('module') ?? '' })); }, [urlParams]);
   const change = (key: keyof AuditFilters, value: string) => { setFilters(f => ({ ...f, [key]: value })); setPage(1); };
   const exportCsv = async () => {
     if (exportRequest.current || denied) return;

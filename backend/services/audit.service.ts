@@ -12,8 +12,8 @@ export interface AuditInput {
   ipAddress?: string; userAgent?: string; deduplicationKey?: string;
 }
 // Explicit allowlists prevent credentials, arbitrary payloads and private content from becoming permanent logs.
-const changeKeys = new Set(['status', 'role', 'visibility', 'isHidden', 'isPinned', 'isLocked', 'displayOrder', 'albumId', 'categoryId', 'assignedAdminId', 'assignedToId', 'deletedAt', 'removedAt', 'publishedAt', 'scheduledPublishAt', 'featured', 'sendReminder', 'reminderDays', 'emailEnabled', 'read', 'revision', 'userRole', 'memberId', 'category', 'priority']);
-const metadataKeys = new Set(['count', 'rows', 'fileId', 'attachmentId', 'reportId', 'communityId', 'conversationId', 'applicationId', 'jobId', 'channel', 'purpose', 'reasonCode', 'changedFields', 'from', 'to', 'cutoff', 'module', 'action', 'actorRole', 'severity', 'sort', 'searchApplied']);
+const changeKeys = new Set(['fullName', 'shortName', 'legalName', 'registrationNumber', 'contactEmail', 'contactPhone', 'homepageUrl', 'communityUrl', 'locale', 'timezone', 'dateFormat', 'maintenance', 'pendingDays', 'reviewDays', 'capacity', 'registrationRequired', 'senderName', 'replyTo', 'announcementSignoff', 'publicationDays', 'projectDays', 'supportDays', 'privacyEmail', 'status', 'role', 'visibility', 'isHidden', 'isPinned', 'isLocked', 'displayOrder', 'albumId', 'categoryId', 'assignedAdminId', 'assignedToId', 'deletedAt', 'removedAt', 'publishedAt', 'scheduledPublishAt', 'featured', 'sendReminder', 'reminderDays', 'emailEnabled', 'read', 'revision', 'userRole', 'memberId', 'category', 'priority']);
+const metadataKeys = new Set(['count', 'rows', 'fileId', 'attachmentId', 'reportId', 'communityId', 'conversationId', 'applicationId', 'jobId', 'channel', 'purpose', 'reasonCode', 'changedFields', 'from', 'to', 'cutoff', 'module', 'action', 'actorRole', 'severity', 'sort', 'searchApplied', 'actorId']);
 function scalar(value: unknown): string | number | boolean | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number' && Number.isFinite(value) || typeof value === 'boolean') return value as number | boolean;

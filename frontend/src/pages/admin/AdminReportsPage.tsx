@@ -92,6 +92,7 @@ export default function AdminReportsPage() {
   const catalog = useApiData(
     () => (ready && !invalidCustom ? reportsApi.catalog(range) : Promise.resolve(null)),
     [range.from, range.to, ready, invalidCustom, reloadKey],
+    true,
   );
 
   const reports = catalog.data?.reports ?? [];

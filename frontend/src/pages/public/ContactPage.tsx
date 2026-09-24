@@ -1,3 +1,4 @@
+import { usePublicSettings } from '../../context/SettingsContext';
 import { useEffect, useRef, useState } from 'react';
 import {
   Mail,
@@ -34,21 +35,21 @@ const contacts = [
   {
     icon: Users,
     label: 'Membership Inquiries',
-    email: 'membership@ifsmhp.com',
+
     desc: 'Questions about eligibility, the application process, or membership benefits.',
     color: 'forum',
   },
   {
     icon: FileText,
     label: 'Research Support',
-    email: 'research@ifsmhp.com',
+
     desc: 'Support requests, grant inquiries, and publication platform questions.',
     color: 'slateteal',
   },
   {
     icon: HelpCircle,
     label: 'General Inquiries',
-    email: 'info@ifsmhp.com',
+
     desc: 'All other questions, partnerships, and general correspondence.',
     color: 'brass',
   },
@@ -101,6 +102,7 @@ const colorClasses = {
 };
 
 export default function ContactPage() {
+  const settings = usePublicSettings();
   const [submitted, setSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const bannerRef = useRef<HTMLElement | null>(null);
@@ -233,7 +235,8 @@ export default function ContactPage() {
 
       <Section bg="paper">
         <div className="grid gap-6 sm:grid-cols-3">
-          {contacts.map((c) => {
+          {contacts.map((entry) => {
+            const c = { ...entry, email: settings?.contactEmail || '' };
             const Icon = c.icon;
             const cls = colorClasses[c.color as keyof typeof colorClasses];
             return (
@@ -247,11 +250,11 @@ export default function ContactPage() {
                 <h3 className="mt-5 text-lg font-semibold text-forum-900">{c.label}</h3>
                 <p className="mt-1 text-sm text-ink-muted">{c.desc}</p>
                 <a
-                  href={`mailto:${c.email}`}
+                  href={c.email ? `mailto:${c.email}` : undefined} aria-disabled={!c.email}
                   className={`mt-4 inline-flex items-center gap-2 text-sm font-semibold transition-colors ${cls.link}`}
                 >
                   <Mail className="h-4 w-4" />
-                  {c.email}
+                  {c.email || 'Contact email not configured'}
                 </a>
               </div>
             );
@@ -268,13 +271,7 @@ export default function ContactPage() {
                 <div>
                   <h3 className="font-semibold text-forum-900">Office Address</h3>
                   <p className="mt-1 text-sm text-ink-muted leading-relaxed">
-                    International Forum of Scientists and Mental Health Professionals
-                    <br />
-                    [Your Office Address Line 1]
-                    <br />
-                    [City, State/Province, Postal Code]
-                    <br />
-                    [Country]
+                    {settings?.fullName}<br />{settings?.address || 'Office address not configured'}
                   </p>
                 </div>
               </div>
@@ -285,9 +282,7 @@ export default function ContactPage() {
                 <div>
                   <h3 className="font-semibold text-forum-900">Phone</h3>
                   <p className="mt-1 text-sm text-ink-muted">
-                    +[Country Code] [Phone Number]
-                    <br />
-                    <span className="text-ink-subtle">Mon–Fri, 09:00–17:00 UTC</span>
+                    {settings?.contactPhone || 'Phone not configured'}
                   </p>
                 </div>
               </div>

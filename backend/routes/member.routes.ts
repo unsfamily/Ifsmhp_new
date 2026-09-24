@@ -13,6 +13,8 @@ import * as supportService from '../services/support.service';
 import * as exchange from '../services/document-exchange.service';
 import * as announcements from '../services/member-announcements.service';
 import { exchangeSendBody } from '../domain/document-exchange';
+import { memberPhoneSchema } from '../domain/member-profile';
+import { projectDateFields, validateProjectRange } from '../domain/project-timeline';
 
 const router = Router({ mergeParams: true });
 
@@ -34,11 +36,11 @@ for (const action of ['read', 'unread'] as const) {
   router.post(`/me/announcements/:id/${action}`, asyncHandler(async (req, res) => sendSuccess(res, await announcements.setAnnouncementRead(req.user!.id, req.params.id!, action === 'read'), 'Announcement updated')));
 }
 
-const projectSchema = z.object({
+const projectFieldsSchema = z.object({
   title: z.string().min(4).max(220),
   category: z.string().min(2).max(120),
   description: z.string().min(20).max(15000),
-  timeline: z.string().max(200).optional(),
+  ...projectDateFields,
   budget: z.string().max(120).optional(),
   supportTypes: z.array(z.string()).default([]),
   /** Ids from POST /files/upload. Ownership is re-checked in the service. */
@@ -52,16 +54,23 @@ const projectSchema = z.object({
   })).max(20, 'Add no more than 20 links').default([]),
   submit: z.boolean().default(true),
 }).strict();
+const projectSchema = projectFieldsSchema.superRefine(validateProjectRange);
 
 /**
  * Same fields, all optional — members may edit one field at a time.
  * Attachments and links are creation-time only, so they are omitted here rather
  * than accepted and silently ignored.
  */
-const projectUpdateSchema = projectSchema
+const projectUpdateSchema = projectFieldsSchema
   .omit({ fileIds: true, resourceLinks: true })
   .partial()
   .strict()
+  .superRefine((value, ctx) => {
+    if (value.fromDate === undefined && value.toDate === undefined) return;
+    if (value.fromDate === undefined) ctx.addIssue({ code: 'custom', path: ['fromDate'], message: 'From Date is required' });
+    else if (value.toDate === undefined) ctx.addIssue({ code: 'custom', path: ['toDate'], message: 'To Date is required' });
+    else validateProjectRange({ fromDate: value.fromDate, toDate: value.toDate }, ctx);
+  })
   .refine((value) => Object.values(value).some((field) => field !== undefined), 'Provide at least one field to update');
 
 const supportSchema = supportService.createBody;
@@ -138,7 +147,7 @@ const professionalUrl = z.string().max(2048).url('Enter a valid URL').refine(
   'Use an HTTP or HTTPS URL',
 );
 const profileSchema = z.object({
-  phone: optionalText(z.string().max(40, 'Phone must be 40 characters or fewer')),
+  phone: memberPhoneSchema.optional(),
   websiteUrl: optionalText(professionalUrl),
   scholarUrl: optionalText(professionalUrl),
   orcid: optionalText(z.string().regex(/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/, 'Enter an ORCID in the format 0000-0000-0000-0000')),

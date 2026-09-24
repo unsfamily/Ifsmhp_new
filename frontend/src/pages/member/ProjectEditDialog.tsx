@@ -5,6 +5,7 @@ import { TextInput, TextArea, Checkbox } from '../../components/common/Input';
 import { memberApi, type MemberProject, type MemberProjectDetail, type SupportKindLabel } from '../../api/member';
 import { useApiData } from '../../hooks/useApiData';
 import { normalizeError } from '../../api/client';
+import { projectDateError, projectToDateError, validProjectDate } from '../../utils/projectTimeline';
 
 const SUPPORT_KINDS: SupportKindLabel[] = ['Moral', 'Official', 'Funding'];
 
@@ -15,6 +16,8 @@ export default function ProjectEditDialog({ project, onClose, onSaved }: {
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const alive = useRef(true);
+  const fromInput = useRef<HTMLInputElement>(null);
+  const toInput = useRef<HTMLInputElement>(null);
 
   // The list row carries no timeline/budget, so the form loads the full record.
   const { data: detail, loading, error: loadError } = useApiData<MemberProjectDetail>(
@@ -26,7 +29,8 @@ export default function ProjectEditDialog({ project, onClose, onSaved }: {
     title: project.title,
     category: project.category,
     description: project.description,
-    timeline: '',
+    fromDate: '',
+    toDate: '',
     budget: '',
   });
   const [support, setSupport] = useState<SupportKindLabel[]>(project.support);
@@ -54,7 +58,8 @@ export default function ProjectEditDialog({ project, onClose, onSaved }: {
       title: detail.title,
       category: detail.category,
       description: detail.description,
-      timeline: detail.timeline ?? '',
+      fromDate: detail.fromDate ?? '',
+      toDate: detail.toDate ?? '',
       budget: detail.budget ?? '',
     });
     setSupport(detail.support);
@@ -64,10 +69,38 @@ export default function ProjectEditDialog({ project, onClose, onSaved }: {
   const toggleSupport = (kind: SupportKindLabel) =>
     setSupport((previous) => previous.includes(kind) ? previous.filter((item) => item !== kind) : [...previous, kind]);
 
+  const dateErrors = (range: typeof values, submit: boolean) => {
+    if (fromInput.current?.validity.badInput || toInput.current?.validity.badInput) return {
+      fromDate: fromInput.current?.validity.badInput ? 'Enter a valid From Date' : projectDateError(range.fromDate, 'From Date') ?? '',
+      toDate: toInput.current?.validity.badInput ? 'Enter a valid To Date' : projectToDateError(range.fromDate, range.toDate) ?? '',
+    };
+    if (!submit && !detail?.fromDate && !range.fromDate && !range.toDate) return { fromDate: '', toDate: '' };
+    return {
+      fromDate: projectDateError(range.fromDate, 'From Date') ?? '',
+      toDate: projectToDateError(range.fromDate, range.toDate) ?? '',
+    };
+  };
+  const changeDate = (field: 'fromDate' | 'toDate', value: string) => {
+    const next = { ...values, [field]: value };
+    setValues(next);
+    setFieldErrors(previous => ({ ...previous, ...dateErrors(next, false) }));
+  };
+  const showInvalidDates = () => {
+    const invalid = dateErrors(values, false);
+    setFieldErrors(previous => ({ ...previous, ...invalid }));
+    (invalid.fromDate ? fromInput : toInput).current?.focus();
+  };
+
   // Called from both the form's submit and the "Submit for Review" click.
   const save = async (event: { preventDefault: () => void }, submit: boolean) => {
     event.preventDefault();
     if (saving) return;
+    const invalid = dateErrors(values, submit);
+    if (invalid.fromDate || invalid.toDate) {
+      setFieldErrors(previous => ({ ...previous, ...invalid }));
+      (invalid.fromDate ? fromInput : toInput).current?.focus();
+      return;
+    }
     setSaving(submit ? 'submit' : 'draft');
     setError(null);
     setFieldErrors({});
@@ -76,7 +109,7 @@ export default function ProjectEditDialog({ project, onClose, onSaved }: {
         title: values.title,
         category: values.category,
         description: values.description,
-        timeline: values.timeline,
+        ...(values.fromDate || values.toDate ? { fromDate: values.fromDate, toDate: values.toDate } : {}),
         budget: values.budget,
         supportTypes: support,
         ...(submit ? { submit: true } : {}),
@@ -87,6 +120,8 @@ export default function ProjectEditDialog({ project, onClose, onSaved }: {
         const normalized = normalizeError(failure);
         setError(normalized.message);
         setFieldErrors(normalized.fieldErrors);
+        if (normalized.fieldErrors.fromDate) fromInput.current?.focus();
+        else if (normalized.fieldErrors.toDate) toInput.current?.focus();
       }
     } finally {
       if (alive.current) setSaving(null);
@@ -146,11 +181,27 @@ export default function ProjectEditDialog({ project, onClose, onSaved }: {
             onChange={(event) => setValues((previous) => ({ ...previous, description: event.target.value }))}
           />
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextInput
-              label="Timeline" maxLength={200} value={values.timeline} disabled={busy}
-              error={fieldErrors.timeline}
-              onChange={(event) => setValues((previous) => ({ ...previous, timeline: event.target.value }))}
-            />
+            <fieldset>
+              <legend className="mb-1.5 text-sm font-medium text-ink">Project Timeline</legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextInput ref={fromInput} label="From Date" type="date" min="0001-01-01" max="9999-12-31"
+                  value={values.fromDate} disabled={busy} error={fieldErrors.fromDate}
+                  onInvalid={event => { event.preventDefault(); showInvalidDates(); }}
+                  required={Boolean(detail?.fromDate || values.fromDate || values.toDate)}
+                  onChange={event => changeDate('fromDate', event.target.value)}
+                  onBlur={() => setFieldErrors(previous => ({ ...previous, ...dateErrors(values, false) }))} />
+                <TextInput ref={toInput} label="To Date" type="date" min={validProjectDate(values.fromDate) ? values.fromDate : '0001-01-01'} max="9999-12-31"
+                  value={values.toDate} disabled={busy} error={fieldErrors.toDate}
+                  onInvalid={event => { event.preventDefault(); showInvalidDates(); }}
+                  required={Boolean(detail?.fromDate || values.fromDate || values.toDate)}
+                  onChange={event => changeDate('toDate', event.target.value)}
+                  onBlur={() => setFieldErrors(previous => ({ ...previous, ...dateErrors(values, false) }))} />
+              </div>
+              {!detail?.fromDate && <p className="mt-2 break-words text-xs text-ink-subtle">
+                {detail?.timeline ? `Saved timeline: ${detail.timeline}. ` : 'No timeline is saved. '}
+                Leave both dates blank to keep it, or provide both to replace it. Valid dates are required before submitting a draft.
+              </p>}
+            </fieldset>
             <TextInput
               label="Budget" maxLength={120} value={values.budget} disabled={busy}
               error={fieldErrors.budget}

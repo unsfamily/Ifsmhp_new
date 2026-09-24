@@ -133,6 +133,7 @@ export default function AdminProjectsPage() {
         limit: pageSize,
       }),
     [debounced, statusFilter, categoryFilter, priorityFilter, dateFrom, dateTo, page, pageSize, reloadKey],
+    true,
   );
 
   const pageItems = data?.items ?? [];
@@ -218,7 +219,7 @@ export default function AdminProjectsPage() {
         {[
           { label: 'Total Projects', value: counts?.total, icon: FolderKanban, color: 'forum' },
           { label: 'In Review Queue', value: counts?.inReview, icon: Eye, color: 'slateteal' },
-          { label: 'SLA Breach (≥7d)', value: counts?.slaBreach, icon: AlertTriangle, color: 'danger' as const, warn: true },
+          { label: `SLA Breach (≥${counts?.slaTargetDays ?? '—'}d)`, value: counts?.slaBreach, icon: AlertTriangle, color: 'danger' as const, warn: true },
           { label: 'Urgent Priority', value: counts?.urgent, icon: Flag, color: 'brass' },
           { label: 'Approved', value: counts?.approved, icon: CheckCircle2, color: 'success' as const },
           { label: 'Published', value: counts?.published, icon: FileText, color: 'forum' },

@@ -1,3 +1,4 @@
+import { effectiveSettings } from './settings.service';
 import { changesBetween, writeAudit } from './audit.service';
 import { randomUUID } from 'node:crypto';
 import { DateTime } from 'luxon';
@@ -77,9 +78,10 @@ export async function saveEvent(actorId: string, raw: unknown, id?: string) {
     const old = id ? await tx.event.findFirst({ where: { id, deletedAt: null }, include }) : null;
     if (id && !old) throw ApiError.notFound('Event not found');
     if (patch.status === 'CANCELLED' && old?.status !== 'CANCELLED') throw ApiError.unprocessable('Use the cancellation action.');
-    const f = eventSchema().parse({ ...(old ? recordInput(old) : {}), ...patch });
+    const defaults = await effectiveSettings(tx);
+    const f = eventSchema().parse({ ...(old ? recordInput(old) : { timezone: defaults.general.timezone, ...defaults.events }), ...patch });
     if (f.coverFileId && f.coverFileId !== old?.coverFileId) {
-      const file = await tx.fileObject.findFirst({ where: { id: f.coverFileId, deletedAt: null, uploaderId: actorId, mimeType: { in: ['image/jpeg', 'image/png', 'image/webp'] } } });
+      const file = await tx.fileObject.findFirst({ where: { id: f.coverFileId, deletedAt: null, avatarManaged: false, uploaderId: actorId, mimeType: { in: ['image/jpeg', 'image/png', 'image/webp'] } } });
       if (!file) throw ApiError.unprocessable('Invalid cover image.', [{ field: 'coverFileId', message: 'Upload a JPEG, PNG or WebP image from this account.' }]);
     }
     if (old && JSON.stringify(recordInput(old)) === JSON.stringify(f)) return old.id;

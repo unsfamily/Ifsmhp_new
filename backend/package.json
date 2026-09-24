@@ -27,7 +27,12 @@
     "db:studio": "prisma studio",
     "test:community:browser": "node tests/community.browser.cjs",
     "test:moderation:browser": "node tests/community-moderation.browser.cjs",
-    "test:audit:browser": "node tests/audit.browser.cjs"
+    "test:audit:browser": "node tests/audit.browser.cjs",
+    "test:profile:browser": "node tests/admin-profile.browser.cjs",
+    "db:initialize-settings": "tsx scripts/initialize-settings.ts",
+    "test:settings:browser": "node tests/settings.browser.cjs",
+    "test:member-phone:browser": "node tests/member-phone.browser.cjs",
+    "test:project-timeline:browser": "node tests/project-timeline.browser.cjs"
   },
   "prisma": {
     "schema": "database/prisma/schema.prisma",

@@ -84,7 +84,7 @@ export default function LoginPage() {
             </Link>
           </div>
           <div className="relative">
-            <h2 className="font-display text-2xl font-semibold leading-tight">
+            <h2 className="font-display text-2xl font-semibold leading-tight text-white">
               Welcome back to the global community of scientific excellence.
             </h2>
             <ul className="mt-8 space-y-3">

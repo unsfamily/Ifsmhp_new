@@ -21,6 +21,13 @@ import { sha256, signAccessToken } from '../utils/security';
 const app = createApp();
 const PREFIX = 'registration-doc-test';
 const uploadRoot = path.resolve(process.cwd(), env.UPLOAD_STORAGE_PATH);
+let rejectProfileAudit = false;
+prisma.$use(async (params, next) => {
+  if (rejectProfileAudit && params.model === 'AuditLog' && params.action === 'create' && params.args.data.action === 'UserProfileUpdated') {
+    throw new Error('Injected profile audit failure');
+  }
+  return next(params);
+});
 
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
 const png = Buffer.from(
@@ -96,6 +103,7 @@ async function authTokenFor(user: { id: string; role: 'ADMIN' | 'MEMBER' | 'APPL
 }
 
 beforeEach(async () => {
+  rejectProfileAudit = false;
   sentCodes.length = 0;
   await cleanup();
 });
@@ -287,12 +295,12 @@ describe('scientist profile persistence and isolation', () => {
   it('saves partial edits, clears optional fields, and rejects protected or invalid fields', async () => {
     const { user, token } = await createScientist('editable');
     const patch = (body: Record<string, unknown>) => request(app).patch('/api/v1/members/me/profile').auth(token, { type: 'bearer' }).send(body);
-    const updated = await patch({ phone: '  +44 12345  ', websiteUrl: ' https://example.test/scientist ', scholarUrl: 'https://scholar.google.com/citations?user=test', orcid: '0000-0002-1825-0097' });
+    const updated = await patch({ phone: '0123456789', websiteUrl: ' https://example.test/scientist ', scholarUrl: 'https://scholar.google.com/citations?user=test', orcid: '0000-0002-1825-0097' });
     expect(updated.status).toBe(200);
-    expect(updated.body.data).toMatchObject({ phone: '+44 12345', websiteUrl: 'https://example.test/scientist', orcid: '0000-0002-1825-0097' });
-    expect((await patch({ phone: null })).status).toBe(200);
+    expect(updated.body.data).toMatchObject({ phone: '0123456789', websiteUrl: 'https://example.test/scientist', orcid: '0000-0002-1825-0097' });
+    expect((await patch({ phone: null })).status).toBe(422);
     const reloaded = await request(app).get('/api/v1/members/me/profile').auth(token, { type: 'bearer' });
-    expect(reloaded.body.data).toMatchObject({ phone: null, websiteUrl: 'https://example.test/scientist' });
+    expect(reloaded.body.data).toMatchObject({ phone: '0123456789', websiteUrl: 'https://example.test/scientist' });
     for (const body of [
       { websiteUrl: 'javascript:alert(1)' }, { scholarUrl: 'ftp://example.test' }, { websiteUrl: 'invalid' },
       { orcid: 'invalid' }, { phone: '1'.repeat(41) }, { phone: 123 }, {},
@@ -305,8 +313,59 @@ describe('scientist profile persistence and isolation', () => {
       expect(response.body.errors.length).toBeGreaterThan(0);
     }
     expect((await patch({ websiteUrl: '   ', scholarUrl: null, orcid: '' })).status).toBe(200);
-    expect(await prisma.memberProfile.findUnique({ where: { userId: user.id } })).toMatchObject({ phone: null, websiteUrl: null, scholarUrl: null, orcid: null });
+    expect(await prisma.memberProfile.findUnique({ where: { userId: user.id } })).toMatchObject({ phone: '0123456789', websiteUrl: null, scholarUrl: null, orcid: null });
     expect(await prisma.user.findUnique({ where: { id: user.id } })).toMatchObject({ fullName: user.fullName });
+  });
+
+  it.each([
+    '', ...Array.from({ length: 9 }, (_, i) => '1'.repeat(i + 1)), '12345678901',
+    '123456789a', '+123456789', '123 456789', '123-456789', '(123)45678',
+    '１２３４５６７８９０', '١٢٣٤٥٦٧٨٩٠', ' 0123456789', '0123456789 ',
+    '0123456789\n', '012345678\n', '012345678\t', '1234567890 ext 2',
+    null, 1234567890, true, ['0123456789'], { number: '0123456789' },
+  ])('rejects invalid phone %j without persisting any fields or audit records', async phone => {
+    const { user, token } = await createScientist('invalid-phone');
+    const before = await prisma.memberProfile.findUniqueOrThrow({ where: { userId: user.id } });
+    const response = await request(app).patch('/api/v1/members/me/profile').auth(token, { type: 'bearer' })
+      .send({ phone, websiteUrl: 'https://example.test/must-not-save' });
+    expect(response.status).toBe(422);
+    expect(response.body.errors).toContainEqual({ field: 'phone', message: 'Enter exactly 10 digits, without spaces or a country code.' });
+    expect(await prisma.memberProfile.findUniqueOrThrow({ where: { userId: user.id } })).toEqual(before);
+    expect(await prisma.auditLog.count({ where: { actorId: user.id, action: 'UserProfileUpdated' } })).toBe(0);
+  });
+
+  it.each([null, '', '12345', '+44 1234567890', '12345678901'])('requires correction of legacy phone %j even when omitted from PATCH', async phone => {
+    const { user, token } = await createScientist('legacy-phone');
+    await prisma.memberProfile.update({ where: { userId: user.id }, data: { phone } });
+    const patch = (body: Record<string, unknown>) => request(app).patch('/api/v1/members/me/profile').auth(token, { type: 'bearer' }).send(body);
+    const response = await patch({ websiteUrl: 'https://example.test/profile' });
+    expect(response.status).toBe(422);
+    expect(response.body.errors[0].field).toBe('phone');
+    const fetched = await request(app).get('/api/v1/members/me/profile').auth(token, { type: 'bearer' });
+    expect(fetched.body.data).toMatchObject({ phone, websiteUrl: null });
+    expect(await prisma.auditLog.count({ where: { actorId: user.id, action: 'UserProfileUpdated' } })).toBe(0);
+    expect((await patch({ phone: '0000000000', websiteUrl: 'https://example.test/profile' })).status).toBe(200);
+    expect((await patch({ scholarUrl: 'https://scholar.google.com/' })).status).toBe(200);
+    // Repeating an unchanged valid save must not create another audit record.
+    expect((await patch({ phone: '0000000000' })).status).toBe(200);
+    expect(await prisma.auditLog.count({ where: { actorId: user.id, action: 'UserProfileUpdated' } })).toBe(2);
+    const reloaded = await request(app).get('/api/v1/members/me/profile').auth(token, { type: 'bearer' });
+    expect(reloaded.body.data).toMatchObject({ phone: '0000000000', websiteUrl: 'https://example.test/profile', scholarUrl: 'https://scholar.google.com/' });
+  });
+
+  it('rolls back phone correction and other fields if the audit write fails', async () => {
+    const { user, token } = await createScientist('phone-rollback');
+    const before = await prisma.memberProfile.findUniqueOrThrow({ where: { userId: user.id } });
+    rejectProfileAudit = true;
+    try {
+      const response = await request(app).patch('/api/v1/members/me/profile').auth(token, { type: 'bearer' })
+        .send({ phone: '9876543210', websiteUrl: 'https://example.test/rollback' });
+      expect(response.status).toBe(500);
+    } finally {
+      rejectProfileAudit = false;
+    }
+    expect(await prisma.memberProfile.findUniqueOrThrow({ where: { userId: user.id } })).toEqual(before);
+    expect(await prisma.auditLog.count({ where: { actorId: user.id, action: 'UserProfileUpdated' } })).toBe(0);
   });
 
   it('scopes identity, collections and statistics to the session, regardless of supplied IDs', async () => {

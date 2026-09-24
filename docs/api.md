@@ -51,8 +51,10 @@ All member routes require an active `MEMBER` session. Admins may pass member rou
 |---|---|---|
 | `GET` | `/members/me/dashboard` | Member dashboard aggregate |
 | `GET` | `/members/me/profile` | Current member profile |
+| `PATCH` | `/members/me/profile` | Update phone, website URL, Scholar URL, or ORCID; returns the updated profile |
 | `GET` | `/members/me/projects` | Owned projects |
 | `POST` | `/members/me/projects` | Create draft/submitted project |
+| `PATCH` | `/members/me/projects/:projectId` | Edit an owned draft/submitted project, or submit an owned draft |
 | `GET` | `/members/me/projects/:projectId` | Owned project detail |
 | `GET` | `/members/me/support` | Owned support requests |
 | `POST` | `/members/me/support` | Create support request |
@@ -62,6 +64,18 @@ All member routes require an active `MEMBER` session. Admins may pass member rou
 | `POST` | `/members/me/conversations/:id/messages` | Add a message |
 | `GET` | `/members/me/documents` | Attachments visible to the member |
 | `GET` | `/members/me/community` | Member directory, groups, and threads |
+
+Member profile updates accept only the editable fields `phone`, `websiteUrl`, `scholarUrl`, and `orcid`, with at least one field provided. `phone`, when supplied, must be a JSON string containing exactly ten ASCII digits (`0–9`), e.g. `"0123456789"`; leading zeros are preserved. Null, empty, whitespace, punctuation, country prefixes, Unicode numerals, and numeric JSON values return `422` with a `phone` field error: “Enter exactly 10 digits, without spaces or a country code.” No trimming or normalization is applied to phone numbers. If phone is omitted, the current stored phone must meet the same rule before any profile changes can be saved. Existing invalid or missing numbers remain readable and unchanged until explicitly corrected; no backfill is performed. Other editable fields retain their existing optional/clearing behavior. Profile changes and their audit event commit together; invalid requests change neither. This rule is specific to Member Edit Profile, not registration or administrator contact information.
+
+### Project timelines
+
+Project creation requires `fromDate` and `toDate` as complete ASCII `YYYY-MM-DD` calendar-date strings, including when `submit` is `false`. Supported years are `0001`–`9999`. Both dates must exist in the Gregorian calendar and `toDate >= fromDate`; same-day, past, and future ranges are accepted. Null, numeric values, zero/year zero, whitespace, incomplete dates, timestamps, impossible dates, and reversed ranges return `422` with field errors on `fromDate` or `toDate`.
+
+Example date fields: `{ "fromDate": "2024-02-29", "toDate": "2024-03-01" }`. Existing project creation fields and response envelopes remain unchanged. Free-text `timeline` is no longer accepted in mutation payloads; deploy the frontend and API together.
+
+For project PATCH requests, omitting both date fields preserves the current timeline. Supplying either requires both and a valid range. Unrelated edits to legacy projects remain allowed, but promoting a draft requires a valid effective range inside the update transaction. Invalid requests must not change project fields, support selections, submission history, or audit records.
+
+The existing `Project.timeline` column stores new ranges as `YYYY-MM-DD / YYYY-MM-DD`, without timezone conversion. Member project detail retains its readable `timeline` and adds `fromDate: string | null` and `toDate: string | null`. These are derived only from a valid canonical range; arbitrary historical text is returned unchanged with both derived fields null. No migration, backfill, or inferred dates are used. See [implementation and verification](project-timeline-validation.md).
 
 ## Admin
 
@@ -142,3 +156,13 @@ Submission returns `{ reportId, status, created, duplicate }`. Reusing an identi
 Enforcement starts review without closing. Resolve/Dismiss explicitly close; `REOPEN_REPORT` explicitly reopens and clears resolution notes. Legacy reports have null original evidence. See [Community workflow](community-workflow.md#reporting-and-moderation) for eligibility, evidence retention/access, request examples, migration, coordinated deployment, and verification results.
 
 Audit event fields, privacy rules, route coverage, query semantics, migration and verification: [Dynamic Admin Audit Log](audit-log.md).
+
+## Administrator Profile & Preferences
+
+See [the profile contract and rollout guide](admin-profile.md) for `/admin/profile` profile/preferences, avatar, password, session, and overview endpoints. These endpoints require a real stored active-administrator session, never accept arbitrary account IDs, and never use mock fallback. Work Email/designation are profile information; login email and authorization role remain read-only. Profile mutations require `expectedRevision`.
+
+Audit listing and CSV export additionally support the exact `actorId` query parameter used by personal activity links.
+
+### Administration Settings
+
+`GET /admin/settings` now returns `{ values, defaults, sections, deployment }` rather than raw setting rows. `PATCH /admin/settings/:section` accepts `{ expectedRevision, values }` and atomically saves changed supported keys with an audit event. Both require an active administrator with a real stored session. Stale revisions return 409; invalid or unsupported fields return 422. `GET /public/settings` returns only the public branding, contact, formatting, notice and privacy-contact allowlist. See [Administration Settings](administration-settings.md) for the registry, defaults, unavailable capabilities, migration/initialization steps and verification results.

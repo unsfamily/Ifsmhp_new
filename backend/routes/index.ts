@@ -1,3 +1,5 @@
+import settingsRoutes from './settings.routes';
+import adminProfileRoutes from './admin-profile.routes';
 import { Router } from 'express';
 import { galleryAdminRoutes, galleryPublicRoutes } from './gallery.routes';
 import communityRoutes, { communityAdminRoutes } from './community.routes';
@@ -41,6 +43,8 @@ router.use('/admin/announcements', announcementRoutes);
 router.use('/community', communityRoutes);
 router.use('/admin/community', communityAdminRoutes);
 router.use('/admin/gallery', galleryAdminRoutes);
+router.use('/admin/profile', adminProfileRoutes);
+router.use('/admin/settings', settingsRoutes);
 router.use('/admin', adminRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/announcements/unsubscribe', unsubscribeRouter);

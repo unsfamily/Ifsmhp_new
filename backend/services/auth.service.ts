@@ -1,3 +1,5 @@
+import { notifyAdmins } from './admin-notifications.service';
+import { newAdminPassword } from '../domain/admin-profile';
 import type { Request, Response } from 'express';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
@@ -133,10 +135,14 @@ async function issueSession(
   req: Request,
   res: Response,
   remember = false,
+  expectedPasswordHash?: string,
 ) {
   const refreshToken = randomToken(48);
   const expiresAt = addDays(new Date(), remember ? 30 : env.REFRESH_TOKEN_TTL_DAYS);
   const session = await prisma.$transaction(async tx => {
+  await tx.$queryRaw`SELECT id FROM User WHERE id = ${user.id} FOR UPDATE`;
+  const current = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
+  if (current.deletedAt || (current.role !== 'APPLICANT' && current.status !== 'ACTIVE') || (expectedPasswordHash && current.passwordHash !== expectedPasswordHash)) throw new ApiError(401, 'Credentials changed. Sign in again.');
   const session = await tx.session.create({
     data: {
       userId: user.id,
@@ -226,6 +232,7 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         histories: { create: { toStatus: 'PENDING', note: 'Application submitted by applicant' } },
       },
     });
+    await notifyAdmins(tx, { key: `application:${application.id}`, category: 'APPLICATION', entityId: application.id, title: 'New membership application', link: '/admin/members/pending', allAdmins: true });
     await tx.notification.create({
       data: {
         userId: user.id,
@@ -292,7 +299,7 @@ export async function login(input: LoginInput, req: Request, res: Response) {
     throw new ApiError(403, 'This account cannot sign in. Contact IFSMHP support.');
   }
 
-  return issueSession(user, req, res, input.remember);
+  return issueSession(user, req, res, input.remember, user.passwordHash);
 }
 
 /**
@@ -509,11 +516,14 @@ export async function resetPassword(token: string, password: string) {
   if (!reset || reset.usedAt || reset.expiresAt <= new Date()) {
     throw new ApiError(422, 'Password reset link is invalid or expired');
   }
+  const owner = await prisma.user.findUniqueOrThrow({ where: { id: reset.userId } });
+  if (owner.role === 'ADMIN') newAdminPassword.parse(password);
   const passwordHash = await hashPassword(password);
   await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM User WHERE id = ${reset.userId} FOR UPDATE`;
     const consumed = await tx.passwordResetToken.updateMany({ where: { id: reset.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
     if (!consumed.count) throw ApiError.unprocessable('Password reset link is invalid or expired');
-    await tx.user.update({ where: { id: reset.userId }, data: { passwordHash } });
+    await tx.user.update({ where: { id: reset.userId }, data: { passwordHash, passwordChangedAt: new Date() } });
     await tx.session.updateMany({ where: { userId: reset.userId, revokedAt: null }, data: { revokedAt: new Date() } });
     await writeAudit({ actorId: reset.userId, action: 'PasswordReset', entity: `User ${reset.userId}`, metadata: { changedFields: ['password'] } }, tx);
   });

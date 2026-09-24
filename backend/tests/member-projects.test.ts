@@ -12,6 +12,8 @@ vi.mock('../services/mail.service', () => ({
 import { createApp } from '../app';
 import { prisma } from '../config/database';
 import { sha256, signAccessToken } from '../utils/security';
+import { parseProjectTimeline, validProjectDate } from '../domain/project-timeline';
+import { validProjectDate as validFrontendDate, projectToDateError } from '../../frontend/src/utils/projectTimeline';
 
 /**
  * Covers the member-owned project surface: listing, filtering, and the
@@ -21,6 +23,14 @@ import { sha256, signAccessToken } from '../utils/security';
 const app = createApp();
 const PREFIX = 'member-projects-test';
 const email = (n: string) => `${PREFIX}.${n}@example.test`;
+const dates = { fromDate: '2026-01-01', toDate: '2026-12-31' };
+let rejectProjectAudit = false;
+prisma.$use(async (params, next) => {
+  if (rejectProjectAudit && params.model === 'AuditLog' && params.action === 'create' && ['ProjectCreated', 'ProjectSubmitted', 'ProjectUpdated'].includes(params.args.data.action)) {
+    throw new Error('Injected project audit failure');
+  }
+  return next(params);
+});
 
 let ownerId: string;
 let ownerToken: string;
@@ -52,6 +62,7 @@ async function makeProject(userId: string, overrides: {
   category?: string;
   status?: 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'REJECTED';
   support?: Array<'MORAL' | 'OFFICIAL' | 'FUNDING'>;
+  timeline?: string | null;
 } = {}) {
   return prisma.project.create({
     data: {
@@ -60,6 +71,7 @@ async function makeProject(userId: string, overrides: {
       category: overrides.category ?? 'Neuroscience',
       description: 'A sufficiently long description for validation purposes.',
       status: overrides.status ?? 'DRAFT',
+      timeline: overrides.timeline === undefined ? '2026-01-01 / 2026-12-31' : overrides.timeline,
       ...(overrides.support?.length
         ? { supportTypes: { create: overrides.support.map((kind) => ({ kind })) } }
         : {}),
@@ -83,6 +95,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  rejectProjectAudit = false;
   await wipe();
   const owner = await makeMember('owner');
   const stranger = await makeMember('stranger');
@@ -242,6 +255,7 @@ describe('POST /api/v1/members/me/projects — attachments and links', () => {
     title: `${PREFIX} with attachments`,
     category: 'Neuroscience',
     description: 'A sufficiently long description for validation purposes.',
+    ...dates,
     ...extra,
   });
 
@@ -312,6 +326,107 @@ describe('POST /api/v1/members/me/projects — attachments and links', () => {
       .send(body({}));
 
     expect(response.status).toBe(201);
+  });
+});
+
+describe('project calendar timelines', () => {
+  const body = (extra: Record<string, unknown> = {}) => ({ title: `${PREFIX} dated`, category: 'Neuroscience', description: 'A sufficiently long description for validation purposes.', ...dates, ...extra });
+  const create = (extra: Record<string, unknown> = {}) => request(app).post('/api/v1/members/me/projects').auth(ownerToken, { type: 'bearer' }).send(body(extra));
+
+  it.each([
+    undefined, null, 0, '0', '', false, [], {}, '2026', '2026-01', '2026-1-01', '2026-01-1',
+    '0000-01-01', '10000-01-01', '2026-00-01', '2026-13-01', '2026-01-00', '2026-01-32',
+    '2026-04-31', '2026-02-29', '1900-02-29', '2024-02-30', '2026-01-01T00:00:00Z',
+    ' 2026-01-01', '2026-01-01 ', '2026-01-01\n', '２０２６-０１-０１', '01/02/2026',
+  ])('rejects invalid calendar value %j on each field for both create buttons and edits', async invalid => {
+    const project = await makeProject(ownerId, { support: ['MORAL'] });
+    const before = await prisma.project.findUniqueOrThrow({ where: { id: project.id } });
+    for (const field of ['fromDate', 'toDate']) {
+      for (const submit of [false, true]) {
+        const response = await create({ [field]: invalid, submit });
+        expect(response.status).toBe(422);
+        expect(response.body.errors.some((e: { field: string }) => e.field === field)).toBe(true);
+      }
+      const response = await asOwner('patch', `/api/v1/members/me/projects/${project.id}`)
+        .send({ ...dates, [field]: invalid, title: 'Must not persist', supportTypes: ['Funding'], submit: true });
+      expect(response.status).toBe(422);
+    }
+    expect(await prisma.project.count({ where: { ownerId } })).toBe(1);
+    expect(await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).toEqual(before);
+    expect(await prisma.projectSupportType.findMany({ where: { projectId: project.id } })).toMatchObject([{ kind: 'MORAL' }]);
+    expect(await prisma.projectStatusHistory.count({ where: { projectId: project.id } })).toBe(0);
+    expect(await prisma.auditLog.count({ where: { actorId: ownerId } })).toBe(0);
+    if (typeof invalid === 'string') {
+      expect(validProjectDate(invalid)).toBe(false);
+      expect(validFrontendDate(invalid)).toBe(false);
+    }
+  });
+
+  it.each([
+    ['0001-01-01', '9999-12-31'], ['0099-12-31', '0100-01-01'], ['2000-02-29', '2000-02-29'],
+    ['2024-02-29', '2024-03-01'], ['2026-12-31', '2027-01-01'], ['2026-04-30', '2026-04-30'],
+  ])('persists date-only range %s through %s without timezone conversion', async (fromDate, toDate) => {
+    for (const submit of [false, true]) {
+      const response = await create({ fromDate, toDate, submit, budget: 'USD 100', supportTypes: ['Moral'] });
+      expect(response.status).toBe(201);
+      expect(response.body.data.status).toBe(submit ? 'Submitted' : 'Draft');
+      const detail = await asOwner('get', `/api/v1/members/me/projects/${response.body.data.id}`);
+      expect(detail.body.data.project).toMatchObject({ fromDate, toDate, timeline: `${fromDate} / ${toDate}`, budget: 'USD 100', support: ['Moral'] });
+    }
+    expect(validFrontendDate(fromDate)).toBe(true);
+    expect(validFrontendDate(toDate)).toBe(true);
+    expect(projectToDateError(fromDate, toDate)).toBeUndefined();
+  });
+
+  it('rejects reversed ranges, incomplete replacement pairs and the old free-text mutation field', async () => {
+    const project = await makeProject(ownerId);
+    for (const extra of [{ fromDate: '2026-12-31', toDate: '2026-01-01' }, { timeline: '0' }, { timeline: '2026 Q3-Q4' }]) {
+      expect((await create(extra)).status).toBe(422);
+      expect((await asOwner('patch', `/api/v1/members/me/projects/${project.id}`).send(extra)).status).toBe(422);
+    }
+    expect(projectToDateError('2026-12-31', '2026-01-01')).toBe('To Date must be on or after From Date');
+    for (const extra of [{ fromDate: dates.fromDate }, { toDate: dates.toDate }]) {
+      const response = await asOwner('patch', `/api/v1/members/me/projects/${project.id}`).send(extra);
+      expect(response.status).toBe(422);
+      expect(response.body.errors[0].field).toBe('fromDate' in extra ? 'toDate' : 'fromDate');
+    }
+    expect(await prisma.auditLog.count({ where: { actorId: ownerId } })).toBe(0);
+  });
+
+  it.each([null, '', '0', '2026 Q3-Q4', '2026-02-30 / 2026-03-01', '2026-12-31 / 2026-01-01'])('preserves legacy timeline %j until explicit replacement, but blocks promotion', async timeline => {
+    const project = await makeProject(ownerId, { timeline });
+    const patch = (body: Record<string, unknown>) => asOwner('patch', `/api/v1/members/me/projects/${project.id}`).send(body);
+    expect((await patch({ title: 'Unrelated edit' })).status).toBe(200);
+    const detail = await asOwner('get', `/api/v1/members/me/projects/${project.id}`);
+    expect(detail.body.data.project).toMatchObject({ timeline, fromDate: null, toDate: null });
+    expect(parseProjectTimeline(timeline)).toEqual({ fromDate: null, toDate: null });
+    const rejected = await patch({ submit: true, title: 'Must not persist' });
+    expect(rejected.status).toBe(422);
+    expect(rejected.body.errors.map((e: { field: string }) => e.field)).toEqual(['fromDate', 'toDate']);
+    expect(await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).toMatchObject({ title: 'Unrelated edit', status: 'DRAFT', timeline });
+    expect((await patch({ ...dates, submit: true })).status).toBe(200);
+    expect(await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).toMatchObject({ status: 'SUBMITTED', timeline: '2026-01-01 / 2026-12-31' });
+  });
+
+  it('rolls back timeline, support types, promotion and history when audit insertion fails', async () => {
+    const project = await makeProject(ownerId, { timeline: 'Legacy schedule', support: ['MORAL'] });
+    rejectProjectAudit = true;
+    try {
+      expect((await create({ submit: false })).status).toBe(500);
+      expect((await asOwner('patch', `/api/v1/members/me/projects/${project.id}`).send({ ...dates, submit: true, supportTypes: ['Funding'] })).status).toBe(500);
+    } finally { rejectProjectAudit = false; }
+    expect(await prisma.project.count({ where: { ownerId } })).toBe(1);
+    expect(await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).toMatchObject({ status: 'DRAFT', timeline: 'Legacy schedule' });
+    expect(await prisma.projectSupportType.findMany({ where: { projectId: project.id } })).toMatchObject([{ kind: 'MORAL' }]);
+    expect(await prisma.projectStatusHistory.count({ where: { projectId: project.id } })).toBe(0);
+    expect(await prisma.auditLog.count({ where: { actorId: ownerId } })).toBe(0);
+  });
+
+  it('does not duplicate submission history or audits when valid promotion is retried', async () => {
+    const project = await makeProject(ownerId);
+    for (let i = 0; i < 2; i++) expect((await asOwner('patch', `/api/v1/members/me/projects/${project.id}`).send({ submit: true })).status).toBe(200);
+    expect(await prisma.projectStatusHistory.count({ where: { projectId: project.id, toStatus: 'SUBMITTED' } })).toBe(1);
+    expect(await prisma.auditLog.count({ where: { actorId: ownerId, action: 'ProjectSubmitted' } })).toBe(1);
   });
 });
 

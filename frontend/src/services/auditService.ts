@@ -8,7 +8,7 @@ export interface AuditEntry {
   changes: Record<string, { before: string | number | boolean | null; after: string | number | boolean | null }> | null;
   metadata: Record<string, unknown> | null; legacyDetailsAvailable: boolean; legacyDetails: Record<string, unknown> | null; ipAddress: string | null; userAgent: string | null; requestId: string | null;
 }
-export interface AuditFilters { search: string; actorRole: string; module: string; action: string; severity: string; from: string; to: string; sort: 'newest' | 'oldest'; }
+export interface AuditFilters { actorId?: string; search: string; actorRole: string; module: string; action: string; severity: string; from: string; to: string; sort: 'newest' | 'oldest'; }
 export interface AuditPage { items: AuditEntry[]; pagination: { page: number; limit: number; total: number; pages: number }; }
 export interface AuditSummary { admin24h: number; warnings7d: number; danger7d: number; total: number; retention: 'INDEFINITE'; asOf: string; }
 export interface AuditOptions { modules: string[]; actions: string[]; actorRoles: string[]; severities: string[]; }

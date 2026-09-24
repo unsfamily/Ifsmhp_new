@@ -1,3 +1,4 @@
+import { settingsService } from '../services/settingsService';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient, normalizeError } from '../api/client';
@@ -9,7 +10,7 @@ export function useEventEditor(id?: string) {
   const [ev, setEvent] = useState<EventRecord | null>(null);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(Boolean(id));
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -21,9 +22,9 @@ export function useEventEditor(id?: string) {
   const uploaded = useRef<{ file: File; id: string } | null>(null);
   const storedCoverId = ev?.coverFile?.id;
   useEffect(() => {
-    if (!id) return;
     let alive = true;
     setLoading(true); setLoadError('');
+    if (!id) { settingsService.get().then(s => { if (alive) setForm({ ...EMPTY_EVENT, timezone: s.values.general.timezone, capacity: s.values.events.capacity ? String(s.values.events.capacity) : '', registrationRequired: s.values.events.registrationRequired, reminderDays: String(s.values.events.reminderDays) }); }).catch(e => { if (alive) setLoadError(normalizeError(e).message); }).finally(() => { if (alive) setLoading(false); }); return () => { alive = false; }; }
     eventApi.detail(id).then(e => { if (alive) { setEvent(e); setForm(eventToForm(e)); } })
       .catch(e => { if (alive) setLoadError(normalizeError(e).message); })
       .finally(() => { if (alive) setLoading(false); });
@@ -45,7 +46,7 @@ export function useEventEditor(id?: string) {
     setCover(file); uploaded.current = null;
   };
   const save = async (mode: 'draft' | 'submit' | 'publish' = 'submit') => {
-    if (lock.current) return;
+    if (lock.current || loading || loadError) return;
     const invalid = validateEvent(form, mode);
     setErrors(invalid); setTouched(Object.fromEntries(Object.keys(form).map(k => [k, true])));
     if (Object.keys(invalid).length) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }

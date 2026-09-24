@@ -120,6 +120,9 @@ model User {
   fullName                String
   role                    UserRole                  @default(APPLICANT)
   status                  UserStatus                @default(PENDING)
+  passwordChangedAt       DateTime?
+  adminProfile            AdminProfile?
+  adminEmailJobs          AdminEmailJob[]
   lastLoginAt             DateTime?
   createdAt               DateTime                  @default(now())
   updatedAt               DateTime                  @updatedAt
@@ -345,6 +348,8 @@ model FileObject {
   projectFiles       ProjectFile[]
   publicationFiles   PublicationFile[]
   messageAttachments MessageAttachment[]
+  avatarManaged      Boolean @default(false)
+  adminAvatars        AdminProfile[]
   galleryManaged     Boolean @default(false)
   purgedAt           DateTime?
   communityManaged   Boolean @default(false)
@@ -1352,4 +1357,60 @@ model CommunityReportOperation {
   createdAt DateTime @default(now())
   report CommunityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   @@id([reportId, operationId])
+}
+
+
+model AdminProfile {
+  userId String @id
+  firstName String?
+  lastName String?
+  displayName String?
+  designation String?
+  jobTitle String? @db.VarChar(200)
+  workEmail String?
+  phone String?
+  institution String? @db.VarChar(200)
+  country String?
+  timezone String @default("UTC")
+  orcid String?
+  website String? @db.VarChar(2048)
+  bio String? @db.Text
+  avatarFileId String? @unique
+  appNewMember Boolean @default(true)
+  supportUrgent Boolean @default(true)
+  supportAll Boolean @default(false)
+  inquiryNew Boolean @default(false)
+  revision Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatar FileObject? @relation(fields: [avatarFileId], references: [id], onDelete: SetNull)
+}
+
+model AdminEmailJob {
+  id String @id @default(cuid())
+  key String @unique
+  userId String
+  category String
+  priority String?
+  entityId String
+  title String
+  link String
+  status String @default("QUEUED")
+  attempts Int @default(0)
+  dueAt DateTime @default(now())
+  lockedAt DateTime?
+  claimToken String?
+  error String?
+  sentAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([status, dueAt])
+}
+
+model SettingRevision {
+  section String @id
+  revision Int @default(0)
+  updatedBy String?
+  updatedAt DateTime?
 }

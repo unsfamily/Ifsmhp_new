@@ -1,3 +1,4 @@
+import { usePublicSettings } from '../../context/SettingsContext';
 import { useState } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, UserPlus, LogIn, Images } from 'lucide-react';
@@ -51,6 +52,7 @@ function GalleryNavLink({
 }
 
 export default function Navbar() {
+  const settings = usePublicSettings();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const isHome = location.pathname === '/';
@@ -81,10 +83,10 @@ export default function Navbar() {
     <header className="sticky top-0 z-40 border-b border-paper-border bg-white/95 backdrop-blur-sm shadow-sm">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="flex h-22 items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5">
+          <Link to="/" title={settings?.fullName || undefined} aria-label={settings?.shortName || 'Home'} className="flex items-center gap-2.5">
             <img
               src={logoImg}
-              alt="IFSMHP Logo"
+              alt={`${settings?.shortName || 'IFSMHP'} Logo`}
               className="h-20 w-20 rounded-md object-contain"
             />
             <div className="leading-tight">

@@ -1,11 +1,13 @@
+import { formatConfiguredDate } from '../../context/SettingsContext';
+import type { PublicSettings } from '../../services/settingsService';
 import { Calendar, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import type { Paginated, PublicEvent } from '../../api/public';
 import Button from '../common/Button';
 
-export function formatEventDate(value: string | null) {
+export function formatEventDate(value: string | null, settings: PublicSettings | null = null) {
   if (!value) return { day: '-', month: '-', year: '', full: 'Date unavailable' };
   const date = new Date(`${value}T00:00:00Z`);
-  return { day: date.toLocaleDateString('en-US', { day: '2-digit', timeZone: 'UTC' }), month: date.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }), year: date.toLocaleDateString('en-US', { year: 'numeric', timeZone: 'UTC' }), full: date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) };
+  return { day: date.toLocaleDateString(settings?.locale ?? 'en-GB', { day: '2-digit', timeZone: 'UTC' }), month: date.toLocaleDateString(settings?.locale ?? 'en-GB', { month: 'short', timeZone: 'UTC' }), year: date.toLocaleDateString(settings?.locale ?? 'en-GB', { year: 'numeric', timeZone: 'UTC' }), full: formatConfiguredDate(date, settings, 'UTC') };
 }
 export function EventRegistration({ event }: { event: PublicEvent }) {
   if (event.past) return null;

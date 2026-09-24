@@ -1,3 +1,6 @@
+import { effectiveSettings } from './settings.service';
+import { notifyAdmins } from './admin-notifications.service';
+import { randomUUID } from 'node:crypto';
 import { writeAudit, changesBetween } from './audit.service';
 import type { Request } from 'express';
 import { Prisma, type SupportRequest, type SupportStatus, type SupportKind } from '@prisma/client';
@@ -73,6 +76,7 @@ async function statistics(userId?: string) {
       conversation: { select: { messages: { where: { internal: false, senderRole: 'ADMIN' }, orderBy: { createdAt: 'asc' }, take: 1, select: { createdAt: true } } } },
     },
   });
+  const { review } = await effectiveSettings();
   const now = Date.now();
   const open = rows.filter((r) => ['PENDING', 'UNDER_REVIEW'].includes(r.status));
   const responseTimes = rows.flatMap((r) => r.conversation?.messages[0] ? [Math.max(0, r.conversation.messages[0].createdAt.getTime() - r.createdAt.getTime()) / 86400000] : []);
@@ -83,7 +87,8 @@ async function statistics(userId?: string) {
   const mean = (values: number[]) => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
   return {
     total: rows.length, open: open.length, urgent: open.filter((r) => r.priority === 'Urgent').length,
-    overSla: open.filter((r) => now - r.createdAt.getTime() >= 5 * 86400000).length,
+    slaTargetDays: review.supportDays,
+    overSla: open.filter((r) => now - r.createdAt.getTime() >= review.supportDays * 86400000).length,
     approved: rows.filter((r) => r.status === 'APPROVED').length,
     funding: rows.filter((r) => r.types.some((t) => t.kind === 'FUNDING')).length,
     approvedWeek: rows.filter((r) => r.histories.some((h) => h.toStatus === 'APPROVED' && h.fromStatus !== h.toStatus && h.createdAt.getTime() >= now - 7 * 86400000)).length,
@@ -153,8 +158,7 @@ export async function createSupport(userId: string, input: z.infer<typeof create
     } });
     await attachConversation(tx, row);
     await audit(tx, userId, row.id, 'SupportRequestCreated', 'Support request submitted');
-    const admins = await tx.user.findMany({ where: { role: 'ADMIN', status: 'ACTIVE', deletedAt: null }, select: { id: true } });
-    for (const admin of admins) await notify(tx, admin.id, row.id, 'New support request', row.subject, true);
+    await notifyAdmins(tx, { key: `support-created:${row.id}`, category: 'SUPPORT', entityId: row.id, title: 'New support request', link: `/admin/support/${row.id}`, priority: row.priority, allAdmins: true, actorId: userId });
     await notify(tx, userId, row.id, 'Support request received', row.subject);
     return row;
   });
@@ -221,8 +225,9 @@ export async function updateSupport(id: string, actorId: string, input: z.infer<
     await audit(tx, actorId, id, 'SupportRequestUpdated', note, changesBetween(row, { ...row, ...(input.priority !== undefined ? { priority: input.priority } : {}), ...(input.assignedAdminId !== undefined ? { assignedAdminId: input.assignedAdminId } : {}) }));
     if (assignee) {
       await tx.conversationParticipant.upsert({ where: { conversationId_userId: { conversationId, userId: assignee.id } }, create: { conversationId, userId: assignee.id, roleLabel: 'CRO Office' }, update: {} });
-      await notify(tx, assignee.id, id, 'Support request assigned', row.subject, true);
+
     }
+    await notifyAdmins(tx, { key: `support-update:${randomUUID()}`, category: 'SUPPORT', entityId: id, title: 'Support request updated', link: `/admin/support/${id}`, priority: input.priority ?? row.priority, assignedAdminId: input.assignedAdminId === undefined ? row.assignedAdminId : input.assignedAdminId, actorId });
     if (input.priority && input.priority !== row.priority) await notify(tx, row.requesterId, id, 'Support priority updated', input.priority);
   });
   return supportDetail(id);
@@ -246,6 +251,7 @@ export async function transitionSupport(id: string, actorId: string, next: Suppo
     await tx.message.create({ data: { conversationId, senderId: actorId, senderName: actor.fullName, senderRole: 'ADMIN', body, internal } });
     await tx.conversation.update({ where: { id: conversationId }, data: { status: statusLabels[next], updatedAt: new Date() } });
     await audit(tx, actorId, id, 'SupportRequestStatusChanged', body, { status: { before: row.status, after: next } });
+    await notifyAdmins(tx, { key: `support-status:${id}:${next}`, category: 'SUPPORT', entityId: id, title: 'Support request status changed', link: `/admin/support/${id}`, priority: row.priority, assignedAdminId: row.assignedAdminId, actorId });
     await notify(tx, row.requesterId, id, `Support request: ${memberLabels[next]}`, internal ? 'Your request is being reviewed.' : body);
   });
   return { ok: true, to: statusLabels[next] };

@@ -1,3 +1,4 @@
+import { publicSettings } from '../services/settings.service';
 import fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
 import { Router } from 'express';
@@ -9,6 +10,7 @@ import * as service from '../services/platform.service';
 import { listPublicEvents, publicEventDetail, publicEventCalendar, publicEventCover } from '../services/public-events.service';
 
 const router = Router({ mergeParams: true });
+router.get('/settings', asyncHandler(async (_req, res) => { res.setHeader('Cache-Control', 'no-store'); sendSuccess(res, await publicSettings()); }));
 
 /**
  * Public, unauthenticated content endpoints.

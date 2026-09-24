@@ -47,6 +47,7 @@ export interface AdminMemberRow {
   applicationId?: string;
   /** Days the application has been waiting, computed server-side. */
   slaDays: number;
+  stageSlaDays: number | null; stageSlaTarget: number; stageSlaBreached: boolean;
   highestDegree: string | null;
 }
 
@@ -149,7 +150,7 @@ export interface AdminProjectCounts {
   inReview: number;
   approved: number;
   published: number;
-  slaBreach: number;
+  slaBreach: number; slaTargetDays: number;
   urgent: number;
 }
 
@@ -308,5 +309,5 @@ export const adminApi = {
   gallery: (params?: Record<string, unknown>) => get('/admin/gallery', params),
   auditLog: (params?: Record<string, unknown>) => get('/admin/audit-log', params),
   reports: () => get('/admin/reports'),
-  settings: () => get('/admin/settings'),
+  settings: () => get('/admin/settings') as Promise<import('../services/settingsService').SettingsSnapshot>,
 };

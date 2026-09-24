@@ -69,7 +69,7 @@ export default function DashboardHomePage() {
               <TrendingUp className="h-3.5 w-3.5" />
               {loading ? 'Loading dashboard...' : `Member Since ${data?.member.memberSince ? new Date(data.member.memberSince).toLocaleDateString() : 'Approval Pending'}`}
             </span>
-            <h2 className="mt-4 font-display text-2xl sm:text-3xl font-semibold leading-tight">
+            <h2 className="mt-4 font-display text-2xl sm:text-3xl font-semibold leading-tight text-white">
               Welcome back, {data?.member.name ?? 'Member'} 👋
             </h2>
             <p className="mt-2 text-forum-100/80 max-w-xl">
@@ -262,7 +262,7 @@ export default function DashboardHomePage() {
               Quick Actions
             </h3>
           </CardHeader>
-          <CardContent className="pt-0 grid grid-cols-2 gap-2">
+          <CardContent className="pt-0 grid grid-cols-2 gap-2 mt-4">
             {[
               { to: '/dashboard/projects/upload', icon: Upload, label: 'Upload Project', color: 'bg-forum-50 text-forum-700 hover:bg-forum-600 hover:text-white' },
               { to: '/dashboard/support', icon: ShieldCheck, label: 'Request Support', color: 'bg-slateteal-100 text-slateteal-700 hover:bg-slateteal-500 hover:text-white' },

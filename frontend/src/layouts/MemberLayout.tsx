@@ -1,3 +1,4 @@
+import { usePublicSettings } from '../context/SettingsContext';
 import { useCommunityCapabilities } from '../components/community/CommunityAccess';
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -41,6 +42,7 @@ const navItems = [
 ];
 
 export default function MemberLayout() {
+  const settings = usePublicSettings();
   const communityAccess = useCommunityCapabilities();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout } = useAuth();
@@ -79,12 +81,12 @@ export default function MemberLayout() {
           <Link to="/dashboard" className="flex items-center gap-2.5">
             <img
               src={logoImg}
-              alt="IFSMHP Logo"
+              alt={`${settings?.shortName || 'IFSMHP'} Logo`}
               className="h-9 w-9 rounded-md object-contain bg-white p-0.5"
             />
             <div className="leading-tight">
               <span className="block font-display text-base font-semibold text-white">
-                IFSMHP
+                {settings?.shortName || 'IFSMHP'}
               </span>
               <span className="block text-[10px] uppercase tracking-wider text-white/60">
                 Member Portal
@@ -122,7 +124,7 @@ export default function MemberLayout() {
                 <Building2 className="h-2.5 w-2.5 mr-1" />
                 {user?.professionalType ?? 'Not provided'}
               </Badge>
-              <Badge variant="info" className="bg-slateteal-500/20 text-slateteal-100 ring-1 ring-inset ring-slateteal-500/30">
+              <Badge variant="info" className="text-white bg-slateteal-500/20 text-slateteal-100 ring-1 ring-inset ring-slateteal-500/30">
                 {user?.status ? user.status.charAt(0) + user.status.slice(1).toLowerCase() : 'Not provided'}
               </Badge>
             </div>
@@ -203,7 +205,7 @@ export default function MemberLayout() {
                 <h1 className="text-lg font-display font-semibold text-forum-900">
                   {currentPage?.label || 'Dashboard'}
                 </h1>
-                <p className="text-xs text-ink-subtle">
+                <p className="text-xs text-white">
                   Welcome back, <span className="font-medium text-ink-muted">{user?.fullName ?? 'Member'}</span>
                 </p>
               </div>

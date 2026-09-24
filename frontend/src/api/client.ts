@@ -410,7 +410,7 @@ apiClient.interceptors.response.use(
       }
     }
 
-    const mockResp = original?.url?.startsWith('/admin/audit-log') ? null : tryMockFallback(error);
+    const mockResp = (original?.url?.startsWith('/admin/audit-log') || original?.url?.startsWith('/admin/profile') || original?.url?.startsWith('/admin/settings') || original?.url?.startsWith('/public/settings')) ? null : tryMockFallback(error);
     if (mockResp) return mockResp;
 
     throw error;

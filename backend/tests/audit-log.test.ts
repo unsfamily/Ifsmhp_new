@@ -255,7 +255,7 @@ describe('Audit API with real sessions and MySQL', () => {
     const rows = await prisma.auditLog.findMany({ where: { entityId: sent.body.data.messageId, action: 'DocumentExchangeSent' } }); expect(rows).toHaveLength(1); expect(rows[0]!.module).toBe('DOCUMENT'); expect(JSON.stringify(rows)).not.toContain('PRIVATE DOCUMENT');
   });
   it('captures draft creation, inquiry submission/reply/status and notification unread actions', async () => {
-    const project = await api('post', '/api/v1/members/me/projects', member).send({ title: `${prefix} draft`, category: 'Research', description: 'An isolated research draft for audit verification.', submit: false });
+    const project = await api('post', '/api/v1/members/me/projects', member).send({ title: `${prefix} draft`, category: 'Research', description: 'An isolated research draft for audit verification.', fromDate: '2026-01-01', toDate: '2026-12-31', submit: false });
     expect(project.status).toBe(201);
     expect(await prisma.auditLog.count({ where: { actorId: member.id, action: 'ProjectCreated', entityId: project.body.data.id } })).toBe(1);
     const inquiry = await request(app).post('/api/v1/contact').send({ name: 'Test visitor', email: `${prefix}@example.test`, topic: 'Research', subject: `${prefix} inquiry`, message: 'Private inquiry contents must not appear in audit.' });

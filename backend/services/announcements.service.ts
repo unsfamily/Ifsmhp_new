@@ -1,3 +1,4 @@
+import { effectiveSettings } from './settings.service';
 import { writeAudit, changesBetween } from './audit.service';
 import { createHash } from 'node:crypto';
 import type { Announcement, AnnouncementStatus, Prisma } from '@prisma/client';
@@ -9,7 +10,7 @@ import { ApiError } from '../utils/ApiError';
 import { paginationQuerySchema, toSkipTake, buildPaginatedResult } from '../utils/pagination';
 import { ANNOUNCEMENT_AUDIENCES, ANNOUNCEMENT_STATUSES, announcementFields, announcementSchema, mutationFields, type AnnouncementInput } from '../domain/announcement-input';
 
-export const createBody = announcementFields.merge(mutationFields).strict();
+export const createBody = announcementFields.extend({ sendSABPreview: z.boolean().optional() }).merge(mutationFields).strict();
 export const updateBody = announcementFields.partial().merge(mutationFields.required()).strict();
 export const actionBody = mutationFields.required().extend({ confirmed: z.boolean().optional() }).strict();
 export const listQuery = paginationQuerySchema.extend({ q: z.string().trim().max(220).default(''), status: z.enum(ANNOUNCEMENT_STATUSES).default('All'), audience: z.enum(['All', ...ANNOUNCEMENT_AUDIENCES]).default('All') });
@@ -122,7 +123,8 @@ export async function save(actorId: string, raw: unknown, id?: string) {
     if (row?.deletedAt) throw ApiError.notFound('Announcement not found');
     if (row?.expiresAt && row.expiresAt <= new Date() && row.dispatchStartedAt) throw ApiError.conflict('Expired broadcasts cannot be republished.');
     if (row && (row.dispatchStartedAt || !['DRAFT', 'SCHEDULED', 'CANCELLED'].includes(row.status))) throw ApiError.conflict('A dispatched announcement cannot be edited.');
-    const value = announcementSchema().parse({ ...(row ? toInput(row) : {}), ...fields });
+    const defaults = await effectiveSettings(tx);
+    const value = announcementSchema().parse({ ...(row ? toInput(row) : {}), ...fields, ...(!row && raw && typeof raw === 'object' && !('sendSABPreview' in raw) ? { sendSABPreview: defaults.communications.announcementSignoff } : {}) });
     const scheduledAt = value.scheduledAt ? DateTime.fromISO(value.scheduledAt, { zone: value.timezone }) : null;
     if (scheduledAt && (!scheduledAt.isValid || scheduledAt.toFormat("yyyy-MM-dd'T'HH:mm") !== value.scheduledAt)) throw ApiError.unprocessable('Invalid scheduled time', [{ field: 'scheduledAt', message: 'Choose a valid local date and time.' }]);
     const data = { ...value, scheduledAt: scheduledAt?.toJSDate() ?? null, expiresAt: value.expiresAt ? DateTime.fromISO(value.expiresAt, { zone: value.timezone }).toJSDate() : null, status: 'DRAFT' as const, managed: true };

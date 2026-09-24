@@ -1,3 +1,4 @@
+import { usePublicSettings } from '../context/SettingsContext';
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
@@ -116,6 +117,7 @@ const navSections: NavSection[] = [
 ];
 
 export default function AdminLayout() {
+  const settings = usePublicSettings();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Real counts; a failure just leaves the badges off rather than showing
   // numbers that contradict the pages they label.
@@ -150,12 +152,12 @@ export default function AdminLayout() {
           <Link to={user?.role === 'ADMIN' ? '/admin' : '/admin/community/chats'} className="flex items-center gap-2.5">
             <img
               src={logoImg}
-              alt="IFSMHP Logo"
+              alt={`${settings?.shortName || 'IFSMHP'} Logo`}
               className="h-9 w-9 rounded-md object-contain bg-white p-0.5"
             />
             <div className="leading-tight">
               <span className="block font-display text-base font-semibold text-white">
-                IFSMHP Admin
+                {settings?.shortName || 'IFSMHP'} Admin
               </span>
               <span className="block text-[10px] uppercase tracking-wider text-forum-200/60">
                 Chief Research Office
@@ -176,7 +178,7 @@ export default function AdminLayout() {
           <div className="rounded-xl bg-forum-800/50 ring-1 ring-forum-700 p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brass-500 text-white font-semibold">
-                CRO
+                {(user?.fullName ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map(n => n[0]).join('')}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-white text-sm truncate">
@@ -191,7 +193,7 @@ export default function AdminLayout() {
             <div className="mt-3 flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-[11px] text-forum-200/70">
                 <span className="h-2 w-2 rounded-full bg-success-100 border border-success-600/30" />
-                42 members online
+                Signed in
               </div>
             </div>
           </div>
@@ -317,7 +319,7 @@ export default function AdminLayout() {
               </button>
               <div className="hidden sm:block min-w-0">
                 <h1 className="text-lg font-display font-semibold text-forum-900 truncate">
-                  {currentPage?.label || 'Admin Dashboard'}
+                  {loc.pathname === '/admin/profile' ? 'Profile & Preferences' : currentPage?.label || 'Admin Dashboard'}
                 </h1>
                 <p className="text-xs text-ink-subtle truncate">
                   Chief Research Office · <span className="font-medium text-ink-muted">Elevated permissions</span>
@@ -325,7 +327,7 @@ export default function AdminLayout() {
               </div>
               <div className="sm:hidden">
                 <h1 className="text-base font-display font-semibold text-forum-900">
-                  {currentPage?.label || 'Admin'}
+                  {loc.pathname === '/admin/profile' ? 'Profile & Preferences' : currentPage?.label || 'Admin'}
                 </h1>
               </div>
             </div>

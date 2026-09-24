@@ -12,6 +12,13 @@ export function useSupportList(admin: boolean) {
     return () => window.clearTimeout(timer);
   }, [query]);
   const result = usePolledApiData(async () => ({ ...(await supportApi.list(admin, Object.fromEntries(new URLSearchParams(debounced)))), query: debounced }), [admin, debounced], 30000);
+  const refresh = result.refresh;
+  useEffect(() => {
+    if (!admin) return;
+    const onFocus = () => { if (!document.hidden) refresh(); };
+    window.addEventListener('focus', onFocus); window.addEventListener('settings-changed', onFocus);
+    return () => { window.removeEventListener('focus', onFocus); window.removeEventListener('settings-changed', onFocus); };
+  }, [admin, refresh]);
   const data = !result.error && result.data?.query === query ? result.data : null;
   const filter = (name: string, value: string) => {
     setParams((current) => {

@@ -1,3 +1,4 @@
+import { usePublicSettings } from '../../context/SettingsContext';
 import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, X } from 'lucide-react';
 import { publicApi, eventCoverUrl } from '../../api/public';
@@ -8,6 +9,7 @@ export default function PublicEventDetails({ id, close, section }: { id: string;
   const dialog = useRef<HTMLDialogElement>(null);
   const resources = useRef<HTMLDivElement>(null);
   const [failedImage, setFailedImage] = useState('');
+  const settings = usePublicSettings();
   const result = usePolledApiData(() => publicApi.event(id), [id], 30000);
   const event = result.error ? null : result.data;
   useEffect(() => {
@@ -23,7 +25,7 @@ export default function PublicEventDetails({ id, close, section }: { id: string;
     <EventListState loading={result.initialLoading} error={result.error} empty={false} retry={result.refresh} label="event details" />
     {event && <div className="space-y-5 break-words [overflow-wrap:anywhere]">
       {event.cover && (failedImage === event.cover.url ? <p className="text-sm text-ink-muted">Event image unavailable.</p> : <img key={event.cover.url} src={eventCoverUrl(event.cover.url)} alt={event.cover.name} onError={() => setFailedImage(event.cover!.url)} className="h-56 w-full rounded-md object-contain sm:h-80" />)}
-      <div className="space-y-1 text-sm text-ink-muted"><p>{formatEventDate(event.date).full}</p><p>{event.time}</p><p>{event.location} · {event.format}</p><p>{event.seats === null ? 'Unlimited capacity' : `${event.seats.toLocaleString()} seats`} · {event.attendees.toLocaleString()} registered</p></div>
+      <div className="space-y-1 text-sm text-ink-muted"><p>{formatEventDate(event.date, settings).full}</p><p>{event.time}</p><p>{event.location} · {event.format}</p><p>{event.seats === null ? 'Unlimited capacity' : `${event.seats.toLocaleString()} seats`} · {event.attendees.toLocaleString()} registered</p></div>
       <p className="whitespace-pre-wrap text-sm leading-relaxed">{event.longDescription || event.description}</p>
       {event.speakers.length > 0 && <div><h3 className="text-sm font-semibold text-forum-900">Speakers</h3><ul className="mt-2 space-y-1 text-sm text-ink-muted">{event.speakers.map((name, index) => <li key={`${name}-${index}`}>{name}</li>)}</ul></div>}
       {event.organizer && <div className="text-sm"><h3 className="font-semibold text-forum-900">Organizer</h3><p className="mt-1 text-ink-muted">{event.organizer}</p>{event.organizerEmail && <a className="text-forum-700 underline" href={`mailto:${encodeURIComponent(event.organizerEmail)}`}>{event.organizerEmail}</a>}</div>}

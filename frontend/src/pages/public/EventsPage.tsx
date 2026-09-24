@@ -1,3 +1,4 @@
+import { usePublicSettings } from '../../context/SettingsContext';
 import { useEffect, useRef, useState } from 'react';
 import {
   MapPin,
@@ -26,6 +27,7 @@ const typeBadge: Record<string, 'default' | 'success' | 'warning' | 'info'> = {
 };
 
 export default function EventsPage() {
+  const settings = usePublicSettings();
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [pastPage, setPastPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState<string>();
@@ -154,11 +156,11 @@ export default function EventsPage() {
             <h2 className="font-display text-2xl font-semibold text-forum-900">
               Upcoming Events
             </h2>
-            {selectedDate && <Button variant="ghost" size="sm" className="mt-2" onClick={() => filterDate()}>{formatDate(selectedDate).full} · Clear date filter</Button>}
+            {selectedDate && <Button variant="ghost" size="sm" className="mt-2" onClick={() => filterDate()}>{formatDate(selectedDate, settings).full} · Clear date filter</Button>}
             <div className="mt-6 space-y-6">
               <EventListState loading={upcoming.initialLoading} error={upcoming.error} empty={!upcomingEvents.length} retry={upcoming.refresh} label="upcoming events" />
               {upcomingEvents.map((e) => {
-                const d = formatDate(e.date);
+                const d = formatDate(e.date, settings);
                 return (
                   <article
                     key={e.id}
@@ -217,7 +219,7 @@ export default function EventsPage() {
             <div className="rounded-xl border border-paper-border bg-paper-raised p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <h3 className="font-display text-lg font-semibold text-forum-900">
-                  {monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}
+                  {monthDate.toLocaleDateString(settings?.locale ?? 'en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })}
                 </h3>
                 <div className="flex gap-1">
                   <button title="Previous month" aria-label="Previous month" onClick={() => moveMonth(-1)} className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-forum-50 text-ink-muted">
@@ -240,7 +242,7 @@ export default function EventsPage() {
                   const marker = markers.get(date);
                   return <button
                     key={d}
-                    aria-label={`${formatDate(date).full}, ${marker?.count ?? 0} events`}
+                    aria-label={`${formatDate(date, settings).full}, ${marker?.count ?? 0} events`}
                     aria-pressed={selectedDate === date}
                     title={`${marker?.count ?? 0} events`}
                     onClick={() => filterDate(selectedDate === date ? undefined : date)}
@@ -300,11 +302,11 @@ export default function EventsPage() {
           </p>
         </div>
 
-        {selectedDate && <div className="mt-4 text-center"><Button variant="ghost" size="sm" onClick={() => filterDate()}>{formatDate(selectedDate).full} · Clear date filter</Button></div>}
+        {selectedDate && <div className="mt-4 text-center"><Button variant="ghost" size="sm" onClick={() => filterDate()}>{formatDate(selectedDate, settings).full} · Clear date filter</Button></div>}
         <div className="mt-6"><EventListState loading={past.initialLoading} error={past.error} empty={!pastEvents.length} retry={past.refresh} label="past events" /></div>
         <div className="mt-14 grid gap-6 lg:grid-cols-2">
           {pastEvents.map((e) => {
-            const d = formatDate(e.date);
+            const d = formatDate(e.date, settings);
             return (
               <article
                 key={e.id}

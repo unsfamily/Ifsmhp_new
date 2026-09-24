@@ -51,7 +51,7 @@ export interface MemberProfileData {
   credentials: MemberCredentialDocument[];
 }
 
-export type MemberProfileUpdate = Pick<MemberProfileData, 'phone' | 'websiteUrl' | 'scholarUrl' | 'orcid'>;
+export type MemberProfileUpdate = Pick<MemberProfileData, 'websiteUrl' | 'scholarUrl' | 'orcid'> & { phone: string };
 
 /** Display labels produced by the API's `projectStatusLabel` map — not the enum. */
 export type ProjectStatusLabel =
@@ -101,6 +101,8 @@ export interface MemberProjectResourceLink {
 
 export interface MemberProjectDetail extends MemberProject {
   timeline: string | null;
+  fromDate: string | null;
+  toDate: string | null;
   budget: string | null;
   files: MemberProjectFile[];
   resourceLinks: MemberProjectResourceLink[];
@@ -124,11 +126,18 @@ export interface MemberProjectUpdate {
   title: string;
   category: string;
   description: string;
-  timeline: string;
+  fromDate: string;
+  toDate: string;
   budget: string;
   supportTypes: string[];
   submit: boolean;
 }
+
+export type MemberProjectCreate = Pick<MemberProjectUpdate, 'title' | 'category' | 'description' | 'fromDate' | 'toDate'> &
+  Partial<Pick<MemberProjectUpdate, 'budget' | 'supportTypes' | 'submit'>> & {
+    fileIds?: string[];
+    resourceLinks?: ProjectResourceLinkInput[];
+  };
 
 /**
  * Publication types live in `./publications`, which both this module and the
@@ -302,7 +311,7 @@ export const memberApi = {
   /** The detail route nests its payload one level deeper than the list route. */
   project: async (id: string) =>
     (await apiClient.get<Envelope<{ project: MemberProjectDetail }>>(`/members/me/projects/${id}`)).data.data.project,
-  createProject: async (payload: unknown) => (await apiClient.post<Envelope<unknown>>('/members/me/projects', payload)).data.data,
+  createProject: async (payload: MemberProjectCreate) => (await apiClient.post<Envelope<MemberProject>>('/members/me/projects', payload)).data.data,
   /** Uploads one file and returns its id, for attaching to a project on submit. */
   uploadFile: async (file: File) => {
     const body = new FormData();

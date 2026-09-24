@@ -4,8 +4,8 @@ import { paginationQuerySchema } from '../utils/pagination';
 // Existing action names are retained. Modules are explicit classifications, not UI substring filters.
 export const auditModules = ['AUTHENTICATION', 'USER', 'MEMBERSHIP', 'PROJECT', 'PUBLICATION', 'GALLERY', 'COMMUNITY', 'SUPPORT', 'INQUIRY', 'MESSAGE', 'DOCUMENT', 'EVENT', 'ANNOUNCEMENT', 'REPORT', 'NOTIFICATION', 'SETTINGS', 'SYSTEM', 'OTHER'] as const;
 const groups: Record<string, string[]> = {
-  AUTHENTICATION: ['LoginSucceeded', 'LoginFailed', 'Logout', 'PasswordReset', 'PasswordResetFailed', 'AuthenticationThrottled', 'AccessDenied'],
-  USER: ['UserProfileUpdated'],
+  AUTHENTICATION: ['LoginSucceeded', 'LoginFailed', 'Logout', 'PasswordReset', 'PasswordResetFailed', 'AuthenticationThrottled', 'AccessDenied', 'AdminPasswordChanged', 'AdminPasswordChangeFailed', 'AdminSessionsRevoked'],
+  USER: ['UserProfileUpdated', 'AdminProfileUpdated', 'AdminAvatarUpdated'],
   MEMBERSHIP: ['MembershipApplicationSubmitted', 'MembershipReviewStarted', 'MembershipApproved', 'MembershipRejected', 'MemberIdIssued', 'MembershipApprovalEmailResent', 'MembershipApprovalEmailOutcome'],
   PROJECT: ['ProjectCreated', 'ProjectUpdated', 'ProjectSubmitted', 'ProjectDeleted', 'ProjectStatusChanged'],
   PUBLICATION: ['PublicationSubmitted', 'PublicationUNDER_REVIEW', 'PublicationSUBMITTED', 'PublicationAPPROVED', 'PublicationREJECTED', 'PublicationPUBLISHED'],
@@ -18,7 +18,7 @@ const groups: Record<string, string[]> = {
   EVENT: ['EventCreated', 'EventUpdated', 'EventPublished', 'EventCancelled', 'EventDeleted', 'EventScheduledPublished', 'EventDeliveryOutcome'],
   ANNOUNCEMENT: ['AnnouncementSaved', 'Announcementpreview', 'Announcementretry', 'Announcementsend', 'Announcementschedule', 'Announcementcancel', 'Announcementdelete', 'AnnouncementSignOff', 'AnnouncementExpired', 'AnnouncementDispatchStarted', 'AnnouncementDeliveryUpdated', 'AnnouncementRead', 'AnnouncementUnread', 'AnnouncementEmailUnsubscribed'],
   REPORT: ['ReportGenerated', 'ReportExported', 'AuditLogExported'],
-  NOTIFICATION: ['NotificationsRead', 'NotificationsUnread'], SYSTEM: ['SeedCreated'], SETTINGS: [], OTHER: [],
+  NOTIFICATION: ['NotificationsRead', 'NotificationsUnread', 'AdminPreferencesUpdated', 'AdminEmailDeliveryOutcome'], SYSTEM: ['SeedCreated'], SETTINGS: ['PlatformSettingsUpdated'], OTHER: [],
 };
 export const eventRegistry = Object.entries(groups).flatMap(([module, actions]) => actions.map(action => ({ action, module })));
 export function classifyAction(action: string): string {
@@ -35,5 +35,5 @@ export function eventSeverity(action: string): 'INFO' | 'SUCCESS' | 'WARNING' | 
 }
 const filter = z.preprocess(v => v === '' || v === 'All' ? undefined : v, z.string().trim().min(1).max(191).optional());
 const date = z.preprocess(v => v === '' ? undefined : v, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v => !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v, 'Invalid date.').optional());
-export const auditQuery = paginationQuerySchema.extend({ search: z.string().trim().max(200).default(''), actorRole: filter, module: filter, action: filter, severity: z.preprocess(v => v === '' || v === 'All' ? undefined : v, z.enum(['INFO', 'SUCCESS', 'WARNING', 'DANGER']).optional()), from: date, to: date, sort: z.enum(['newest', 'oldest']).default('newest') }).strict().refine(v => !v.from || !v.to || v.from <= v.to, { path: ['to'], message: 'End date must not precede start date.' });
+export const auditQuery = paginationQuerySchema.extend({ actorId: filter, search: z.string().trim().max(200).default(''), actorRole: filter, module: filter, action: filter, severity: z.preprocess(v => v === '' || v === 'All' ? undefined : v, z.enum(['INFO', 'SUCCESS', 'WARNING', 'DANGER']).optional()), from: date, to: date, sort: z.enum(['newest', 'oldest']).default('newest') }).strict().refine(v => !v.from || !v.to || v.from <= v.to, { path: ['to'], message: 'End date must not precede start date.' });
 export type AuditQuery = z.infer<typeof auditQuery>;

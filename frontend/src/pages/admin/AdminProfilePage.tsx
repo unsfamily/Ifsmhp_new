@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Mail,
@@ -14,7 +14,6 @@ import {
   Briefcase,
   FileText,
   Users,
-  Sparkles,
   Upload,
   X,
   Clock,
@@ -24,88 +23,36 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  Check,
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
+import { useAdminProfile } from '../../hooks/useAdminProfile';
+import AdminSessionsDialog from './AdminSessionsDialog';
 import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { SelectInput, TextInput, TextArea, Checkbox } from '../../components/common/Input';
 
-const DEMO_LABEL = '[DEMO DATA — API pending]';
-
-type AdminRole = 'CRO Lead' | 'CRO Administrator' | 'SAB Member' | 'Grants Officer' | 'Communications' | 'Wellness Committee' | 'Auditor (Read-only)';
-type MfaStatus = 'Enabled' | 'Not configured' | 'Pending';
-
-interface ActivityItem {
-  at: string;
-  action: string;
-  detail: string;
-  severity: 'success' | 'info' | 'warning' | 'danger' | 'default';
-}
-
-const activity: ActivityItem[] = [
-  { at: 'Today · 14:22 UTC', action: 'Approved member application', detail: 'IFSMHP-APP-2026-01847 — Dr. A. Kapoor', severity: 'success' },
-  { at: 'Today · 11:08 UTC', action: 'Edited event', detail: 'Symposium 2026 — updated cover banner', severity: 'info' },
-  { at: 'Today · 09:41 UTC', action: 'Assigned SAB reviewer', detail: 'PUB-00344 — Wearable EEG study', severity: 'info' },
-  { at: 'Yesterday · 18:03 UTC', action: 'Sent support request response', detail: 'SR-00240 — Official letter of support', severity: 'success' },
-  { at: 'Yesterday · 15:44 UTC', action: 'Failed login attempt', detail: 'Blocked — 2FA challenge failed', severity: 'warning' },
-  { at: 'Aug 19, 2026 · 10:08 UTC', action: 'Rejected spam inquiry', detail: 'INQ-0144 — mailing list purchase', severity: 'danger' },
-];
-
-const recentApprovals: { id: string; member: string; at: string; type: string }[] = [
-  { id: 'PA-00021', member: 'Dr. T. Mbeki (Wits)', at: 'Aug 20, 08:12', type: 'Project' },
-  { id: 'PUB-00341', member: 'Prof. M. Chen (Stanford)', at: 'Aug 19, 14:02', type: 'Publication' },
-  { id: 'SR-00239', member: 'Dr. L. Rossi (Milan)', at: 'Aug 19, 10:18', type: 'Support Request' },
-];
-
-const assignedQueues: { name: string; open: number; slaBreach: number; link: string }[] = [
-  { name: 'Membership Applications', open: 6, slaBreach: 2, link: '/admin/members/pending' },
-  { name: 'Publication Review (SAB)', open: 11, slaBreach: 1, link: '/admin/publications' },
-  { name: 'Support Queue · Official', open: 4, slaBreach: 0, link: '/admin/support' },
-  { name: 'Inquiries · Press/Media', open: 3, slaBreach: 0, link: '/admin/inquiries' },
-];
-
 export default function AdminProfilePage() {
-  const [firstName, setFirstName] = useState('Eleanor');
-  const [lastName, setLastName] = useState('Whitfield');
-  const [displayName, setDisplayName] = useState('Dr. E. Whitfield');
-  const [title, setTitle] = useState('Chief Research Officer (CRO Lead)');
-  const [email, setEmail] = useState('e.whitfield@ifsmhp.example');
-  const [phone, setPhone] = useState('+44 20 7946 0593');
-  const [institution, setInstitution] = useState('IFSMHP CRO Office · London');
-  const [country, setCountry] = useState('United Kingdom');
-  const [timezone, setTimezone] = useState('Europe/London (BST/GMT)');
-  const [role, setRole] = useState<AdminRole>('CRO Lead');
-  const [bio, setBio] = useState('CRO Lead at the IFSMHP Central Research Office. Clinical neuroscientist and cognitive neurologist by training. Responsible for Scientific Advisory Board coordination, membership credentialing, and scientific integrity oversight across the seven professional tracks.');
-  const [orcid, setOrcid] = useState('0000-0002-1825-382X');
-  const [website, setWebsite] = useState('https://ifsmhp.example/about/whitfield');
-  const [saved, setSaved] = useState<null | 'profile' | 'password' | 'notif' | 'security'>(null);
-  const [mfa, setMfa] = useState<MfaStatus>('Enabled');
+  const state = useAdminProfile();
+  const { profile, data, overview, busy, error, success, fields, denied, conflict } = state;
+  const { firstName, lastName, displayName, phone, institution, country, timezone, bio, orcid, website } = profile;
+  const title = profile.jobTitle, email = profile.workEmail, role = profile.designation;
+  const set = (key: keyof typeof profile, value: string) => state.setProfile(p => ({ ...p, [key]: value }));
+  const setFirstName = (v: string) => set('firstName', v), setLastName = (v: string) => set('lastName', v), setDisplayName = (v: string) => set('displayName', v), setTitle = (v: string) => set('jobTitle', v), setEmail = (v: string) => set('workEmail', v), setPhone = (v: string) => set('phone', v), setInstitution = (v: string) => set('institution', v), setCountry = (v: string) => set('country', v), setTimezone = (v: string) => set('timezone', v), setRole = (v: string) => set('designation', v), setBio = (v: string) => set('bio', v), setOrcid = (v: string) => set('orcid', v), setWebsite = (v: string) => set('website', v);
+  const notif = state.preferences, setNotif = state.setPreferences;
   const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
-  const [currentPw, setCurrentPw] = useState('');
-  const [newPw, setNewPw] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
-  const [pwError, setPwError] = useState<string | null>(null);
-  const [notif, setNotif] = useState({
-    appNewMember: true,
-    memberEscalated: true,
-    memberApprovalDigest: true,
-    supportUrgent: true,
-    supportAll: false,
-    sabRequired: true,
-    inquiryNew: false,
-    inquiryDigest: true,
-    eventReminder: true,
-    systemOutage: true,
-    weeklyDigest: true,
-    marketing: false,
-  });
-
-  const notifyFlash = (key: typeof saved) => { setSaved(key); setTimeout(() => setSaved(null), 2500); };
-
+  const [currentPw, setCurrentPw] = useState(''), [newPw, setNewPw] = useState(''), [confirmPw, setConfirmPw] = useState('');
+  const [pwError, setPwError] = useState<string | null>(null), [sessionsOpen, setSessionsOpen] = useState(false);
+  useEffect(() => { setCurrentPw(''); setNewPw(''); setConfirmPw(''); setSessionsOpen(false); }, [data?.account.id, denied]);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const initials = (data?.account.fullName ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map(n => n[0]).join('');
+  const at = (value?: string | null) => value ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: data?.profile.timezone || 'UTC' }).format(new Date(value)) + ' · ' + (data?.profile.timezone || 'UTC') : 'Unavailable';
+  const auditLink = '/admin/audit-log?actorId=' + encodeURIComponent(data?.account.id ?? '');
+  const assignedQueues = overview?.queues ?? [];
+  const recentApprovals = (overview?.approvals ?? []).map(a => ({ id: a.id, member: a.entity, at: at(a.createdAt), type: a.action }));
+  const activity = (overview?.activity ?? []).map(a => ({ id: a.id, at: at(a.createdAt), action: a.action.replace(/([a-z])([A-Z])/g, '$1 $2'), detail: a.description, severity: a.severity.toLowerCase() }));
   const pwScore = (() => {
     const s = newPw;
     let score = 0;
@@ -117,26 +64,26 @@ export default function AdminProfilePage() {
     return Math.min(score, 5);
   })();
 
-  const savePassword = () => {
+  const savePassword = async () => {
     setPwError(null);
     if (!currentPw) { setPwError('Current password is required.'); return; }
-    if (newPw.length < 14) { setPwError('New password must be at least 14 characters.'); return; }
+    if ([...newPw].length < 14) { setPwError('New password must be at least 14 characters.'); return; }
+    if (new TextEncoder().encode(newPw).length > 72) { setPwError('New password must not exceed 72 UTF-8 bytes.'); return; }
     if (newPw !== confirmPw) { setPwError('New password and confirmation do not match.'); return; }
-    notifyFlash('password');
-    setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    if (await state.password(currentPw, newPw, confirmPw)) { setCurrentPw(''); setNewPw(''); setConfirmPw(''); }
   };
-
-  const handleToggleMfa = () => {
-    if (mfa === 'Enabled') setMfa('Pending'); // simulate disable flow confirmation pending
-    else setMfa('Enabled');
-  };
-
+  if (!data || denied) return <Card><CardContent><h1 className="font-display text-2xl">Admin Profile &amp; Preferences</h1><p role={error ? 'alert' : 'status'} className="my-4">{error || 'Loading your profile…'}</p>{!denied && <Button onClick={() => void state.load()}>Retry</Button>}</CardContent></Card>;
   return (
     <div className="space-y-6">
+      {error && <div role="alert" className="rounded-lg border border-danger-600/30 bg-danger-50 p-3 text-danger-700">{error}{Object.entries(fields).map(([key, message]) => <p key={key}>{message}</p>)}{conflict && <div className="mt-2"><p>Your edits are preserved. Load the latest saved values, review them against your draft, then save again.</p><Button variant="outline" onClick={() => void state.load(true)}>Load latest for review</Button></div>}</div>}
+      {state.reviewRequired && <div className="rounded-lg border border-paper-border p-4"><h2 className="font-semibold">Review latest saved values</h2><p className="text-sm">Your draft remains in the form below. Saving will apply that draft to the refreshed profile.</p><details><summary>Latest saved profile and preferences</summary><pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify({ ...data.profile, preferences: data.preferences }, null, 2)}</pre></details><Button onClick={state.confirmReview}>I have reviewed the latest values</Button></div>}
+      {success && <p role="status" className="rounded-lg bg-success-50 p-3 text-success-700">{success}</p>}
+      {busy && <p role="status">Saving…</p>}
+      <fieldset disabled={!!busy || state.loading || conflict} className="min-w-0 space-y-6">
+
       <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">
         <div className="flex-1 max-w-3xl">
           <div className="flex flex-wrap items-center gap-2 text-xs text-ink-subtle mb-2">
-            <Badge variant="brass"><Sparkles className="h-2.5 w-2.5 mr-1" />{DEMO_LABEL}</Badge>
             <Link to="/admin" className="inline-flex items-center gap-1 text-forum-700 font-medium hover:underline">
               <ArrowLeft className="h-3 w-3" /> Admin home
             </Link>
@@ -147,10 +94,10 @@ export default function AdminProfilePage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <Badge variant="success" className="gap-1"><CheckCircle2 className="h-2.5 w-2.5" /> Account Active</Badge>
-          <Badge variant="brass" className="gap-1"><ShieldCheck className="h-2.5 w-2.5" />{role}</Badge>
-          <Button variant="outline" size="sm" onClick={() => notifyFlash('profile')}>
-            {saved === 'profile' ? <><Check className="h-3.5 w-3.5" /> Saved</> : <><Save className="h-3.5 w-3.5" /> Save All Changes</>}
+          <Badge variant="success" className="gap-1"><CheckCircle2 className="h-2.5 w-2.5" /> {data.account.status}</Badge>
+          <Badge variant="brass" className="gap-1"><ShieldCheck className="h-2.5 w-2.5" />{data.account.role}</Badge>
+          <Button variant="outline" size="sm" onClick={() => void state.save('all')}>
+            <Save className="h-3.5 w-3.5" /> Save All Changes
           </Button>
         </div>
       </div>
@@ -159,19 +106,20 @@ export default function AdminProfilePage() {
         <div className="h-28 bg-gradient-to-br from-forum-600 via-forum-700 to-slateteal-600 relative">
           <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
         </div>
-        <CardContent className="pt-0 -mt-14">
+        <CardContent className="pt-4">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5">
             <div className="flex flex-col sm:flex-row sm:items-end gap-5">
-              <div className="relative">
+              <div className="relative -mt-14 w-28 shrink-0">
+                <input ref={fileInput} type="file" className="sr-only" aria-label="Avatar image" accept={data.policy.avatarFormats.join(',')} onChange={e => { const file = e.target.files?.[0]; if (file) void state.upload(file); e.target.value = ''; }} />
                 <div className="h-28 w-28 rounded-2xl bg-gradient-to-br from-brass-500 to-forum-600 ring-4 ring-paper-raised shadow-lg flex items-center justify-center text-white font-display text-3xl font-bold">
-                  EW
+                  {state.avatarUrl ? <img src={state.avatarUrl} alt="Your avatar" className="h-full w-full rounded-2xl object-cover" /> : initials}
                 </div>
-                <button className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-paper-raised border border-paper-border text-forum-700 flex items-center justify-center shadow-sm hover:bg-forum-50" aria-label="Change avatar">
+                <button className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-paper-raised border border-paper-border text-forum-700 flex items-center justify-center shadow-sm hover:bg-forum-50" aria-label="Change avatar" onClick={() => fileInput.current?.click()}>
                   <Upload className="h-4 w-4" />
                 </button>
               </div>
               <div className="pb-2 min-w-0">
-                <h2 className="font-display text-2xl sm:text-3xl font-semibold text-forum-900 leading-tight">{displayName}</h2>
+                <h2 className="font-display text-2xl sm:text-3xl font-semibold text-forum-900 leading-tight">{displayName || data.account.fullName}</h2>
                 <p className="text-base text-ink-muted mt-0.5">{title}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
                   <span className="inline-flex items-center gap-1 text-ink-subtle"><Mail className="h-3.5 w-3.5" />{email}</span>
@@ -181,10 +129,10 @@ export default function AdminProfilePage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link to="/admin/audit-log" className="inline-flex items-center gap-1.5 rounded-md border border-paper-border px-3 py-2 text-xs font-medium text-forum-700 hover:bg-forum-50">
+              <Link to={auditLink} className="inline-flex items-center gap-1.5 rounded-md border border-paper-border px-3 py-2 text-xs font-medium text-forum-700 hover:bg-forum-50">
                 <HistoryIcon className="h-3.5 w-3.5" /> View my audit log
               </Link>
-              <Button variant="outline" size="sm"><Key className="h-3.5 w-3.5" />View API tokens</Button>
+              <span className="text-xs text-ink-subtle">API tokens unavailable</span>
             </div>
           </div>
         </CardContent>
@@ -199,46 +147,45 @@ export default function AdminProfilePage() {
                   <User className="h-5 w-5 text-forum-600" /> Personal &amp; Contact
                 </h3>
                 <p className="text-xs text-ink-subtle mt-0.5">
-                  How your contact information appears to members when you sign correspondence as CRO Office or SAB.
+                  Your administrator contact details and professional information.
                 </p>
               </div>
-              {saved === 'profile' && <Badge variant="success" className="!py-1"><Check className="h-3 w-3 mr-1" /> Saved</Badge>}
             </CardHeader>
             <CardContent className="pt-0 space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <TextInput label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} icon={<User className="h-4 w-4 text-ink-subtle" />} />
-                <TextInput label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                <TextInput required hint={data.profile.firstName ? undefined : `Current account name: ${data.account.fullName}. Enter your name components to update your profile.`} label="First name" error={fields['profile.firstName']} value={firstName} onChange={(e) => setFirstName(e.target.value)} icon={<User className="h-4 w-4 text-ink-subtle" />} />
+                <TextInput label="Last name" error={fields['profile.lastName']} value={lastName} onChange={(e) => setLastName(e.target.value)} />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <TextInput label="Display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} hint="Shown on signed correspondence." />
-                <SelectInput label="Professional / Administrative Role" value={role} onChange={(e) => setRole(e.target.value as AdminRole)}>
-                  {(['CRO Lead', 'CRO Administrator', 'SAB Member', 'Grants Officer', 'Communications', 'Wellness Committee', 'Auditor (Read-only)'] as AdminRole[]).map((r) => <option key={r}>{r}</option>)}
+                <TextInput label="Display name" error={fields['profile.displayName']} value={displayName} onChange={(e) => setDisplayName(e.target.value)} hint="Shown on your administrator profile." />
+                <SelectInput label="Professional designation" hint="Profile information only; does not change access permissions." value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="">Not specified</option>{data.policy.designations.map(r => <option key={r}>{r}</option>)}
                 </SelectInput>
               </div>
-              <TextInput label="Job Title" value={title} onChange={(e) => setTitle(e.target.value)} icon={<Briefcase className="h-4 w-4 text-ink-subtle" />} />
+              <TextInput label="Job Title" error={fields['profile.jobTitle']} value={title} onChange={(e) => setTitle(e.target.value)} icon={<Briefcase className="h-4 w-4 text-ink-subtle" />} />
               <div className="grid gap-4 sm:grid-cols-2">
-                <TextInput label="Work Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} icon={<Mail className="h-4 w-4 text-ink-subtle" />} />
-                <TextInput label="Work Phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} icon={<Phone className="h-4 w-4 text-ink-subtle" />} />
+                <TextInput hint={`Contact information only. Login email: ${data.account.loginEmail}`} label="Work Email" error={fields['profile.workEmail']} type="email" value={email} onChange={(e) => setEmail(e.target.value)} icon={<Mail className="h-4 w-4 text-ink-subtle" />} />
+                <TextInput label="Work Phone" error={fields['profile.phone']} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} icon={<Phone className="h-4 w-4 text-ink-subtle" />} />
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-2">
-                  <TextInput label="Office / Institution" value={institution} onChange={(e) => setInstitution(e.target.value)} icon={<Building2 className="h-4 w-4 text-ink-subtle" />} />
+                  <TextInput label="Office / Institution" error={fields['profile.institution']} value={institution} onChange={(e) => setInstitution(e.target.value)} icon={<Building2 className="h-4 w-4 text-ink-subtle" />} />
                 </div>
-                <TextInput label="Country" value={country} onChange={(e) => setCountry(e.target.value)} icon={<Globe2 className="h-4 w-4 text-ink-subtle" />} />
+                <TextInput label="Country" error={fields['profile.country']} value={country} onChange={(e) => setCountry(e.target.value)} icon={<Globe2 className="h-4 w-4 text-ink-subtle" />} />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <SelectInput label="Working Timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-                  {['Europe/London (BST/GMT)', 'Europe/Stockholm (CET)', 'Europe/Berlin', 'America/New_York (ET)', 'America/Los_Angeles (PT)', 'Asia/Kolkata (IST)', 'Asia/Tokyo (JST)', 'Australia/Sydney (AEST)'].map((tz) => <option key={tz}>{tz}</option>)}
+                <SelectInput label="Working Timezone" error={fields['profile.timezone']} value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+                  {[...new Set(['UTC', ...data.policy.timezones, timezone])].map(tz => <option key={tz}>{tz}</option>)}
                 </SelectInput>
-                <TextInput label="ORCID iD" value={orcid} onChange={(e) => setOrcid(e.target.value)} icon={<IdCard className="h-4 w-4 text-ink-subtle" />} />
+                <TextInput label="ORCID iD" error={fields['profile.orcid']} value={orcid} onChange={(e) => setOrcid(e.target.value)} icon={<IdCard className="h-4 w-4 text-ink-subtle" />} />
               </div>
-              <TextInput label="Personal / Lab website (optional)" value={website} onChange={(e) => setWebsite(e.target.value)} icon={<Globe2 className="h-4 w-4 text-ink-subtle" />} />
-              <TextArea label="Short Bio / Professional Statement" rows={5} value={bio} onChange={(e) => setBio(e.target.value)} hint={`${bio.length}/600 characters`} />
+              <TextInput label="Personal / Lab website (optional)" error={fields['profile.website']} value={website} onChange={(e) => setWebsite(e.target.value)} icon={<Globe2 className="h-4 w-4 text-ink-subtle" />} />
+              <TextArea maxLength={600} label="Short Bio / Professional Statement" error={fields['profile.bio']} rows={5} value={bio} onChange={(e) => setBio(e.target.value)} hint={`${bio.length}/600 characters`} />
               <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-2 border-t border-paper-border">
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" onClick={() => state.setProfile(data.profile)}>
                   <RefreshCw className="h-3.5 w-3.5" /> Discard
                 </Button>
-                <Button variant="primary" size="sm" onClick={() => notifyFlash('profile')}>
+                <Button variant="primary" size="sm" onClick={() => void state.save('profile')}>
                   <Save className="h-3.5 w-3.5" /> Save Profile
                 </Button>
               </div>
@@ -251,36 +198,36 @@ export default function AdminProfilePage() {
                 <h3 className="font-display text-lg font-semibold text-forum-900 flex items-center gap-2">
                   <Bell className="h-5 w-5 text-forum-600" /> Notification Preferences
                 </h3>
-                <p className="text-xs text-ink-subtle mt-0.5">Control what you receive by email vs. in-app only. Weekly digest aggregates non-urgent items.</p>
+                <p className="text-xs text-ink-subtle mt-0.5">Enabled subscriptions add email to in-app notifications. Unsupported categories are unavailable.</p>
               </div>
-              {saved === 'notif' && <Badge variant="success" className="!py-1"><Check className="h-3 w-3 mr-1" />Updated</Badge>}
             </CardHeader>
             <CardContent className="pt-0 space-y-4">
+              {(!data.capabilities.emailConfigured || !data.capabilities.emailWorkerEnabled) && <p className="text-xs text-ink-muted">Email delivery is currently unavailable. Preferences are saved; in-app notifications continue.</p>}
               <div className="grid gap-4 md:grid-cols-2">
                 <SectionGroup label="Membership & Credentialing">
                   <Checkbox id="n1" name="n1" label="New application submitted" checked={notif.appNewMember} onChange={(e) => setNotif({ ...notif, appNewMember: (e.target as HTMLInputElement).checked })} />
-                  <Checkbox id="n2" name="n2" label="Escalated / SLA-breaching applications" checked={notif.memberEscalated} onChange={(e) => setNotif({ ...notif, memberEscalated: (e.target as HTMLInputElement).checked })} />
-                  <Checkbox id="n3" name="n3" label="Daily approval digest" checked={notif.memberApprovalDigest} onChange={(e) => setNotif({ ...notif, memberApprovalDigest: (e.target as HTMLInputElement).checked })} />
+                  <Checkbox id="n2" name="n2" label="Escalated / SLA-breaching applications — unavailable" checked={false} disabled />
+                  <Checkbox id="n3" name="n3" label="Daily approval digest — unavailable" checked={false} disabled />
                 </SectionGroup>
                 <SectionGroup label="Support Requests">
                   <Checkbox id="n4" name="n4" label="Urgent / High-priority support requests" checked={notif.supportUrgent} onChange={(e) => setNotif({ ...notif, supportUrgent: (e.target as HTMLInputElement).checked })} />
                   <Checkbox id="n5" name="n5" label="All support request updates (high volume)" checked={notif.supportAll} onChange={(e) => setNotif({ ...notif, supportAll: (e.target as HTMLInputElement).checked })} />
-                  <Checkbox id="n6" name="n6" label="SAB review requested (your assigned)" checked={notif.sabRequired} onChange={(e) => setNotif({ ...notif, sabRequired: (e.target as HTMLInputElement).checked })} />
+                  <Checkbox id="n6" name="n6" label="SAB review requested (your assigned) — unavailable" checked={false} disabled />
                 </SectionGroup>
                 <SectionGroup label="Inquiries & Events">
                   <Checkbox id="n7" name="n7" label="New public contact form inquiry" checked={notif.inquiryNew} onChange={(e) => setNotif({ ...notif, inquiryNew: (e.target as HTMLInputElement).checked })} />
-                  <Checkbox id="n8" name="n8" label="Daily inquiry triage digest" checked={notif.inquiryDigest} onChange={(e) => setNotif({ ...notif, inquiryDigest: (e.target as HTMLInputElement).checked })} />
-                  <Checkbox id="n9" name="n9" label="Event reminders (events you organize)" checked={notif.eventReminder} onChange={(e) => setNotif({ ...notif, eventReminder: (e.target as HTMLInputElement).checked })} />
+                  <Checkbox id="n8" name="n8" label="Daily inquiry triage digest — unavailable" checked={false} disabled />
+                  <Checkbox id="n9" name="n9" label="Event reminders (events you organize) — unavailable" checked={false} disabled />
                 </SectionGroup>
                 <SectionGroup label="System & Communications">
-                  <Checkbox id="n10" name="n10" label="Scheduled maintenance & outage notices" checked={notif.systemOutage} onChange={(e) => setNotif({ ...notif, systemOutage: (e.target as HTMLInputElement).checked })} />
-                  <Checkbox id="n11" name="n11" label="Weekly CRO summary digest (Fridays)" checked={notif.weeklyDigest} onChange={(e) => setNotif({ ...notif, weeklyDigest: (e.target as HTMLInputElement).checked })} />
-                  <Checkbox id="n12" name="n12" label="Community & marketing communications" checked={notif.marketing} onChange={(e) => setNotif({ ...notif, marketing: (e.target as HTMLInputElement).checked })} />
+                  <Checkbox id="n10" name="n10" label="Scheduled maintenance & outage notices — unavailable" checked={false} disabled />
+                  <Checkbox id="n11" name="n11" label="Weekly CRO summary digest (Fridays) — unavailable" checked={false} disabled />
+                  <Checkbox id="n12" name="n12" label="Community & marketing communications — unavailable" checked={false} disabled />
                 </SectionGroup>
               </div>
               <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-2 border-t border-paper-border">
-                <Button variant="ghost" size="sm">Use defaults</Button>
-                <Button variant="primary" size="sm" onClick={() => notifyFlash('notif')}>
+                <Button variant="ghost" size="sm" onClick={() => setNotif(data.defaults)}>Use defaults</Button>
+                <Button variant="primary" size="sm" onClick={() => void state.save('preferences')}>
                   <Save className="h-3.5 w-3.5" /> Save Preferences
                 </Button>
               </div>
@@ -294,10 +241,9 @@ export default function AdminProfilePage() {
                   <Key className="h-5 w-5 text-forum-600" /> Change Password
                 </h3>
                 <p className="text-xs text-ink-subtle mt-0.5">
-                  IFSMHP requires admin passwords of at least 14 characters, multi-factor authentication, and rotation every 180 days.
+                  Use at least 14 characters and no more than 72 UTF-8 bytes. Updating your password signs out other sessions.
                 </p>
               </div>
-              {saved === 'password' && <Badge variant="success" className="!py-1"><Check className="h-3 w-3 mr-1" /> Password changed</Badge>}
             </CardHeader>
             <CardContent className="pt-0 space-y-4">
               <div className="grid gap-4">
@@ -343,7 +289,7 @@ export default function AdminProfilePage() {
                     ))}
                   </div>
                   <ul className="grid sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-ink-muted">
-                    <li className="inline-flex items-center gap-1">{newPw.length >= 14 ? <CheckCircle2 className="h-3 w-3 text-success-600" /> : <X className="h-3 w-3 text-danger-500" />} 14+ characters</li>
+                    <li className="inline-flex items-center gap-1">{[...newPw].length >= 14 ? <CheckCircle2 className="h-3 w-3 text-success-600" /> : <X className="h-3 w-3 text-danger-500" />} 14+ characters</li>
                     <li className="inline-flex items-center gap-1">
                       {/[A-Z]/.test(newPw) && /[a-z]/.test(newPw) ? <CheckCircle2 className="h-3 w-3 text-success-600" /> : <X className="h-3 w-3 text-danger-500" />} Mixed case
                     </li>
@@ -362,7 +308,7 @@ export default function AdminProfilePage() {
 
               <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-2 border-t border-paper-border">
                 <Button variant="ghost" size="sm" onClick={() => { setCurrentPw(''); setNewPw(''); setConfirmPw(''); setPwError(null); }}>Reset</Button>
-                <Button variant="primary" size="sm" onClick={savePassword}>
+                <Button variant="primary" size="sm" onClick={() => void savePassword()}>
                   <Key className="h-3.5 w-3.5" /> Update Password
                 </Button>
               </div>
@@ -378,32 +324,19 @@ export default function AdminProfilePage() {
               </h3>
             </CardHeader>
             <CardContent className="pt-0 space-y-4">
-              <Info2Row icon={<ShieldCheck className="h-4 w-4" />} label="Multi-Factor Authentication" value={
-                <div className="flex items-center justify-between gap-2">
-                  <Badge variant={mfa === 'Enabled' ? 'success' : mfa === 'Not configured' ? 'danger' : 'warning'} className="!py-1">
-                    {mfa === 'Enabled' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                    {mfa}
-                  </Badge>
-                  <Button variant={mfa === 'Enabled' ? 'outline' : 'primary'} size="sm" onClick={handleToggleMfa}>
-                    {mfa === 'Enabled' ? 'Manage' : mfa === 'Pending' ? 'Cancel disable' : 'Set up 2FA'}
-                  </Button>
-                </div>
-              } />
-              <Info2Row icon={<Key className="h-4 w-4" />} label="Last password change" value={<span className="text-xs text-ink"><Clock className="h-3.5 w-3.5 inline mr-1" />42 days ago · expires in 138 days</span>} />
-              <Info2Row icon={<Globe2 className="h-4 w-4" />} label="Last login" value={<span className="text-xs text-ink">Today · 08:02 BST · London, UK</span>} />
-              <Info2Row icon={<AlertTriangle className="h-4 w-4 text-warning-600" />} label="Active sessions" value={
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-ink">2 active sessions</span>
-                  <Button variant="ghost" size="sm">Review</Button>
-                </div>
-              } />
+              <Info2Row icon={<ShieldCheck className="h-4 w-4" />} label="Multi-Factor Authentication" value={<span className="text-xs text-ink-subtle">Unavailable — not configured for this application</span>} />
+              <Info2Row icon={<Key className="h-4 w-4" />} label="Last password change" value={at(overview?.security.passwordChangedAt)} />
+              <Info2Row icon={<Globe2 className="h-4 w-4" />} label="Last login" value={at(overview?.security.lastLoginAt)} />
+              <Info2Row icon={<AlertTriangle className="h-4 w-4" />} label="Active sessions" value={<div className="flex flex-wrap items-center gap-2"><span>{overview ? `${overview.security.activeSessions} active sessions` : 'Loading…'}</span><Button variant="ghost" size="sm" onClick={() => setSessionsOpen(true)}>Review</Button></div>} />
+              {state.overviewError && <p role="alert" className="text-xs text-danger-600">{state.overviewError} <button onClick={() => void state.refreshOverview()}>Retry overview</button></p>}
+
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <h3 className="font-display text-lg font-semibold text-forum-900 flex items-center gap-2">
-                <Users className="h-5 w-5 text-forum-600" /> Assigned Queues
+                <Users className="h-5 w-5 text-forum-600" /> Work Queues
               </h3>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
@@ -413,10 +346,10 @@ export default function AdminProfilePage() {
                     <div>
                       <p className="text-sm font-medium text-forum-900">{q.name}</p>
                       <p className="text-[11px] text-ink-subtle mt-0.5">
-                        {q.open} open{q.slaBreach > 0 && <span className="text-danger-600 font-semibold ml-1">· {q.slaBreach} breaching SLA</span>}
+                        {q.open} open{(q.slaBreach ?? 0) > 0 && <span className="text-danger-600 font-semibold ml-1">· {q.slaBreach} breaching SLA</span>}
                       </p>
                     </div>
-                    <Badge variant={q.slaBreach > 0 ? 'danger' : 'default'} className="!py-0">{q.open}</Badge>
+                    <Badge variant={(q.slaBreach ?? 0) > 0 ? 'danger' : 'default'} className="!py-0">{q.open}</Badge>
                   </div>
                 </Link>
               ))}
@@ -430,6 +363,7 @@ export default function AdminProfilePage() {
               </h3>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
+              {!overview ? <p className="text-xs">Loading approvals…</p> : !recentApprovals.length && <p className="text-xs text-ink-subtle">No approvals recorded yet.</p>}
               {recentApprovals.map((a) => (
                 <div key={a.id} className="flex items-start justify-between gap-2 p-2.5 rounded-lg hover:bg-forum-50/40">
                   <div className="min-w-0">
@@ -439,9 +373,9 @@ export default function AdminProfilePage() {
                   <code className="font-mono text-[10px] bg-forum-50 text-forum-700 px-1.5 py-0.5 rounded shrink-0">{a.id}</code>
                 </div>
               ))}
-              <Button variant="ghost" size="sm" className="w-full mt-1 justify-center">
+              <Link to={auditLink} className="flex w-full mt-1 justify-center gap-1 text-sm text-forum-700">
                 <FileText className="h-3.5 w-3.5" /> View in Audit Log
-              </Button>
+              </Link>
             </CardContent>
           </Card>
 
@@ -452,11 +386,12 @@ export default function AdminProfilePage() {
               </h3>
             </CardHeader>
             <CardContent className="pt-0">
+              {!overview ? <p className="text-xs">Loading activity…</p> : !activity.length && <p className="text-xs text-ink-subtle">No activity recorded yet.</p>}
               <ol className="relative border-l border-paper-border ml-2.5 pl-5 space-y-4">
-                {activity.map((a, i) => {
+                {activity.map((a) => {
                   const color = a.severity === 'success' ? 'bg-success-600' : a.severity === 'warning' ? 'bg-warning-600' : a.severity === 'danger' ? 'bg-danger-600' : a.severity === 'info' ? 'bg-slateteal-600' : 'bg-forum-600';
                   return (
-                    <li key={i} className="relative">
+                    <li key={a.id} className="relative">
                       <span className={`absolute -left-[27px] top-0.5 h-5 w-5 rounded-full ring-4 ring-paper-raised flex items-center justify-center text-white ${color}`}>
                         {a.severity === 'success' ? <CheckCircle2 className="h-3 w-3" /> : a.severity === 'danger' || a.severity === 'warning' ? <AlertCircle className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
                       </span>
@@ -473,6 +408,8 @@ export default function AdminProfilePage() {
           </Card>
         </div>
       </div>
+      </fieldset>
+      {sessionsOpen && <AdminSessionsDialog close={() => setSessionsOpen(false)} updated={() => void state.refreshOverview()} denied={state.fail} />}
     </div>
   );
 }

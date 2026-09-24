@@ -12,7 +12,7 @@ export interface SupportRow {
   assignedAdminId?: string | null; assignedAdmin?: string; conversationId: string | null; lastMessage: string;
 }
 export interface SupportStats {
-  total: number; open: number; urgent: number; overSla: number; approved: number; funding: number;
+  slaTargetDays: number; total: number; open: number; urgent: number; overSla: number; approved: number; funding: number;
   approvedWeek: number; triagedWeek: number; closedMonth: number;
   avgResolutionDays: number | null; avgResponseDays: number | null;
 }

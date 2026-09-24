@@ -1,3 +1,4 @@
+import { authorizeAvatar } from '../services/admin-avatar.service';
 import { authorizeGalleryFile } from '../services/gallery.service';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -254,6 +255,11 @@ router.get(
     if (!file || file.deletedAt) throw ApiError.notFound('File not found');
 
     const user = req.user!;
+    if (file.avatarManaged) {
+      if (!user.sessionId) throw ApiError.notFound('File not found');
+      await authorizeAvatar(file.id, user.id);
+      res.setHeader('Cache-Control', 'private, no-store');
+    }
     if (file.galleryManaged || await prisma.galleryItem.count({ where: { fileId: file.id } })) {
       await authorizeGalleryFile(file.id, user.role === 'ADMIN');
       res.setHeader('Cache-Control', 'private, no-store');

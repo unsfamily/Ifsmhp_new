@@ -36,7 +36,7 @@ type EventTag = string;
 type Errors = Record<string, string | undefined>;
 export default function AdminNewEventPage() {
   const navigate = useNavigate();
-  const { form, setForm, errors, setErrors, touched, setTouched, busy, message, requestError, coverUrl, coverName, chooseCover, save } = useEventEditor();
+  const { loading, loadError, retry, form, setForm, errors, setErrors, touched, setTouched, busy, message, requestError, coverUrl, coverName, chooseCover, save } = useEventEditor();
   const [showPreview, setShowPreview] = useState(true);
   const savedAsDraft = message.includes('Draft');
 
@@ -74,6 +74,7 @@ export default function AdminNewEventPage() {
 
   const speakerList = form.speakers.filter((s) => s.trim().length > 0);
 
+  if (loading || loadError) return <div role={loadError ? 'alert' : 'status'}>{loadError || 'Loading event defaults…'}{loadError && <Button onClick={retry}>Retry</Button>}</div>;
   return (
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -195,7 +196,7 @@ export default function AdminNewEventPage() {
                   value={form.timezone}
                   onChange={(e) => update('timezone', e.target.value)}
                 >
-                  {TIMEZONES.map((tz) => <option key={tz}>{tz}</option>)}
+                  {[...new Set([...TIMEZONES, form.timezone])].map((tz) => <option key={tz}>{tz}</option>)}
                 </SelectInput>
               </div>
 

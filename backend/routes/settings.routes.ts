@@ -1,0 +1,14 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { requireAuth, requireRole, requireVerifiedSession } from '../middleware/auth';
+import { validate } from '../middleware/validate';
+import { asyncHandler } from '../utils/asyncHandler';
+import { sendSuccess } from '../utils/apiResponse';
+import { sections, settingsPatch } from '../domain/settings';
+import { getSettings, updateSettings } from '../services/settings.service';
+const router = Router();
+router.use(requireAuth, requireRole('ADMIN'), requireVerifiedSession);
+router.use((_req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); });
+router.get('/', asyncHandler(async (_req, res) => sendSuccess(res, await getSettings())));
+router.patch('/:section', validate({ params: z.object({ section: z.enum(sections) }), body: settingsPatch }), asyncHandler(async (req, res) => sendSuccess(res, await updateSettings(req.user!.id, z.enum(sections).parse(req.params.section), req.body.expectedRevision, req.body.values), 'Settings saved.')));
+export default router;

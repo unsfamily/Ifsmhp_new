@@ -1,3 +1,6 @@
+import { effectiveSettings, membershipAge } from './settings.service';
+import { notifyAdmins } from './admin-notifications.service';
+import { randomUUID as adminNoticeId } from 'node:crypto';
 import crypto from 'node:crypto';
 import type { Request } from 'express';
 import * as supportService from './support.service';
@@ -15,6 +18,8 @@ import { logger } from '../utils/logger';
 import { writeAudit, changesBetween } from './audit.service';
 import { sendApprovalEmail } from './mail.service';
 import { isLegacyVideoUrl } from '../domain/document-exchange';
+import { memberPhoneMessage, memberPhoneSchema } from '../domain/member-profile';
+import { parseProjectTimeline, serializeProjectTimeline } from '../domain/project-timeline';
 
 const projectStatusLabel: Record<ProjectStatus, string> = {
   DRAFT: 'Draft',
@@ -323,6 +328,7 @@ export async function createContactInquiry(input: {
       histories: { create: { toStatus: 'NEW', reason: 'Submitted from public contact form' } },
     },
   });
+  await notifyAdmins(tx, { key: `inquiry:${inquiry.id}`, category: 'INQUIRY', entityId: inquiry.id, title: 'New public inquiry', link: '/admin/inquiries', allAdmins: true });
   await writeAudit({ actorRole: 'UNAUTHENTICATED', action: 'InquiryCreated', entity: `ContactInquiry ${inquiry.id}` }, tx);
   return { inquiryId: inquiry.id, status: inquiry.status, next: 'Our team will respond within two working days.' };
 
@@ -430,7 +436,7 @@ export async function memberProfile(userId: string) {
 }
 
 export async function updateMemberProfile(userId: string, input: {
-  phone?: string | null;
+  phone?: string;
   websiteUrl?: string | null;
   scholarUrl?: string | null;
   orcid?: string | null;
@@ -438,6 +444,10 @@ export async function updateMemberProfile(userId: string, input: {
   await prisma.$transaction(async tx => {
     const before = await tx.memberProfile.findUnique({ where: { userId } });
     if (!before) throw ApiError.notFound('Profile not found');
+    const phone = input.phone === undefined ? before.phone : input.phone;
+    if (!memberPhoneSchema.safeParse(phone).success) {
+      throw ApiError.unprocessable('Validation failed', [{ field: 'phone', message: memberPhoneMessage }]);
+    }
     const fields = Object.keys(input).filter(key => input[key as keyof typeof input] !== undefined && input[key as keyof typeof input] !== before[key as keyof typeof before]);
     if (!fields.length) return;
     await tx.memberProfile.update({ where: { userId }, data: input });
@@ -497,6 +507,7 @@ export async function memberProjectDetail(userId: string, id: string) {
     ...serializeProject(project),
     // Not in the list serializer, but the detail view and the edit form need them.
     timeline: project.timeline,
+    ...parseProjectTimeline(project.timeline),
     budget: project.budget,
     files: project.files.map((f) => ({ id: f.fileId, name: f.file.originalName, kind: f.kind, size: f.file.sizeBytes })),
     resourceLinks: project.resourceLinks.map((l) => ({ id: l.id, url: l.url, label: l.label })),
@@ -514,7 +525,7 @@ async function assertOwnedFiles(userId: string, fileIds: string[]) {
   if (!fileIds.length) return [];
   const unique = [...new Set(fileIds)];
   const owned = await prisma.fileObject.findMany({
-    where: { id: { in: unique }, uploaderId: userId, deletedAt: null },
+    where: { id: { in: unique }, uploaderId: userId, deletedAt: null, avatarManaged: false },
     select: { id: true },
   });
   if (owned.length !== unique.length) throw ApiError.notFound('Attachment not found');
@@ -525,7 +536,8 @@ export async function createProject(userId: string, input: {
   title: string;
   category: string;
   description: string;
-  timeline?: string;
+  fromDate: string;
+  toDate: string;
   budget?: string;
   supportTypes?: string[];
   fileIds?: string[];
@@ -533,6 +545,7 @@ export async function createProject(userId: string, input: {
   submit?: boolean;
 }) {
   return prisma.$transaction(async tx => {
+  const timeline = serializeProjectTimeline(input);
   const status = input.submit ? 'SUBMITTED' : 'DRAFT';
   const fileIds = await assertOwnedFiles(userId, input.fileIds ?? []);
   const project = await tx.project.create({
@@ -541,7 +554,7 @@ export async function createProject(userId: string, input: {
       title: input.title,
       category: input.category,
       description: input.description,
-      timeline: input.timeline,
+      timeline,
       budget: input.budget,
       status,
       submittedAt: input.submit ? new Date() : null,
@@ -578,27 +591,36 @@ export async function updateMemberProject(userId: string, id: string, input: {
   title?: string;
   category?: string;
   description?: string;
-  timeline?: string;
+  fromDate?: string;
+  toDate?: string;
   budget?: string;
   supportTypes?: string[];
   submit?: boolean;
 }) {
-  const existing = await loadOwnedProject(userId, id);
+  const project = await prisma.$transaction(async (tx) => {
+  // Read the effective timeline and status under the same lock as promotion.
+  await tx.$queryRaw`SELECT id FROM Project WHERE id = ${id} AND ownerId = ${userId} AND deletedAt IS NULL FOR UPDATE`;
+  const existing = await tx.project.findFirst({ where: { id, ownerId: userId, deletedAt: null }, include: { supportTypes: true } });
+  if (!existing) throw ApiError.notFound('Project not found');
   if (!MEMBER_EDITABLE.includes(existing.status)) {
     throw ApiError.conflict('Projects under review can no longer be edited');
   }
 
   const promoting = input.submit === true && existing.status === 'DRAFT';
+  const timeline = input.fromDate !== undefined || input.toDate !== undefined ? serializeProjectTimeline(input) : undefined;
+  if (promoting && timeline === undefined) {
+    const stored = parseProjectTimeline(existing.timeline);
+    serializeProjectTimeline({ fromDate: stored.fromDate ?? undefined, toDate: stored.toDate ?? undefined });
+  }
   const scalars = {
     ...(input.title !== undefined ? { title: input.title } : {}),
     ...(input.category !== undefined ? { category: input.category } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
-    ...(input.timeline !== undefined ? { timeline: input.timeline } : {}),
+    ...(timeline !== undefined ? { timeline } : {}),
     ...(input.budget !== undefined ? { budget: input.budget } : {}),
     ...(promoting ? { status: 'SUBMITTED' as const, submittedAt: new Date() } : {}),
   };
 
-  const project = await prisma.$transaction(async (tx) => {
     // @@unique([projectId, kind]) means the set has to be cleared before it is
     // rewritten, so replacement happens in the same transaction as the update.
     if (input.supportTypes) {
@@ -993,6 +1015,7 @@ async function writeMessage(opts: {
   if (!internal) {
     if (linkedSupport) writes.push(tx.supportRequest.update({ where: { id: linkedSupport.id }, data: { updatedAt: new Date() } }));
     for (const recipient of recipients) {
+      if (linkedSupport && recipient.role === 'ADMIN') continue;
       const userId = recipient.id;
       writes.push(
         tx.notification.create({
@@ -1016,6 +1039,7 @@ async function writeMessage(opts: {
 
   if (!linkedSupport) writes.push(writeAudit({ actorId: sender.id, action: 'MessageSent', entity: `Conversation ${conversationId}`, metadata: { conversationId } }, tx));
   await Promise.all(writes);
+  if (linkedSupport && !internal) await notifyAdmins(tx, { key: `support-reply:${adminNoticeId()}`, category: 'SUPPORT', entityId: linkedSupport.id, title: 'Support request reply', link: `/admin/support/${linkedSupport.id}`, priority: linkedSupport.priority, assignedAdminId: linkedSupport.assignedAdminId, actorId: sender.id });
   return { conversationId, subject, senderName };
 
   };
@@ -1711,13 +1735,14 @@ export async function adminMembers(req: Request) {
     prisma.user.groupBy({ by: ['status'], where: { role: { in: ['APPLICANT', 'MEMBER'] } }, _count: true }),
   ]);
 
+  const ages = await membershipAge(rows.flatMap(r => r.membershipApplication ? [r.membershipApplication] : []));
   const accountCounts = statusGroups.reduce<Record<string, number>>((acc, group) => {
     acc[userStatusLabel[group.status] ?? group.status] = group._count;
     return acc;
   }, {});
 
   return {
-    ...buildPaginatedResult(rows.map(serializeMember), total, pagination),
+    ...buildPaginatedResult(rows.map(row => ({ ...serializeMember(row), ...ages.get(row.membershipApplication?.id ?? '') })), total, pagination),
     counts: { pending, underReview, urgent, approvedToday, inQueue: pending + underReview },
     accountCounts: {
       total: statusGroups.reduce((sum, g) => sum + g._count, 0),
@@ -1954,7 +1979,7 @@ export async function rejectMember(id: string, actorId: string, reason: string, 
 }
 
 /** Days a queued project may sit before the review SLA is considered breached. */
-const PROJECT_SLA_DAYS = 7;
+
 
 /** Shortest review note that counts as an explanation for a rejection. */
 export const REJECTION_NOTE_MIN = 10;
@@ -1977,8 +2002,9 @@ function optionalQuery(req: Request, key: string): string {
  * must not move when an admin narrows the grid.
  */
 async function adminProjectCounts() {
+  const { review } = await effectiveSettings();
   const live: Prisma.ProjectWhereInput = { deletedAt: null };
-  const slaCutoff = new Date(Date.now() - PROJECT_SLA_DAYS * 86_400_000);
+  const slaCutoff = new Date(Date.now() - review.projectDays * 86_400_000);
 
   const [byStatus, slaBreach, urgent] = await Promise.all([
     prisma.project.groupBy({ by: ['status'], where: live, _count: { _all: true } }),
@@ -1991,6 +2017,7 @@ async function adminProjectCounts() {
   const of = (status: ProjectStatus) => byStatus.find((row) => row.status === status)?._count._all ?? 0;
 
   return {
+    slaTargetDays: review.projectDays,
     total: byStatus.reduce((sum, row) => sum + row._count._all, 0),
     inReview: of('SUBMITTED') + of('UNDER_REVIEW'),
     approved: of('APPROVED'),
@@ -2637,9 +2664,7 @@ export async function adminReports() {
   return prisma.reportDefinition.findMany({ include: { runs: { orderBy: { createdAt: 'desc' }, take: 1 } } });
 }
 
-export async function adminSettings() {
-  return prisma.platformSetting.findMany({ orderBy: [{ section: 'asc' }, { key: 'asc' }] });
-}
+
 
 function labelToProjectStatus(label: string): ProjectStatus {
   const found = Object.entries(projectStatusLabel).find(([, value]) => value === label);

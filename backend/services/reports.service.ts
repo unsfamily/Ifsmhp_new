@@ -1,3 +1,4 @@
+import { effectiveSettings, membershipAge } from './settings.service';
 import { writeAudit } from './audit.service';
 /**
  * Admin reporting.
@@ -12,7 +13,7 @@ import { ApiError } from '../utils/ApiError';
 import { buildPaginatedResult, toSkipTake, type PaginationQuery } from '../utils/pagination';
 import { toCsv, csvFilename, type CsvColumn } from '../utils/csv';
 import {
-  REPORTS, PUBLICATION_SLA_DAYS, previousWindow, reportByKey, reportDefinitionSeed,
+  REPORTS, previousWindow, reportByKey, reportDefinitionSeed,
   type ReportRange, type ReportRow, type ReportSpec,
 } from '../domain/reports';
 
@@ -95,6 +96,7 @@ async function lastRunByKey() {
 
 /** The four headline cards, each measured over `range` and against the window before it. */
 async function kpis(range: ReportRange) {
+  const { review } = await effectiveSettings();
   const previous = previousWindow(range);
   const window = `${spanDays(range)}d`;
   const activeMembers = { role: 'MEMBER' as const, status: 'ACTIVE' as const, deletedAt: null };
@@ -138,7 +140,7 @@ async function kpis(range: ReportRange) {
       ...trendOf({ direction: 'higher-better', delta: 'percent' }, active, activeBefore),
     },
     {
-      label: 'Publications In Review', value: inReview.toLocaleString(), sub: `SLA ${avgReview} / ${PUBLICATION_SLA_DAYS}d`,
+      label: 'Publications In Review', value: inReview.toLocaleString(), sub: `SLA ${avgReview} / ${review.publicationDays}d`,
       ...trendOf({ direction: 'lower-better', delta: 'days' }, avgReview, avgDays(reviewSpansBefore)),
     },
     {
@@ -158,17 +160,18 @@ async function kpis(range: ReportRange) {
  * not what was outstanding during some past window.
  */
 async function attention() {
-  const slaCutoff = new Date(Date.now() - PUBLICATION_SLA_DAYS * DAY);
+  const { review } = await effectiveSettings();
+  const slaCutoff = new Date(Date.now() - review.publicationDays * DAY);
   const [breaching, overdueSupport, stalePending] = await Promise.all([
     prisma.publication.count({ where: { status: { in: ['SUBMITTED', 'UNDER_REVIEW'] }, submittedAt: { lte: slaCutoff } } }),
     prisma.supportRequest.count({ where: { status: { in: ['PENDING', 'UNDER_REVIEW'] }, requiredBy: { lt: new Date() } } }),
-    prisma.membershipApplication.count({ where: { status: { in: ['PENDING', 'UNDER_REVIEW'] }, submittedAt: { lte: new Date(Date.now() - 14 * DAY) } } }),
+    prisma.membershipApplication.findMany({ where: { status: { in: ['PENDING', 'UNDER_REVIEW'] } }, select: { id: true, status: true, submittedAt: true } }).then(async apps => [...(await membershipAge(apps)).values()].filter(a => a.stageSlaBreached).length),
   ]);
 
   const items: { when: string; title: string; issue: string; severity: 'warning' | 'danger' | 'default' }[] = [];
-  if (breaching) items.push({ when: 'Due today', title: 'Review SLA Performance', issue: `${breaching} publication${breaching === 1 ? '' : 's'} over the ${PUBLICATION_SLA_DAYS}-day SLA threshold`, severity: 'warning' });
+  if (breaching) items.push({ when: 'Due today', title: 'Review SLA Performance', issue: `${breaching} publication${breaching === 1 ? '' : 's'} over the ${review.publicationDays}-day SLA threshold`, severity: 'warning' });
   if (overdueSupport) items.push({ when: 'Past due', title: 'Support Request Case Report', issue: `${overdueSupport} support request${overdueSupport === 1 ? '' : 's'} past the requested-by date`, severity: 'danger' });
-  if (stalePending) items.push({ when: 'This week', title: 'Membership Monthly Review', issue: `${stalePending} application${stalePending === 1 ? '' : 's'} pending review for over 14 days`, severity: 'default' });
+  if (stalePending) items.push({ when: 'This week', title: 'Membership Monthly Review', issue: `${stalePending} application${stalePending === 1 ? '' : 's'} past the configured stage SLA threshold`, severity: 'default' });
   return items;
 }
 

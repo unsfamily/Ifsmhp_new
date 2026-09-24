@@ -1,4 +1,5 @@
-import nodemailer, { type Transporter } from 'nodemailer';
+import { effectiveSettings } from './settings.service';
+import nodemailer, { type SendMailOptions, type Transporter } from 'nodemailer';
 import { env } from '../config';
 import { ApiError } from '../utils/ApiError';
 import { logger } from '../utils/logger';
@@ -35,7 +36,7 @@ export async function sendAnnouncementEmail(input: { to: string; subject: string
   if (!env.mailConfigured) return false;
   const signature = input.senderAsCRO ? 'CRO Office' : 'Communications team';
   const footer = input.unsubscribeUrl ? `\n\nUnsubscribe from announcement emails: ${input.unsubscribeUrl}` : '';
-  const result = await getTransport().sendMail({ from: env.mailFrom, to: input.to, messageId: input.messageId,
+  const result = await sendConfiguredMail({ from: env.mailFrom, to: input.to, messageId: input.messageId,
     subject: `${input.preview ? '[SAB Preview] ' : ''}${input.subject}`,
     text: `${input.body}\n\n${signature}${footer}`,
     html: `<div style="font-family:system-ui;max-width:640px">${renderAnnouncement(input.body)}<p>${signature}</p>${input.unsubscribeUrl ? `<p><a href="${input.unsubscribeUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Unsubscribe from announcement emails</a></p>` : ''}</div>`,
@@ -76,7 +77,7 @@ async function deliver(mail: Mail, devFallbackDetail: string): Promise<void> {
   }
 
   try {
-    await getTransport().sendMail({ from: env.mailFrom, ...mail });
+    await sendConfiguredMail({ from: env.mailFrom, ...mail });
     logger.info('Email sent', { to: mail.to, subject: mail.subject });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -200,6 +201,27 @@ export async function sendEventEmail(email: string, event: { title: string; date
   const subject = `${cancelled ? 'Event cancelled' : 'Event reminder'}: ${event.title}`;
   const text = [subject, `${event.date?.toISOString().slice(0, 10) ?? ''} ${event.timeStart} - ${event.timeEnd} (${event.timezone})`, event.location, cancelled ? event.cancellationReason || 'Please contact the organizer for further details.' : 'We look forward to seeing you.'].join('\n\n');
   const escaped = text.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
-  await getTransport().sendMail({ from: env.mailFrom, to: email, subject, text, html: `<div style="white-space:pre-wrap;font-family:system-ui">${escaped}</div>` });
+  await sendConfiguredMail({ from: env.mailFrom, to: email, subject, text, html: `<div style="white-space:pre-wrap;font-family:system-ui">${escaped}</div>` });
   return true;
+}
+
+/** Operational notices contain a link, never private message or inquiry text. */
+export async function sendAdminNotificationEmail(input: { to: string; title: string; link: string; key: string }): Promise<boolean> {
+  if (!env.mailConfigured) return false;
+  const origin = (env.ANNOUNCEMENT_WEB_URL ?? env.allowedOrigins[0]!).replace(/\/$/, '');
+  const result = await sendConfiguredMail({ from: env.mailFrom, to: input.to, subject: input.title, text: `${input.title}\n\nReview this update: ${origin}${input.link}\n\nManage email preferences in your administrator profile.`, messageId: `<admin-notice-${input.key}@ifsmhp.local>` });
+  if (!result.accepted?.length) throw new Error('SMTP did not accept the recipient');
+  return true;
+}
+
+/** Apply current non-secret identity at delivery time, including worker retries. */
+export async function sendConfiguredMail(mail: SendMailOptions) {
+  const { communications: c } = await effectiveSettings();
+  const address = env.mailFrom.match(/<([^<>]+)>\s*$/)?.[1] ?? env.mailFrom;
+  const escape = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return getTransport().sendMail({ ...mail, from: c.senderName ? { name: c.senderName, address } : env.mailFrom,
+    ...(c.replyTo ? { replyTo: c.replyTo } : {}),
+    ...(c.signature && typeof mail.text === 'string' ? { text: `${mail.text}\n\n${c.signature}` } : {}),
+    ...(c.signature && typeof mail.html === 'string' ? { html: `${mail.html}<p style="white-space:pre-wrap">${escape(c.signature)}</p>` } : {}),
+  });
 }

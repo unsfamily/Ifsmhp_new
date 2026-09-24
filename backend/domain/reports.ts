@@ -1,3 +1,4 @@
+import { effectiveSettings } from '../services/settings.service';
 /**
  * The report catalog.
  *
@@ -46,7 +47,7 @@ export interface ReportSpec {
 }
 
 /** SLA the publication queue is measured against, mirrored by the review-sla report. */
-export const PUBLICATION_SLA_DAYS = 10;
+
 
 const DAY = 86_400_000;
 const within = (from: Date, to: Date) => ({ gte: from, lte: to });
@@ -151,6 +152,7 @@ export const REPORTS: ReportSpec[] = [
       { key: 'breachedSla', label: 'Over SLA' },
     ],
     async rows({ from, to }) {
+      const { review } = await effectiveSettings();
       const publications = await prisma.publication.findMany({
         where: { submittedAt: within(from, to) },
         orderBy: { submittedAt: 'desc' },
@@ -172,7 +174,7 @@ export const REPORTS: ReportSpec[] = [
           decidedAt: iso(decided),
           reviewDays: elapsed === null ? null : round1(elapsed),
           // Still-open items count against the SLA the moment they pass it.
-          breachedSla: elapsed !== null && elapsed > PUBLICATION_SLA_DAYS ? 'Yes' : 'No',
+          breachedSla: elapsed !== null && elapsed >= review.publicationDays ? 'Yes' : 'No',
         };
       });
     },

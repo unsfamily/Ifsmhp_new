@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Upload,
   Send,
@@ -21,12 +21,14 @@ import { useForm } from 'react-hook-form';
 import { memberApi, type UploadedFile, type ProjectResourceLinkInput } from '../../api/member';
 import { normalizeError } from '../../api/client';
 import { formatBytes } from '../../utils/formatBytes';
+import { projectDateError, projectToDateError, validProjectDate } from '../../utils/projectTimeline';
 
 interface FormData {
   title: string;
   description: string;
   category: string;
-  timeline: string;
+  fromDate: string;
+  toDate: string;
   budget: string;
   supportMoral: boolean;
   supportOfficial: boolean;
@@ -38,7 +40,8 @@ const FIELD_LABELS: Record<string, string> = {
   title: 'Project Title',
   description: 'Project Description',
   category: 'Research Category',
-  timeline: 'Project Timeline',
+  fromDate: 'From Date',
+  toDate: 'To Date',
   budget: 'Budget',
 };
 
@@ -50,7 +53,6 @@ const LIMITS = {
   title: { min: 4, max: 220 },
   category: { min: 2, max: 120 },
   description: { min: 20, max: 15000 },
-  timeline: { max: 200 },
   budget: { max: 120 },
 } as const;
 
@@ -116,8 +118,18 @@ export default function UploadProjectPage() {
     register,
     handleSubmit,
     setError,
+    watch,
+    trigger,
+    setFocus,
     formState: { isSubmitting, errors },
-  } = useForm<FormData>();
+  } = useForm<FormData>({ defaultValues: { fromDate: '', toDate: '' } });
+  const fromDate = watch('fromDate');
+  const toDate = watch('toDate');
+  const initialDates = useRef(true);
+  useEffect(() => {
+    if (initialDates.current) { initialDates.current = false; return; }
+    void trigger(['fromDate', 'toDate']);
+  }, [fromDate, toDate, trigger]);
 
   const [documents, setDocuments] = useState<Attachment[]>([]);
   const [presentation, setPresentation] = useState<Attachment | null>(null);
@@ -217,13 +229,14 @@ export default function UploadProjectPage() {
         title: data.title,
         category: data.category,
         description: data.description,
-        timeline: data.timeline,
+        fromDate: data.fromDate,
+        toDate: data.toDate,
         budget: data.budget,
         supportTypes: [
           data.supportMoral ? 'Moral Support' : null,
           data.supportOfficial ? 'Official Support' : null,
           data.supportFunding ? 'Funding Support' : null,
-        ].filter(Boolean),
+        ].filter((kind): kind is string => kind !== null),
         fileIds: attachments.filter((a) => a.uploaded).map((a) => a.uploaded!.id),
         resourceLinks: links,
         submit: options.submit,
@@ -236,6 +249,7 @@ export default function UploadProjectPage() {
       const fields = Object.entries(normalized.fieldErrors)
         .filter(([field]) => field in FIELD_LABELS) as [keyof FormData, string][];
       for (const [field, message] of fields) setError(field, { type: 'server', message });
+      if (fields[0]) setFocus(fields[0][0]);
       setErrorMsg(fields.length ? 'Please correct the highlighted fields.' : normalized.message);
     }
   };
@@ -311,7 +325,7 @@ export default function UploadProjectPage() {
                 Project Details
               </h2>
             </CardHeader>
-            <CardContent className="pt-0 space-y-5">
+            <CardContent className="pt-0 space-y-5 mt-4">
               <TextInput
                 label="Project Title"
                 placeholder="Descriptive, specific title for your research"
@@ -348,16 +362,19 @@ export default function UploadProjectPage() {
                 })}
               />
               <div className="grid gap-5 sm:grid-cols-2">
-                <TextInput
-                  label="Project Timeline"
-                  placeholder="e.g. Jan 2026 – Dec 2026 (12 months)"
-                  required
-                  error={errors.timeline?.message}
-                  {...register('timeline', {
-                    required: 'Please specify the timeline',
-                    maxLength: { value: LIMITS.timeline.max, message: `Use no more than ${LIMITS.timeline.max} characters` },
-                  })}
-                />
+                <fieldset>
+                  <legend className="mb-1.5 text-sm font-medium text-ink">Project Timeline</legend>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <TextInput label="From Date" type="date" min="0001-01-01" max="9999-12-31" required
+                      error={errors.fromDate?.message}
+                      onInvalid={event => { event.preventDefault(); setError('fromDate', { message: projectDateError(event.currentTarget.value, 'From Date') ?? 'Enter a valid From Date' }, { shouldFocus: true }); }}
+                      {...register('fromDate', { validate: value => projectDateError(value, 'From Date') || true })} />
+                    <TextInput label="To Date" type="date" min={validProjectDate(fromDate) ? fromDate : '0001-01-01'} max="9999-12-31" required
+                      error={errors.toDate?.message}
+                      onInvalid={event => { event.preventDefault(); setError('toDate', { message: projectToDateError(fromDate, event.currentTarget.value) ?? 'Enter a valid To Date' }, { shouldFocus: validProjectDate(fromDate) }); }}
+                      {...register('toDate', { validate: value => projectToDateError(fromDate, value) || true })} />
+                  </div>
+                </fieldset>
                 <TextInput
                   label="Budget (if applicable)"
                   placeholder="Total budget in USD or N/A"
@@ -380,7 +397,7 @@ export default function UploadProjectPage() {
                 Select all that apply. You can request multiple types of support.
               </p>
             </CardHeader>
-            <CardContent className="pt-0 grid gap-3 sm:grid-cols-3">
+            <CardContent className="pt-0 grid gap-3 sm:grid-cols-3 mt-4">
               {[
                 { key: 'supportMoral', icon: HeartHandshake, title: 'Moral Support', desc: 'Peer mentorship, community, encouragement' },
                 { key: 'supportOfficial', icon: ShieldCheck, title: 'Official Support', desc: 'Institutional endorsement, credibility' },
@@ -427,7 +444,7 @@ export default function UploadProjectPage() {
                 All standard document and presentation formats supported.
               </p>
             </CardHeader>
-            <CardContent className="pt-0 grid gap-5 sm:grid-cols-2">
+            <CardContent className="pt-0 grid gap-5 sm:grid-cols-2 mt-4">
               <div className="min-w-0 space-y-3">
                 <FileInput
                   label="Project Documents"

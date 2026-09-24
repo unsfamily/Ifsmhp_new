@@ -1,3 +1,4 @@
+import { usePublicSettings } from '../../context/SettingsContext';
 import { Link, useLocation } from 'react-router-dom';
 import { Linkedin, Twitter, Facebook, BookOpen, Images } from 'lucide-react';
 import logoImg from '../../assets/images/logo.png';
@@ -55,29 +56,40 @@ const legalLinks = [
 ];
 
 export default function Footer() {
+  const settings = usePublicSettings();
   return (
     <footer className="border-t border-paper-border bg-forum-900 text-forum-100">
+      <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6 text-sm space-y-2">
+        {settings?.legalName && <p>{settings.legalName}{settings.registrationNumber ? ` · ${settings.registrationNumber}` : ''}</p>}
+        {!settings?.legalName && settings?.registrationNumber && <p>{settings.registrationNumber}</p>}
+        {settings?.address && <p className="whitespace-pre-line">{settings.address}</p>}
+        {settings?.contactEmail && <p><a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a></p>}
+        {settings?.contactPhone && <p>{settings.contactPhone}</p>}
+        {settings?.homepageUrl && <p><a href={settings.homepageUrl}>Organization website</a></p>}
+        {settings?.communityUrl && <p><a href={settings.communityUrl}>Community</a></p>}
+        {settings?.privacyEmail && <p>Privacy contact: <a href={`mailto:${settings.privacyEmail}`}>{settings.privacyEmail}</a></p>}
+      </div>
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
         <div className="grid gap-10 lg:grid-cols-4">
           <div className="lg:col-span-1">
             <div className="flex items-center gap-2.5">
               <img
                 src={logoImg}
-                alt="IFSMHP Logo"
+                alt={`${settings?.shortName || 'IFSMHP'} Logo`}
                 className="h-9 w-9 rounded-md object-contain bg-white p-0.5"
               />
               <div>
                 <span className="block font-display text-base font-semibold text-white">
-                  IFSMHP
+                  {settings?.shortName || 'IFSMHP'}
                 </span>
                 <span className="block text-[10px] uppercase tracking-wider text-forum-200/70">
-                  Int'l Forum of Scientists
+                  {settings?.fullName || ''}
                 </span>
               </div>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-forum-200/70">
               Advancing global research and mental health through collaborative
-              excellence. Join 277+ scientists and professionals worldwide.
+              excellence.
             </p>
             <div className="mt-5 flex items-center gap-3">
               {[

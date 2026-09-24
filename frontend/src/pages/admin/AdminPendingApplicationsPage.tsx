@@ -49,9 +49,6 @@ const priorityBadgeMap: Record<ApplicationPriority, 'default' | 'warning' | 'dan
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
-/** Applications older than this are flagged as ageing in the queue. */
-const SLA_TARGET_DAYS = 5;
-
 export default function AdminPendingApplicationsPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
@@ -90,6 +87,7 @@ export default function AdminPendingApplicationsPage() {
         limit: pageSize,
       }),
     [statusFilter, typeFilter, priorityFilter, submittedFrom, submittedTo, debouncedSearch, page, pageSize, reloadKey],
+    true,
   );
 
   const rows = data?.items ?? [];
@@ -413,7 +411,7 @@ export default function AdminPendingApplicationsPage() {
                     {rows.map((m) => {
                       const isMenuOpen = actionMenuOpenId === m.id;
                       const open = m.status === 'Pending' || m.status === 'Under Review';
-                      const ageing = open && m.slaDays >= SLA_TARGET_DAYS;
+                      const ageing = open && m.stageSlaBreached;
                       const busy = busyId === m.id;
                       const initials = m.name
                         .split(' ')
@@ -488,7 +486,7 @@ export default function AdminPendingApplicationsPage() {
                           <td className={`py-3.5 px-2 hidden sm:table-cell align-top ${ageing ? 'text-danger-600 font-semibold' : ''}`}>
                             <span className="inline-flex items-center gap-1 text-xs">
                               {ageing ? <AlertTriangle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5 text-ink-subtle" />}
-                              {m.slaDays} day{m.slaDays === 1 ? '' : 's'}
+                              {m.stageSlaDays === null ? (open ? 'Review start unavailable' : '—') : `${m.stageSlaDays} / ${m.stageSlaTarget} days`}
                             </span>
                           </td>
                           <td className="py-3.5 px-2 align-top">

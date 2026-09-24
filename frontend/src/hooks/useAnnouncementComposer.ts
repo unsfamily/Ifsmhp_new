@@ -1,3 +1,4 @@
+import { settingsService } from '../services/settingsService';
 import { useRef, useState } from 'react';
 import { announcementApi, announcementSchema, type Announcement, type AnnouncementInput, type AnnouncementAction } from '../api/announcements';
 import { normalizeError } from '../api/client';
@@ -28,7 +29,7 @@ export function useAnnouncementComposer(refresh: () => void) {
     setComposer(c => ({ ...c, [key]: value, ...(key === 'audience' && value === 'Pending Applicants' ? { channel: 'Email' as const } : {}) }));
     setErrors(e => ({ ...e, [key]: '' })); setError('');
   };
-  const reset = () => { if (lock.current) return; setRecord(null); setComposer(EMPTY_COMPOSER); setErrors({}); setError(''); setStale(false); setResult(''); requests.current.clear(); pendingAction.current = null; };
+  const reset = async () => { if (lock.current) return; setRecord(null); setComposer(EMPTY_COMPOSER); setErrors({}); setError(''); setStale(false); setResult(''); requests.current.clear(); pendingAction.current = null; lock.current = true; setBusy(true); try { const s = await settingsService.get(); setComposer({ ...EMPTY_COMPOSER, sendSABPreview: s.values.communications.announcementSignoff }); } catch(e) { fail(e); setStale(true); } finally { lock.current = false; setBusy(false); } };
   const openDraft = async (row: Pick<Announcement, 'id'>, schedule = false) => {
     if (lock.current) return;
     lock.current = true; setBusy(true); setError('');

@@ -16,6 +16,7 @@ async function scope(q: AuditQuery): Promise<Prisma.AuditLogWhereInput> {
     const legacy = await prisma.auditLog.groupBy({ by: ['action'], where: { module: null } });
     conditions.push({ OR: [{ module: q.module }, { module: null, action: { in: legacy.filter(row => classifyAction(row.action) === q.module).map(row => row.action) } }] });
   }
+  if (q.actorId) conditions.push({ actorId: q.actorId });
   if (q.search) conditions.push({ OR: ['actorLabel', 'actorEmail', 'actorMemberId', 'actorId', 'action', 'entity', 'description'].map(field => ({ [field]: { contains: q.search } })) });
   if (conditions.length) where.AND = conditions;
   return where;
@@ -62,7 +63,7 @@ export async function auditExport(actorId: string, raw: unknown, res: Response) 
   const cutoff = new Date();
   const where: Prisma.AuditLogWhereInput = { AND: [filter, { createdAt: { lt: cutoff } }] };
   const count = await prisma.auditLog.count({ where });
-  await writeAudit({ actorId, action: 'AuditLogExported', entity: 'AuditLog', entityType: 'AuditLog', outcome: 'ACCESS_GRANTED', metadata: { rows: count, cutoff, module: q.module, action: q.action, actorRole: q.actorRole, severity: q.severity, sort: q.sort, from: q.from, to: q.to, searchApplied: !!q.search } });
+  await writeAudit({ actorId, action: 'AuditLogExported', entity: 'AuditLog', entityType: 'AuditLog', outcome: 'ACCESS_GRANTED', metadata: { rows: count, cutoff, actorId: q.actorId, module: q.module, action: q.action, actorRole: q.actorRole, severity: q.severity, sort: q.sort, from: q.from, to: q.to, searchApplied: !!q.search } });
   res.setHeader('Cache-Control', 'private, no-store'); res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="audit-log-${cutoff.toISOString().slice(0, 10)}.csv"`);
   const columns = csvKeys.map(key => ({ key, label: key }));
