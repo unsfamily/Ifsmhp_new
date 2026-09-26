@@ -158,10 +158,12 @@ npm run db:seed
 Seed data is **development-only** and must never be applied to a production database. Seed accounts:
 
 ```text
-admin@ifsmhp.local / ChangeMeNow!2026
-member@ifsmhp.local / ChangeMeNow!2026
-applicant@ifsmhp.local / ChangeMeNow!2026
+admin@ifsmhp.local      password sign-in: ChangeMeNow!2026
+member@ifsmhp.local     emailed 6-digit code (no password)
+applicant@ifsmhp.local  emailed 6-digit code (no password)
 ```
+
+On the sign-in page, choose **Use password sign-in** for the administrator. Members and applicants stay on **Email me a sign-in code**. When SMTP is not configured, that code is printed in the API log instead of being emailed.
 
 ## Running the application
 
@@ -182,6 +184,7 @@ curl http://localhost:4000/api/v1/health
 ```bash
 npm test                                  # backend suite
 npm --prefix backend run test:watch
+npm run test:e2e                          # Playwright smoke tests against the running site
 ```
 
 Authorization tests are release-blocking, not optional — see `docs/architecture.md` §I and the nine required cases in the specification.
