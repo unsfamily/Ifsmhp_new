@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import dotenv from 'dotenv';
-import { databaseDeploymentProblems, mysqlAccountHost, parseDatabaseUrl } from '../config/database-url';
+import { databaseDeploymentProblems, mysqlAccountHost, parseDatabaseUrl, type DatabaseTarget } from '../config/database-url';
 
 const BACKEND_DIR = path.resolve(__dirname, '..');
 const ENV_PATH = path.join(BACKEND_DIR, '.env');
@@ -128,15 +128,7 @@ function quoteLiteral(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
 }
 
-interface Target {
-  url: string;
-  host: string;
-  port: string;
-  user: string;
-  password: string;
-  database: string;
-  loopback: boolean;
-}
+type Target = DatabaseTarget & { url: string };
 
 function parseTarget(url: string): Target {
   const parsed = parseDatabaseUrl(url);
