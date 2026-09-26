@@ -18,7 +18,7 @@
     "db:bootstrap": "tsx scripts/bootstrap-database.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
+    "db:deploy": "tsx scripts/check-database-url.ts && prisma migrate deploy",
     "db:backfill-support": "tsx scripts/backfill-support.ts",
     "db:backfill-events": "tsx scripts/backfill-events.ts",
     "db:backfill-document-exchange": "tsx scripts/backfill-document-exchange.ts",

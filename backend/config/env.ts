@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { databaseDeploymentProblems, parseDatabaseUrl } from './database-url';
 
 // Backend keeps its own .env; the frontend has a separate one because Vite
 // inlines its variables into the public bundle and must never see secrets.
@@ -66,6 +67,31 @@ const envSchema = z.object({
   OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(60),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   OTP_MAX_RESENDS: z.coerce.number().int().positive().default(5),
+}).superRefine((data, ctx) => {
+  let remote = false;
+  try {
+    const target = parseDatabaseUrl(data.DATABASE_URL);
+    remote = !target.loopback;
+    for (const problem of databaseDeploymentProblems(target, { nodeEnv: data.NODE_ENV, reset: false })) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['DATABASE_URL'], message: problem });
+    }
+  } catch {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['DATABASE_URL'], message: 'DATABASE_URL could not be parsed.' });
+  }
+
+  // A remote database is a deployed database even when NODE_ENV was left at its default.
+  if (data.NODE_ENV !== 'production' && !remote) return;
+
+  const placeholders = new Set([
+    'replace-with-at-least-32-random-characters',
+    'replace-with-a-different-32-random-character-secret',
+  ]);
+  if (placeholders.has(data.JWT_ACCESS_SECRET) || placeholders.has(data.JWT_REFRESH_SECRET)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JWT_ACCESS_SECRET'], message: 'Replace the example JWT secrets before production.' });
+  }
+  if (data.JWT_ACCESS_SECRET === data.JWT_REFRESH_SECRET) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JWT_REFRESH_SECRET'], message: 'JWT refresh secret must differ from the access secret.' });
+  }
 });
 
 const parsed = envSchema.safeParse(process.env);

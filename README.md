@@ -132,6 +132,8 @@ carries on. If it cannot connect, it prints the exact SQL to run.
 > in `DATABASE_URL`, or the driver reads an empty password. `db:setup` checks
 > for this and fails with a clear message rather than a confusing auth error.
 
+Production on AWS uses RDS for MySQL 8. A remote production `DATABASE_URL` must set `sslaccept=strict` and `sslcert` to the us-east-1 RDS CA bundle. `NODE_ENV=production` refuses development passwords, seeding, and `--reset`. See [`docs/operations.md`](docs/operations.md).
+
 ## Prisma migrations
 
 The schema lives at `backend/database/prisma/schema.prisma`, with migrations in

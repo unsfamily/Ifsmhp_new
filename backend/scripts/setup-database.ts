@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import dotenv from 'dotenv';
+import { databaseDeploymentProblems, mysqlAccountHost, parseDatabaseUrl } from '../config/database-url';
 
 const BACKEND_DIR = path.resolve(__dirname, '..');
 const ENV_PATH = path.join(BACKEND_DIR, '.env');
@@ -134,18 +135,12 @@ interface Target {
   user: string;
   password: string;
   database: string;
+  loopback: boolean;
 }
 
 function parseTarget(url: string): Target {
-  const parsed = new URL(url);
-  return {
-    url,
-    host: parsed.hostname,
-    port: parsed.port || '3306',
-    user: decodeURIComponent(parsed.username),
-    password: decodeURIComponent(parsed.password),
-    database: parsed.pathname.replace(/^\//, ''),
-  };
+  const parsed = parseDatabaseUrl(url);
+  return { url, ...parsed };
 }
 
 /** The same server, but with no database selected — for CREATE DATABASE. */
@@ -202,7 +197,7 @@ function provision(target: Target, adminUrl: string): void {
   ok(`database ${target.database} ready`, `${CHARSET} / ${COLLATION}`);
 
   // Split so the password can be set whether or not the user already exists.
-  const account = `${quoteLiteral(target.user)}@${quoteLiteral(target.host === '127.0.0.1' ? 'localhost' : target.host)}`;
+  const account = `${quoteLiteral(target.user)}@${quoteLiteral(mysqlAccountHost(target.host))}`;
   const secret = quoteLiteral(target.password);
   execSql(serverOnlyUrl(adminUrl), `CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ${secret};`, 'Creating the application user');
   execSql(serverOnlyUrl(adminUrl), `ALTER USER ${account} IDENTIFIED BY ${secret};`, 'Setting the application user password');
@@ -223,8 +218,8 @@ function assertAppCanConnect(target: Target): void {
         'Set ADMIN_DATABASE_URL and re-run to provision it automatically, or run this once as an admin:',
         '',
         `  CREATE DATABASE ${db} CHARACTER SET ${CHARSET} COLLATE ${COLLATION};`,
-        `  CREATE USER '${target.user}'@'localhost' IDENTIFIED BY '<password from DATABASE_URL>';`,
-        `  GRANT ALL PRIVILEGES ON ${db}.* TO '${target.user}'@'localhost';`,
+        `  CREATE USER '${target.user}'@'${mysqlAccountHost(target.host)}' IDENTIFIED BY '<password from DATABASE_URL>';`,
+        `  GRANT ALL PRIVILEGES ON ${db}.* TO '${target.user}'@'${mysqlAccountHost(target.host)}';`,
         `  FLUSH PRIVILEGES;`,
         '',
         (error as SetupError).hint ?? '',
@@ -274,6 +269,13 @@ async function main(): Promise<void> {
     );
   }
   ok('DATABASE_URL parsed', `${target.user}@${target.host}:${target.port}/${target.database}`);
+  const problems = databaseDeploymentProblems(target, {
+    nodeEnv: process.env.NODE_ENV ?? 'development',
+    reset: RESET,
+  });
+  if (problems.length > 0) {
+    throw new SetupError('Database configuration is not safe for this environment', problems.map((problem) => `- ${problem}`).join('\n'));
+  }
 
   step(2, 'Server reachable');
   const adminUrl = process.env.ADMIN_DATABASE_URL;
@@ -297,8 +299,8 @@ async function main(): Promise<void> {
   }
 
   step(3, 'Database and user');
-  if (isProduction) {
-    skip('provisioning refused in production', 'the database and user must already exist');
+  if (isProduction || !target.loopback) {
+    skip('provisioning refused', isProduction ? 'the database and user must already exist' : 'the database host is not localhost');
   } else if (!adminUrl) {
     skip('no ADMIN_DATABASE_URL', 'assuming the database and user already exist');
   } else {
@@ -328,8 +330,8 @@ async function main(): Promise<void> {
   ok('client generated');
 
   step(7, 'Seed data');
-  if (isProduction) {
-    skip('seeding refused in production', 'seed data is development-only');
+  if (isProduction || !target.loopback) {
+    skip('seeding refused', isProduction ? 'seed data is development-only' : 'the database host is not localhost');
   } else if (!RESET && !(await databaseIsEmpty())) {
     skip('database already has users', 're-run with --reset to rebuild from scratch');
   } else {

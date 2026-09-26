@@ -2,6 +2,7 @@ import { writeAudit } from '../../services/audit.service';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { reportDefinitionSeed } from '../../domain/reports';
+import { parseDatabaseUrl } from '../../config/database-url';
 
 const prisma = new PrismaClient();
 
@@ -106,6 +107,11 @@ async function assertSafeToWipe(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('Refusing to seed: DATABASE_URL is not set.');
+  if (!parseDatabaseUrl(databaseUrl).loopback) {
+    throw new Error('Refusing to seed: DATABASE_URL is not on localhost. Seed data is development-only.');
+  }
   if (process.env.NODE_ENV === 'production') {
     throw new Error('Refusing to seed development data in production.');
   }
