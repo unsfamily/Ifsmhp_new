@@ -218,9 +218,13 @@ Documented in Milestone 18. Non-negotiables already established: HTTPS with HSTS
 
 | Document | Contents |
 |---|---|
+| [`docs/application-flow.md`](docs/application-flow.md) | How a request moves through the SPA, API, and database, and the membership workflow |
+| [`docs/operations.md`](docs/operations.md) | Configure, run, test, and deploy on this machine |
 | [`docs/architecture.md`](docs/architecture.md) | System architecture, data model, permissions, state machines, security review, open questions |
 | [`docs/api.md`](docs/api.md) | Endpoint reference |
 | [`docs/requirements-traceability.md`](docs/requirements-traceability.md) | Requirement → status → frontend/API/database mapping |
+
+Day-to-day run, test, and deploy work is handled by the project subagent [`.cursor/agents/ifsmhp-operator.md`](.cursor/agents/ifsmhp-operator.md). Ask for the IFSMHP operator when you want that workflow.
 
 ## Development principles
 
