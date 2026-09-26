@@ -114,7 +114,25 @@ Browser scripts under `backend/package.json` (`test:*:browser`) drive specific w
 
 ## Deploy
 
-This repository has no hosting account, container registry, or remote release target. A deployment is not complete until both the API build and the SPA build are released together, and `prisma migrate deploy` has been applied to that environment's database.
+The application instance in us-east-1 does not replace the static site. The production database is separate from the local Docker database on port 3308.
+
+Use RDS for MySQL 8 in the same VPC as the `ifsmhp` instance. Do not open port 3306 to the internet. Allow it only from that instance's security group. Create the database before the first boot:
+
+```sql
+CREATE DATABASE ifsmhp_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+Create an application user that is not the RDS master user. From the application instance the account host is `%`, because the connection does not come from the database server's own hostname.
+
+Download the us-east-1 RDS CA bundle from the [RDS SSL certificate bundles](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html) (`us-east-1-bundle.pem`) and keep it outside the git repository. `NODE_ENV=production` refuses to boot when `DATABASE_URL` points at a remote host unless it includes `sslaccept=strict` and `sslcert` for that file. It also refuses the development passwords `ifsmhp` and `ChangeMeNow!2026`, identical JWT secrets, and the example JWT placeholders.
+
+`npm run db:setup` with `NODE_ENV=production` only migrates and generates the Prisma client. It does not create users, write `.env`, seed, or honor `--reset`. The same command refuses `--reset` and seeding for any host that is not localhost, even outside production. Apply the schema with:
+
+```bash
+npm --prefix backend run db:deploy
+```
+
+Never run `db:seed` or `db:setup -- --reset` against RDS.
 
 Local release artifacts:
 
