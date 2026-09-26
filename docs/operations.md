@@ -100,6 +100,14 @@ Frontend session behavior:
 npm --prefix frontend run test:session
 ```
 
+Playwright smoke tests hit the running site. `npm run dev` must already be up, or the Playwright config will start it.
+
+```bash
+npm run test:e2e
+```
+
+The suite uses the installed Google Chrome browser. To use Playwright's own Chromium instead, run `npx playwright install chromium` from `backend` and set `PLAYWRIGHT_CHANNEL=chromium`. The suite checks the public home page, the unknown-email sign-in message, and administrator password sign-in. The older `test:*:browser` scripts use the same Playwright package. Point `CHROME_PATH` at Chrome when the bundled browser is not installed, and give them an isolated database whose name ends in `_test`.
+
 `npm run verify` runs typecheck, lint, tests, and production build. Use it before a release. It is slow.
 
 Browser scripts under `backend/package.json` (`test:*:browser`) drive specific workflows and need a running app plus a browser. Use the one that matches the area you changed.

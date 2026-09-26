@@ -38,6 +38,12 @@ coverage/
 .eslintcache
 *.tsbuildinfo
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Editor and OS cruft
 .DS_Store
 Thumbs.db
