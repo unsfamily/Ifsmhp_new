@@ -158,10 +158,12 @@ npm run db:seed
 Seed data is **development-only** and must never be applied to a production database. Seed accounts:
 
 ```text
-admin@ifsmhp.local / ChangeMeNow!2026
-member@ifsmhp.local / ChangeMeNow!2026
-applicant@ifsmhp.local / ChangeMeNow!2026
+admin@ifsmhp.local      password sign-in: ChangeMeNow!2026
+member@ifsmhp.local     emailed 6-digit code (no password)
+applicant@ifsmhp.local  emailed 6-digit code (no password)
 ```
+
+On the sign-in page, choose **Use password sign-in** for the administrator. Members and applicants stay on **Email me a sign-in code**. When SMTP is not configured, that code is printed in the API log instead of being emailed.
 
 ## Running the application
 
@@ -182,6 +184,7 @@ curl http://localhost:4000/api/v1/health
 ```bash
 npm test                                  # backend suite
 npm --prefix backend run test:watch
+npm run test:e2e                          # Playwright smoke tests against the running site
 ```
 
 Authorization tests are release-blocking, not optional — see `docs/architecture.md` §I and the nine required cases in the specification.
@@ -218,9 +221,13 @@ Documented in Milestone 18. Non-negotiables already established: HTTPS with HSTS
 
 | Document | Contents |
 |---|---|
+| [`docs/application-flow.md`](docs/application-flow.md) | How a request moves through the SPA, API, and database, and the membership workflow |
+| [`docs/operations.md`](docs/operations.md) | Configure, run, test, and deploy on this machine |
 | [`docs/architecture.md`](docs/architecture.md) | System architecture, data model, permissions, state machines, security review, open questions |
 | [`docs/api.md`](docs/api.md) | Endpoint reference |
 | [`docs/requirements-traceability.md`](docs/requirements-traceability.md) | Requirement → status → frontend/API/database mapping |
+
+Day-to-day run, test, and deploy work is handled by the project subagent [`.cursor/agents/ifsmhp-operator.md`](.cursor/agents/ifsmhp-operator.md). Ask for the IFSMHP operator when you want that workflow.
 
 ## Development principles
 

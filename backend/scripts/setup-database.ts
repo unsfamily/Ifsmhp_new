@@ -76,14 +76,34 @@ function generatePassword(length = 24): string {
   return password;
 }
 
-/** Runs a command in the backend directory, streaming nothing unless it fails. */
-function run(command: string, args: string[], label: string): string {
-  const result = spawnSync(command, args, { cwd: BACKEND_DIR, encoding: 'utf8', env: process.env });
-  if (result.status !== 0) {
+const PRISMA_CLI = path.join(BACKEND_DIR, 'node_modules', 'prisma', 'build', 'index.js');
+const TSX_CLI = path.join(BACKEND_DIR, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+
+/**
+ * Runs a command in the backend directory, streaming nothing unless it fails.
+ *
+ * Invokes Node with an absolute executable. Spawning `npm` directly fails on
+ * Windows (`spawnSync npm ENOENT` / `npm.cmd EINVAL`) because Node does not
+ * resolve PATHEXT and cannot spawn `.cmd` shims without a shell.
+ */
+function run(command: string, args: string[], label: string, input?: string): string {
+  const result = spawnSync(command, args, {
+    cwd: BACKEND_DIR,
+    encoding: 'utf8',
+    env: process.env,
+    input,
+  });
+  if (result.error || result.status !== 0) {
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
-    throw new SetupError(`${label} failed`, output.split('\n').slice(-12).join('\n'));
+    const reason = result.error ? result.error.message : '';
+    throw new SetupError(`${label} failed`, [reason, output].filter(Boolean).join('\n').split('\n').slice(-12).join('\n'));
   }
   return `${result.stdout ?? ''}${result.stderr ?? ''}`;
+}
+
+/** Runs the local Prisma CLI through Node, so Windows and Unix behave the same. */
+function prisma(args: string[], label: string, input?: string): string {
+  return run(process.execPath, [PRISMA_CLI, ...args], label, input);
 }
 
 /**
@@ -93,16 +113,7 @@ function run(command: string, args: string[], label: string): string {
  * single query, and MySQL rejects multiple statements in one query by default.
  */
 function execSql(url: string, sql: string, label: string): void {
-  const result = spawnSync('npm', ['exec', 'prisma', '--', 'db', 'execute', '--url', url, '--stdin'], {
-    cwd: BACKEND_DIR,
-    encoding: 'utf8',
-    input: sql,
-    env: process.env,
-  });
-  if (result.status !== 0) {
-    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
-    throw new SetupError(`${label} failed`, output.split('\n').slice(-12).join('\n'));
-  }
+  prisma(['db', 'execute', '--url', url, '--stdin'], label, sql);
 }
 
 /** Quotes a MySQL identifier, rejecting anything that cannot be one. */
@@ -300,20 +311,20 @@ async function main(): Promise<void> {
 
   step(5, 'Schema');
   if (RESET) {
-    run('npm', ['exec', 'prisma', '--', 'migrate', 'reset', '--force', '--skip-seed', '--skip-generate', '--schema', SCHEMA_PATH], 'Resetting the database');
+    prisma(['migrate', 'reset', '--force', '--skip-seed', '--skip-generate', '--schema', SCHEMA_PATH], 'Resetting the database');
     ok('database reset', 'dropped and re-migrated');
   } else {
-    run('npm', ['exec', 'prisma', '--', 'migrate', 'deploy', '--schema', SCHEMA_PATH], 'Applying migrations');
+    prisma(['migrate', 'deploy', '--schema', SCHEMA_PATH], 'Applying migrations');
     ok('migrations applied');
   }
-  const status = run('npm', ['exec', 'prisma', '--', 'migrate', 'status', '--schema', SCHEMA_PATH], 'Checking migration status');
+  const status = prisma(['migrate', 'status', '--schema', SCHEMA_PATH], 'Checking migration status');
   if (/have not yet been applied|drift/i.test(status)) {
     throw new SetupError('The schema is not up to date after migrating', status.split('\n').slice(-10).join('\n'));
   }
   ok('schema up to date', 'no drift');
 
   step(6, 'Prisma client');
-  run('npm', ['exec', 'prisma', '--', 'generate', '--schema', SCHEMA_PATH], 'Generating the Prisma client');
+  prisma(['generate', '--schema', SCHEMA_PATH], 'Generating the Prisma client');
   ok('client generated');
 
   step(7, 'Seed data');
@@ -322,7 +333,7 @@ async function main(): Promise<void> {
   } else if (!RESET && !(await databaseIsEmpty())) {
     skip('database already has users', 're-run with --reset to rebuild from scratch');
   } else {
-    run('npm', ['run', 'db:seed'], 'Seeding development data');
+    run(process.execPath, [TSX_CLI, 'database/prisma/seed.ts'], 'Seeding development data');
     ok('development data seeded');
   }
 
