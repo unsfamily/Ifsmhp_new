@@ -1,0 +1,17 @@
+---
+description: Read the IFSMHP agents before changing this project
+alwaysApply: true
+---
+
+# Include IFSMHP agents
+
+Before editing, deploying, or running this project, read the agent that matches the work and follow it.
+
+| Work | Read first |
+|---|---|
+| Configure, run, test, database, or API deploy | `.cursor/agents/ifsmhp-operator.md` |
+| Frontend build or Hostinger publish | `.cursor/agents/ifsmhp-frontend-release.md` |
+
+Read both when a change touches the API and the public site. Also follow `.cursor/skills/ifsmhp-operate/SKILL.md` for local setup.
+
+Ask the user only before a critical change: deleting or resetting production data, changing the `www`, `@`, or `ftp` DNS records, replacing a working certificate, opening a new public port, or touching any server other than the `ifsmhp` instance.
