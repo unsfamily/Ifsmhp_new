@@ -23,10 +23,14 @@ import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
 import GallerySection from '../../components/gallery/GallerySection';
 
-import bannerCommunity from '../../assets/images/slide_01.png';
-import bannerSymposium from '../../assets/images/slide_02.png';
-import bannerAwards from '../../assets/images/slide_03.png';
-import bannerReviews from '../../assets/images/slide_04.png';
+import bannerCommunity from '../../assets/images/slide_01.jpg';
+import bannerCommunityWebp from '../../assets/images/slide_01.webp';
+import bannerSymposium from '../../assets/images/slide_02.jpg';
+import bannerSymposiumWebp from '../../assets/images/slide_02.webp';
+import bannerAwards from '../../assets/images/slide_03.jpg';
+import bannerAwardsWebp from '../../assets/images/slide_03.webp';
+import bannerReviews from '../../assets/images/slide_04.jpg';
+import bannerReviewsWebp from '../../assets/images/slide_04.webp';
 import logoImg from '../../assets/images/logo.png';
 
 const stats = [
@@ -95,6 +99,7 @@ interface HomeBannerSlide {
   chips: Array<{ label: string; value?: string }>;
   gradientOverlay: string;
   bgImage: string;
+  bgImageWebp: string;
   ctas: Array<{
     to: string;
     label: string;
@@ -117,6 +122,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
     ],
     gradientOverlay: 'from-forum-950/85 via-forum-900/65 to-forum-700/35',
     bgImage: bannerCommunity,
+    bgImageWebp: bannerCommunityWebp,
     ctas: [
       { to: '/register', label: 'Become a Member', variant: 'primary', icon: ArrowRight },
       { to: '/research', label: 'View Published Research', variant: 'outline', icon: FileText },
@@ -135,6 +141,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
     ],
     gradientOverlay: 'from-forum-950/80 via-forum-800/60 to-slateteal-900/40',
     bgImage: bannerSymposium,
+    bgImageWebp: bannerSymposiumWebp,
     ctas: [
       { to: '/events', label: 'View Event Programme', variant: 'primary', icon: ArrowRight },
       { to: '/#gallery-section', label: 'Browse Event Gallery', variant: 'outline', icon: Sparkles },
@@ -153,6 +160,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
     ],
     gradientOverlay: 'from-brass-950/80 via-brass-900/55 to-forum-950/40',
     bgImage: bannerAwards,
+    bgImageWebp: bannerAwardsWebp,
     ctas: [
       { to: '/product-reviews', label: 'Read Awardee Citations', variant: 'primary', icon: ArrowRight },
       { to: '/#gallery-section', label: 'View Awards Gallery', variant: 'outline', icon: Sparkles },
@@ -171,6 +179,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
     ],
     gradientOverlay: 'from-slateteal-950/80 via-forum-900/55 to-forum-950/40',
     bgImage: bannerReviews,
+    bgImageWebp: bannerReviewsWebp,
     ctas: [
       { to: '/product-reviews', label: 'Browse Expert Reviews', variant: 'primary', icon: ArrowRight },
       { to: '/membership', label: 'Become a Reviewer', variant: 'outline', icon: BookOpen },
@@ -184,6 +193,15 @@ const TRIANGLE_SVG =
 export default function HomePage() {
   const [bannerIndex, setBannerIndex] = useState(0);
   const [bannerHover, setBannerHover] = useState(false);
+  const [loadedSlides, setLoadedSlides] = useState<number[]>(() => [0, 1]);
+
+  useEffect(() => {
+    const upcoming = (bannerIndex + 1) % HOME_BANNERS.length;
+    setLoadedSlides((current) => {
+      if (current.includes(bannerIndex) && current.includes(upcoming)) return current;
+      return Array.from(new Set([...current, bannerIndex, upcoming]));
+    });
+  }, [bannerIndex]);
 
   useEffect(() => {
     if (bannerHover) return;
@@ -234,12 +252,18 @@ export default function HomePage() {
                 aria-hidden={!active}
                 className={`absolute inset-0 bg-forum-800 transition-opacity duration-700 ease-in-out ${active ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
               >
-                <img
-                  src={slide.bgImage}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover"
-                  loading={i === 0 ? 'eager' : 'lazy'}
-                />
+                {loadedSlides.includes(i) ? (
+                  <picture>
+                    <source srcSet={slide.bgImageWebp} type="image/webp" />
+                    <img
+                      src={slide.bgImage}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover"
+                      decoding="async"
+                      fetchPriority={i === bannerIndex ? 'high' : 'low'}
+                    />
+                  </picture>
+                ) : null}
                 <div className="relative z-10 mx-auto grid h-full w-full max-w-7xl items-center px-4 pb-28 pt-24 sm:px-6 sm:pb-12 sm:pt-20 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] lg:gap-8 lg:px-8 lg:pb-16 lg:pt-20">
                   <div className="relative max-w-xl pr-[104px] sm:pr-0">
                     <div className="absolute -inset-x-4 -inset-y-5 -z-10 rounded-2xl bg-forum-950/25 backdrop-blur-[2px]" aria-hidden />
