@@ -12,11 +12,17 @@ import { ApiError } from '../utils/ApiError';
 export const galleryPolicy = { maxBytes: env.GALLERY_MAX_UPLOAD_MB * 1024 * 1024, mimeTypes: ['image/jpeg', 'image/png', 'image/webp'], extensions: ['jpg', 'jpeg', 'png', 'webp'] };
 const parser = multer({
   storage: multer.diskStorage({ destination: uploadRoot, filename: (_req, _file, cb) => cb(null, crypto.randomUUID()) }),
-  limits: { fileSize: galleryPolicy.maxBytes, files: 1, fields: 8, fieldSize: 20000 },
+  limits: { fileSize: galleryPolicy.maxBytes, files: 1, fields: 8, fieldSize: 40000 },
 }).single('file');
 export const galleryUpload: RequestHandler = (req, res, next) => {
   parser(req, res, error => {
     const cleanup = () => { if (req.file && !res.locals.galleryCommitted) void fsp.unlink(req.file.path).catch(() => undefined); };
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FIELD_VALUE') {
+      cleanup();
+      const field = error.field ?? '(root)';
+      const message = field === 'title' ? 'Name must be 191 characters or fewer.' : field === 'caption' ? 'Description must be 10,000 characters or fewer.' : 'Text field is too large.';
+      return next(ApiError.unprocessable(message, [{ field, message }]));
+    }
     if (error) { cleanup(); return next(ApiError.unprocessable(error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? `Image exceeds ${env.GALLERY_MAX_UPLOAD_MB} MB.` : 'Attach one supported image.', [{ field: 'file', message: 'Check the file and upload limit.' }])); }
     next();
   });

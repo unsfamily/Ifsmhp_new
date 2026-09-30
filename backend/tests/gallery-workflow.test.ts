@@ -28,7 +28,17 @@ async function category(name = 'One') {
 async function upload(id: string, bytes = png, filename = 'photo.png', mime = 'image/png') {
   return as('post', `${base}/photos`).field('categoryId', id).attach('file', bytes, { filename, contentType: mime });
 }
+async function subcategory(categoryId: string, name = 'Workshops') {
+  const response = await as('post', `${base}/subcategories`).send({ categoryId, name });
+  expect(response.status, JSON.stringify(response.body)).toBe(201);
+  return response.body.data;
+}
+async function uploadAssigned(categoryId: string, subcategoryId: string) {
+  return as('post', `${base}/photos`).field('categoryId', categoryId).field('subcategoryId', subcategoryId).attach('file', png, { filename: 'assigned.png', contentType: 'image/png' });
+}
 async function clean() {
+  await prisma.galleryItem.deleteMany({ where: { album: { label: { startsWith: prefix } } } });
+  await prisma.gallerySubcategory.deleteMany({ where: { category: { label: { startsWith: prefix } } } });
   await prisma.galleryAlbum.deleteMany({ where: { label: { startsWith: prefix } } });
   const files = await prisma.fileObject.findMany({ where: { uploaderId: { in: actorIds } } });
   await prisma.fileObject.deleteMany({ where: { id: { in: files.map(f => f.id) } } });
@@ -176,5 +186,280 @@ describe('Gallery workflow with real storage and authentication', () => {
     const uploads = await Promise.all([upload(c.id), upload(c.id), upload(c.id)]); expect(uploads.map(r => r.status)).toEqual([201, 201, 201]);
     const rows = (await as('get', `${base}/photos?categoryId=${c.id}`)).body.data.items;
     expect(rows.map((p: { displayOrder: number }) => p.displayOrder)).toEqual([1, 2, 3]);
+  });
+});
+
+describe('Gallery subcategory relationships', () => {
+  it('requires admin access, validates names and parents, and preserves mappings when renamed', async () => {
+    const a = await category(), b = await category('Two');
+    expect((await request(app).get(`${base}/subcategories`)).status).toBe(401);
+    for (const method of ['get', 'post', 'patch', 'delete'] as const) {
+      const url = `${base}/subcategories${['patch', 'delete'].includes(method) ? '/missing' : ''}`;
+      expect((await as(method, url, member.token).send({ name: 'No', categoryId: a.id })).status).toBe(403);
+    }
+    for (const body of [{ name: ' ' , categoryId: a.id }, { name: 'Name' }, { categoryId: a.id }, { name: 'Name', categoryId: '' }, { name: 'x'.repeat(192), categoryId: a.id }]) {
+      expect((await as('post', `${base}/subcategories`).send(body)).status).toBe(422);
+    }
+    expect((await as('post', `${base}/subcategories`).send({ name: 'Name', categoryId: 'missing' })).status).toBe(404);
+    const sub = await subcategory(a.id, ' Workshops ');
+    expect(sub.name).toBe('Workshops');
+    expect((await as('post', `${base}/subcategories`).send({ name: ' workshops ', categoryId: a.id })).status).toBe(409);
+    await subcategory(b.id, 'Workshops');
+    const p = (await uploadAssigned(a.id, sub.id)).body.data;
+    expect((await as('patch', `${base}/categories/${a.id}`).send({ name: `${prefix}-Renamed` })).status).toBe(200);
+    expect((await as('patch', `${base}/subcategories/${sub.id}`).send({ name: 'Seminars' })).body.data).toMatchObject({ id: sub.id, categoryId: a.id, photoCount: 1 });
+    expect(await prisma.galleryItem.findUnique({ where: { id: p.id } })).toMatchObject({ albumId: a.id, subcategoryId: sub.id });
+    const conflict = await subcategory(a.id, 'Conflicting');
+    expect((await as('patch', `${base}/subcategories/${conflict.id}`).send({ name: 'seminars' })).status).toBe(409);
+    expect((await as('patch', `${base}/subcategories/${sub.id}`).send({ categoryId: 'missing' })).status).toBe(404);
+    expect((await as('patch', `${base}/subcategories/missing`).send({ name: 'Name' })).status).toBe(404);
+    expect((await as('delete', `${base}/subcategories/missing`)).status).toBe(404);
+    expect(await prisma.auditLog.count({ where: { entityId: sub.id, action: 'GallerySubcategoryUpdated' } })).toBe(1);
+  });
+
+  it('keeps assignment optional, validates category pairs, and clears or retains assignments correctly', async () => {
+    const a = await category(), b = await category('Two');
+    const sub = await subcategory(a.id), other = await subcategory(b.id);
+    const p = (await upload(a.id)).body.data;
+    expect(p.subcategoryId).toBeNull();
+    expect((await as('patch', `${base}/photos/${p.id}`).send({ subcategoryId: sub.id })).body.data.subcategoryId).toBe(sub.id);
+    expect((await as('patch', `${base}/photos/${p.id}`).send({ title: 'Kept' })).body.data.subcategoryId).toBe(sub.id);
+    expect((await as('patch', `${base}/photos/${p.id}`).send({ subcategoryId: other.id, title: 'Must roll back' })).status).toBe(422);
+    expect((await as('patch', `${base}/photos/${p.id}`).send({ subcategoryId: 'missing' })).status).toBe(404);
+    expect((await as('patch', `${base}/photos/${p.id}`).send({ subcategoryId: null })).body.data.subcategoryId).toBeNull();
+    await as('patch', `${base}/photos/${p.id}`).send({ subcategoryId: sub.id });
+    expect((await as('patch', `${base}/photos/${p.id}`).send({ categoryId: b.id })).body.data).toMatchObject({ categoryId: b.id, subcategoryId: null, title: 'Kept' });
+    expect((await as('patch', `${base}/photos/${p.id}`).send({ categoryId: a.id, subcategoryId: sub.id })).body.data.subcategoryId).toBe(sub.id);
+    expect((await as('get', `${base}/photos?categoryId=${a.id}&subcategoryId=${sub.id}`)).body.data.items.map((r: { id: string }) => r.id)).toEqual([p.id]);
+    expect((await as('get', `${base}/photos?subcategoryId=none`)).body.data.items).toHaveLength(0);
+    const before = await fs.readdir(uploadRoot);
+    expect((await uploadAssigned(b.id, sub.id)).status).toBe(422);
+    expect((await uploadAssigned(a.id, 'missing')).status).toBe(404);
+    expect(await fs.readdir(uploadRoot)).toEqual(before);
+    expect(await prisma.galleryItem.count({ where: { albumId: { in: [a.id, b.id] } } })).toBe(1);
+  });
+
+  it('moves assigned photos in order, inherits visibility, and preserves all other photo fields', async () => {
+    const a = await category(), b = await category('Two');
+    const sub = await subcategory(a.id);
+    const first = (await uploadAssigned(a.id, sub.id)).body.data;
+    const left = (await upload(a.id)).body.data;
+    const second = (await uploadAssigned(a.id, sub.id)).body.data;
+    const existing = (await upload(b.id)).body.data;
+    await as('patch', `${base}/photos/${first.id}`).send({ published: true });
+    await as('patch', `${base}/categories/${b.id}`).send({ published: false });
+    const before = await prisma.galleryItem.findUniqueOrThrow({ where: { id: first.id } });
+    expect((await as('patch', `${base}/subcategories/${sub.id}`).send({ categoryId: b.id })).status).toBe(200);
+    const rows = (await as('get', `${base}/photos?categoryId=${b.id}`)).body.data.items;
+    expect(rows.map((p: { id: string }) => p.id)).toEqual([existing.id, first.id, second.id]);
+    expect(rows.map((p: { displayOrder: number }) => p.displayOrder)).toEqual([1, 2, 3]);
+    expect(await prisma.galleryItem.findUnique({ where: { id: left.id } })).toMatchObject({ albumId: a.id, displayOrder: 1 });
+    const after = await prisma.galleryItem.findUniqueOrThrow({ where: { id: first.id } });
+    expect(after).toEqual({ ...before, albumId: b.id, displayOrder: 2, updatedAt: after.updatedAt });
+    const cats = (await as('get', `${base}/categories`)).body.data.items;
+    expect(cats.find((c: { id: string }) => c.id === a.id).photoCount).toBe(1);
+    expect(cats.find((c: { id: string }) => c.id === b.id).photoCount).toBe(3);
+    expect((await request(app).get(`/api/v1/public/gallery/photos/${first.id}/image`)).status).toBe(404);
+    expect((await as('get', `/api/v1/files/${after.fileId}/download`, member.token)).status).toBe(404);
+    await as('patch', `${base}/categories/${b.id}`).send({ published: true });
+    expect((await request(app).get(`/api/v1/public/gallery/photos/${first.id}/image`)).status).toBe(200);
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityId: sub.id, action: 'GallerySubcategoryUpdated' } });
+    expect(audit.changes).toMatchObject({ categoryId: { before: a.id, after: b.id } });
+  });
+
+  it('rejects destination duplicates and rolls back parent and photos when the transaction fails', async () => {
+    const a = await category(), b = await category('Two');
+    const sub = await subcategory(a.id), conflict = await subcategory(b.id);
+    const p = (await uploadAssigned(a.id, sub.id)).body.data;
+    expect((await as('patch', `${base}/subcategories/${sub.id}`).send({ categoryId: b.id })).status).toBe(409);
+    await as('delete', `${base}/subcategories/${conflict.id}`);
+    const original = prisma.$transaction.bind(prisma);
+    const transaction = vi.spyOn(prisma, '$transaction').mockImplementationOnce(async (operation, options) => original(async db => {
+      await (operation as (db: Prisma.TransactionClient) => Promise<unknown>)(db);
+      throw new Error('Injected failure after subcategory move');
+    }, options));
+    const response = await as('patch', `${base}/subcategories/${sub.id}`).send({ categoryId: b.id }); transaction.mockRestore();
+    expect(response.status).toBe(500);
+    expect(await prisma.gallerySubcategory.findUnique({ where: { id: sub.id } })).toMatchObject({ categoryId: a.id });
+    expect(await prisma.galleryItem.findUnique({ where: { id: p.id } })).toMatchObject({ albumId: a.id, subcategoryId: sub.id, displayOrder: 1 });
+    expect(await prisma.auditLog.count({ where: { entityId: sub.id, action: 'GallerySubcategoryUpdated' } })).toBe(0);
+  });
+
+  it('blocks unsafe deletion in the API and database and permits explicit dependency removal', async () => {
+    const c = await category(), sub = await subcategory(c.id);
+    expect((await as('delete', `${base}/categories/${c.id}`)).status).toBe(409);
+    await expect(prisma.galleryAlbum.delete({ where: { id: c.id } })).rejects.toMatchObject({ code: 'P2003' });
+    const p = (await uploadAssigned(c.id, sub.id)).body.data;
+    expect((await as('delete', `${base}/subcategories/${sub.id}`)).status).toBe(409);
+    await expect(prisma.gallerySubcategory.delete({ where: { id: sub.id } })).rejects.toMatchObject({ code: 'P2003' });
+    await as('patch', `${base}/photos/${p.id}`).send({ subcategoryId: null });
+    expect((await as('delete', `${base}/subcategories/${sub.id}`)).status).toBe(200);
+    expect(await prisma.galleryItem.findUnique({ where: { id: p.id } })).not.toBeNull();
+    expect((await as('delete', `${base}/categories/${c.id}`)).status).toBe(200);
+    expect(await prisma.auditLog.count({ where: { entityId: sub.id, action: 'GallerySubcategoryDeleted' } })).toBe(1);
+  });
+
+  it('serializes parent deletion against creation and rejects assignments captured before a parent move', async () => {
+    const a = await category(), b = await category('Two');
+    const race = await Promise.all([
+      as('post', `${base}/subcategories`).send({ name: 'Race', categoryId: a.id }),
+      as('delete', `${base}/categories/${a.id}`),
+    ]);
+    expect([[201, 409], [404, 200]]).toContainEqual(race.map(r => r.status));
+    const sub = await subcategory(b.id);
+    const destination = await category('Destination');
+    await as('patch', `${base}/subcategories/${sub.id}`).send({ categoryId: destination.id });
+    const before = await fs.readdir(uploadRoot);
+    expect((await uploadAssigned(b.id, sub.id)).status).toBe(422);
+    expect(await fs.readdir(uploadRoot)).toEqual(before);
+    expect((await uploadAssigned(destination.id, sub.id)).status).toBe(201);
+  });
+
+  it('paginates subcategories and handles concurrent duplicates and assignment/deletion safely', async () => {
+    const a = await category(), b = await category('Two');
+    const results = await Promise.all([as('post', `${base}/subcategories`).send({ categoryId: a.id, name: 'Concurrent' }), as('post', `${base}/subcategories`).send({ categoryId: a.id, name: 'concurrent' })]);
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    const sub = results.find(r => r.status === 201)!.body.data;
+    const races = await Promise.all([uploadAssigned(a.id, sub.id), as('delete', `${base}/subcategories/${sub.id}`)]);
+    expect([[201, 409], [404, 200]]).toContainEqual(races.map(r => r.status));
+    await prisma.gallerySubcategory.createMany({ data: Array.from({ length: 105 }, (_, n) => ({ categoryId: b.id, name: `Subcategory ${String(n).padStart(3, '0')}` })) });
+    const first = (await as('get', `${base}/subcategories?categoryId=${b.id}&limit=100`)).body.data;
+    const second = (await as('get', `${base}/subcategories?categoryId=${b.id}&limit=100&page=2`)).body.data;
+    expect(first.pagination.total).toBe(105); expect(first.items).toHaveLength(100); expect(second.items).toHaveLength(5);
+    expect(new Set([...first.items, ...second.items].map(r => r.id)).size).toBe(105);
+    expect(first.items[0].name).toBe('Subcategory 000');
+    expect((await as('get', `${base}/subcategories?limit=101`)).status).toBe(422);
+  });
+});
+
+describe('Public and member gallery hierarchy', () => {
+  it('exposes published parents and empty subcategories with visible-only photo counts', async () => {
+    const visible = await category('Visible'), hidden = await category('Hidden');
+    await as('patch', `${base}/categories/${hidden.id}`).send({ published: false });
+    const empty = await subcategory(visible.id, 'Empty');
+    const sub = await subcategory(visible.id, 'Conferences');
+    const hiddenSub = await subcategory(hidden.id, 'Private conferences');
+    const published = (await uploadAssigned(visible.id, sub.id)).body.data;
+    const draft = (await uploadAssigned(visible.id, sub.id)).body.data;
+    await as('patch', `${base}/photos/${published.id}`).send({ published: true });
+    const hiddenPhoto = (await uploadAssigned(hidden.id, hiddenSub.id)).body.data;
+    await as('patch', `${base}/photos/${hiddenPhoto.id}`).send({ published: true });
+    const list = '/api/v1/public/gallery/subcategories';
+    const response = await request(app).get(list);
+    expect(response.status).toBe(200);
+    expect(response.body.data.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: empty.id, categoryId: visible.id, photoCount: 0 }),
+      expect.objectContaining({ id: sub.id, categoryId: visible.id, photoCount: 1 }),
+    ]));
+    expect(response.body.data.items.some((s: { id: string }) => s.id === hiddenSub.id)).toBe(false);
+    expect((await request(app).get(`${list}?categoryId=${hidden.id}`)).body.data.items).toEqual([]);
+    expect((await as('get', list, member.token)).body.data).toEqual(response.body.data);
+    expect((await as('get', `${base}/subcategories?categoryId=${visible.id}`)).body.data.items.find((s: { id: string }) => s.id === sub.id).photoCount).toBe(2);
+    const photos = (await request(app).get(`/api/v1/public/gallery/photos?subcategoryId=${sub.id}`)).body.data.items;
+    expect(photos.map((p: { id: string }) => p.id)).toEqual([published.id]);
+    expect(photos.some((p: { id: string }) => p.id === draft.id)).toBe(false);
+    expect((await request(app).get(`/api/v1/public/gallery/photos?subcategoryId=${hiddenSub.id}`)).body.data.items).toEqual([]);
+    expect((await request(app).post(list).send({ categoryId: visible.id, name: 'Forbidden' })).status).toBe(404);
+
+    await as('patch', `${base}/subcategories/${sub.id}`).send({ categoryId: hidden.id });
+    expect((await request(app).get(list)).body.data.items.some((s: { id: string }) => s.id === sub.id)).toBe(false);
+    expect((await request(app).get(`/api/v1/public/gallery/photos/${published.id}/image`)).status).toBe(404);
+    await as('patch', `${base}/categories/${hidden.id}`).send({ published: true });
+    expect((await request(app).get(`${list}?categoryId=${hidden.id}`)).body.data.items).toEqual(expect.arrayContaining([expect.objectContaining({ id: sub.id, categoryId: hidden.id, photoCount: 1 })]));
+  });
+
+  it('paginates the public hierarchy and excludes deleted or unavailable images from counts', async () => {
+    const c = await category();
+    await prisma.gallerySubcategory.createMany({ data: Array.from({ length: 105 }, (_, n) => ({ categoryId: c.id, name: `Public ${String(n).padStart(3, '0')}` })) });
+    const root = `/api/v1/public/gallery/subcategories?categoryId=${c.id}&limit=100`;
+    const first = (await request(app).get(root)).body.data;
+    const second = (await request(app).get(`${root}&page=2`)).body.data;
+    expect(first.items).toHaveLength(100); expect(second.items).toHaveLength(5);
+    expect(first.pagination.total).toBe(105);
+    const sub = first.items[0];
+    const photo = (await uploadAssigned(c.id, sub.id)).body.data;
+    await as('patch', `${base}/photos/${photo.id}`).send({ published: true });
+    const item = await prisma.galleryItem.findUniqueOrThrow({ where: { id: photo.id } });
+    await prisma.fileObject.update({ where: { id: item.fileId! }, data: { deletedAt: new Date() } });
+    expect((await request(app).get(root)).body.data.items[0].photoCount).toBe(0);
+    expect((await request(app).get(`/api/v1/public/gallery/photos?subcategoryId=${sub.id}`)).body.data.items).toEqual([]);
+    await as('delete', `${base}/photos/${photo.id}`);
+    expect((await as('delete', `${base}/subcategories/${sub.id}`)).status).toBe(200);
+    expect((await request(app).get(root)).body.data.pagination.total).toBe(104);
+  });
+});
+
+describe('Optional upload name and description', () => {
+  const uploadDetails = (categoryId: string, fields: [string, string][], subcategoryId?: string) => {
+    const req = as('post', `${base}/photos`).attach('file', png, { filename: 'original-photo.png', contentType: 'image/png' }).field('categoryId', categoryId);
+    if (subcategoryId) req.field('subcategoryId', subcategoryId);
+    for (const [key, value] of fields) req.field(key, value);
+    return req;
+  };
+  it.each([
+    { label: 'both fields', fields: [['title', '  Research meeting  '], ['caption', '  Description\nwith another line  ']], title: 'Research meeting', caption: 'Description\nwith another line' },
+    { label: 'only name', fields: [['title', 'A name']], title: 'A name', caption: '' },
+    { label: 'only description', fields: [['caption', 'A description']], title: 'original-photo', caption: 'A description' },
+    { label: 'neither field', fields: [], title: 'original-photo', caption: '' },
+    { label: 'whitespace', fields: [['title', '   '], ['caption', '\n  ']], title: 'original-photo', caption: '' },
+  ])('persists $label and retains mappings, draft status and the original filename', async ({ fields, title, caption }) => {
+    const c = await category(), sub = await subcategory(c.id);
+    const result = await uploadDetails(c.id, fields as [string, string][], sub.id);
+    expect(result.status, JSON.stringify(result.body)).toBe(201);
+    const saved = result.body.data;
+    expect(saved).toMatchObject({ title, caption, categoryId: c.id, subcategoryId: sub.id, published: false });
+    const row = await prisma.galleryItem.findUniqueOrThrow({ where: { id: saved.id }, include: { file: true } });
+    expect(row).toMatchObject({ title, caption, albumId: c.id, subcategoryId: sub.id, file: { originalName: 'original-photo.png' } });
+    expect((await request(app).get(`/api/v1/public/gallery/photos?categoryId=${c.id}`)).body.data.items).toEqual([]);
+    await as('patch', `${base}/photos/${saved.id}`).send({ title: 'Edited name', caption: 'Edited description', published: true });
+    for (const url of [`${base}/photos?categoryId=${c.id}`, `/api/v1/public/gallery/photos?categoryId=${c.id}`]) {
+      expect((await as('get', url)).body.data.items[0]).toMatchObject({ id: saved.id, title: 'Edited name', caption: 'Edited description', subcategoryId: sub.id });
+    }
+    expect((await as('patch', `${base}/photos/${saved.id}`).send({ caption: '' })).body.data.caption).toBe('');
+  });
+
+  it('accepts maximum-length Unicode values beyond the previous multipart byte limit', async () => {
+    const c = await category();
+    const title = '名'.repeat(191), caption = '説'.repeat(10000);
+    const response = await uploadDetails(c.id, [['title', title], ['caption', caption]]);
+    expect(response.status, JSON.stringify(response.body)).toBe(201);
+    expect(response.body.data).toMatchObject({ title, caption });
+    expect(await prisma.galleryItem.findUnique({ where: { id: response.body.data.id } })).toMatchObject({ title, caption });
+  });
+
+  it.each([
+    { label: 'long name', fields: [['title', 'x'.repeat(192)]], field: 'title' },
+    { label: 'long description', fields: [['caption', '説'.repeat(10001)]], field: 'caption' },
+    { label: 'multipart text overflow', fields: [['caption', 'x'.repeat(41000)]], field: 'caption' },
+    { label: 'repeated name', fields: [['title', 'One'], ['title', 'Two']], field: 'title' },
+    { label: 'repeated description', fields: [['caption', 'One'], ['caption', 'Two']], field: 'caption' },
+    { label: 'structured name', fields: [['title[nested]', 'Invalid']], field: 'title' },
+    { label: 'structured description', fields: [['caption[nested]', 'Invalid']], field: 'caption' },
+  ])('rejects $label with field errors and cleans temporary files', async ({ fields, field }) => {
+    const c = await category();
+    const before = await fs.readdir(uploadRoot);
+    const response = await uploadDetails(c.id, fields as [string, string][]);
+    expect(response.status, JSON.stringify(response.body)).toBe(422);
+    expect(response.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field })]));
+    expect(await fs.readdir(uploadRoot)).toEqual(before);
+    expect(await prisma.galleryItem.count({ where: { albumId: c.id } })).toBe(0);
+    expect(await prisma.fileObject.count({ where: { uploaderId: admin.id } })).toBe(0);
+    expect((await uploadDetails(c.id, [['title', 'Recovery'], ['caption', 'Valid description']])).status).toBe(201);
+  });
+
+  it('rolls back metadata and removes the image if the transaction fails', async () => {
+    const c = await category();
+    const before = await fs.readdir(uploadRoot);
+    const original = prisma.$transaction.bind(prisma);
+    const transaction = vi.spyOn(prisma, '$transaction').mockImplementationOnce(async (operation, options) => original(async db => {
+      await (operation as (db: Prisma.TransactionClient) => Promise<unknown>)(db);
+      throw new Error('Injected upload metadata rollback');
+    }, options));
+    const response = await uploadDetails(c.id, [['title', 'Rollback name'], ['caption', 'Rollback description']]);
+    transaction.mockRestore();
+    expect(response.status).toBe(500);
+    expect(await prisma.galleryItem.count({ where: { albumId: c.id } })).toBe(0);
+    expect(await prisma.fileObject.count({ where: { uploaderId: admin.id } })).toBe(0);
+    expect(await fs.readdir(uploadRoot)).toEqual(before);
   });
 });

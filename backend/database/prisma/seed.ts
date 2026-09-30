@@ -29,6 +29,7 @@ async function clearDevelopmentData() {
   await prisma.galleryTag.deleteMany();
   await prisma.galleryItem.deleteMany();
   await prisma.galleryBanner.deleteMany();
+  await prisma.gallerySubcategory.deleteMany();
   await prisma.galleryAlbum.deleteMany();
   await prisma.eventResource.deleteMany();
   await prisma.eventRegistration.deleteMany();

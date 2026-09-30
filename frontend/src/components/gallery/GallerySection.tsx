@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useGallery } from '../../context/GalleryContext';
 import Button from '../common/Button';
-import type { GalleryCategory, GalleryPhoto } from '../../types/gallery';
+import type { GalleryCategory, GalleryPhoto, GallerySubcategory } from '../../types/gallery';
 
 const ALL_MEDIA_ID = 'all';
 
@@ -48,6 +48,8 @@ function CategoryPills({
             key={pill.id}
             type="button"
             onClick={() => onSelect(pill.id)}
+            aria-pressed={active}
+            aria-label={pill.name}
             className={`group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 border ${
               active
                 ? 'bg-forum-900 text-white border-forum-900 shadow-md'
@@ -75,7 +77,9 @@ function CategoryPills({
 function PhotoGrid({
   photos,
   onOpen,
+  emptyLabel = 'No published photographs in this category yet.',
 }: {
+  emptyLabel?: string;
   photos: GalleryPhoto[];
   onOpen: (index: number) => void;
 }) {
@@ -86,7 +90,7 @@ function PhotoGrid({
           <Images className="h-8 w-8" />
         </div>
         <h3 className="font-display text-xl font-semibold text-forum-900">
-          No photographs in this category
+          {emptyLabel}
         </h3>
         <p className="mt-2 text-sm text-ink-muted max-w-lg mx-auto">
           This collection is being prepared. Check back soon for curated
@@ -142,39 +146,36 @@ function PhotoGrid({
   );
 }
 
-function CategoryGroup({
-  category,
-  photos,
-  onOpen,
-}: {
+function CategoryGroup({ category, sections, onOpen }: {
   category: GalleryCategory;
-  photos: GalleryPhoto[];
-  onOpen: (index: number, categoryId: string) => void;
+  sections: { subcategory: GallerySubcategory | null; photos: GalleryPhoto[] }[];
+  onOpen: (photoId: string) => void;
 }) {
-  if (photos.length === 0) return null;
+  const count = sections.reduce((sum, section) => sum + section.photos.length, 0);
+  const hasSubcategories = sections.some(section => section.subcategory);
   return (
-    <div className="scroll-mt-28">
-      <div className="mb-6 flex items-end justify-between gap-4 border-b border-paper-border pb-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-brass-50 text-brass-700 ring-1 ring-brass-500/20 px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
-              <Award className="h-3 w-3" />
-              {photos.length} {photos.length === 1 ? 'photograph' : 'photographs'}
-            </span>
-          </div>
-          <h3 className="font-display text-2xl sm:text-3xl font-semibold text-forum-900 leading-tight">
-            {category.name}
-          </h3>
-          <p className="mt-2 text-sm sm:text-[15px] leading-relaxed text-ink-muted max-w-3xl">
-            {category.description}
-          </p>
-        </div>
+    <section className="scroll-mt-28" aria-label={category.name}>
+      <div className="mb-6 border-b border-paper-border pb-4">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-brass-50 text-brass-700 ring-1 ring-brass-500/20 px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
+          <Award className="h-3 w-3" /> {count} {count === 1 ? 'photograph' : 'photographs'}
+        </span>
+        <h3 className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-forum-900 break-words">{category.name}</h3>
+        {category.description && <p className="mt-2 text-sm leading-relaxed text-ink-muted max-w-3xl">{category.description}</p>}
       </div>
-      <PhotoGrid
-        photos={photos}
-        onOpen={(i) => onOpen(i, category.id)}
-      />
-    </div>
+      <div className="space-y-8">
+        {sections.map(({ subcategory, photos }) => (
+          <section key={subcategory?.id ?? 'none'} aria-label={subcategory?.name ?? 'Category photographs'} className={subcategory ? 'border-l-2 border-forum-100 pl-4 sm:pl-6' : ''}>
+            {(subcategory || hasSubcategories) && <div className="mb-4 flex flex-wrap items-center gap-2">
+              <h4 className="font-display text-xl font-semibold text-forum-900 break-words">{subcategory?.name ?? 'Category photographs'}</h4>
+              <span className="text-xs text-ink-muted">{photos.length} {photos.length === 1 ? 'photograph' : 'photographs'}</span>
+            </div>}
+            {subcategory && !photos.length ? (
+              <p className="rounded-xl border border-dashed border-forum-200 bg-forum-50/50 p-4 text-sm text-ink-muted">No published photographs in this subcategory yet.</p>
+            ) : <PhotoGrid photos={photos} onOpen={index => onOpen(photos[index]!.id)} />}
+          </section>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -332,69 +333,26 @@ export default function GallerySection({
 }: {
   sectionId?: string;
 }) {
-  const { categories, applyFilters, getCategoryPhotos, loading, error, refresh } = useGallery();
+  const { categories, subcategories, applyFilters, getCategoryPhotos, loading, error, refresh } = useGallery();
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL_MEDIA_ID);
-  useEffect(() => { if (!loading && !categories.some(c => c.id === selectedCategory)) setSelectedCategory(ALL_MEDIA_ID); }, [categories, loading, selectedCategory]);
-
-  const sortedCategories = useMemo(
-    () =>
-      [...categories]
-        .filter((c) => c.published)
-        .sort((a, b) => a.displayOrder - b.displayOrder),
-    [categories]
-  );
-
-  const getCount = (categoryId: string) =>
-    getCategoryPhotos(categoryId, { onlyPublished: true }).length;
-
-  const filtered = useMemo(
-    () =>
-      applyFilters({
-        categoryId: selectedCategory as 'all' | string,
-        onlyPublished: true,
-      }),
-    [applyFilters, selectedCategory]
-  );
-
-  const flatPhotosPool: GalleryPhoto[] = useMemo(() => {
-    if (selectedCategory === ALL_MEDIA_ID) {
-      const list: GalleryPhoto[] = [];
-      filtered.groupedByCategory.forEach((g) => list.push(...g.photos));
-      return list;
+  const [selectedSubcategory, setSelectedSubcategory] = useState('all');
+  const [lightboxPhotoId, setLightboxPhotoId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!loading && selectedCategory !== ALL_MEDIA_ID && !categories.some(c => c.id === selectedCategory)) {
+      setSelectedCategory(ALL_MEDIA_ID); setSelectedSubcategory('all');
     }
-    return filtered.flatPhotos;
-  }, [selectedCategory, filtered]);
+    if (!loading && selectedSubcategory !== 'all' && selectedSubcategory !== 'none' && !subcategories.some(s => s.id === selectedSubcategory && s.categoryId === selectedCategory)) setSelectedSubcategory('all');
+  }, [categories, subcategories, loading, selectedCategory, selectedSubcategory]);
 
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  useEffect(() => { if (lightboxIndex !== null && !flatPhotosPool[lightboxIndex]) setLightboxIndex(null); }, [flatPhotosPool, lightboxIndex]);
-
-  const openFromCategory = (idx: number, categoryId: string) => {
-    if (selectedCategory === ALL_MEDIA_ID) {
-      const offset = filtered.groupedByCategory
-        .filter((g) => g.category.id !== categoryId)
-        .reduce((sum, g) => sum + g.photos.length, 0);
-      void offset;
-      let running = 0;
-      let found = false;
-      for (const g of filtered.groupedByCategory) {
-        if (g.category.id === categoryId) {
-          running += idx;
-          found = true;
-          break;
-        }
-        running += g.photos.length;
-      }
-      setLightboxIndex(found ? running : idx);
-    } else {
-      setLightboxIndex(idx);
-    }
-  };
-
-  const openFlat = (i: number) => setLightboxIndex(i);
-
-  const lightboxCount = flatPhotosPool.length;
-  const hasPrev = typeof lightboxIndex === 'number' && lightboxIndex > 0;
-  void hasPrev;
+  const sortedCategories = useMemo(() => [...categories].filter(c => c.published).sort((a, b) => a.displayOrder - b.displayOrder), [categories]);
+  const selectedChildren = subcategories.filter(s => s.categoryId === selectedCategory);
+  const getCount = (categoryId: string) => getCategoryPhotos(categoryId, { onlyPublished: true }).length;
+  const filtered = applyFilters({ categoryId: selectedCategory, subcategoryId: selectedSubcategory, onlyPublished: true });
+  const flatPhotosPool = filtered.flatPhotos;
+  const lightboxIndex = flatPhotosPool.findIndex(photo => photo.id === lightboxPhotoId);
+  useEffect(() => { if (!loading && lightboxPhotoId && lightboxIndex < 0) setLightboxPhotoId(null); }, [loading, lightboxPhotoId, lightboxIndex]);
+  const selectCategory = (id: string) => { setSelectedCategory(id); setSelectedSubcategory('all'); setLightboxPhotoId(null); };
+  const selectSubcategory = (id: string) => { setSelectedSubcategory(id); setLightboxPhotoId(null); };
 
   return (
     <section
@@ -429,89 +387,48 @@ export default function GallerySection({
 
         <div className="mb-8 sm:mb-10 rounded-2xl border border-paper-border bg-white/80 p-4 sm:p-5 shadow-sm backdrop-blur-sm">
           <label className="mb-3 block text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">
-            Browse by collection
+            Browse by category
           </label>
           <CategoryPills
             categories={sortedCategories}
             selectedId={selectedCategory}
-            onSelect={setSelectedCategory}
+            onSelect={selectCategory}
             getCount={getCount}
           />
+          {selectedChildren.length > 0 && <nav aria-label="Browse subcategories" className="mt-4 border-t border-paper-border pt-4">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">Subcategories</p>
+            <div className="flex flex-wrap gap-2">
+              {[{ id: 'all', name: 'All subcategories', photoCount: getCount(selectedCategory) },
+                ...(getCategoryPhotos(selectedCategory).some(p => !p.subcategoryId) ? [{ id: 'none', name: 'Category photographs', photoCount: getCategoryPhotos(selectedCategory).filter(p => !p.subcategoryId).length }] : []),
+                ...selectedChildren].map(sub => <button key={sub.id} type="button" aria-label={sub.name} aria-pressed={selectedSubcategory === sub.id} onClick={() => selectSubcategory(sub.id)}
+                  className={`rounded-full border px-4 py-2 text-sm font-medium ${selectedSubcategory === sub.id ? 'border-forum-900 bg-forum-900 text-white' : 'border-paper-border bg-white text-forum-800 hover:bg-forum-50'}`}>
+                  {sub.name} <span className="ml-1 text-xs">({sub.photoCount})</span>
+                </button>)}
+            </div>
+          </nav>}
         </div>
 
-        {loading || error ? null : selectedCategory === ALL_MEDIA_ID ? (
+        {loading || error ? null : (
           <div className="space-y-14 sm:space-y-16">
             {filtered.groupedByCategory.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-forum-200 bg-forum-50/40 p-10 text-center">
-                <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-forum-400 ring-1 ring-forum-100">
-                  <Images className="h-7 w-7" />
-                </div>
-                <p className="font-display text-lg font-semibold text-forum-900">
-                  The gallery is being prepared
-                </p>
-                <p className="mt-1 text-sm text-ink-muted max-w-lg mx-auto">
-                  Photographs from IFSMHP events will be published here
-                  shortly.
-                </p>
+                <p className="font-display text-lg font-semibold text-forum-900">The gallery is being prepared</p>
+                <p className="mt-1 text-sm text-ink-muted">Photographs from IFSMHP events will be published here shortly.</p>
               </div>
-            ) : (
-              filtered.groupedByCategory.map((group) => (
-                <CategoryGroup
-                  key={group.category.id}
-                  category={group.category}
-                  photos={group.photos}
-                  onOpen={openFromCategory}
-                />
-              ))
-            )}
-          </div>
-        ) : (
-          <div>
-            {filtered.groupedByCategory.length > 0 ? (
-              (() => {
-                const group = filtered.groupedByCategory[0]!;
-                return (
-                  <>
-                    <div className="mb-6 rounded-2xl border border-forum-100 bg-gradient-to-br from-forum-50 via-white to-brass-50/60 p-5 sm:p-6">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-forum-900 px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/10">
-                          <FolderKanban className="h-3 w-3" />
-                          Collection
-                        </span>
-                      </div>
-                      <h3 className="font-display text-2xl sm:text-3xl font-semibold text-forum-900 leading-tight">
-                        {group.category.name}
-                      </h3>
-                      <p className="mt-2 text-sm sm:text-[15px] leading-relaxed text-ink-muted max-w-3xl">
-                        {group.category.description}
-                      </p>
-                    </div>
-                    <PhotoGrid photos={group.photos} onOpen={openFlat} />
-                  </>
-                );
-              })()
-            ) : (
-              <PhotoGrid photos={[]} onOpen={() => {}} />
-            )}
+            ) : filtered.groupedByCategory.map(group => (
+              <CategoryGroup key={group.category.id} category={group.category} sections={group.sections} onOpen={setLightboxPhotoId} />
+            ))}
           </div>
         )}
       </div>
 
-      {typeof lightboxIndex === 'number' ? (
+      {lightboxIndex >= 0 ? (
         <Lightbox
           photos={flatPhotosPool}
           index={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
-          onPrev={() =>
-            setLightboxIndex((i) =>
-              typeof i === 'number' && i > 0 ? i - 1 : i
-            )
-          }
-          onNext={() =>
-            setLightboxIndex((i) =>
-              typeof i === 'number' && i < lightboxCount - 1 ? i + 1 : i
-            )
-          }
+          onClose={() => setLightboxPhotoId(null)}
+          onPrev={() => setLightboxPhotoId(flatPhotosPool[Math.max(0, lightboxIndex - 1)]?.id ?? null)}
+          onNext={() => setLightboxPhotoId(flatPhotosPool[Math.min(flatPhotosPool.length - 1, lightboxIndex + 1)]?.id ?? null)}
         />
       ) : null}
     </section>

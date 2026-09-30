@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Images,
   FolderKanban,
@@ -26,12 +26,14 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { Card } from '../../components/common/Card';
 import { useAdminGallery } from '../../context/GalleryContext';
+import { SubcategoryDialog, SubcategorySelect } from '../../components/gallery/SubcategoryControls';
 import GalleryImage from '../../components/gallery/GalleryImage';
 import { normalizeError } from '../../api/client';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import type { GalleryPolicy } from '../../services/galleryService';
 import type {
   GalleryCategory,
+  GallerySubcategory,
   GalleryPhoto,
   PhotoUploadTask,
 } from '../../types/gallery';
@@ -53,6 +55,7 @@ function formatFileSize(bytes: number) {
 export default function AdminGalleryPage() {
   const {
     categories,
+    subcategories, createSubcategory, updateSubcategory, deleteSubcategory,
     photos,
     createCategory,
     updateCategory,
@@ -71,6 +74,8 @@ export default function AdminGalleryPage() {
 
   const [catFilter, setCatFilter] = useState<string>('all');
   useEffect(() => { if (!loading && catFilter !== 'all' && !categories.some(c => c.id === catFilter)) setCatFilter('all'); }, [loading, catFilter, categories]);
+  const [subFilter, setSubFilter] = useState('all');
+  useEffect(() => { if (!loading && subFilter !== 'all' && subFilter !== 'none' && !subcategories.some(s => s.id === subFilter && s.categoryId === catFilter)) setSubFilter('all'); }, [loading, subFilter, subcategories, catFilter]);
   const [catSearch, setCatSearch] = useState('');
 
   const sortedCategories = useMemo(
@@ -80,7 +85,7 @@ export default function AdminGalleryPage() {
 
   const filteredPhotos = photos;
   const search = useDebouncedValue(catSearch);
-  useEffect(() => { setPhotoFilters({ categoryId: catFilter, search }); }, [catFilter, search, setPhotoFilters]);
+  useEffect(() => { setPhotoFilters({ categoryId: catFilter, subcategoryId: subFilter, search }); }, [catFilter, subFilter, search, setPhotoFilters]);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [notice, setNotice] = useState<{ message: string; error?: boolean } | null>(null);
@@ -94,6 +99,7 @@ export default function AdminGalleryPage() {
   const MAX_UPLOAD_MB = policy ? policy.maxBytes / 1024 / 1024 : '…';
 
   const [editingCategory, setEditingCategory] = useState<GalleryCategory | null>(null);
+  const [subcategoryDialog, setSubcategoryDialog] = useState<{ initial: GallerySubcategory | null; parentId: string } | null>(null);
   const [newCatOpen, setNewCatOpen] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<GalleryPhoto | null>(null);
 
@@ -101,6 +107,10 @@ export default function AdminGalleryPage() {
   const [defaultUploadCategoryId, setDefaultUploadCategoryId] = useState<string>(
     sortedCategories.find((c) => c.published)?.id ?? sortedCategories[0]?.id ?? ''
   );
+  const [uploadName, setUploadName] = useState('');
+  const [uploadDescription, setUploadDescription] = useState('');
+  const [uploadSubcategoryId, setUploadSubcategoryId] = useState('');
+  useEffect(() => { if (!loading && uploadSubcategoryId && !subcategories.some(s => s.id === uploadSubcategoryId && s.categoryId === defaultUploadCategoryId)) setUploadSubcategoryId(''); }, [loading, subcategories, uploadSubcategoryId, defaultUploadCategoryId]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadingRef = useRef(false);
@@ -121,25 +131,31 @@ export default function AdminGalleryPage() {
     const controller = new AbortController(); uploadController.current = controller;
     const update = (patch: Partial<PhotoUploadTask>) => setUploadTasks(previous => previous.map(task => task.id === queued.id ? { ...task, ...patch } : task));
     update({ status: 'uploading' });
-    void uploadPhoto(queued.file, queued.categoryId, controller.signal, progress => update({ progress }))
+    void uploadPhoto(queued.file, queued.categoryId, controller.signal, progress => update({ progress }), queued.subcategoryId, { title: queued.title, caption: queued.caption })
       .then(photo => { if (!controller.signal.aborted) update({ photo, status: 'success', progress: 100 }); })
-      .catch(failure => { if (!controller.signal.aborted) update({ status: 'error', error: normalizeError(failure).message }); })
+      .catch(failure => { if (!controller.signal.aborted) { const details = normalizeError(failure); update({ status: 'error', error: Object.values(details.fieldErrors).join(' ') || details.message }); } })
       .finally(() => { uploadingRef.current = false; if (!controller.signal.aborted) setUploadTasks(previous => [...previous]); });
   }, [uploadTasks, uploadPhoto]);
 
   const handleFiles = (files: FileList | File[]) => {
     if (!policy || !defaultUploadCategoryId) return;
+    const title = uploadName.trim(), caption = uploadDescription.trim();
+    if (title.length > 191 || caption.length > 10000) {
+      setNotice({ error: true, message: title.length > 191 ? 'Name must be 191 characters or fewer.' : 'Description must be 10,000 characters or fewer.' });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     const next = Array.from(files).map((file): PhotoUploadTask => {
       const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
       const error = !file.size ? 'Choose a non-empty image.' : !policy.extensions.includes(extension) || !policy.mimeTypes.includes(file.type) ? 'Choose a JPEG, PNG, or WebP image.' : file.size > policy.maxBytes ? `Image exceeds ${MAX_UPLOAD_MB} MB.` : null;
-      return { id: crypto.randomUUID(), categoryId: defaultUploadCategoryId, file, name: file.name, sizeBytes: file.size, status: error ? 'error' : 'queued', error, progress: 0, photo: null, previewUrl: null };
+      return { id: crypto.randomUUID(), categoryId: defaultUploadCategoryId, subcategoryId: uploadSubcategoryId || null, file, name: file.name, title, caption, sizeBytes: file.size, status: error ? 'error' : 'queued', error, progress: 0, photo: null, previewUrl: null };
     });
     setUploadTasks(previous => [...previous, ...next]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const photoCatForSelect = (p: GalleryPhoto) =>
-    categories.find((c) => c.id === p.categoryId)?.name ?? '—';
+    [categories.find((c) => c.id === p.categoryId)?.name ?? '—', subcategories.find(s => s.id === p.subcategoryId)?.name].filter(Boolean).join(' / ');
 
   return (
     <div className="space-y-6">
@@ -203,6 +219,10 @@ export default function AdminGalleryPage() {
       {activeTab === 'categories' ? (
         <CategoriesPanel
           categories={sortedCategories}
+          subcategories={subcategories}
+          onAddSubcategory={c => { setNotice(null); setSubcategoryDialog({ initial: null, parentId: c.id }); }}
+          onEditSubcategory={sub => { setNotice(null); setSubcategoryDialog({ initial: sub, parentId: sub.categoryId }); }}
+          onDeleteSubcategory={sub => { if (window.confirm(`Delete subcategory "${sub.name}"?`)) void run(() => deleteSubcategory(sub.id), 'Subcategory deleted.'); }}
           getCount={(id) => categories.find(c => c.id === id)?.photoCount ?? 0}
           onEdit={c => { setNotice(null); setEditingCategory(c); }}
           onDelete={(c) => {
@@ -228,7 +248,8 @@ export default function AdminGalleryPage() {
           loadError={error}
           categories={sortedCategories}
           catFilter={catFilter}
-          setCatFilter={setCatFilter}
+          setCatFilter={value => { setCatFilter(value); setSubFilter('all'); }}
+          subcategories={subcategories} subFilter={subFilter} setSubFilter={setSubFilter}
           catSearch={catSearch}
           setCatSearch={setCatSearch}
           onEdit={p => { setNotice(null); setEditingPhoto(p); }}
@@ -254,7 +275,9 @@ export default function AdminGalleryPage() {
         <UploadPanel
           categories={sortedCategories}
           defaultCategoryId={defaultUploadCategoryId}
-          setDefaultCategoryId={setDefaultUploadCategoryId}
+          setDefaultCategoryId={value => { setDefaultUploadCategoryId(value); setUploadSubcategoryId(''); }}
+          subcategories={subcategories} subcategoryId={uploadSubcategoryId} setSubcategoryId={setUploadSubcategoryId}
+          name={uploadName} setName={setUploadName} description={uploadDescription} setDescription={setUploadDescription}
           uploadTasks={uploadTasks}
           setUploadTasks={setUploadTasks}
           isDragging={isDragging}
@@ -266,6 +289,12 @@ export default function AdminGalleryPage() {
       ) : null}
 
       </fieldset>
+      {subcategoryDialog && <SubcategoryDialog {...subcategoryDialog} categories={sortedCategories} busy={busy} serverError={notice?.error ? notice.message : null}
+        onClose={() => { if (!busy) setSubcategoryDialog(null); }}
+        onSave={async input => {
+          const ok = await run(() => subcategoryDialog.initial ? updateSubcategory(subcategoryDialog.initial.id, input) : createSubcategory(input), subcategoryDialog.initial ? 'Subcategory updated.' : 'Subcategory created.');
+          if (ok) setSubcategoryDialog(null);
+        }} />}
       {editingCategory || newCatOpen ? (
         <CategoryDialog
           initial={editingCategory}
@@ -285,6 +314,7 @@ export default function AdminGalleryPage() {
       {editingPhoto ? (
         <PhotoDialog
           photo={editingPhoto}
+          subcategories={subcategories}
           busy={busy}
           serverError={notice?.error ? notice.message : null}
           categories={sortedCategories}
@@ -299,7 +329,7 @@ export default function AdminGalleryPage() {
 }
 
 function CategoriesPanel({
-  categories,
+  categories, subcategories, onAddSubcategory, onEditSubcategory, onDeleteSubcategory,
   getCount,
   onEdit,
   onDelete,
@@ -309,6 +339,10 @@ function CategoriesPanel({
   onNew,
 }: {
   categories: GalleryCategory[];
+  subcategories: GallerySubcategory[];
+  onAddSubcategory: (c: GalleryCategory) => void;
+  onEditSubcategory: (s: GallerySubcategory) => void;
+  onDeleteSubcategory: (s: GallerySubcategory) => void;
   getCount: (id: string) => number;
   onEdit: (c: GalleryCategory) => void;
   onDelete: (c: GalleryCategory) => void;
@@ -375,7 +409,8 @@ function CategoriesPanel({
                 categories.map((c, idx) => {
                   const count = getCount(c.id);
                   return (
-                    <tr key={c.id} className="hover:bg-forum-50/30 transition-colors">
+                    <Fragment key={c.id}>
+                    <tr className="hover:bg-forum-50/30 transition-colors">
                       <td className="px-5 py-3.5 text-ink-muted">
                         <div className="flex items-center gap-1">
                           <span className="text-sm font-semibold text-forum-700 w-6">
@@ -458,6 +493,7 @@ function CategoriesPanel({
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <div className="inline-flex items-center gap-1">
+                          <button type="button" onClick={() => onAddSubcategory(c)} aria-label="Add subcategory" title="Add subcategory" className="h-8 w-8 rounded-lg border border-paper-border text-forum-700 inline-flex items-center justify-center"><FolderPlus className="h-4 w-4" /></button>
                           <button
                             type="button"
                             onClick={() => onEdit(c)}
@@ -468,8 +504,10 @@ function CategoriesPanel({
                           </button>
                           <button
                             type="button"
+                            disabled={subcategories.some(s => s.categoryId === c.id)}
+                            title={subcategories.some(s => s.categoryId === c.id) ? "Move or delete subcategories first" : "Delete category"}
                             onClick={() => onDelete(c)}
-                            className="h-8 w-8 rounded-lg border border-danger-200 text-danger-600 hover:bg-danger-50 hover:border-danger-300 inline-flex items-center justify-center"
+                            className="h-8 w-8 rounded-lg border border-danger-200 text-danger-600 hover:bg-danger-50 hover:border-danger-300 disabled:opacity-40 inline-flex items-center justify-center"
                             aria-label="Delete category"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -477,6 +515,21 @@ function CategoriesPanel({
                         </div>
                       </td>
                     </tr>
+                    {subcategories.filter(sub => sub.categoryId === c.id).map(sub => <tr key={sub.id} className="bg-forum-50/30">
+                      <td />
+                      <td className="px-5 py-3"><div className="pl-6 border-l-2 border-forum-200"><span className="font-medium text-forum-800">{sub.name}</span><p className="text-xs text-ink-muted">Subcategory of {c.name}</p></div></td>
+                      <td className="px-5 py-3"><Badge variant="default">{sub.photoCount}</Badge></td>
+                      <td className="px-5 py-3 text-xs text-ink-muted">Follows category</td>
+                      <td className="px-5 py-3 text-right">
+                        <div className="inline-flex gap-2">
+                          <button type="button" onClick={() => onEditSubcategory(sub)} aria-label="Edit subcategory" className="h-8 w-8 rounded-lg border border-paper-border inline-flex items-center justify-center"><Pencil className="h-4 w-4" /></button>
+                          <button type="button" disabled={sub.photoCount > 0} title={sub.photoCount > 0 ? 'Move or delete photographs first' : 'Delete subcategory'} onClick={() => onDeleteSubcategory(sub)} aria-label="Delete subcategory" className="h-8 w-8 rounded-lg border border-danger-200 text-danger-600 disabled:opacity-40 inline-flex items-center justify-center"><Trash2 className="h-4 w-4" /></button>
+                        </div>
+                        {sub.photoCount > 0 && <p className="mt-1 text-xs text-ink-muted">Move or delete photos before deletion.</p>}
+                      </td>
+                    </tr>)}
+                    {subcategories.some(sub => sub.categoryId === c.id) && <tr><td /><td colSpan={4} className="px-5 pb-2 text-xs text-ink-muted">Move or delete subcategories before deleting {c.name}.</td></tr>}
+                    </Fragment>
                   );
                 })
               )}
@@ -489,6 +542,7 @@ function CategoriesPanel({
 }
 
 function PhotosPanel({
+  subcategories, subFilter, setSubFilter,
   loading,
   loadError,
   photos,
@@ -510,6 +564,9 @@ function PhotosPanel({
   loading: boolean;
   loadError: string;
   categories: GalleryCategory[];
+  subcategories: GallerySubcategory[];
+  subFilter: string;
+  setSubFilter: (value: string) => void;
   catFilter: string;
   setCatFilter: (v: string) => void;
   catSearch: string;
@@ -537,6 +594,7 @@ function PhotosPanel({
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <select
+              aria-label="Filter category"
               value={catFilter}
               onChange={(e) => setCatFilter(e.target.value)}
               className="h-10 appearance-none rounded-lg border border-paper-border bg-white pl-3 pr-9 text-sm text-forum-800 focus:border-forum-400 focus:outline-none focus:ring-2 focus:ring-forum-100"
@@ -550,6 +608,7 @@ function PhotosPanel({
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           </div>
+          <SubcategorySelect subcategories={subcategories} categoryId={catFilter} value={subFilter} onChange={setSubFilter} filter />
           <div className="relative">
             <input
               value={catSearch}
@@ -645,6 +704,7 @@ function PhotosPanel({
                           value={p.categoryId}
                           onChange={(e) => onMove(p, e.target.value)}
                           className="h-9 w-40 rounded-lg border border-paper-border bg-white px-2 text-sm text-forum-800 focus:border-forum-400 focus:outline-none focus:ring-2 focus:ring-forum-100"
+                          aria-label="Move photograph to category"
                           title={photoCatForSelect(p)}
                         >
                           {categories.map((c) => (
@@ -653,6 +713,7 @@ function PhotosPanel({
                             </option>
                           ))}
                         </select>
+                        <p className="mt-1 w-40 break-words text-xs text-ink-muted">{p.subcategoryId ? photoCatForSelect(p) : 'No subcategory'}</p>
                       </td>
                       <td className="px-4 py-3 align-top">
                         <div className="flex items-center gap-1">
@@ -741,6 +802,8 @@ function PhotosPanel({
 }
 
 function UploadPanel({
+  name, setName, description, setDescription,
+  subcategories, subcategoryId, setSubcategoryId,
   categories,
   defaultCategoryId,
   setDefaultCategoryId,
@@ -752,7 +815,14 @@ function UploadPanel({
   handleFiles,
   policy,
 }: {
+  name: string;
+  setName: (value: string) => void;
+  description: string;
+  setDescription: (value: string) => void;
   categories: GalleryCategory[];
+  subcategories: GallerySubcategory[];
+  subcategoryId: string;
+  setSubcategoryId: (value: string) => void;
   defaultCategoryId: string;
   setDefaultCategoryId: (v: string) => void;
   uploadTasks: PhotoUploadTask[];
@@ -791,6 +861,7 @@ function UploadPanel({
             </label>
             <div className="relative">
               <select
+                aria-label="Default collection"
                 value={defaultCategoryId}
                 onChange={(e) => setDefaultCategoryId(e.target.value)}
                 disabled={categories.length === 0}
@@ -810,6 +881,7 @@ function UploadPanel({
               </p>
             ) : null}
           </div>
+          <SubcategorySelect subcategories={subcategories} categoryId={defaultCategoryId} value={subcategoryId} onChange={setSubcategoryId} />
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-subtle">
               Upload limits
@@ -828,6 +900,22 @@ function UploadPanel({
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <p id="upload-details-help" className="text-sm text-ink-muted">Optional details apply to every photo you select next. You can edit each photo separately in the Photographs tab.</p>
+          <div>
+            <label htmlFor="upload-photo-name" className="mb-1.5 block text-sm font-medium text-forum-800">Name <span className="text-ink-muted">(optional)</span></label>
+            <input id="upload-photo-name" value={name} onChange={e => setName(e.target.value)} maxLength={191} aria-describedby="upload-details-help upload-name-help" placeholder="Enter a photo name"
+              className="h-11 w-full rounded-xl border border-paper-border bg-white px-3 text-sm text-forum-800 focus:border-forum-400 focus:outline-none focus:ring-2 focus:ring-forum-100" />
+            <p id="upload-name-help" className="mt-1 text-xs text-ink-muted">Leave blank to use each photo’s filename. Maximum 191 characters.</p>
+          </div>
+          <div>
+            <label htmlFor="upload-photo-description" className="mb-1.5 block text-sm font-medium text-forum-800">Description <span className="text-ink-muted">(optional)</span></label>
+            <textarea id="upload-photo-description" value={description} onChange={e => setDescription(e.target.value)} maxLength={10000} rows={3} aria-describedby="upload-details-help upload-description-help" placeholder="Add a description for the photo"
+              className="w-full rounded-xl border border-paper-border bg-white px-3 py-2.5 text-sm text-forum-800 focus:border-forum-400 focus:outline-none focus:ring-2 focus:ring-forum-100" />
+            <p id="upload-description-help" className="mt-1 text-xs text-ink-muted">Maximum 10,000 characters.</p>
           </div>
         </div>
 
@@ -967,7 +1055,7 @@ function UploadPanel({
                       ) : t.status === 'success' ? (
                         <p className="mt-0.5 text-xs text-success-700 inline-flex items-center gap-1">
                           <Check className="h-3 w-3" />
-                          Photograph added. You can edit title, caption, and alt text in the Photographs tab.
+                          Photograph added. You can edit its name, description, and alt text in the Photographs tab.
                         </p>
                       ) : (
                         <div className="mt-2 flex items-center gap-2">
@@ -1192,6 +1280,7 @@ function CategoryDialog({
 }
 
 function PhotoDialog({
+  subcategories,
   photo,
   categories,
   onClose,
@@ -1199,12 +1288,13 @@ function PhotoDialog({
   busy,
   serverError,
 }: {
+  subcategories: GallerySubcategory[];
   photo: GalleryPhoto;
   busy: boolean;
   serverError: string | null;
   categories: GalleryCategory[];
   onClose: () => void;
-  onSave: (patch: Partial<Pick<GalleryPhoto, 'categoryId' | 'title' | 'caption' | 'altText' | 'published' | 'displayOrder'>>) => Promise<void>;
+  onSave: (patch: Partial<Pick<GalleryPhoto, 'categoryId' | 'subcategoryId' | 'title' | 'caption' | 'altText' | 'published' | 'displayOrder'>>) => Promise<void>;
 }) {
   const [title, setTitle] = useState(photo.title ?? '');
   const [caption, setCaption] = useState(photo.caption ?? '');
@@ -1212,6 +1302,7 @@ function PhotoDialog({
   const [displayOrder, setDisplayOrder] = useState<number>(photo.displayOrder ?? 1);
   const [published, setPublished] = useState<boolean>(photo.published ?? true);
   const [categoryId, setCategoryId] = useState<string>(photo.categoryId);
+  const [subcategoryId, setSubcategoryId] = useState(photo.subcategoryId ?? '');
   const [error, setError] = useState<string | null>(null);
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -1228,6 +1319,7 @@ function PhotoDialog({
       displayOrder: Number.isFinite(displayOrder) ? displayOrder : 1,
       published,
       categoryId,
+      subcategoryId: subcategoryId || null,
     });
   };
 
@@ -1302,9 +1394,11 @@ function PhotoDialog({
             <div className="md:col-span-3 space-y-4">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  Title
+                  Name (title)
                 </label>
                 <input
+                  aria-label="Name (title)"
+                  maxLength={191}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Formal title for this photograph"
@@ -1314,9 +1408,11 @@ function PhotoDialog({
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  Caption
+                  Description (caption)
                 </label>
                 <textarea
+                  aria-label="Description (caption)"
+                  maxLength={10000}
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
                   rows={3}
@@ -1345,8 +1441,9 @@ function PhotoDialog({
                   </label>
                   <div className="relative">
                     <select
+                      aria-label="Photo category"
                       value={categoryId}
-                      onChange={(e) => setCategoryId(e.target.value)}
+                      onChange={(e) => { setCategoryId(e.target.value); setSubcategoryId(''); }}
                       className="h-11 w-full appearance-none rounded-xl border border-paper-border bg-white pl-3 pr-10 text-sm text-forum-800 focus:border-forum-400 focus:outline-none focus:ring-2 focus:ring-forum-100"
                     >
                       {categories.map((c) => (
@@ -1371,6 +1468,7 @@ function PhotoDialog({
                   />
                 </div>
               </div>
+              <SubcategorySelect subcategories={subcategories} categoryId={categoryId} value={subcategoryId} onChange={setSubcategoryId} />
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-subtle">
                   Visibility

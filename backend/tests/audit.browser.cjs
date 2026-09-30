@@ -87,6 +87,8 @@ async function run() {
 run().catch(async error => { console.error(error); if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => undefined); process.exitCode = 1; }).finally(async () => {
   if (browser) await browser.close();
   if (user) {
+    await prisma.galleryItem.deleteMany({ where: { album: { label: { startsWith: prefix } } } });
+    await prisma.gallerySubcategory.deleteMany({ where: { category: { label: { startsWith: prefix } } } });
     await prisma.galleryAlbum.deleteMany({ where: { label: { startsWith: prefix } } });
     await prisma.auditLog.deleteMany({ where: { actorId: user.id } }); await prisma.user.delete({ where: { id: user.id } });
   }

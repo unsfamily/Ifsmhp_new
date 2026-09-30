@@ -45,6 +45,8 @@ afterEach(async () => { rejectAuditInsert = false; afterAuditBatch = null; vi.re
 afterAll(async () => {
   rejectAuditInsert = false;
   await prisma.community.deleteMany({ where: { id: { in: communityIds } } });
+  await prisma.galleryItem.deleteMany({ where: { album: { label: { startsWith: prefix } } } });
+  await prisma.gallerySubcategory.deleteMany({ where: { category: { label: { startsWith: prefix } } } });
   await prisma.galleryAlbum.deleteMany({ where: { label: { startsWith: prefix } } });
   await prisma.event.deleteMany({ where: { id: { in: eventIds } } });
   const support = await prisma.supportRequest.findMany({ where: { requesterId: { in: userIds } } });

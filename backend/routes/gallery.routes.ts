@@ -27,10 +27,14 @@ const streamImage = (admin: boolean): RequestHandler => asyncHandler(async (req,
 });
 galleryAdminRoutes.get('/options', asyncHandler(async (_req, res) => sendSuccess(res, galleryPolicy, 'Gallery upload policy')));
 for (const [router, admin] of [[galleryAdminRoutes, true], [galleryPublicRoutes, false]] as const) {
+  router.get('/subcategories', asyncHandler(async (req, res) => sendSuccess(res, await gallery.subcategories(req.query, admin), 'Gallery subcategories')));
   router.get('/categories', asyncHandler(async (req, res) => sendSuccess(res, await gallery.categories(req.query, admin), 'Gallery collections')));
   router.get('/photos', asyncHandler(async (req, res) => sendSuccess(res, await gallery.photos(req.query, admin), 'Gallery photographs')));
   router.get('/photos/:id/image', streamImage(admin));
 }
+galleryAdminRoutes.post('/subcategories', asyncHandler(async (req, res) => sendSuccess(res, await gallery.saveSubcategory(req.user!, req.body), 'Subcategory created', 201)));
+galleryAdminRoutes.patch('/subcategories/:id', asyncHandler(async (req, res) => sendSuccess(res, await gallery.saveSubcategory(req.user!, req.body, req.params.id!), 'Subcategory updated')));
+galleryAdminRoutes.delete('/subcategories/:id', asyncHandler(async (req, res) => sendSuccess(res, await gallery.removeSubcategory(req.user!, req.params.id!), 'Subcategory deleted')));
 galleryAdminRoutes.post('/categories', asyncHandler(async (req, res) => sendSuccess(res, await gallery.saveCategory(req.user!, req.body), 'Collection created', 201)));
 galleryAdminRoutes.patch('/categories/:id', asyncHandler(async (req, res) => sendSuccess(res, await gallery.saveCategory(req.user!, req.body, req.params.id!), 'Collection updated')));
 galleryAdminRoutes.post('/photos', galleryUpload, asyncHandler(async (req, res) => {

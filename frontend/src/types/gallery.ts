@@ -9,9 +9,19 @@ export interface GalleryCategory {
   updatedAt: string;
 }
 
+export interface GallerySubcategory {
+  id: string;
+  categoryId: string;
+  name: string;
+  photoCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface GalleryPhoto {
   id: string;
   categoryId: string;
+  subcategoryId: string | null;
   title: string;
   caption: string;
   altText: string;
@@ -30,6 +40,7 @@ export interface GalleryPhoto {
 
 export interface GalleryFilters {
   categoryId: string | 'all';
+  subcategoryId?: string;
   searchQuery?: string;
   onlyPublished?: boolean;
 }
@@ -38,9 +49,12 @@ export type UploadStatus = 'queued' | 'uploading' | 'success' | 'error';
 
 export interface PhotoUploadTask {
   categoryId: string;
+  subcategoryId: string | null;
   id: string;
   file: File;
   name: string;
+  title: string;
+  caption: string;
   sizeBytes: number;
   progress: number;
   status: UploadStatus;

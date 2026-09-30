@@ -813,7 +813,20 @@ model GalleryAlbum {
   coverGradient String
   visibility    FileVisibility  @default(PUBLIC)
   items         GalleryItem[]
+  subcategories GallerySubcategory[]
   banners       GalleryBanner[]
+}
+
+model GallerySubcategory {
+  id         String        @id @default(cuid())
+  categoryId String
+  name       String        @db.VarChar(191)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  category   GalleryAlbum  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  items      GalleryItem[]
+
+  @@unique([categoryId, name])
 }
 
 model GalleryItem {
@@ -825,6 +838,8 @@ model GalleryItem {
   updatedAt    DateTime       @updatedAt
   id           String         @id @default(cuid())
   albumId      String
+  subcategoryId String?
+  subcategory GallerySubcategory? @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
   fileId       String?
   type         String
   title        String
@@ -844,6 +859,7 @@ model GalleryItem {
   file         FileObject?    @relation(fields: [fileId], references: [id])
   tags         GalleryTag[]
 
+  @@index([subcategoryId])
   @@index([albumId, displayOrder])
   @@index([visibility])
 }
