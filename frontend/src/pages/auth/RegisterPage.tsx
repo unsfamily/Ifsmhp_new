@@ -25,7 +25,7 @@ import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput, Checkbox } from '../../components/common/Input';
 import OtpCodeStep from '../../components/auth/OtpCodeStep';
 import Badge from '../../components/common/Badge';
-import logoImg from '../../assets/images/logo.png';
+import logoImg from '../../assets/images/logo.webp';
 import {
   removeRegistrationDocument,
   requestOtp,

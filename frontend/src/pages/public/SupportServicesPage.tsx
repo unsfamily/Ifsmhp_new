@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
-import supportBackgroundImage from '../../assets/images/support.png';
+import supportBackgroundImage from '../../assets/images/support.webp';
 
 const moralSupport = [
   { icon: Users, title: 'Peer Mentorship Programs', desc: 'Connect with experienced researchers who guide your journey.' },

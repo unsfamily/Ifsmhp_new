@@ -21,7 +21,7 @@ import { z } from 'zod';
 import Button from '../../components/common/Button';
 import { TextInput, Checkbox } from '../../components/common/Input';
 import OtpCodeStep from '../../components/auth/OtpCodeStep';
-import logoImg from '../../assets/images/logo.png';
+import logoImg from '../../assets/images/logo.webp';
 import { homePathFor, useAuth } from '../../context/AuthContext';
 import { requestOtp, type SessionUser } from '../../api/auth';
 import { normalizeError, type NormalizedApiError } from '../../api/client';

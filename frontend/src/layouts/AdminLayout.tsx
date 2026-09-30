@@ -29,7 +29,7 @@ import {
   UserRoundSearch,
 } from 'lucide-react';
 import Badge from '../components/common/Badge';
-import logoImg from '../assets/images/logo.png';
+import logoImg from '../assets/images/logo.webp';
 import { useAuth } from '../context/AuthContext';
 import { adminApi } from '../api/admin';
 import { useCommunityResource } from '../hooks/useCommunityResource';

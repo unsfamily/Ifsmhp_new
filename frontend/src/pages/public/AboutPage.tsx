@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
-import aboutBackgroundImage from '../../assets/images/about.png';
+import aboutBackgroundImage from '../../assets/images/about.webp';
 
 const impactStats = [
   { value: '277', label: 'Current Members Worldwide', icon: Users },

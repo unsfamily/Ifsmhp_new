@@ -2,7 +2,7 @@ import { usePublicSettings } from '../../context/SettingsContext';
 import { useState } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, UserPlus, LogIn, Images } from 'lucide-react';
-import logoImg from '../../assets/images/logo.png';
+import logoImg from '../../assets/images/logo.webp';
 
 const navLinks = [
   { to: '/', label: 'Home' },

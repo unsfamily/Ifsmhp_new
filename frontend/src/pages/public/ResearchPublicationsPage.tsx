@@ -20,7 +20,7 @@ import { Link, useParams } from 'react-router-dom';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
-import researchBackgroundImage from '../../assets/images/research.png';
+import researchBackgroundImage from '../../assets/images/research.webp';
 import {
   doiUrl,
   publicApi,
