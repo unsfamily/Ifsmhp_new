@@ -31,7 +31,7 @@ import bannerAwards from '../../assets/images/slide_03.jpg';
 import bannerAwardsWebp from '../../assets/images/slide_03.webp';
 import bannerReviews from '../../assets/images/slide_04.jpg';
 import bannerReviewsWebp from '../../assets/images/slide_04.webp';
-import logoImg from '../../assets/images/logo.png';
+import logoImg from '../../assets/images/logo.webp';
 
 const stats = [
   { value: '277+', label: 'Global Members', icon: Users },

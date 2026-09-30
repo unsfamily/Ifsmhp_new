@@ -17,7 +17,8 @@ const streamImage = (admin: boolean): RequestHandler => asyncHandler(async (req,
   const file = await gallery.imageFile(req.params.id!, admin);
   const absolute = assertSafePath(file.storageKey);
   await fsp.access(absolute, fs.constants.R_OK).catch(() => { throw ApiError.notFound('Image not found'); });
-  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('Cache-Control', admin ? 'private, no-store' : 'public, max-age=86400');
+  if (!admin && file.checksum) res.setHeader('ETag', `"${file.checksum}"`);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('Content-Type', file.mimeType);

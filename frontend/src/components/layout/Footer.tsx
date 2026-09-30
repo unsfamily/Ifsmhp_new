@@ -1,7 +1,7 @@
 import { usePublicSettings } from '../../context/SettingsContext';
 import { Link, useLocation } from 'react-router-dom';
 import { Linkedin, Twitter, Facebook, BookOpen, Images } from 'lucide-react';
-import logoImg from '../../assets/images/logo.png';
+import logoImg from '../../assets/images/logo.webp';
 
 function GalleryAnchor({
   children,

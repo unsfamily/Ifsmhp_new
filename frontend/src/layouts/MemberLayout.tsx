@@ -21,7 +21,7 @@ import {
   Images,
 } from 'lucide-react';
 import Badge from '../components/common/Badge';
-import logoImg from '../assets/images/logo.png';
+import logoImg from '../assets/images/logo.webp';
 import { useAuth } from '../context/AuthContext';
 import { memberApi } from '../api/member';
 import { useApiData } from '../hooks/useApiData';
