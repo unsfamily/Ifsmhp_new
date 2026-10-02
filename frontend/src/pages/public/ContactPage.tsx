@@ -1,4 +1,5 @@
 import { usePublicSettings } from '../../context/SettingsContext';
+import { Link } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import {
   Mail,
@@ -384,7 +385,10 @@ export default function ContactPage() {
                     />
                     <div className="flex items-center justify-between flex-wrap gap-3 pt-2">
                       <p className="text-xs text-ink-subtle">
-                        By submitting this form, you agree to our privacy policy.
+                        By submitting this form, you acknowledge our{' '}
+                        <Link to="/privacy-policy" className="font-medium text-forum-700 underline hover:text-forum-900">
+                          Privacy Policy
+                        </Link>.
                       </p>
                       <Button type="submit" size="lg" disabled={isSubmitting}>
                         <Send className="h-4.5 w-4.5" />

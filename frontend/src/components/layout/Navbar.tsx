@@ -1,6 +1,6 @@
 import { usePublicSettings } from '../../context/SettingsContext';
 import { useState } from 'react';
-import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Menu, X, UserPlus, LogIn, Images } from 'lucide-react';
 import logoImg from '../../assets/images/logo.webp';
 
@@ -8,9 +8,8 @@ const navLinks = [
   { to: '/', label: 'Home' },
   { to: '/about', label: 'About Us' },
   { to: '/membership', label: 'Membership' },
-  { to: '/research', label: 'Research' },
   { to: '/gallery', label: 'Gallery', anchor: true },
-  { to: '/support-services', label: 'Support' },
+  { to: '/support-services', label: 'Support', },
   { to: '/events', label: 'Events' },
   { to: '/contact', label: 'Contact' },
 ];
@@ -22,32 +21,19 @@ function GalleryNavLink({
   className: (isActive: boolean) => string;
   onClick?: () => void;
 }) {
-  const navigate = useNavigate();
   const location = useLocation();
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (onClick) onClick();
-    if (location.pathname === '/') {
-      const el = document.getElementById('gallery-section');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      history.pushState(null, '', '/#gallery-section');
-    } else {
-      navigate('/#gallery-section');
-    }
-  };
 
   const isActiveGallery =
     location.pathname === '/' && location.hash === '#gallery-section';
 
   return (
-    <a
-      href="/#gallery-section"
-      onClick={handleClick}
+    <Link
+      to="/#gallery-section"
+      onClick={onClick}
       className={className(isActiveGallery)}
     >
       Gallery
-    </a>
+    </Link>
   );
 }
 
@@ -55,23 +41,6 @@ export default function Navbar() {
   const settings = usePublicSettings();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const isHome = location.pathname === '/';
-
-  const handleGalleryClick = (
-    e: React.MouseEvent,
-    closeMenu?: () => void
-  ) => {
-    e.preventDefault();
-    if (closeMenu) closeMenu();
-    if (isHome) {
-      const el = document.getElementById('gallery-section');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      history.pushState(null, '', '/#gallery-section');
-    } else {
-      window.location.href = '/#gallery-section';
-    }
-  };
-
   const navCls = ({ isActive }: { isActive: boolean }) =>
     `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
       isActive
@@ -156,17 +125,15 @@ export default function Navbar() {
               {navLinks.map((link) => {
                 if (link.anchor) {
                   return (
-                    <a
+                    <Link
                       key={link.to}
-                      href="/#gallery-section"
-                      onClick={(e) =>
-                        handleGalleryClick(e, () => setMobileOpen(false))
-                      }
+                      to="/#gallery-section"
+                      onClick={() => setMobileOpen(false)}
                       className="rounded-md px-3 py-2 text-sm font-medium transition-colors text-ink-muted hover:bg-forum-50 hover:text-forum-900 inline-flex items-center gap-1.5"
                     >
                       <Images className="h-4 w-4 text-brass-600" />
                       Gallery
-                    </a>
+                    </Link>
                   );
                 }
                 const isActive = location.pathname === link.to;

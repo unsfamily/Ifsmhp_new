@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  UserPlus,
   Mail,
   ArrowRight,
   User,
@@ -24,7 +23,6 @@ import { z } from 'zod';
 import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput, Checkbox } from '../../components/common/Input';
 import OtpCodeStep from '../../components/auth/OtpCodeStep';
-import Badge from '../../components/common/Badge';
 import logoImg from '../../assets/images/logo.webp';
 import {
   removeRegistrationDocument,
@@ -43,21 +41,29 @@ const professionalTypes = [
   'Psychiatrist',
   'Psychologist',
   'Counselor',
+  'professor',
+  'Lecturer', 
   'Therapist',
+  'Practitioner in alternative medicine (AYUSH)',
   'Social Worker',
   'Doctoral Candidate',
   'Academic Researcher',
-  'Other Mental Health Professional',
+  'Mental Health Professional',
+  'Others',
 ];
 
 // The address is asked for once: a one-time code is emailed to it and the
 // account is not created until that code comes back, so a typo cannot slip
 // through unnoticed the way it could when registration completed immediately.
 const schema = z.object({
-  fullName: z.string().min(2, 'Please enter your full name'),
+  firstName: z.string().trim().min(1, 'Please enter your first name').max(59),
+  lastName: z.string().trim().min(1, 'Please enter your last name').max(59),
   email: z.string().email('Enter a valid email address'),
+  phone: z.string().trim().min(7, 'Enter a valid phone number').max(40, 'Phone number must be 40 characters or fewer'),
   professionalType: z.string().min(1, 'Select your professional type'),
-  institution: z.string().min(2, 'Institution / Organization is required'),
+  institution: z.string().min(2, 'Type of Professional Organization / Independent Professionals is required'),
+  communicationAddress: z.string().trim().min(5, 'Enter your communication address').max(1000),
+  permanentAddress: z.string().trim().min(5, 'Enter your permanent address').max(1000),
   credentials: z.string().min(10, 'Please briefly describe your credentials'),
   education: z.string().min(10, 'Please list your relevant education'),
   researchInterests: z.string().min(10, 'Please describe your research interests'),
@@ -81,12 +87,12 @@ const documentSlots: Array<{
   accept: string;
   hint: string;
 }> = [
-  { kind: 'CV', label: 'CV / Resume', accept: '.pdf,.doc,.docx', hint: 'PDF, DOC, DOCX (max 10MB)' },
+  { kind: 'CV', label: 'Profile', accept: '.pdf,.doc,.docx', hint: 'PDF, DOC, DOCX (max 10MB)' },
   {
     kind: 'CREDENTIAL',
-    label: 'Credentials / Certifications',
+    label: 'Credentials / Certifications / ID Card',
     accept: '.pdf,.doc,.docx,.jpg,.jpeg,.png',
-    hint: 'Scanned degrees, licenses, certificates (max 10MB)',
+    hint: 'PDF, DOC, DOCX (max 10MB)',
   },
 ];
 
@@ -286,8 +292,9 @@ export default function RegisterPage() {
   /** Builds the registration payload the API expects from the current form. */
   const payloadFrom = (data: FormData) => ({
     purpose: 'REGISTER' as const,
-    fullName: data.fullName,
+    fullName: `${data.firstName} ${data.lastName}`,
     email: data.email,
+    phone: data.phone,
     professionalType: data.professionalType,
     institution: data.institution,
     credentials: data.credentials,
@@ -302,10 +309,10 @@ export default function RegisterPage() {
     if (!documentsReady || documentClaims.length !== documentSlots.length) {
       setErrorMsg('Upload both required documents before submitting your application.');
       setDocumentUploads((current) => ({
-        CV: current.CV.uploaded ? current.CV : { ...current.CV, error: 'Upload your CV / Resume.' },
+        CV: current.CV.uploaded ? current.CV : { ...current.CV, error: 'Upload your Profile.' },
         CREDENTIAL: current.CREDENTIAL.uploaded
           ? current.CREDENTIAL
-          : { ...current.CREDENTIAL, error: 'Upload your Credentials / Certifications.' },
+          : { ...current.CREDENTIAL, error: 'Upload your Credentials / Certifications / ID Card.' },
       }));
       return;
     }
@@ -396,11 +403,16 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-paper via-forum-50 to-paper">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">
-        <Link to="/" className="inline-flex items-center gap-2.5 mb-8">
+        
+
+        <div className="grid gap-10 lg:grid-cols-3">
+          <div className="lg:col-span-1">
+            <div className="sticky top-10 space-y-6">
+              <Link to="/" className="inline-flex items-center gap-2.5 mb-8">
           <img
             src={logoImg}
             alt="IFSMHP Logo"
-            className="h-10 w-10 rounded-lg object-contain"
+            className="h-20 w-20 rounded-lg object-contain"
           />
           <div>
             <span className="block font-display text-lg font-semibold text-forum-900">IFSMHP</span>
@@ -409,15 +421,7 @@ export default function RegisterPage() {
             </span>
           </div>
         </Link>
-
-        <div className="grid gap-10 lg:grid-cols-3">
-          <div className="lg:col-span-1">
-            <div className="sticky top-10 space-y-6">
               <div>
-                <Badge variant="brass">
-                  <UserPlus className="h-3 w-3 mr-1" />
-                  Step 1 of 2
-                </Badge>
                 <h1 className="mt-4 font-display text-3xl font-semibold text-forum-900 leading-tight">
                   Apply for IFSMHP Membership
                 </h1>
@@ -480,11 +484,18 @@ export default function RegisterPage() {
                   </h2>
                   <div className="mt-5 grid gap-5 sm:grid-cols-2">
                     <TextInput
-                      label="Full Name"
-                      placeholder="Dr. Jane A. Smith"
+                      label="First Name"
+                      placeholder="Jane A."
                       required
-                      error={errors.fullName?.message}
-                      {...register('fullName')}
+                      error={errors.firstName?.message}
+                      {...register('firstName')}
+                    />
+                    <TextInput
+                      label="Last Name"
+                      placeholder="Smith"
+                      required
+                      error={errors.lastName?.message}
+                      {...register('lastName')}
                     />
                     <div className="sm:col-span-2">
                       <SelectInput
@@ -502,7 +513,7 @@ export default function RegisterPage() {
                       </SelectInput>
                     </div>
                     <TextInput
-                      label="Email Address"
+                      label="Email"
                       type="email"
                       placeholder="jane@university.edu"
                       icon={<Mail className="h-4.5 w-4.5" />}
@@ -512,12 +523,40 @@ export default function RegisterPage() {
                       {...register('email')}
                     />
                     <TextInput
-                      label="Institution / Organization"
-                      placeholder="University, Hospital, Institute..."
+                      label="Phone Number"
+                      type="tel"
+                      placeholder="+1 555 123 4567"
+                      required
+                      error={errors.phone?.message}
+                      {...register('phone')}
+                    />
+                    <TextInput
+                      label="Type of Professional Organization / Independent Professionals"
+                      placeholder="University, Hospital, Private Practice..."
                       required
                       error={errors.institution?.message}
                       {...register('institution')}
                     />
+                    <div className="sm:col-span-2">
+                      <TextArea
+                        label="Communication Address"
+                        placeholder="Street address, city, state / province, postal code, country"
+                        rows={2}
+                        required
+                        error={errors.communicationAddress?.message}
+                        {...register('communicationAddress')}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <TextArea
+                        label="Permanent Address"
+                        placeholder="Street address, city, state / province, postal code, country"
+                        rows={2}
+                        required
+                        error={errors.permanentAddress?.message}
+                        {...register('permanentAddress')}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -705,13 +744,13 @@ export default function RegisterPage() {
                     label={
                       <>
                         I have read and agree to the{' '}
-                        <a href="#" className="underline text-forum-700 font-medium">
+                        <Link to="/terms-of-service" className="underline text-forum-700 font-medium">
                           Terms of Service
-                        </a>{' '}
+                        </Link>{' '}
                         and{' '}
-                        <a href="#" className="underline text-forum-700 font-medium">
+                        <Link to="/code-of-ethics" className="underline text-forum-700 font-medium">
                           Code of Ethics
-                        </a>
+                        </Link>
                         .
                       </>
                     }

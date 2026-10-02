@@ -148,7 +148,7 @@ function MemberSupportList() {
               <div>
                 <h3 className="font-display text-lg font-semibold text-forum-900 flex items-center gap-2">
                   <Plus className="h-5 w-5 text-forum-600" />
-                  New Support Request
+                  Raise Ticket
                 </h3>
                 <p className="text-xs text-ink-subtle mt-0.5">
                   Select the support types you need for your project
@@ -165,14 +165,14 @@ function MemberSupportList() {
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <form className="space-y-5" onSubmit={submitSupport}>
+            <form className="space-y-5 mt-2" onSubmit={submitSupport}>
               {errorMsg && <div className="rounded-lg border border-danger-600/20 bg-danger-100 p-4 text-sm text-danger-600">{errorMsg}</div>}
               <SelectInput label="Select Project" name="projectId" defaultValue="" disabled={projects.loading || submitting} error={fieldErrors.projectId || projects.error || undefined}>
                 <option value="">Not linked to a specific project</option>
                 {(projects.data ?? []).map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}
               </SelectInput>
 
-              <div>
+              {/* <div>
                 <label className="mb-2 block text-sm font-medium text-ink">
                   Type of Support Requested <span className="text-danger-600">*</span>
                   <span className="ml-1 text-[11px] font-normal text-ink-subtle">(select all that apply)</span>
@@ -201,22 +201,22 @@ function MemberSupportList() {
                     );
                   })}
                 </div>
-              </div>
+              </div> */}
 
               {fieldErrors.types && <p role="alert" className="text-sm text-danger-600">{fieldErrors.types}</p>}
               <TextInput name="subject" label="Request Title / Subject" placeholder="e.g. Request for endorsement letter for NIH R01 submission" required minLength={4} maxLength={220} error={fieldErrors.subject} disabled={submitting} />
               <TextArea name="description" label="Detailed Request Description" rows={5} placeholder="Explain the context, timeline, deliverables needed, and how this support will impact your work..." required minLength={10} maxLength={10000} error={fieldErrors.description} disabled={submitting} hint="The more detail you provide, the faster we can assign the right team." />
 
-              <div className="grid gap-5 sm:grid-cols-2">
+              {/* <div className="grid gap-5 sm:grid-cols-2">
                 <SelectInput label="Priority" name="priority" defaultValue="Standard" disabled={submitting} error={fieldErrors.priority}>
                   <option value="Standard">Standard (3-5 business days)</option>
                   <option value="High">High (1-2 business days)</option>
                   <option value="Urgent">Urgent (24-hour response — requires justification)</option>
                 </SelectInput>
                 <TextInput disabled={submitting} name="requiredBy" label="Required By Date (optional)" type="date" error={fieldErrors.requiredBy} />
-              </div>
+              </div> */}
 
-              <Checkbox label="I confirm this request is accurate and I have provided all necessary context." required />
+              {/* <Checkbox label="I confirm this request is accurate and I have provided all necessary context." required /> */}
 
               <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
                 <Button type="button" variant="outline" size="lg" disabled={submitting} onClick={() => setShowForm(false)}>

@@ -1,5 +1,5 @@
 import { usePublicSettings } from '../../context/SettingsContext';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Linkedin, Twitter, Facebook, BookOpen, Images } from 'lucide-react';
 import logoImg from '../../assets/images/logo.webp';
 
@@ -10,31 +10,18 @@ function GalleryAnchor({
   children: React.ReactNode;
   className?: string;
 }) {
-  const location = useLocation();
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (location.pathname === '/') {
-      const el = document.getElementById('gallery-section');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      history.pushState(null, '', '/#gallery-section');
-    } else {
-      window.location.href = '/#gallery-section';
-    }
-  };
-
   return (
-    <a href="/#gallery-section" onClick={handleClick} className={className}>
+    <Link to="/#gallery-section" className={className}>
       {children}
-    </a>
+    </Link>
   );
 }
 
 const quickLinks = [
-  { to: '/', label: 'Home' },
+  // { to: '/', label: 'Home' },
   { to: '/about', label: 'About Us' },
   { to: '/membership', label: 'Membership' },
-  { to: '/research', label: 'Research Publications' },
+  { to: '/research', label: 'Publications' },
   { to: '/gallery', label: 'Media Gallery', anchor: true },
   { to: '/support-services', label: 'Support Services' },
   { to: '/events', label: 'Events' },
@@ -49,10 +36,10 @@ const memberLinks = [
 ];
 
 const legalLinks = [
-  { to: '#', label: 'Privacy Policy' },
-  { to: '#', label: 'Terms of Service' },
-  { to: '#', label: 'Code of Ethics' },
-  { to: '#', label: 'Cookie Policy' },
+  { to: '/privacy-policy', label: 'Privacy Policy' },
+  { to: '/terms-of-service', label: 'Terms of Service' },
+  { to: '/code-of-ethics', label: 'Code of Ethics' },
+  { to: '/cookie-policy', label: 'Cookie Policy' },
 ];
 
 export default function Footer() {
@@ -160,12 +147,12 @@ export default function Footer() {
             <ul className="mt-4 space-y-2.5">
               {legalLinks.map((link) => (
                 <li key={link.label}>
-                  <a
-                    href={link.to}
+                  <Link
+                    to={link.to}
                     className="text-sm text-forum-200/70 hover:text-brass-500 transition-colors"
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -174,8 +161,7 @@ export default function Footer() {
 
         <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-forum-700/80 pt-6 sm:flex-row sm:items-center">
           <p className="text-xs text-forum-200/60">
-            © {new Date().getFullYear()} International Forum of Scientists and
-            Mental Health Professionals. All Rights Reserved.
+            © {new Date().getFullYear()} International Forum for Scientists and Mental Health Professionals. All Rights Reserved.
           </p>
           <p className="text-xs text-brass-500/80 font-medium">
             Built for collaborative scientific excellence.

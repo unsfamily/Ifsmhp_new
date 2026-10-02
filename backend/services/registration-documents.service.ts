@@ -108,7 +108,7 @@ export async function resolveRegistrationDocuments(
 }
 
 export function registrationDocumentTitle(kind: RegistrationDocumentKind) {
-  return kind === 'CV' ? 'CV / Resume' : 'Credentials / Certifications';
+  return kind === 'CV' ? 'Profile' : 'Credentials / Certifications';
 }
 
 export function registrationDocumentType(kind: RegistrationDocumentKind) {

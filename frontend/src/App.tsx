@@ -15,6 +15,7 @@ import SupportServicesPage from './pages/public/SupportServicesPage';
 import EventsPage from './pages/public/EventsPage';
 import ContactPage from './pages/public/ContactPage';
 import ProductReviewsPage from './pages/public/ProductReviewsPage';
+import PolicyPage from './pages/public/PolicyPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 import LoginPage from './pages/auth/LoginPage';
@@ -70,26 +71,34 @@ function GalleryAnchorRedirect() {
   return <Navigate to="/" replace />;
 }
 
-function GalleryAnchorHandler() {
+function NavigationScrollHandler() {
   const location = useLocation();
   useEffect(() => {
-    if (location.pathname === '/' && location.hash === '#gallery-section') {
-      const el = document.getElementById('gallery-section');
-      if (el) {
-        const t = window.setTimeout(() => {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 60);
-        return () => window.clearTimeout(t);
+    const frame = window.requestAnimationFrame(() => {
+      const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'instant'
+        : 'smooth';
+      const targetId = decodeURIComponent(location.hash.slice(1));
+      const target = targetId ? document.getElementById(targetId) : null;
+
+      if (target) {
+        const headerHeight = document.querySelector('header')?.getBoundingClientRect().height ?? 0;
+        const top = target.getBoundingClientRect().top + window.scrollY - headerHeight;
+        window.scrollTo({ top: Math.max(0, top), behavior });
+        return;
       }
-    }
-  }, [location.pathname, location.hash]);
+
+      window.scrollTo({ top: 0, behavior });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.key, location.pathname, location.hash]);
   return null;
 }
 
 export default function App() {
   return (
     <GalleryProvider>
-      <GalleryAnchorHandler />
+      <NavigationScrollHandler />
       <Routes>
         <Route element={<PublicLayout />}>
           <Route index element={<HomePage />} />
@@ -102,6 +111,10 @@ export default function App() {
           <Route path="support-services" element={<SupportServicesPage />} />
           <Route path="events" element={<EventsPage />} />
           <Route path="contact" element={<ContactPage />} />
+          <Route path="privacy-policy" element={<PolicyPage />} />
+          <Route path="terms-of-service" element={<PolicyPage />} />
+          <Route path="code-of-ethics" element={<PolicyPage />} />
+          <Route path="cookie-policy" element={<PolicyPage />} />
         </Route>
 
         <Route path="login" element={<LoginPage />} />

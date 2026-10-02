@@ -265,7 +265,7 @@ export default function HomePage() {
                   </picture>
                 ) : null}
                 <div className="relative z-10 mx-auto grid h-full w-full max-w-7xl items-center px-4 pb-28 pt-24 sm:px-6 sm:pb-12 sm:pt-20 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] lg:gap-8 lg:px-8 lg:pb-16 lg:pt-20">
-                  <div className="relative max-w-xl pr-[104px] sm:pr-0">
+                  {/* <div className="relative max-w-xl pr-[104px] sm:pr-0">
                     <div className="absolute -inset-x-4 -inset-y-5 -z-10 rounded-2xl bg-forum-950/25 backdrop-blur-[2px]" aria-hidden />
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-forum-950/40 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20 backdrop-blur sm:text-[11px]">
                       <Icon className="h-3.5 w-3.5" />
@@ -333,6 +333,9 @@ export default function HomePage() {
                         );
                       })}
                     </div>
+                  </div> */}
+                  <div className="relative max-w-xl pr-[104px] sm:pr-0">
+                    <h1 className='mt-5 text-xl font-semibold leading-[1.2] text-white drop-shadow-sm sm:mt-6 sm:max-w-4xl sm:text-5xl lg:text-xl"'>International Forum for Scientists and Mental Health Professionals</h1>
                   </div>
                   <BannerGlobe chips={slide.chips} active={active} />
                 </div>
@@ -455,6 +458,11 @@ export default function HomePage() {
               </div>
             );
           })}
+        </div>
+        <div className="mt-10 flex justify-center">
+          <Button as="link" to="/research" size="lg">
+            View Published Research Papers
+          </Button>
         </div>
       </Section>
 

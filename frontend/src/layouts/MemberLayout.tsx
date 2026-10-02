@@ -30,15 +30,17 @@ import NotificationBell from '../components/announcements/NotificationBell';
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/dashboard/profile', label: 'My Profile', icon: User },
-  { to: '/dashboard/projects', label: 'My Projects', icon: FolderKanban },
-  { to: '/dashboard/projects/upload', label: 'Upload New Project', icon: Upload },
-  { to: '/dashboard/messages', label: 'Messages from CRO', icon: MessageSquare, badgeKey: 'unreadMessages' as const },
+  { to: '/dashboard/publications', label: 'My Published Works', icon: FileText },
+  { to: '/dashboard/projects/upload', label: 'Submit My Project for Support', icon: Upload },
+  { to: '/dashboard/projects', label: 'Project Submitted for Support', icon: FolderKanban },
+  
+  { to: '/dashboard/messages', label: 'Chat with CRO', icon: MessageSquare, badgeKey: 'unreadMessages' as const },
   { to: '/dashboard/documents', label: 'Document Exchange', icon: FileText },
   { to: '/dashboard/notifications', label: 'Notifications', icon: Bell },
-  { to: '/dashboard/publications', label: 'Published Works', icon: FileText },
-  { to: '/dashboard/gallery', label: 'Media Gallery', icon: Images },
+  
+  // { to: '/dashboard/gallery', label: 'Media Gallery', icon: Images },
   { to: '/dashboard/community', label: 'Community', icon: Users },
-  { to: '/dashboard/support', label: 'Support Requests', icon: ShieldCheck },
+  { to: '/dashboard/support', label: 'Raise Ticket', icon: ShieldCheck },
 ];
 
 export default function MemberLayout() {

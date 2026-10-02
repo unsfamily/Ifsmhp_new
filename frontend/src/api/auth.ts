@@ -23,6 +23,7 @@ interface Envelope<T> {
 export interface RegisterPayload {
   fullName: string;
   email: string;
+  phone?: string;
   professionalType: string;
   institution: string;
   credentials: string;
