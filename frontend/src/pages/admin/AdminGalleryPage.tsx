@@ -19,6 +19,7 @@ import {
   Save,
   FolderPlus,
   ImagePlus,
+  Film,
   PanelLeft,
   ListOrdered,
 } from 'lucide-react';
@@ -27,7 +28,7 @@ import Badge from '../../components/common/Badge';
 import { Card } from '../../components/common/Card';
 import { useAdminGallery } from '../../context/GalleryContext';
 import { SubcategoryDialog, SubcategorySelect } from '../../components/gallery/SubcategoryControls';
-import GalleryImage from '../../components/gallery/GalleryImage';
+import GalleryMedia from '../../components/gallery/GalleryMedia';
 import { normalizeError } from '../../api/client';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import type { GalleryPolicy } from '../../services/galleryService';
@@ -39,11 +40,15 @@ import type {
 } from '../../types/gallery';
 
 type TabId = 'categories' | 'photos' | 'upload';
+const VIDEO_FORMATS = [
+  { extension: 'mp4', mimeType: 'video/mp4' },
+  { extension: 'webm', mimeType: 'video/webm' },
+];
 
 const ADMIN_TABS: Array<{ id: TabId; label: string; icon: typeof FolderKanban }> = [
   { id: 'categories', label: 'Categories', icon: FolderKanban },
-  { id: 'photos', label: 'Photographs', icon: Images },
-  { id: 'upload', label: 'Upload Photos', icon: Upload },
+  { id: 'photos', label: 'Media', icon: Images },
+  { id: 'upload', label: 'Upload Media', icon: Upload },
 ];
 
 function formatFileSize(bytes: number) {
@@ -104,6 +109,13 @@ export default function AdminGalleryPage() {
   const [editingPhoto, setEditingPhoto] = useState<GalleryPhoto | null>(null);
 
   const [uploadTasks, setUploadTasks] = useState<PhotoUploadTask[]>([]);
+  const uploadTasksRef = useRef(uploadTasks);
+  useEffect(() => { uploadTasksRef.current = uploadTasks; }, [uploadTasks]);
+  useEffect(() => () => {
+    uploadTasksRef.current.forEach(task => {
+      if (task.previewUrl) URL.revokeObjectURL(task.previewUrl);
+    });
+  }, []);
   const [defaultUploadCategoryId, setDefaultUploadCategoryId] = useState<string>(
     sortedCategories.find((c) => c.published)?.id ?? sortedCategories[0]?.id ?? ''
   );
@@ -147,8 +159,10 @@ export default function AdminGalleryPage() {
     }
     const next = Array.from(files).map((file): PhotoUploadTask => {
       const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-      const error = !file.size ? 'Choose a non-empty image.' : !policy.extensions.includes(extension) || !policy.mimeTypes.includes(file.type) ? 'Choose a JPEG, PNG, or WebP image.' : file.size > policy.maxBytes ? `Image exceeds ${MAX_UPLOAD_MB} MB.` : null;
-      return { id: crypto.randomUUID(), categoryId: defaultUploadCategoryId, subcategoryId: uploadSubcategoryId || null, file, name: file.name, title, caption, sizeBytes: file.size, status: error ? 'error' : 'queued', error, progress: 0, photo: null, previewUrl: null };
+      const supportedImage = policy.extensions.includes(extension) && policy.mimeTypes.includes(file.type);
+      const supportedVideo = VIDEO_FORMATS.some(format => format.extension === extension && format.mimeType === file.type);
+      const error = !file.size ? 'Choose a non-empty image or video.' : !supportedImage && !supportedVideo ? 'Choose a JPEG, PNG, WebP, MP4, or WebM file.' : file.size > policy.maxBytes ? `File exceeds ${MAX_UPLOAD_MB} MB.` : null;
+      return { id: crypto.randomUUID(), categoryId: defaultUploadCategoryId, subcategoryId: uploadSubcategoryId || null, file, name: file.name, title, caption, sizeBytes: file.size, status: error ? 'error' : 'queued', error, progress: 0, photo: null, previewUrl: error ? null : URL.createObjectURL(file) };
     });
     setUploadTasks(previous => [...previous, ...next]);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -168,9 +182,9 @@ export default function AdminGalleryPage() {
             Media Gallery Management
           </h1>
           <p className="text-sm text-ink-muted max-w-2xl">
-            Organise collections, upload photographs, and control what appears
+            Organise collections, upload photos and videos, and control what appears
             on the IFSMHP homepage gallery. Max{' '}
-            <span className="font-semibold text-forum-800">{MAX_UPLOAD_MB} MB</span> per image.
+            <span className="font-semibold text-forum-800">{MAX_UPLOAD_MB} MB</span> per file.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -185,7 +199,7 @@ export default function AdminGalleryPage() {
             onClick={() => setActiveTab('upload')}
             className="bg-forum-900 hover:bg-forum-800"
           >
-            <ImagePlus className="h-4 w-4" /> Upload photos
+            <ImagePlus className="h-4 w-4" /> Upload media
           </Button>
         </div>
       </div>
@@ -628,9 +642,9 @@ function PhotosPanel({
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-forum-50 text-forum-400 ring-1 ring-forum-100">
             <Images className="h-6 w-6" />
           </div>
-          <p className="font-medium text-forum-900">No photographs match your filter</p>
+          <p className="font-medium text-forum-900">No media match your filter</p>
           <p className="mt-1 text-sm text-ink-muted">
-            Try another collection or upload new photographs.
+            Try another collection or upload new media.
           </p>
         </Card>
       )) : (
@@ -643,7 +657,7 @@ function PhotosPanel({
                     Preview
                   </th>
                   <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">
-                    Photograph
+                    Media
                   </th>
                   <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-40">
                     Collection
@@ -668,11 +682,11 @@ function PhotosPanel({
                     <tr key={p.id} className="hover:bg-forum-50/30 transition-colors">
                       <td className="px-4 py-3 align-top">
                         <div className="h-16 w-20 overflow-hidden rounded-lg ring-1 ring-paper-border bg-forum-100">
-                          <GalleryImage
-                            src={p.imageUrl}
+                                  <GalleryMedia
+                                    src={p.mediaUrl || p.imageUrl}
+                                    mediaType={p.type ?? 'image'}
                             alt={p.altText || p.title}
                             className="h-full w-full object-cover"
-                            loading="lazy"
                           />
                         </div>
                       </td>
@@ -834,8 +848,8 @@ function UploadPanel({
   policy: GalleryPolicy | null;
 }) {
   const MAX_UPLOAD_MB = (policy?.maxBytes ?? 0) / 1024 / 1024;
-  const ACCEPTED_EXTENSIONS = policy?.extensions ?? [];
-  const ACCEPTED_FILE_ATTR = [...(policy?.mimeTypes ?? []), ...ACCEPTED_EXTENSIONS.map(e => `.${e}`)].join(',');
+  const ACCEPTED_EXTENSIONS = [...new Set([...(policy?.extensions ?? []), ...VIDEO_FORMATS.map(format => format.extension)])];
+  const ACCEPTED_FILE_ATTR = [...(policy?.mimeTypes ?? []), ...VIDEO_FORMATS.map(format => format.mimeType), ...ACCEPTED_EXTENSIONS.map(e => `.${e}`)].join(',');
   const anyQueued = uploadTasks.some((t) => t.status === 'queued' || t.status === 'uploading');
   const successCount = uploadTasks.filter((t) => t.status === 'success').length;
   const errorCount = uploadTasks.filter((t) => t.status === 'error').length;
@@ -844,13 +858,13 @@ function UploadPanel({
     <div className="space-y-5">
       <div>
         <h2 className="font-display text-lg font-semibold text-forum-900">
-          Upload photographs
+          Upload media
         </h2>
         <p className="text-sm text-ink-muted mt-1">
-          Drop images below, or click to browse. You can queue multiple
-          photographs at once. Original images are stored securely and displayed
-          in the gallery when published.
+          Drop images or videos below, or click to browse. You can queue multiple
+          files at once. Original media is stored securely and displayed in the gallery when published.
         </p>
+        <p className="text-xs text-ink-subtle">MP4/WebM selection and preview are available in this frontend; the current gallery API still accepts images only, so video upload needs server support.</p>
       </div>
 
       <Card className="p-5 sm:p-6 space-y-5">
@@ -892,7 +906,7 @@ function UploadPanel({
               </div>
               <div className="text-xs leading-snug">
                 <div className="font-semibold text-forum-800">
-                  Max {MAX_UPLOAD_MB.toFixed(0)} MB per photograph
+                  Max {MAX_UPLOAD_MB.toFixed(0)} MB per file
                 </div>
                 <div className="text-ink-muted">
                   Accepted formats:{' '}
@@ -904,7 +918,7 @@ function UploadPanel({
         </div>
 
         <div className="space-y-4">
-          <p id="upload-details-help" className="text-sm text-ink-muted">Optional details apply to every photo you select next. You can edit each photo separately in the Photographs tab.</p>
+          <p id="upload-details-help" className="text-sm text-ink-muted">Optional details apply to every file you select next. You can edit each item separately in the Media tab.</p>
           <div>
             <label htmlFor="upload-photo-name" className="mb-1.5 block text-sm font-medium text-forum-800">Name <span className="text-ink-muted">(optional)</span></label>
             <input id="upload-photo-name" value={name} onChange={e => setName(e.target.value)} maxLength={191} aria-describedby="upload-details-help upload-name-help" placeholder="Enter a photo name"
@@ -962,22 +976,18 @@ function UploadPanel({
             <Upload className="h-6.5 w-6.5" />
           </div>
           <p className="font-display text-lg font-semibold text-forum-900">
-            {isDragging ? 'Drop your photographs here' : 'Drag & drop photographs'}
+            {isDragging ? 'Drop your media files here' : 'Drag & drop images or videos'}
           </p>
           <p className="mt-1 text-sm text-ink-muted">
             or <span className="font-semibold text-forum-700 underline-offset-2 hover:underline">click to browse</span>.
             Multi-select supported.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2 text-[11px]">
-            <Badge variant="default" className="bg-white ring-1 ring-forum-100">
-              JPG / JPEG
-            </Badge>
-            <Badge variant="default" className="bg-white ring-1 ring-forum-100">
-              PNG
-            </Badge>
-            <Badge variant="default" className="bg-white ring-1 ring-forum-100">
-              WebP
-            </Badge>
+            {ACCEPTED_EXTENSIONS.map((extension) => (
+              <Badge key={extension} variant="default" className="bg-white ring-1 ring-forum-100">
+                {extension.toUpperCase()}
+              </Badge>
+            ))}
             <Badge
               variant="info"
               className="bg-forum-50 text-forum-700 ring-1 ring-forum-100"
@@ -1010,11 +1020,12 @@ function UploadPanel({
               <button
                 type="button"
                 onClick={() =>
-                  setUploadTasks((prev) =>
-                    prev.filter(
-                      (t) => t.status === 'queued' || t.status === 'uploading'
-                    )
-                  )
+                  {
+                    uploadTasks.filter(t => t.status !== 'queued' && t.status !== 'uploading').forEach(t => {
+                      if (t.previewUrl) URL.revokeObjectURL(t.previewUrl);
+                    });
+                    setUploadTasks((prev) => prev.filter(t => t.status === 'queued' || t.status === 'uploading'));
+                  }
                 }
                 disabled={anyQueued}
                 className="inline-flex items-center gap-1 rounded-lg border border-paper-border bg-white px-2.5 py-1.5 text-xs font-medium text-forum-700 hover:bg-forum-50 disabled:opacity-40"
@@ -1028,12 +1039,14 @@ function UploadPanel({
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-paper-border bg-forum-50 flex items-center justify-center">
                       {t.previewUrl ? (
-                        <GalleryImage
+                        <GalleryMedia
                           src={t.previewUrl}
+                          mediaType={t.file.type.startsWith('video/') ? 'video' : 'image'}
                           alt=""
                           className="h-full w-full object-cover"
-                          loading="lazy"
                         />
+                      ) : t.file.type.startsWith('video/') ? (
+                        <Film className="h-4.5 w-4.5 text-forum-500" />
                       ) : (
                         <FileImage className="h-4.5 w-4.5 text-forum-500" />
                       )}
@@ -1055,7 +1068,7 @@ function UploadPanel({
                       ) : t.status === 'success' ? (
                         <p className="mt-0.5 text-xs text-success-700 inline-flex items-center gap-1">
                           <Check className="h-3 w-3" />
-                          Photograph added. You can edit its name, description, and alt text in the Photographs tab.
+                          Media added. You can edit its name, description, and alt text in the Media tab.
                         </p>
                       ) : (
                         <div className="mt-2 flex items-center gap-2">
@@ -1092,9 +1105,10 @@ function UploadPanel({
                     )}
                     <button
                       type="button"
-                      onClick={() =>
-                        setUploadTasks((prev) => prev.filter((p) => p.id !== t.id))
-                      }
+                      onClick={() => {
+                        if (t.previewUrl) URL.revokeObjectURL(t.previewUrl);
+                        setUploadTasks((prev) => prev.filter((p) => p.id !== t.id));
+                      }}
                       className="h-8 w-8 rounded-md text-ink-muted hover:bg-forum-50 hover:text-forum-700 inline-flex items-center justify-center"
                       aria-label="Remove task"
                     >
@@ -1128,12 +1142,14 @@ function CategoryDialog({
     name: string;
     description: string;
     displayOrder: number;
+    displayLayout: GalleryCategory['displayLayout'];
     published: boolean;
   }) => Promise<void>;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [displayOrder, setDisplayOrder] = useState<number>(initial?.displayOrder ?? 10);
+  const [displayLayout, setDisplayLayout] = useState<GalleryCategory['displayLayout']>(initial?.displayLayout ?? 'QUARTER');
   const [published, setPublished] = useState<boolean>(initial?.published ?? true);
   const [error, setError] = useState<string | null>(null);
 
@@ -1155,6 +1171,7 @@ function CategoryDialog({
       name: trimmed,
       description: description.trim(),
       displayOrder: Number.isFinite(displayOrder) ? displayOrder : 10,
+      displayLayout,
       published,
     });
   };
@@ -1259,6 +1276,22 @@ function CategoryDialog({
               </div>
             </div>
           </div>
+          <div>
+            <label htmlFor="gallery-category-layout" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-subtle">
+              Photo layout
+            </label>
+            <select
+              id="gallery-category-layout"
+              value={displayLayout}
+              onChange={(event) => setDisplayLayout(event.target.value as GalleryCategory['displayLayout'])}
+              className="h-11 w-full rounded-xl border border-paper-border bg-white px-3 text-sm text-forum-800 focus:border-forum-400 focus:outline-none focus:ring-2 focus:ring-forum-100"
+            >
+              <option value="SQUARE">150 × 150 px tiles · multiple columns</option>
+              <option value="FULL">100% width · single column</option>
+              <option value="HALF">50% width · two columns</option>
+              <option value="QUARTER">25% width · four columns</option>
+            </select>
+          </div>
           {error ? (
             <div className="rounded-xl bg-danger-50 ring-1 ring-danger-100 text-danger-700 px-3 py-2.5 text-sm inline-flex items-start gap-2">
               <AlertCircle className="h-4 w-4 mt-0.5" /> {error}
@@ -1360,10 +1393,13 @@ function PhotoDialog({
                 Preview
               </label>
               <div className="overflow-hidden rounded-2xl ring-1 ring-paper-border bg-forum-100 aspect-video">
-                <GalleryImage
-                  src={photo.imageUrl}
+                <GalleryMedia
+                  src={photo.mediaUrl || photo.imageUrl}
+                          mediaType={photo.type ?? 'image'}
                   alt={photo.altText || photo.title}
                   className="h-full w-full object-cover"
+                  controls={photo.type === 'video'}
+                  muted={false}
                 />
               </div>
               <div className="mt-3 rounded-xl bg-forum-50 ring-1 ring-forum-100 p-3.5 text-xs space-y-1.5">

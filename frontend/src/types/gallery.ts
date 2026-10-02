@@ -4,6 +4,7 @@ export interface GalleryCategory {
   name: string;
   description: string;
   displayOrder: number;
+  displayLayout?: 'SQUARE' | 'FULL' | 'HALF' | 'QUARTER';
   published: boolean;
   createdAt: string;
   updatedAt: string;
@@ -36,6 +37,8 @@ export interface GalleryPhoto {
   uploadedAt: string;
   updatedAt: string;
   aspect?: 'landscape' | 'portrait' | 'square';
+  type?: 'image' | 'video';
+  mediaUrl?: string;
 }
 
 export interface GalleryFilters {

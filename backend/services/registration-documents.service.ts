@@ -53,7 +53,7 @@ export function verifyRegistrationClaimToken(
 function validateClaimShape(documents: RegistrationDocumentClaim[] | undefined) {
   if (!Array.isArray(documents)) {
     throw new ApiError(422, 'Required documents are missing', [
-      { field: 'documents', message: 'Upload CV / Resume and Credentials / Certifications before submitting.' },
+      { field: 'documents', message: 'Profile and Credentials / Certifications / ID Card before submitting.' },
     ]);
   }
 
@@ -64,7 +64,7 @@ function validateClaimShape(documents: RegistrationDocumentClaim[] | undefined) 
       throw new ApiError(422, 'Required documents are missing', [
         {
           field: `documents.${kind}`,
-          message: kind === 'CV' ? 'Upload your CV / Resume.' : 'Upload your Credentials / Certifications.',
+          message: kind === 'CV' ? 'Upload your Profile.' : 'Upload your Credentials / Certifications / ID Card.',
         },
       ]);
     }
@@ -108,7 +108,7 @@ export async function resolveRegistrationDocuments(
 }
 
 export function registrationDocumentTitle(kind: RegistrationDocumentKind) {
-  return kind === 'CV' ? 'Profile' : 'Credentials / Certifications';
+  return kind === 'CV' ? 'Profile' : 'Credentials / Certifications / ID Card';
 }
 
 export function registrationDocumentType(kind: RegistrationDocumentKind) {

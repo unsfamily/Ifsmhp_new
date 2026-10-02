@@ -1,4 +1,4 @@
-import GalleryImage from './GalleryImage';
+import GalleryMedia from './GalleryMedia';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Images,
@@ -10,6 +10,7 @@ import {
   Award,
   Sparkles,
   Info,
+  Film,
 } from 'lucide-react';
 import { useGallery } from '../../context/GalleryContext';
 import Button from '../common/Button';
@@ -76,11 +77,13 @@ function CategoryPills({
 
 function PhotoGrid({
   photos,
+  layout,
   onOpen,
   emptyLabel = 'No published photographs in this category yet.',
 }: {
   emptyLabel?: string;
   photos: GalleryPhoto[];
+  layout: NonNullable<GalleryCategory['displayLayout']>;
   onOpen: (index: number) => void;
 }) {
   if (photos.length === 0) {
@@ -101,7 +104,7 @@ function PhotoGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+    <div className={`grid gap-4 sm:gap-5 ${layout === 'SQUARE' ? 'grid-cols-[repeat(auto-fill,150px)] justify-center' : layout === 'FULL' ? 'grid-cols-1' : layout === 'HALF' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'}`}>
       {photos.map((photo, idx) => {
         const aspect = photo.aspect ?? 'landscape';
         const aspectClass =
@@ -115,15 +118,14 @@ function PhotoGrid({
             key={photo.id}
             type="button"
             onClick={() => onOpen(idx)}
-            className={`group relative block w-full overflow-hidden rounded-2xl ${aspectClass} bg-gradient-to-br from-forum-800 via-forum-600 to-brass-500 text-left ring-1 ring-paper-border shadow-sm transition-all duration-300 hover:shadow-xl hover:ring-forum-900/15`}
+            className={`group relative block w-full overflow-hidden rounded-2xl ${layout === 'SQUARE' ? 'aspect-square' : aspectClass} bg-gradient-to-br from-forum-800 via-forum-600 to-brass-500 text-left ring-1 ring-paper-border shadow-sm transition-all duration-300 hover:shadow-xl hover:ring-forum-900/15`}
             aria-label={`Open ${photo.title}`}
           >
-            <GalleryImage
-              src={photo.imageUrl}
+            <GalleryMedia
+              src={photo.mediaUrl || photo.imageUrl}
+              mediaType={photo.type ?? 'image'}
               alt={photo.altText || photo.title}
               className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.04]"
-              loading="lazy"
-              decoding="async"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-forum-950/85 via-forum-950/20 to-transparent opacity-85 group-hover:opacity-95 transition-opacity" />
             <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
@@ -139,6 +141,7 @@ function PhotoGrid({
             <div className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white opacity-0 backdrop-blur-md ring-1 ring-white/25 transition-opacity group-hover:opacity-100">
               <ZoomIn className="h-4.5 w-4.5" />
             </div>
+            {photo.type === 'video' && <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-forum-950/75 px-2 py-1 text-[10px] font-semibold uppercase text-white"><Film className="h-3 w-3" /> Video</span>}
           </button>
         );
       })}
@@ -157,7 +160,7 @@ function CategoryGroup({ category, sections, onOpen }: {
     <section className="scroll-mt-28" aria-label={category.name}>
       <div className="mb-6 border-b border-paper-border pb-4">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-brass-50 text-brass-700 ring-1 ring-brass-500/20 px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
-          <Award className="h-3 w-3" /> {count} {count === 1 ? 'photograph' : 'photographs'}
+          <Award className="h-3 w-3" /> {count} {count === 1 ? 'item' : 'items'}
         </span>
         <h3 className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-forum-900 break-words">{category.name}</h3>
         {category.description && <p className="mt-2 text-sm leading-relaxed text-ink-muted max-w-3xl">{category.description}</p>}
@@ -167,11 +170,11 @@ function CategoryGroup({ category, sections, onOpen }: {
           <section key={subcategory?.id ?? 'none'} aria-label={subcategory?.name ?? 'Category photographs'} className={subcategory ? 'border-l-2 border-forum-100 pl-4 sm:pl-6' : ''}>
             {(subcategory || hasSubcategories) && <div className="mb-4 flex flex-wrap items-center gap-2">
               <h4 className="font-display text-xl font-semibold text-forum-900 break-words">{subcategory?.name ?? 'Category photographs'}</h4>
-              <span className="text-xs text-ink-muted">{photos.length} {photos.length === 1 ? 'photograph' : 'photographs'}</span>
+              <span className="text-xs text-ink-muted">{photos.length} {photos.length === 1 ? 'item' : 'items'}</span>
             </div>}
             {subcategory && !photos.length ? (
               <p className="rounded-xl border border-dashed border-forum-200 bg-forum-50/50 p-4 text-sm text-ink-muted">No published photographs in this subcategory yet.</p>
-            ) : <PhotoGrid photos={photos} onOpen={index => onOpen(photos[index]!.id)} />}
+            ) : <PhotoGrid photos={photos} layout={category.displayLayout ?? 'QUARTER'} onOpen={index => onOpen(photos[index]!.id)} />}
           </section>
         ))}
       </div>
@@ -266,10 +269,13 @@ function Lightbox({
         <div className="grid grid-cols-1 md:grid-cols-5 gap-0 overflow-y-auto">
           <div className="md:col-span-3 bg-forum-950 border-b md:border-b-0 md:border-r border-paper-border relative">
             <div className="min-h-[280px] sm:min-h-[380px] md:min-h-[540px] flex items-center justify-center p-3 sm:p-5">
-              <GalleryImage
-                src={photo.imageUrl}
+              <GalleryMedia
+                src={photo.mediaUrl || photo.imageUrl}
+                mediaType={photo.type ?? 'image'}
                 alt={photo.altText || photo.title}
                 className="max-h-[72vh] w-auto max-w-full h-auto object-contain rounded-xl shadow-2xl ring-1 ring-white/10"
+                controls={photo.type === 'video'}
+                muted={false}
               />
             </div>
           </div>
