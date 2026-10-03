@@ -9,7 +9,7 @@ export async function effectiveSettings(db: DB = prisma): Promise<SettingsValues
   const values = structuredClone(settingsDefaults);
   const rows = await db.platformSetting.findMany();
   const legacySla = rows.find(r => r.section === 'membership' && r.key === 'approval_sla_days');
-  if (legacySla && settingsSchemas.membership.shape.pendingDays.safeParse(legacySla.value).success) values.membership = { pendingDays: Number(legacySla.value), reviewDays: Number(legacySla.value) };
+  if (legacySla && settingsSchemas.membership.shape.pendingDays.safeParse(legacySla.value).success) Object.assign(values.membership, { pendingDays: Number(legacySla.value), reviewDays: Number(legacySla.value) });
   const legacyZone = rows.find(r => r.section === 'events' && r.key === 'default_timezone');
   if (legacyZone && settingsSchemas.general.shape.timezone.safeParse(legacyZone.value).success) values.general.timezone = String(legacyZone.value);
   for (const row of rows) {
@@ -41,11 +41,17 @@ export async function updateSettings(actorId: string, section: SettingsSection, 
     const before = (await effectiveSettings(tx))[section] as Record<string, unknown>;
     const next = settingsSchemas[section].parse({ ...before, ...patch }) as Record<string, Prisma.InputJsonValue>;
     if (section === 'general' && next.maintenance && !next.maintenanceMessage) throw ApiError.unprocessable('Enter a notice message.', [{ field: 'maintenanceMessage', message: 'Required when the notice is enabled.' }]);
+    if (section === 'membership') {
+      for (const [flag, amount] of [['applicationFeeEnabled', 'applicationFee'], ['annualDuesEnabled', 'annualDues']]) {
+        if (next[flag!] && Number(next[amount!]) <= 0) throw ApiError.unprocessable('Enter a positive fee.', [{ field: amount!, message: 'Must be greater than zero when enabled.' }]);
+      }
+      if ((next.applicationFeeEnabled || next.annualDuesEnabled) && !next.paymentInstructions) throw ApiError.unprocessable('Enter payment instructions.', [{ field: 'paymentInstructions', message: 'Explain how to pay outside the application.' }]);
+    }
     const keys = Object.keys(patch).filter(key => before[key] !== next[key]);
     if (!keys.length) { await tx.settingRevision.update({ where: { section }, data: { revision } }); return; }
     for (const key of keys) await tx.platformSetting.upsert({ where: { section_key: { section, key } }, create: { section, key, value: next[key]!, updatedBy: actorId }, update: { value: next[key]!, updatedBy: actorId } });
     await tx.settingRevision.update({ where: { section }, data: { updatedBy: actorId, updatedAt: new Date() } });
-    const changes = Object.fromEntries(keys.filter(k => !['signature', 'maintenanceMessage', 'address'].includes(k)).map(k => [k, { before: before[k], after: next[k] }]));
+    const changes = Object.fromEntries(keys.filter(k => !['signature', 'maintenanceMessage', 'address', 'paymentInstructions'].includes(k)).map(k => [k, { before: before[k], after: next[k] }]));
     await writeAudit({ actorId, action: 'PlatformSettingsUpdated', entity: `PlatformSetting ${section}`, entityType: 'PlatformSetting', entityId: section, changes, metadata: { changedFields: keys }, description: `Updated ${section} settings.` }, tx);
   });
   return getSettings();

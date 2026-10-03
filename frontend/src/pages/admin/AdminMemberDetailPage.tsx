@@ -1,3 +1,5 @@
+import MembershipPanel from '../../components/membership/MembershipPanel';
+import type { MembershipDetail } from '../../services/membershipService';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -249,6 +251,8 @@ export default function AdminMemberDetailPage() {
     [id, reloadKey],
   );
 
+  const [membership, setMembership] = useState<MembershipDetail | null>(null);
+  const [manualId, setManualId] = useState('');
   const [reviewNotes, setReviewNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [decision, setDecision] = useState<null | 'approve' | 'reject'>(null);
@@ -331,7 +335,7 @@ export default function AdminMemberDetailPage() {
     setActionError(null);
     setActionNotice(null);
     try {
-      const result = await adminApi.approveMember(id!, reviewNotes || undefined);
+      const result = await adminApi.approveMember(id!, reviewNotes || undefined, membership?.policy.idIssuance === 'MANUAL' ? manualId : undefined);
       // The member is approved regardless; only the notification can fail.
       if (result.emailSent) {
         setActionNotice(`Approved. Member ID ${result.memberId} issued and the member has been emailed.`);
@@ -468,6 +472,7 @@ export default function AdminMemberDetailPage() {
 
   return (
     <div className="space-y-6">
+      <MembershipPanel key={`${id}:${reloadKey}`} id={id} onChange={setMembership} />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <Link to="/admin/members/pending" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-forum-700">
           <ArrowLeft className="h-4 w-4" />
@@ -937,13 +942,13 @@ export default function AdminMemberDetailPage() {
                 </div>
               ) : (
                 <div className="rounded-xl bg-gradient-to-br from-slateteal-100 to-forum-50 border border-slateteal-500/20 p-5 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slateteal-700">On Approval — Server-Side Generation</p>
-                  <p className="mt-2 font-mono text-2xl font-bold text-forum-900 tracking-tight">IFSMHP-{new Date().getFullYear()}-######</p>
-                  <p className="mt-2 text-xs text-ink-subtle">The sequence is allocated by the server when you approve.</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slateteal-700">Issued on approval</p>
+                  <p className="mt-2 font-mono text-2xl font-bold text-forum-900 tracking-tight">{membership?.policy.idIssuance === 'MANUAL' ? 'Manual ID at approval' : `${membership?.policy.idPrefix ?? 'IFSMHP'}-${new Date().getUTCFullYear()}-${'#'.repeat(membership?.policy.idPadding ?? 6)}`}</p>
+                  <p className="mt-2 text-xs text-ink-subtle">The applicable policy is shown in Membership requirements & payments.</p>
                 </div>
               )}
               <div className="mt-4 space-y-2 text-xs text-ink-muted">
-                <div className="flex justify-between"><span>Format:</span><code className="font-mono bg-paper px-1.5 py-0.5 rounded border border-paper-border">IFSMHP-YYYY-NNNNNN</code></div>
+                <div className="flex justify-between"><span>Format:</span><code className="font-mono bg-paper px-1.5 py-0.5 rounded border border-paper-border">{membership?.policy.idIssuance === 'MANUAL' ? 'Manual' : `${membership?.policy.idPrefix ?? 'IFSMHP'}-YYYY-${'N'.repeat(membership?.policy.idPadding ?? 6)}`}</code></div>
                 <div className="flex justify-between"><span>Issuance:</span><span className="font-medium text-ink">Transactional server-side (row lock)</span></div>
                 <div className="flex justify-between"><span>Immutability:</span><span className="font-medium text-success-600">Guaranteed</span></div>
                 <div className="flex justify-between"><span>Storage path:</span><span className="font-medium text-danger-600">Never exposed to client</span></div>
@@ -978,7 +983,7 @@ export default function AdminMemberDetailPage() {
                     On confirmation, the server will:
                   </p>
                   <ul className="space-y-2 text-sm">
-                    <ApprovalStep icon={IdCard} text="Generate Member ID server-side (IFSMHP-YYYY-NNNNNN)" done />
+                    <ApprovalStep icon={IdCard} text={membership?.policy.idIssuance === 'MANUAL' ? 'Assign the unique member ID entered below' : 'Issue the member ID using this application’s policy'} done />
                     <ApprovalStep icon={UserCheck} text="Activate user account — promote to ACTIVE" done />
                     <ApprovalStep icon={Briefcase} text="Stamp the Member Profile with the ID and approval date" done />
                     <ApprovalStep icon={Clock} text="Record approval timestamp with admin attribution" done />
@@ -991,6 +996,7 @@ export default function AdminMemberDetailPage() {
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-2">
                     Review Notes (optional, audited)
                   </h4>
+                  {membership?.policy.idIssuance === 'MANUAL' && <TextInput label="Manual member ID" value={manualId} maxLength={100} onChange={e => setManualId(e.target.value)} />}
                   <TextArea
                     rows={3}
                     placeholder="Credibility findings, cross-check references, or committee vote summary."
@@ -1008,7 +1014,7 @@ export default function AdminMemberDetailPage() {
                     approval: the request waits on an SMTP round-trip, which is a
                     real window for a second click.
                   */}
-                  <Button className="w-full sm:w-auto bg-success-600 hover:bg-success-600/90" onClick={confirmApproval} disabled={processing !== null}>
+                  <Button className="w-full sm:w-auto bg-success-600 hover:bg-success-600/90" onClick={confirmApproval} disabled={processing !== null || !membership || !!membership.approvalProblems?.length || (membership.policy.idIssuance === 'MANUAL' && !manualId.trim())}>
                     {processing === 'approve' ? <Clock3 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                     {processing === 'approve' ? 'Approving…' : 'Confirm Approval & Issue ID'}
                   </Button>

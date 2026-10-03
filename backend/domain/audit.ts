@@ -6,7 +6,7 @@ export const auditModules = ['AUTHENTICATION', 'USER', 'MEMBERSHIP', 'PROJECT', 
 const groups: Record<string, string[]> = {
   AUTHENTICATION: ['LoginSucceeded', 'LoginFailed', 'Logout', 'PasswordReset', 'PasswordResetFailed', 'AuthenticationThrottled', 'AccessDenied', 'AdminPasswordChanged', 'AdminPasswordChangeFailed', 'AdminSessionsRevoked'],
   USER: ['UserProfileUpdated', 'AdminProfileUpdated', 'AdminAvatarUpdated'],
-  MEMBERSHIP: ['MembershipApplicationSubmitted', 'MembershipReviewStarted', 'MembershipApproved', 'MembershipRejected', 'MemberIdIssued', 'MembershipApprovalEmailResent', 'MembershipApprovalEmailOutcome'],
+  MEMBERSHIP: ['MembershipChargeCreated', 'MembershipEvidenceReviewed', 'MembershipPaymentRecorded', 'MembershipPaymentCorrected', 'MembershipWaiverRequested', 'MembershipWaiverDecided', 'MembershipArchived', 'MembershipArchiveRestored', 'MembershipApplicationSubmitted', 'MembershipReviewStarted', 'MembershipApproved', 'MembershipRejected', 'MemberIdIssued', 'MembershipApprovalEmailResent', 'MembershipApprovalEmailOutcome'],
   PROJECT: ['ProjectCreated', 'ProjectUpdated', 'ProjectSubmitted', 'ProjectDeleted', 'ProjectStatusChanged'],
   PUBLICATION: ['PublicationSubmitted', 'PublicationUNDER_REVIEW', 'PublicationSUBMITTED', 'PublicationAPPROVED', 'PublicationREJECTED', 'PublicationPUBLISHED'],
   GALLERY: ['GallerySubcategoryCreated', 'GallerySubcategoryUpdated', 'GallerySubcategoryDeleted', 'GalleryCollectionCreated', 'GalleryCollectionUpdated', 'GalleryCollectionDeleted', 'GalleryPhotoUploaded', 'GalleryPhotoUpdated', 'GalleryPhotoDeleted', 'GalleryReordered'],

@@ -50,38 +50,23 @@ export function verifyRegistrationClaimToken(
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
-function validateClaimShape(documents: RegistrationDocumentClaim[] | undefined) {
-  if (!Array.isArray(documents)) {
-    throw new ApiError(422, 'Required documents are missing', [
-      { field: 'documents', message: 'Profile and Credentials / Certifications / ID Card before submitting.' },
-    ]);
-  }
-
+function validateClaimShape(documents: RegistrationDocumentClaim[] | undefined, required: RegistrationDocumentKind[]) {
+  if (!Array.isArray(documents)) throw ApiError.unprocessable('Required documents are missing', [{ field: 'documents', message: 'Upload the required documents.' }]);
   const seen = new Set<string>();
-  for (const kind of REQUIRED_KINDS) {
-    const matching = documents.filter((doc) => doc.kind === kind);
-    if (matching.length !== 1) {
-      throw new ApiError(422, 'Required documents are missing', [
-        {
-          field: `documents.${kind}`,
-          message: kind === 'CV' ? 'Upload your Profile.' : 'Upload your Credentials / Certifications / ID Card.',
-        },
-      ]);
-    }
-    if (seen.has(kind)) {
-      throw new ApiError(422, 'Duplicate document type', [
-        { field: `documents.${kind}`, message: 'Upload one file for each required document type.' },
-      ]);
-    }
-    seen.add(kind);
+  for (const doc of documents) {
+    if (!REQUIRED_KINDS.includes(doc.kind) || seen.has(doc.kind)) throw ApiError.unprocessable('Invalid document type', [{ field: `documents.${doc.kind}`, message: 'Supply at most one file for each document type.' }]);
+    seen.add(doc.kind);
   }
+  for (const kind of required) if (!seen.has(kind)) throw ApiError.unprocessable('Required documents are missing', [{ field: `documents.${kind}`, message: kind === 'CV' ? 'Upload your Profile.' : 'Upload your Credentials / Certifications / ID Card.' }]);
+  if (new Set(documents.map(d => d.fileId)).size !== documents.length) throw ApiError.unprocessable('Use a different file for each document.');
 }
 
 export async function resolveRegistrationDocuments(
   documents: RegistrationDocumentClaim[] | undefined,
   db: PrismaLike = prisma,
+  required: RegistrationDocumentKind[] = REQUIRED_KINDS,
 ) {
-  validateClaimShape(documents);
+  validateClaimShape(documents, required);
   const resolved: Array<RegistrationDocumentClaim & { file: FileObject }> = [];
 
   for (const claim of documents!) {

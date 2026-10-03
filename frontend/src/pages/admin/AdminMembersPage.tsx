@@ -60,6 +60,7 @@ export default function AdminMembersPage() {
   const [institutionSearch, setInstitutionSearch] = useState('');
   const [countrySearch, setCountrySearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
+  const [archiveFilter, setArchiveFilter] = useState('active');
   const [statusFilter, setStatusFilter] = useState<'All' | AccountStatusLabel>('All');
   const [regFrom, setRegFrom] = useState('');
   const [regTo, setRegTo] = useState('');
@@ -91,12 +92,13 @@ export default function AdminMembersPage() {
         country: debounced.countrySearch,
         professionalType: typeFilter,
         status: statusFilter,
+        archive: archiveFilter,
         registeredFrom: regFrom,
         registeredTo: regTo,
         page,
         limit: pageSize,
       }),
-    [debounced, typeFilter, statusFilter, regFrom, regTo, page, pageSize, reloadKey],
+    [debounced, typeFilter, archiveFilter, statusFilter, regFrom, regTo, page, pageSize, reloadKey],
   );
 
   const pageItems = data?.items ?? [];
@@ -109,7 +111,7 @@ export default function AdminMembersPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debounced, typeFilter, statusFilter, regFrom, regTo, pageSize]);
+  }, [debounced, typeFilter, archiveFilter, statusFilter, regFrom, regTo, pageSize]);
 
   const refresh = () => setReloadKey((k) => k + 1);
   const safePage = page;
@@ -224,6 +226,7 @@ export default function AdminMembersPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <SelectInput label="Application archive" value={archiveFilter} onChange={e => { setArchiveFilter(e.target.value); setPage(1); }}><option value="active">Not archived</option><option value="archived">Archived</option><option value="all">All records</option></SelectInput>
             <Button
               variant={filtersOpen ? 'primary' : 'outline'}
               size="sm"

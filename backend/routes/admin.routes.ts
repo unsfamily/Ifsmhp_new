@@ -106,8 +106,8 @@ router.post('/members/:id/review', validate({ params: idParams, body: noteBody }
   sendSuccess(res, await service.reviewMember(req.params.id!, req.user!.id, req.body.reviewNotes), 'Application moved to review');
 }));
 
-router.post('/members/:id/approve', validate({ params: idParams, body: noteBody }), asyncHandler(async (req, res) => {
-  sendSuccess(res, await service.approveMember(req.params.id!, req.user!.id, req.body.reviewNotes), 'Membership approved and permanent ID issued');
+router.post('/members/:id/approve', requireVerifiedSession, validate({ params: idParams, body: noteBody.extend({ memberId: z.string().max(100).optional() }) }), asyncHandler(async (req, res) => {
+  sendSuccess(res, await service.approveMember(req.params.id!, req.user!.id, req.body.reviewNotes, req.body.memberId), 'Membership approved and permanent ID issued');
 }));
 
 router.post('/members/:id/reject', validate({ params: idParams, body: noteBody.extend({ reason: z.string().min(10).max(4000) }) }), asyncHandler(async (req, res) => {

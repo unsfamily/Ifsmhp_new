@@ -240,6 +240,7 @@ describe('registration document persistence and retrieval', () => {
     const adminToken = await authTokenFor({ ...admin, role: 'ADMIN' });
     const applicationId = verified.body.data.applicationId as string;
     expect((await request(app).post(`/api/v1/admin/members/${applicationId}/review`).auth(adminToken, { type: 'bearer' }).send({})).status).toBe(200);
+    expect((await request(app).post(`/api/v1/admin/membership/${applicationId}/evidence-review`).auth(adminToken, { type: 'bearer' }).send({})).status).toBe(200);
     const approval = await request(app).post(`/api/v1/admin/members/${applicationId}/approve`).auth(adminToken, { type: 'bearer' }).send({ reviewNotes: 'Private review note' });
     expect(approval.status).toBe(200);
     const email = `${PREFIX}.workflow@example.test`;

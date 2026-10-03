@@ -267,6 +267,7 @@ router.get(
       where: { id: req.params.id },
       include: {
         credentials: { include: { profile: true } },
+        membershipLetters: { include: { application: true } },
         projectFiles: { include: { project: true } },
         publicationFiles: { include: { publication: true } },
         messageAttachments: { include: { message: { include: { conversation: { include: { participants: true } } } } } },
@@ -299,6 +300,7 @@ router.get(
       user.role === 'ADMIN' ||
       (!file.messageAttachments.length && (file.visibility === 'PUBLIC' || file.uploaderId === user.id)) ||
       file.credentials.some((item) => item.profile.userId === user.id) ||
+      file.membershipLetters.some(item => item.application.userId === user.id) ||
       file.projectFiles.some((item) => !item.project.deletedAt && item.project.ownerId === user.id) ||
       file.publicationFiles.some((item) => item.publication.authorId === user.id) ||
       // Attaching a file to a message is what grants the other participants

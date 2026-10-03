@@ -1,6 +1,6 @@
 # Administration Settings
 
-The nine administration tabs now use persisted configuration. Only supported workflows are editable. No payments, SSO, MFA, delegation, newsletters, backup jobs, or retention deletion systems are implied by saving a setting.
+The nine administration tabs now use persisted configuration. Only supported workflows are editable. Membership now supports manual fee tracking, document/reference requirements, configurable ID issuance, and retained-record archival; see [Membership settings](membership-settings.md). Online payments, SSO, MFA, delegation, newsletters, backup jobs, and retention deletion systems remain unavailable.
 
 ## API and concurrency
 
@@ -40,7 +40,7 @@ Requested-by deadlines in support reports remain a distinct existing measure, no
 
 ## Unavailable and read-only controls
 
-- Membership IDs remain automatically issued in the existing `IFSMHP-YYYY-NNNNNN` format; CV and credential document requirements remain unchanged. Fees, waivers, referrals, references and archival automation are unavailable.
+- Membership controls are editable and apply to future applications. Historical applications retain their original policy. See [Membership settings](membership-settings.md) for ID issuance, optional documents, manual fees/dues, waivers, referrals, letters, and archival.
 - Automatic recording/transcription, Chatham House enforcement, event digests and public iCal feeds are unavailable.
 - Newsletter/digest delivery, newsletter PDFs and automatic support acknowledgement templates are unavailable. Existing announcements remain supported.
 - Escalation, double-blind review, COI checks, reviewer limits and delegation are unavailable; no fictional reviewers remain.
@@ -55,9 +55,19 @@ The page keeps the nine tabs, section cards and paired save/reset controls. Draf
 
 Saved settings refresh shared public configuration and affected data readers; other views refresh on focus. Public configuration also refreshes once per visible minute. Dirty settings drafts are not replaced by focus refresh. Aborted/stale responses cannot undo newer mutations. Account changes and access denial clear protected values. Settings routes never use mock fallback. The configuration audit link initializes the `SETTINGS` module filter. CSV export uses authenticated blob downloads and revokes object URLs.
 
+## Draft synchronization repair (2026-10-03)
+
+Settings already use the existing API and MySQL tables; this repair does not introduce new fields, endpoints, defaults, or migrations. That synchronization repair preserved the existing nine-tab UI. The later membership extension is documented separately below.
+
+Each unsaved section keeps its draft, original saved values, and original revision together. Focus refreshes preserve that trio, including repeated refreshes where another administrator happens to save the same value as the draft. Saving one section adopts the newest values and revisions for untouched sections and preserves unsaved sections. Reviewing a conflict updates only that section’s baseline; other unsaved sections must still resolve their own conflicts before saving.
+
+Requests update values, errors, and loading indicators only while they belong to the current account and remain the latest request. Starting a save cancels an older refresh and ends its loading state. Access denial clears protected drafts and pending UI state. Recoverable errors retain entered values.
+
+For an installation with the settings migration already applied, deploy the rebuilt frontend from this revision; no settings initialization or database change is needed. For older installations, follow the migration instructions below after backing up the intended database. The initializer is optional for materializing missing defaults and must never replace existing values. No hosted release is performed without an identified target.
+
 ## Migration and deployment
 
-From `backend/`, against the intended database:
+Back up the intended database first. From `backend/` (without another `--prefix backend`), run:
 
 ```sh
 npm run db:deploy
@@ -72,7 +82,18 @@ Migration `20260925000000_administration_settings` only adds `SettingRevision`. 
 
 No new secret or infrastructure environment variables are required. The SMTP address remains `MAIL_FROM` (or the existing SMTP-user fallback). Unsupported infrastructure must be configured outside this page.
 
-## Actual verification
+## Repair verification (2026-10-03)
+
+- **279 integration tests passed across 13 suites**, with audit contract checks enabled: settings (46), audit log, authentication/account state, OTP, security, events/public events, announcements, membership queue, administrator publications/projects/reports, and support. The membership suite initially lacked its required administrator; all 17 tests passed after creating a disposable administrator in the isolated database. No application database was seeded.
+- **17 browser scenarios passed**, with no page errors. Added initial-load failure/retry without mock fallback, a second administrator updating an untouched section, repeated refreshes with coincident draft values, independent conflict review for multiple dirty sections, database comparisons, and actual logout/password-login persistence across all editable sections. Existing save/retry, reset, stale-read, consumer, audit export, and desktop/mobile scenarios also passed. The revocation assertion now checks the current authentication flow: protected settings disappear and the user returns to sign-in.
+- **26 frontend session regression tests passed**, including stale responses across logout/account switches and recoverable refresh failures.
+- Prisma schema validation, frontend/backend typechecks, production builds, and lint passed. Two existing Messages-page dependency warnings and the existing frontend bundle-size warning remain; no new lint warnings were introduced.
+- Browser screenshots and results: `/private/tmp/ifsmhp-settings-repair-browser/`. Desktop and mobile screenshots were visually reviewed. The in-app browser connection was unavailable; the existing standalone Playwright runner was used.
+- Tests used local isolated MySQL (`ifsmhp_gallery_test` on port 3317), temporary upload storage, stubbed/disabled SMTP, and disabled background mail workers. The browser runner now requires an explicit local database URL whose database name ends in `_test`. No application settings or production records were changed, and no new database migration was required.
+
+The results above cover this repair. The historical results below describe the earlier implementation and are not a claim that its full test suite or deployment was repeated here.
+
+## Historical verification (initial settings implementation)
 
 - Full backend regression with `AUDIT_CAPTURE_CHECKS=1`: **491 tests passed, 24 suites**. Includes **44 settings integration tests** using real authentication sessions, isolated MySQL and temporary files; Nodemailer is stubbed for mail-rendering assertions.
 - Settings coverage includes persistence, legacy values, section concurrency, conflicts, no-ops, audit rollback, validation, public allowlisting, role/session denial, revoked sessions, header injection/HTML escaping, per-delivery refresh, event and announcement HTTP/service defaults, stage-age handling, and actual project/support/publication SLA consumers.

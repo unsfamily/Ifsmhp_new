@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   IdCard,
   ShieldCheck,
-  Clock,
   Loader2,
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -26,7 +25,6 @@ import { homePathFor, useAuth } from '../../context/AuthContext';
 import { requestOtp, type SessionUser } from '../../api/auth';
 import { normalizeError, type NormalizedApiError } from '../../api/client';
 import { useOtpFlow } from '../../hooks/useOtpFlow';
-import { maskEmail } from '../../utils/maskEmail';
 
 const emailSchema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -139,18 +137,11 @@ function OtpSignIn({
   onUsePassword: () => void;
 }) {
   const { refreshUser } = useAuth();
-  // Applicants verify successfully but have nowhere to go until an admin
-  // approves them, so that outcome gets its own panel rather than a redirect.
-  const [pendingApproval, setPendingApproval] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const otp = useOtpFlow('LOGIN', {
     onVerified: async (user) => {
       await refreshUser().catch(() => undefined);
-      if (user.role === 'APPLICANT') {
-        setPendingApproval(true);
-        return;
-      }
       onSignedIn(user);
     },
   });
@@ -170,34 +161,6 @@ function OtpSignIn({
       setErrorMsg(normalizeError(error).message);
     }
   };
-
-  if (pendingApproval) {
-    return (
-      <div>
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brass-100">
-          <Clock className="h-6 w-6 text-brass-700" />
-        </div>
-        <h1 className="mt-5 font-display text-2xl font-semibold text-forum-900">
-          Your application is under review
-        </h1>
-        <p className="mt-2 text-sm text-ink-muted leading-relaxed">
-          We verified <span className="font-medium text-ink">{maskEmail(otp.email)}</span>, but your
-          IFSMHP membership is still being reviewed. Dashboard access opens as soon as the review
-          committee approves your credentials and issues your Member ID.
-        </p>
-        <div className="mt-6 rounded-lg border border-paper-border bg-paper p-4">
-          <p className="text-sm text-ink-muted">
-            Reviews usually take 3-5 business days. We will email you as soon as there is news.
-          </p>
-        </div>
-        <div className="mt-8">
-          <Button as="link" to="/" size="lg" variant="outline" className="w-full">
-            Return Home
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   if (otp.active) {
     return (

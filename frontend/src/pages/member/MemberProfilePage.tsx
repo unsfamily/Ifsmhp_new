@@ -1,3 +1,4 @@
+import MembershipPanel from '../../components/membership/MembershipPanel';
 import { useEffect, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import {
@@ -117,6 +118,7 @@ function ScientistProfile() {
 
   return (
     <div className="space-y-6">
+      <MembershipPanel />
       <Card>
         <CardContent className="p-6 sm:p-8">
           <div className="flex flex-col lg:flex-row gap-6 items-start">

@@ -42,7 +42,7 @@ describe('Administration settings with MySQL and real sessions', () => {
   });
   it('preserves legacy settings and uses existing timezone and approval SLA', async () => {
     await prisma.platformSetting.createMany({ data: [{ section: 'events', key: 'default_timezone', value: 'Asia/Kolkata' }, { section: 'membership', key: 'approval_sla_days', value: 9 }, { section: 'legacy', key: 'private', value: 'preserve-me' }] });
-    const d = (await get()).body.data; expect(d.values.general.timezone).toBe('Asia/Kolkata'); expect(d.values.membership).toEqual({ pendingDays: 9, reviewDays: 9 });
+    const d = (await get()).body.data; expect(d.values.general.timezone).toBe('Asia/Kolkata'); expect(d.values.membership).toMatchObject({ pendingDays: 9, reviewDays: 9 });
     expect((await patch('general', { shortName: 'New name' })).status).toBe(200); expect(await prisma.platformSetting.count()).toBe(4);
     expect((await prisma.platformSetting.findUniqueOrThrow({ where: { section_key: { section: 'legacy', key: 'private' } } })).value).toBe('preserve-me');
   });
@@ -51,6 +51,25 @@ describe('Administration settings with MySQL and real sessions', () => {
     const r = await patch(section, values[section]); expect(r.status).toBe(200); expect(r.body.data.sections[section].revision).toBe(1);
     expect((await get()).body.data.values[section]).toMatchObject(values[section]);
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { actorId: id, action: 'PlatformSettingsUpdated', entityId: section }, orderBy: { createdAt: 'desc' } }); expect(audit.module).toBe('SETTINGS'); expect(audit.metadata).toHaveProperty('changedFields');
+  });
+  it('returns current untouched sections and rejects stale edits independently', async () => {
+    expect((await patch('review', { publicationDays: 23 })).status).toBe(200);
+    const savedGeneral = await patch('general', { shortName: 'Current organization' });
+    expect(savedGeneral.status).toBe(200);
+    expect(savedGeneral.body.data.values.review.publicationDays).toBe(23);
+    expect(savedGeneral.body.data.sections.review.revision).toBe(1);
+    expect((await patch('review', { publicationDays: 24 }, 0)).status).toBe(409);
+    expect((await get()).body.data.values.review.publicationDays).toBe(23);
+    expect((await patch('review', { publicationDays: 24 }, 1)).status).toBe(200);
+    expect((await get()).body.data.values.general.shortName).toBe('Current organization');
+  });
+  it('leaves settings unchanged after malformed patches and preserves their field errors', async () => {
+    const before = (await get()).body.data;
+    const invalid = await patch('general', { contactEmail: 'not-an-email', timezone: 'Invalid/Timezone' });
+    expect(invalid.status).toBe(422);
+    expect(JSON.stringify(invalid.body)).toContain('contactEmail');
+    expect(JSON.stringify(invalid.body)).toContain('timezone');
+    expect((await get()).body.data).toEqual(before);
   });
   it('suppresses unchanged revisions, timestamps and audit entries', async () => {
     await patch('events', { capacity: 10 }); const first = (await get()).body.data; const count = await prisma.auditLog.count();
@@ -94,7 +113,7 @@ describe('Administration settings with MySQL and real sessions', () => {
   });
   it('applies announcement defaults only to new drafts without explicit overrides', async () => {
     await patch('communications', { announcementSignoff: true });
-    const response = await request(app).post('/api/v1/admin/announcements').set('Authorization', `Bearer ${token}`).send({ subject: 'Settings announcement', requestId: randomUUID() }); expect(response.status).toBe(201); const first = response.body.data; expect(first.sendSABPreview).toBe(true);
+    const response = await request(app).post('/api/v1/admin/announcements').set('Authorization', `Bearer ${token}`).send({ subject: 'Settings announcement', requestId: randomUUID() }); expect(response.status, JSON.stringify(response.body)).toBe(201); const first = response.body.data; expect(first.sendSABPreview).toBe(true);
     const override = await saveAnnouncement(id, { subject: 'Explicit false', sendSABPreview: false, requestId: randomUUID() }); expect(override.sendSABPreview).toBe(false);
     await patch('communications', { announcementSignoff: false }, 1); const edited = await saveAnnouncement(id, { subject: 'Changed subject', requestId: randomUUID(), expectedRevision: first.revision }, first.id); expect(edited.sendSABPreview).toBe(true);
   });

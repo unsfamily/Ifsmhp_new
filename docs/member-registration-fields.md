@@ -47,3 +47,7 @@ On 2026-10-03, 100 focused integration tests and nine browser scenario groups pa
 Migration preservation was verified in the disposable database and after deployment to the configured local application database: all existing fields in its nine users and eight member profiles remained identical, with all four new fields null. A restricted-permission full SQL backup and profile snapshot were saved under `/private/tmp/ifsmhp-registration-backup-2026-10-03T06-27-04-107Z` before deployment.
 
 The existing local `tsx watch` API was reloaded after migration; `/api/v1/health` on its configured port 5001 returned HTTP 200. Temporary browser/API test services were stopped after verification.
+
+## Configurable membership requirements
+
+See [Membership settings](membership-settings.md) for configurable documents, references, manual fees, immutable registration-policy snapshots, and the applicant status page. Historical applications and outstanding OTP drafts keep their original requirements.

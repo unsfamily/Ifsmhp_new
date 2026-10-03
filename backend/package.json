@@ -2,7 +2,7 @@
   "name": "ifsmhp-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "IFSMHP platform — REST API",
+  "description": "IFSMHP platform \u2014 REST API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch server.ts",
@@ -37,7 +37,8 @@
     "test:chat-attachments:browser": "node tests/chat-attachments.browser.cjs",
     "test:member-status:browser": "node tests/community-member-status.browser.cjs",
     "test:community-session:browser": "node tests/community-session.browser.cjs",
-    "test:registration:browser": "node tests/registration-fields.browser.cjs"
+    "test:registration:browser": "node tests/registration-fields.browser.cjs",
+    "test:membership:browser": "node tests/membership-settings.browser.cjs"
   },
   "prisma": {
     "schema": "database/prisma/schema.prisma",

@@ -42,6 +42,7 @@ const envSchema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
   UPLOAD_STORAGE_PATH: z.string().default('./uploads'),
   ADMIN_AVATAR_MAX_UPLOAD_MB: z.coerce.number().int().positive().max(25).default(5),
+  MEMBERSHIP_WORKER_ENABLED: z.enum(['true', 'false']).default('true').transform(v => v === 'true'),
   ADMIN_EMAIL_WORKER_ENABLED: z.enum(['true', 'false']).default('true').transform(v => v === 'true'),
   GALLERY_MAX_UPLOAD_MB: z.coerce.number().int().positive().max(1024).default(100),
   GALLERY_FFPROBE_PATH: z.string().optional(),

@@ -279,6 +279,17 @@ model MembershipApplication {
   user                  User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   profile               MemberProfile              @relation(fields: [profileId], references: [id], onDelete: Cascade)
   histories             ApplicationStatusHistory[]
+  policySnapshot        Json?
+  policyRevision        Int?
+  evidenceReviewedAt    DateTime?
+  evidenceReviewedBy    String?
+  archivedAt            DateTime?
+  archiveSuppressed     Boolean @default(false)
+  referrals             MembershipReferral[]
+  referenceLetters      MembershipReferenceLetter[]
+  charges               MembershipCharge[]
+
+  @@index([status, archivedAt])
 }
 
 model ApplicationStatusHistory {
@@ -349,6 +360,7 @@ model FileObject {
   deletedAt          DateTime?
   uploader           User?                      @relation("UploadedFiles", fields: [uploaderId], references: [id])
   credentials        ProfessionalCredential[]   @relation("CredentialFile")
+  membershipLetters  MembershipReferenceLetter[]
   projectFiles       ProjectFile[]
   publicationFiles   PublicationFile[]
   messageAttachments MessageAttachment[]
@@ -1433,4 +1445,63 @@ model SettingRevision {
   revision Int @default(0)
   updatedBy String?
   updatedAt DateTime?
+}
+
+model MembershipReferral {
+  id String @id @default(cuid())
+  applicationId String
+  name String @db.VarChar(191)
+  email String @db.VarChar(191)
+  organization String @db.VarChar(200)
+  application MembershipApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  @@unique([applicationId, email])
+}
+model MembershipReferenceLetter {
+  id String @id @default(cuid())
+  applicationId String
+  fileId String @unique
+  application MembershipApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  file FileObject @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  @@index([applicationId])
+}
+model MembershipCharge {
+  id String @id @default(cuid())
+  applicationId String
+  kind String @db.VarChar(20)
+  periodYear Int
+  amount Decimal @db.Decimal(10, 2)
+  currency String @db.VarChar(3)
+  dueAt DateTime
+  createdAt DateTime @default(now())
+  application MembershipApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  payments MembershipPayment[]
+  waivers MembershipWaiver[]
+  @@unique([applicationId, kind, periodYear])
+}
+model MembershipPayment {
+  id String @id @default(cuid())
+  chargeId String
+  requestId String @unique
+  reference String @db.VarChar(191)
+  recordedBy String
+  createdAt DateTime @default(now())
+  reversedAt DateTime?
+  reversedBy String?
+  correctionReason String? @db.Text
+  charge MembershipCharge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  @@index([chargeId])
+}
+model MembershipWaiver {
+  id String @id @default(cuid())
+  chargeId String
+  requestId String @unique
+  reason String @db.Text
+  status String @default("PENDING") @db.VarChar(20)
+  requestedBy String
+  decidedBy String?
+  decisionReason String? @db.Text
+  createdAt DateTime @default(now())
+  decidedAt DateTime?
+  charge MembershipCharge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  @@index([chargeId])
 }

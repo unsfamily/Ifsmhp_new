@@ -1,3 +1,4 @@
+import { referralSchema, fileClaimSchema, waiverReason } from '../domain/membership';
 import { securityAudit } from '../services/audit.service';
 import { sendFailure } from '../utils/apiResponse';
 import { Router } from 'express';
@@ -48,7 +49,11 @@ const registerSchema = z.object({
     kind: z.enum(['CV', 'CREDENTIAL']),
     fileId: z.string().min(1),
     claimToken: z.string().min(20),
-  }).strict()).min(2, 'Upload both required documents'),
+  }).strict()).max(2).default([]),
+  policyRevision: z.number().int().nonnegative().optional(),
+  referrals: z.array(referralSchema).max(5).optional(),
+  referenceLetters: z.array(fileClaimSchema).max(5).optional(),
+  waiverReason: waiverReason.optional(),
   agreeTerms: z.literal(true, { invalid_type_error: 'You must agree to the terms' }),
 }).strict();
 

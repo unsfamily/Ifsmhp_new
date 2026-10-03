@@ -1,5 +1,7 @@
+import RegistrationRequirements, { type ReferralInput } from '../../components/membership/RegistrationRequirements';
+import { membershipService, type RegistrationPolicy } from '../../services/membershipService';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Mail,
   ArrowRight,
@@ -131,7 +133,12 @@ function makePreviewUrl(file: File, mimeType: string) {
 }
 
 export default function RegisterPage() {
+  const navigate = useNavigate();
   const { refreshUser } = useAuth();
+  const [policy, setPolicy] = useState<RegistrationPolicy | null>(null), [policyError, setPolicyError] = useState(''), [policyReload, setPolicyReload] = useState(0);
+  const [referrals, setReferrals] = useState<ReferralInput[]>([]), [letters, setLetters] = useState<RegistrationDocumentUpload[]>([]), [waiver, setWaiver] = useState(''), [lettersBusy, setLettersBusy] = useState(false);
+  useEffect(() => { const controller = new AbortController(); setPolicyError(''); membershipService.policy(controller.signal).then(p => { if (!controller.signal.aborted) setPolicy(p); }).catch(e => { if (!controller.signal.aborted) setPolicyError(normalizeError(e).message); }); return () => controller.abort(); }, [policyReload]);
+  const isRequired = (kind: RegistrationDocumentKind) => kind === 'CV' ? policy?.requireProfile ?? true : policy?.requireCredential ?? true;
   const [submitted, setSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [documentUploads, setDocumentUploads] = useState(initialUploadState);
@@ -145,6 +152,7 @@ export default function RegisterPage() {
       // the dashboard link on the success panel.
       await refreshUser().catch(() => undefined);
       setSubmitted(true);
+      navigate('/application', { replace: true });
     },
   });
 
@@ -176,7 +184,7 @@ export default function RegisterPage() {
     })
     .filter(Boolean) as Array<{ kind: RegistrationDocumentKind; fileId: string; claimToken: string }>;
 
-  const documentsReady = documentSlots.every((slot) => documentUploads[slot.kind].status === 'uploaded' && documentUploads[slot.kind].uploaded);
+  const documentsReady = documentSlots.every((slot) => !isRequired(slot.kind) || (documentUploads[slot.kind].status === 'uploaded' && documentUploads[slot.kind].uploaded));
   const documentsBusy = documentSlots.some((slot) => ['uploading', 'removing'].includes(documentUploads[slot.kind].status));
   const documentsFailed = documentSlots.some((slot) => documentUploads[slot.kind].status === 'failed');
 
@@ -306,16 +314,21 @@ export default function RegisterPage() {
     education: data.education,
     researchInterests: data.researchInterests,
     documents: documentClaims,
+    policyRevision: policy?.revision,
+    referrals: referrals.filter(r => r.name || r.email || r.organization),
+    referenceLetters: letters.map(l => ({ fileId: l.id, claimToken: l.claimToken })),
+    ...(policy?.applicationFeeEnabled && policy.waiversEnabled && waiver.trim() ? { waiverReason: waiver.trim() } : {}),
     agreeTerms: data.agreeTerms,
   });
 
   const onSubmit = async (data: FormData) => {
     setErrorMsg(null);
-    if (!documentsReady || documentClaims.length !== documentSlots.length) {
-      setErrorMsg('Upload both required documents before submitting your application.');
+    if (!policy || policyError) { setErrorMsg('Load the current membership requirements before submitting.'); return; }
+    if (!documentsReady) {
+      setErrorMsg('Upload the required documents before submitting your application.');
       setDocumentUploads((current) => ({
-        CV: current.CV.uploaded ? current.CV : { ...current.CV, error: 'Upload your Profile.' },
-        CREDENTIAL: current.CREDENTIAL.uploaded
+        CV: !isRequired('CV') || current.CV.uploaded ? current.CV : { ...current.CV, error: 'Upload your Profile.' },
+        CREDENTIAL: !isRequired('CREDENTIAL') || current.CREDENTIAL.uploaded
           ? current.CREDENTIAL
           : { ...current.CREDENTIAL, error: 'Upload your Credentials / Certifications / ID Card.' },
       }));
@@ -327,7 +340,8 @@ export default function RegisterPage() {
       otp.begin(await requestOtp(payloadFrom(data)));
     } catch (error) {
       const normalized = normalizeError(error);
-      setErrorMsg(normalized.message);
+      setErrorMsg([normalized.message, ...Object.values(normalized.fieldErrors)].join(' '));
+      if (normalized.status === 409) { setPolicy(null); setPolicyReload(n => n + 1); }
       for (const [field, message] of Object.entries(normalized.fieldErrors)) {
         if (field === 'fullName') setError('firstName', { type: 'server', message });
         else if (field in schema.shape) setError(field as keyof FormData, { type: 'server', message });
@@ -368,8 +382,8 @@ export default function RegisterPage() {
             <Button as="link" to="/" size="lg" variant="outline">
               Return Home
             </Button>
-            <Button as="link" to="/login" size="lg">
-              Go to Login
+            <Button as="link" to="/application" size="lg">
+              View application
             </Button>
           </div>
         </div>
@@ -487,6 +501,9 @@ export default function RegisterPage() {
                 </div>
               )}
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                {policyError && <div role="alert">{policyError}<Button type="button" onClick={() => setPolicyReload(n => n + 1)}>Retry membership requirements</Button></div>}
+                {!policy && !policyError && <p role="status">Loading membership requirements…</p>}
+                {policy && <RegistrationRequirements policy={policy} referrals={referrals} setReferrals={setReferrals} letters={letters} setLetters={setLetters} waiver={waiver} setWaiver={setWaiver} setUploading={setLettersBusy} />}
                 <div>
                   <h2 className="font-display text-xl font-semibold text-forum-900 flex items-center gap-2">
                     <User className="h-5 w-5 text-forum-700" />
@@ -640,7 +657,7 @@ export default function RegisterPage() {
                           <div className="mb-1.5 flex items-center justify-between gap-3">
                             <label className="block text-sm font-medium text-ink">
                               {slot.label}
-                              <span className="ml-1 text-danger-600">*</span>
+                              {isRequired(slot.kind) ? <span className="ml-1 text-danger-600">*</span> : <span className="ml-1 text-ink-subtle">(optional)</span>}
                             </label>
                             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass}`}>
                               {['uploading', 'removing'].includes(state.status) && <RefreshCw className="h-3 w-3 animate-spin" />}
@@ -786,7 +803,7 @@ export default function RegisterPage() {
                     type="submit"
                     size="lg"
                     className="w-full sm:w-auto"
-                    disabled={isSubmitting || documentsBusy || documentsFailed || !documentsReady}
+                    disabled={isSubmitting || documentsBusy || documentsFailed || !documentsReady || lettersBusy || !policy || !!policyError}
                   >
                     <Send className="h-4.5 w-4.5" />
                     {isSubmitting

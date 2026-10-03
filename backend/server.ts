@@ -1,3 +1,4 @@
+import { startMembershipWorker } from './services/membership-jobs.service';
 import { startAdminNotificationWorker } from './services/admin-notifications.service';
 import { createApp } from './app';
 import { env } from './config';
@@ -7,6 +8,7 @@ import { startEventWorker } from './services/event-jobs.service';
 import { startAnnouncementWorker } from './services/announcement-jobs.service';
 
 const app = createApp();
+const stopMembershipWorker = startMembershipWorker();
 const stopAdminNotificationWorker = startAdminNotificationWorker();
 const stopEventWorker = startEventWorker();
 const stopAnnouncementWorker = startAnnouncementWorker();
@@ -25,6 +27,7 @@ const server = app.listen(env.PORT, () => {
 function shutdown(signal: string): void {
   logger.info(`Received ${signal}, shutting down`);
   server.close(async () => {
+    await stopMembershipWorker();
     await stopAdminNotificationWorker();
     await stopEventWorker();
     await stopAnnouncementWorker();

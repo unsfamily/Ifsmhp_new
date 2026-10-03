@@ -1,3 +1,4 @@
+import { membershipDetail, lockApplication, approvalProblems, issueMembershipId, policyFor, createCharge } from './membership-policy.service';
 import { effectiveSettings, membershipAge } from './settings.service';
 import { notifyAdmins } from './admin-notifications.service';
 import { randomUUID as adminNoticeId } from 'node:crypto';
@@ -1693,6 +1694,9 @@ export async function adminMembers(req: Request) {
       ? { submittedAt: { ...(submittedFrom ? { gte: submittedFrom } : {}), ...(submittedTo ? { lte: submittedTo } : {}) } }
       : {}),
   };
+  const archive = String(req.query.archive ?? 'active');
+  if (!['active', 'archived', 'all'].includes(archive)) throw ApiError.unprocessable('Invalid archive filter.');
+  if (archive !== 'all') applicationWhere.archivedAt = archive === 'archived' ? { not: null } : null;
   const hasApplicationFilter = Object.keys(applicationWhere).length > 0;
 
   const where: Prisma.UserWhereInput = {
@@ -1777,6 +1781,7 @@ function serializeMember(
     professionalType: user.memberProfile?.professionalType ?? 'Applicant',
     institution: user.memberProfile?.institution ?? '',
     country: user.memberProfile?.country ?? '',
+    archivedAt: user.membershipApplication?.archivedAt ?? null,
     registrationDate: user.createdAt,
     submittedAt: user.membershipApplication?.submittedAt,
     /** Application status — what the review queue filters and displays. */
@@ -1807,6 +1812,7 @@ export async function adminMemberDetail(id: string) {
   });
   if (!application) throw ApiError.notFound('Member application not found');
   return {
+    membership: await membershipDetail(application.id),
     id: application.id,
     applicationId: application.applicationCode,
     fullName: application.user.fullName,
@@ -1871,10 +1877,7 @@ export async function adminMemberDetail(id: string) {
  */
 export async function reviewMember(id: string, actorId: string, note?: string) {
   return prisma.$transaction(async tx => {
-    const target = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }, { applicationCode: id }] } });
-    if (!target) throw ApiError.notFound('Member application not found');
-    await tx.$queryRaw`SELECT id FROM MembershipApplication WHERE id = ${target.id} FOR UPDATE`;
-    const app = await tx.membershipApplication.findUniqueOrThrow({ where: { id: target.id } });
+    const app = await lockApplication(tx, id);
     if (app.status === 'UNDER_REVIEW') return { status: applicationStatusLabel[app.status], changed: false };
     if (app.status !== 'PENDING') throw new ApiError(409, 'Only a pending application can be moved to review');
     await tx.membershipApplication.update({ where: { id: app.id }, data: { status: 'UNDER_REVIEW' } });
@@ -1884,22 +1887,17 @@ export async function reviewMember(id: string, actorId: string, note?: string) {
   });
 }
 
-export async function approveMember(id: string, actorId: string, note?: string) {
+export async function approveMember(id: string, actorId: string, note?: string, suppliedMemberId?: string) {
   const result = await prisma.$transaction(async (tx) => {
-    const candidate = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }] } });
-    if (!candidate) throw ApiError.notFound('Member application not found');
-    await tx.$queryRaw`SELECT id FROM MembershipApplication WHERE id = ${candidate.id} FOR UPDATE`;
-    const app = await tx.membershipApplication.findUniqueOrThrow({ where: { id: candidate.id }, include: { user: true, profile: true } });
+    const app = await lockApplication(tx, id);
     if (!['PENDING', 'UNDER_REVIEW'].includes(app.status)) throw new ApiError(409, 'Application is not pending review');
-    const year = new Date().getFullYear();
-    const seq = await tx.memberIdSequence.upsert({
-      where: { year },
-      create: { year, nextNumber: 2 },
-      update: { nextNumber: { increment: 1 } },
-    });
-    const number = seq.nextNumber - 1;
-    const memberId = `IFSMHP-${year}-${number.toString().padStart(6, '0')}`;
-    await tx.memberProfile.update({ where: { id: app.profileId }, data: { memberId, approvedAt: new Date() } });
+    const problems = approvalProblems(app);
+    if (problems.length) throw ApiError.unprocessable('Complete the membership requirements before approval.', problems.map(message => ({ field: 'membership', message })));
+    const approvedAt = new Date();
+    const memberId = await issueMembershipId(tx, app, suppliedMemberId, approvedAt);
+    const policy = policyFor(app.policySnapshot);
+    if (policy.annualDuesEnabled) await createCharge(tx, app.id, 'ANNUAL', policy, approvedAt, actorId);
+    await tx.memberProfile.update({ where: { id: app.profileId }, data: { memberId, approvedAt } });
     await tx.user.update({ where: { id: app.userId }, data: { role: 'MEMBER', status: 'ACTIVE' } });
     await tx.membershipApplication.update({ where: { id: app.id }, data: { status: 'APPROVED', reviewedAt: new Date(), reviewedById: actorId, reviewNotes: note } });
     await tx.applicationStatusHistory.create({ data: { applicationId: app.id, fromStatus: app.status, toStatus: 'APPROVED', actorId, note } });
@@ -1907,7 +1905,7 @@ export async function approveMember(id: string, actorId: string, note?: string) 
     await writeAudit({ actorId, actorLabel: actorId, actorRole: 'ADMIN', action: 'MembershipApproved', changes: { status: { before: app.status, after: 'APPROVED' } }, entity: `User ${app.userId} / ${memberId}`, severity: 'SUCCESS', description: `Approved membership application for ${app.user.fullName}. Issued ${memberId}.` }, tx);
     await writeAudit({ actorId, action: 'MemberIdIssued', entity: `MemberProfile ${app.profileId}`, changes: { memberId: { before: app.profile.memberId, after: memberId } } }, tx);
     return { memberId, applicationId: app.id, email: app.user.email, fullName: app.user.fullName };
-  });
+  }).catch(error => { if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') throw new ApiError(409, 'This member ID is already assigned.', [{ field: 'memberId', message: 'Choose another member ID.' }]); throw error; });
 
   // Deliberately outside the transaction: the approval is already committed and
   // a member ID has been issued, so a mail failure must not undo any of it. The
@@ -1975,10 +1973,8 @@ export async function resendApprovalEmail(id: string, actorId: string) {
 
 export async function rejectMember(id: string, actorId: string, reason: string, note?: string) {
   return prisma.$transaction(async tx => {
-    const target = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }] } });
-    if (!target) throw ApiError.notFound('Member application not found');
-    await tx.$queryRaw`SELECT id FROM MembershipApplication WHERE id = ${target.id} FOR UPDATE`;
-    const app = await tx.membershipApplication.findUniqueOrThrow({ where: { id: target.id } });
+    const app = await lockApplication(tx, id);
+    if (!['PENDING', 'UNDER_REVIEW', 'REJECTED'].includes(app.status)) throw ApiError.conflict('Only pending applications can be rejected.');
     if (app.status === 'REJECTED') return { status: 'REJECTED', reason: app.rejectionReason };
     await tx.user.update({ where: { id: app.userId }, data: { status: 'REJECTED' } });
     await tx.membershipApplication.update({ where: { id: app.id }, data: { status: 'REJECTED', reviewedAt: new Date(), reviewedById: actorId, rejectionReason: reason, reviewNotes: note } });

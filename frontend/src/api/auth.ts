@@ -36,6 +36,10 @@ export interface RegisterPayload {
   education: string;
   researchInterests: string;
   documents: RegistrationDocumentClaim[];
+  policyRevision?: number;
+  referrals?: { name: string; email: string; organization: string }[];
+  referenceLetters?: { fileId: string; claimToken: string }[];
+  waiverReason?: string;
   agreeTerms: true;
 }
 

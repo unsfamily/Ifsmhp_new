@@ -1,3 +1,5 @@
+import { currentMembershipPolicy, policyFor, validateMembershipEvidence, createCharge } from './membership-policy.service';
+import type { MembershipPolicySnapshot } from '../domain/membership';
 import { notifyAdmins } from './admin-notifications.service';
 import { newAdminPassword } from '../domain/admin-profile';
 import type { Request, Response } from 'express';
@@ -21,7 +23,6 @@ import { normalizeEmail } from './otp.service';
 import {
   registrationDocumentTitle,
   registrationDocumentType,
-  resolveRegistrationDocuments,
   type RegistrationDocumentClaim,
 } from './registration-documents.service';
 
@@ -40,6 +41,11 @@ export interface RegisterInput {
   country?: string;
   phone?: string;
   documents: RegistrationDocumentClaim[];
+  policyRevision?: number;
+  membershipPolicy?: MembershipPolicySnapshot;
+  referrals?: { name: string; email: string; organization: string }[];
+  referenceLetters?: { fileId: string; claimToken: string }[];
+  waiverReason?: string;
 }
 
 export interface LoginInput {
@@ -201,7 +207,8 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
       });
     }
 
-    const documents = await resolveRegistrationDocuments(input.documents, tx);
+    const policy = policyFor(input.membershipPolicy?.values);
+    const { documents, letters, referrals } = await validateMembershipEvidence(input, policy, tx);
     const user = await tx.user.create({
       data: {
         email,
@@ -236,6 +243,9 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
     const application = await tx.membershipApplication.create({
       data: {
         applicationCode: code,
+        ...(input.membershipPolicy ? { policySnapshot: policy as unknown as Prisma.InputJsonValue, policyRevision: input.membershipPolicy.revision } : {}),
+        referrals: { create: referrals },
+        referenceLetters: { create: letters.map(l => ({ fileId: l.fileId })) },
         userId: user.id,
         profileId: profile.id,
         credentialsText: input.credentials,
@@ -244,6 +254,17 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         histories: { create: { toStatus: 'PENDING', note: 'Application submitted by applicant' } },
       },
     });
+    for (const letter of letters) {
+      const claimed = await tx.fileObject.updateMany({ where: { id: letter.fileId, uploaderId: null, deletedAt: null }, data: { uploaderId: user.id } });
+      if (!claimed.count) throw ApiError.conflict('A reference letter was already claimed. Upload it again.');
+    }
+    if (policy.applicationFeeEnabled) {
+      const charge = await createCharge(tx, application.id, 'APPLICATION', policy, new Date(), user.id);
+      if (input.waiverReason) {
+        await tx.membershipWaiver.create({ data: { chargeId: charge.id, requestId: `registration:${application.id}`, reason: input.waiverReason, requestedBy: user.id } });
+        await writeAudit({ actorId: user.id, action: 'MembershipWaiverRequested', entity: `MembershipApplication ${application.id}`, entityId: application.id }, tx);
+      }
+    }
     await notifyAdmins(tx, { key: `application:${application.id}`, category: 'APPLICATION', entityId: application.id, title: 'New membership application', link: '/admin/members/pending', allAdmins: true });
     await tx.notification.create({
       data: {
@@ -263,10 +284,8 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
           credentialType: registrationDocumentType(document.kind),
         },
       });
-      await tx.fileObject.update({
-        where: { id: document.fileId },
-        data: { uploaderId: user.id },
-      });
+      const claimed = await tx.fileObject.updateMany({ where: { id: document.fileId, uploaderId: null, deletedAt: null }, data: { uploaderId: user.id } });
+      if (!claimed.count) throw ApiError.conflict('A document was already claimed. Upload it again.');
     }
   await writeAudit({
     actorId: user.id,
@@ -333,12 +352,14 @@ export async function requestRegistrationOtp(input: RegisterInput, req: Request)
       { field: 'email', message: 'This email is already registered.' },
     ]);
   }
-  await resolveRegistrationDocuments(input.documents);
+  const snapshot = await currentMembershipPolicy();
+  if (input.policyRevision !== undefined && input.policyRevision !== snapshot.revision) throw ApiError.conflict('Membership requirements changed. Refresh the requirements and review your application.');
+  await validateMembershipEvidence(input, snapshot.values);
 
   const { expiresAt, resendAfterSeconds, resendAfterAt } = await otpService.requestOtp(
     email,
     'REGISTER',
-    { payload: jsonPayload({ ...input, email }), ipAddress: req.ip },
+    { payload: jsonPayload({ ...input, email, membershipPolicy: snapshot }), ipAddress: req.ip },
   );
 
   return { email, expiresAt, resendAfterSeconds, resendAfterAt };

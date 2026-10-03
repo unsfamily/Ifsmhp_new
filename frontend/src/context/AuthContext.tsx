@@ -86,7 +86,7 @@ export function useAuth() {
  * disagree about which portal owns a role.
  */
 export function homePathFor(role: Role) {
-  return role === 'ADMIN' ? '/admin' : '/dashboard';
+  return role === 'ADMIN' ? '/admin' : role === 'APPLICANT' ? '/application' : '/dashboard';
 }
 
 export function RequireAuth({ role, children }: { role: Role; children: ReactNode }) {
@@ -104,7 +104,8 @@ export function RequireAuth({ role, children }: { role: Role; children: ReactNod
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
   // Applicants have no portal of their own until an admin approves them, so
   // they leave here directly rather than bouncing through /dashboard first.
-  if (user.role === 'APPLICANT') return <Navigate to="/login" replace />;
+  if (role === 'APPLICANT') return user.role === 'APPLICANT' ? <>{children}</> : <Navigate to={homePathFor(user.role)} replace />;
+  if (user.role === 'APPLICANT') return <Navigate to="/application" replace />;
   if (role === 'ADMIN' && user.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
   // ADMIN is intentionally admitted to member routes ("Member View" in the
   // admin sidebar); MemberLayout offers a link back.

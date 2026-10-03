@@ -78,6 +78,7 @@ export interface AdminMembersResult {
 }
 
 export interface AdminMemberDetail {
+  membership: import('../services/membershipService').MembershipDetail;
   firstName: string | null;
   lastName: string | null;
   communicationAddress: string | null;
@@ -260,8 +261,8 @@ export const adminApi = {
   members: (params?: Record<string, unknown>) => get('/admin/members', params) as Promise<AdminMembersResult>,
   member: (id: string) => get(`/admin/members/${id}`) as Promise<AdminMemberDetail>,
   reviewMember: (id: string, reviewNotes?: string) => post(`/admin/members/${id}/review`, { reviewNotes }),
-  approveMember: (id: string, reviewNotes?: string) =>
-    post(`/admin/members/${id}/approve`, { reviewNotes }) as Promise<ApproveResult>,
+  approveMember: (id: string, reviewNotes?: string, memberId?: string) =>
+    post(`/admin/members/${id}/approve`, { reviewNotes, memberId }) as Promise<ApproveResult>,
   /** Retries a failed acknowledgement. Refused once one has been sent. */
   resendApprovalEmail: (id: string) =>
     post(`/admin/members/${id}/resend-approval-email`) as Promise<{ emailSent: boolean; emailError?: string }>,

@@ -1,3 +1,4 @@
+import ApplicationStatusPage from './pages/auth/ApplicationStatusPage';
 import { RequireCommunityManager } from './components/community/CommunityAccess';
 import { useEffect } from 'react';
 import { Route, Routes, useLocation, useNavigate, Navigate } from 'react-router-dom';
@@ -118,6 +119,7 @@ export default function App() {
         </Route>
 
         <Route path="login" element={<LoginPage />} />
+        <Route path="application" element={<RequireAuth role="APPLICANT"><ApplicationStatusPage /></RequireAuth>} />
         <Route path="register" element={<RegisterPage />} />
         <Route path="forgot-password" element={<LoginPage />} />
         <Route path="reset-password" element={<LoginPage />} />

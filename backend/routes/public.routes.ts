@@ -1,3 +1,4 @@
+import { publicMembershipPolicy } from '../services/membership-policy.service';
 import { publicSettings } from '../services/settings.service';
 import fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
@@ -10,6 +11,7 @@ import * as service from '../services/platform.service';
 import { listPublicEvents, publicEventDetail, publicEventCalendar, publicEventCover } from '../services/public-events.service';
 
 const router = Router({ mergeParams: true });
+router.get('/membership-policy', asyncHandler(async (_req, res) => { res.setHeader('Cache-Control', 'no-store'); sendSuccess(res, await publicMembershipPolicy()); }));
 router.get('/settings', asyncHandler(async (_req, res) => { res.setHeader('Cache-Control', 'no-store'); sendSuccess(res, await publicSettings()); }));
 
 /**

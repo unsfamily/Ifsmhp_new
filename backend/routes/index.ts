@@ -1,3 +1,4 @@
+import { ownMembershipRoutes, adminMembershipRoutes } from './membership.routes';
 import settingsRoutes from './settings.routes';
 import adminProfileRoutes from './admin-profile.routes';
 import { Router } from 'express';
@@ -38,6 +39,8 @@ router.use('/contact', contactRoutes);
 router.use('/publications', publicationsPublicRoutes);
 router.use('/auth', authRoutes);
 router.use('/files', filesRoutes);
+router.use('/membership', ownMembershipRoutes);
+router.use('/admin/membership', adminMembershipRoutes);
 router.use('/members', memberRoutes);
 router.use('/admin/announcements', announcementRoutes);
 router.use('/community', communityRoutes);

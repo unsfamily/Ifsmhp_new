@@ -54,7 +54,7 @@ async function run() {
   await page.reload(); await page.getByRole('heading', { name: 'Verify your email' }).waitFor();
   const code = await deliveredCode('REGISTER');
   for (let index = 0; index < 6; index++) await page.getByLabel(`Digit ${index + 1} of 6`).fill(code[index]);
-  await page.getByRole('heading', { name: 'Application Submitted Successfully' }).waitFor();
+  await page.getByRole('heading', { name: 'Your membership application' }).waitFor();
   await shot('registration-success-desktop');
   const user = await prisma.user.findUniqueOrThrow({ where: { email }, include: { memberProfile: true, membershipApplication: true } });
   assert.equal(user.firstName, 'Jane'); assert.equal(user.memberProfile.communicationAddress, payload.communicationAddress);
@@ -65,6 +65,7 @@ async function run() {
   const adminContext = await browser.newContext(); await adminContext.addInitScript(token => localStorage.setItem('ifsmhp.accessToken', token), adminToken);
   const adminPage = await adminContext.newPage(); await adminPage.goto(site + '/admin/members/' + user.membershipApplication.id);
   await adminPage.getByText('10 Research Road\nChennai 600001', { exact: true }).waitFor();
+  assert.equal((await context.request.post(`${base}/admin/membership/${user.membershipApplication.id}/evidence-review`, { headers: { Authorization: `Bearer ${adminToken}` }, data: {} })).status(), 200);
   for (const action of ['review', 'approve']) {
     const response = await context.request.post(`${base}/admin/members/${user.membershipApplication.id}/${action}`, { headers: { Authorization: `Bearer ${adminToken}` }, data: {} }); assert.equal(response.status(), 200);
   }
