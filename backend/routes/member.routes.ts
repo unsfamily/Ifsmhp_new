@@ -13,7 +13,7 @@ import * as supportService from '../services/support.service';
 import * as exchange from '../services/document-exchange.service';
 import * as announcements from '../services/member-announcements.service';
 import { exchangeSendBody } from '../domain/document-exchange';
-import { memberPhoneSchema } from '../domain/member-profile';
+import { memberPhoneSchema, memberAddressSchema } from '../domain/member-profile';
 import { projectDateFields, validateProjectRange } from '../domain/project-timeline';
 
 const router = Router({ mergeParams: true });
@@ -147,6 +147,8 @@ const professionalUrl = z.string().max(2048).url('Enter a valid URL').refine(
   'Use an HTTP or HTTPS URL',
 );
 const profileSchema = z.object({
+  communicationAddress: memberAddressSchema,
+  permanentAddress: memberAddressSchema,
   phone: memberPhoneSchema.optional(),
   websiteUrl: optionalText(professionalUrl),
   scholarUrl: optionalText(professionalUrl),

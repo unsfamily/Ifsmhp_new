@@ -206,6 +206,19 @@ function ScientistProfile() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader><h3 className="font-display text-lg font-semibold text-forum-900">Personal Details</h3></CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          {[
+            ['First Name', profile?.firstName], ['Last Name', profile?.lastName],
+            ['Communication Address', profile?.communicationAddress], ['Permanent Address', profile?.permanentAddress],
+          ].map(([label, value]) => <div key={label}>
+            <p className="text-xs text-ink-subtle">{label}</p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm">{value || 'Not provided'}</p>
+          </div>)}
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex items-center justify-between">

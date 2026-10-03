@@ -393,6 +393,10 @@ export async function memberProfile(userId: string) {
   return {
     id: user.id,
     fullName: user.fullName,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    communicationAddress: user.memberProfile.communicationAddress,
+    permanentAddress: user.memberProfile.permanentAddress,
     email: user.email,
     phone: user.memberProfile.phone,
     memberId: user.memberProfile.memberId,
@@ -437,6 +441,8 @@ export async function memberProfile(userId: string) {
 
 export async function updateMemberProfile(userId: string, input: {
   phone?: string;
+  communicationAddress?: string | null;
+  permanentAddress?: string | null;
   websiteUrl?: string | null;
   scholarUrl?: string | null;
   orcid?: string | null;
@@ -1804,6 +1810,10 @@ export async function adminMemberDetail(id: string) {
     id: application.id,
     applicationId: application.applicationCode,
     fullName: application.user.fullName,
+    firstName: application.user.firstName,
+    lastName: application.user.lastName,
+    communicationAddress: application.profile.communicationAddress,
+    permanentAddress: application.profile.permanentAddress,
     email: application.user.email,
     phone: application.profile.phone,
     professionalTitle: application.profile.professionalTitle,

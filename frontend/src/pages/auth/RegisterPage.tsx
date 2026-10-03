@@ -151,6 +151,7 @@ export default function RegisterPage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -292,6 +293,10 @@ export default function RegisterPage() {
   /** Builds the registration payload the API expects from the current form. */
   const payloadFrom = (data: FormData) => ({
     purpose: 'REGISTER' as const,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    communicationAddress: data.communicationAddress,
+    permanentAddress: data.permanentAddress,
     fullName: `${data.firstName} ${data.lastName}`,
     email: data.email,
     phone: data.phone,
@@ -321,7 +326,12 @@ export default function RegisterPage() {
       // sent; a delivery failure throws and is surfaced below.
       otp.begin(await requestOtp(payloadFrom(data)));
     } catch (error) {
-      setErrorMsg(normalizeError(error).message);
+      const normalized = normalizeError(error);
+      setErrorMsg(normalized.message);
+      for (const [field, message] of Object.entries(normalized.fieldErrors)) {
+        if (field === 'fullName') setError('firstName', { type: 'server', message });
+        else if (field in schema.shape) setError(field as keyof FormData, { type: 'server', message });
+      }
     }
   };
 
@@ -405,9 +415,9 @@ export default function RegisterPage() {
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">
         
 
-        <div className="grid gap-10 lg:grid-cols-3">
-          <div className="lg:col-span-1">
-            <div className="sticky top-10 space-y-6">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
+          <div className="min-w-0 lg:col-span-1">
+            <div className="space-y-6 lg:sticky lg:top-10">
               <Link to="/" className="inline-flex items-center gap-2.5 mb-8">
           <img
             src={logoImg}
@@ -469,7 +479,7 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <div className="lg:col-span-2">
+          <div className="min-w-0 lg:col-span-2">
             <div className="rounded-2xl border border-paper-border bg-paper-raised p-6 sm:p-8 lg:p-10 shadow-sm">
               {errorMsg && (
                 <div className="mb-6 rounded-lg border border-danger-600/20 bg-danger-100 p-4 text-sm text-danger-600">
@@ -482,9 +492,10 @@ export default function RegisterPage() {
                     <User className="h-5 w-5 text-forum-700" />
                     Personal Information
                   </h2>
-                  <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                  <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <TextInput
                       label="First Name"
+                      maxLength={59}
                       placeholder="Jane A."
                       required
                       error={errors.firstName?.message}
@@ -492,6 +503,7 @@ export default function RegisterPage() {
                     />
                     <TextInput
                       label="Last Name"
+                      maxLength={59}
                       placeholder="Smith"
                       required
                       error={errors.lastName?.message}
@@ -540,6 +552,7 @@ export default function RegisterPage() {
                     <div className="sm:col-span-2">
                       <TextArea
                         label="Communication Address"
+                        maxLength={1000}
                         placeholder="Street address, city, state / province, postal code, country"
                         rows={2}
                         required
@@ -550,6 +563,7 @@ export default function RegisterPage() {
                     <div className="sm:col-span-2">
                       <TextArea
                         label="Permanent Address"
+                        maxLength={1000}
                         placeholder="Street address, city, state / province, postal code, country"
                         rows={2}
                         required
@@ -598,7 +612,7 @@ export default function RegisterPage() {
                     <FileCheck2 className="h-5 w-5 text-forum-700" />
                     Document Upload
                   </h2>
-                  <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                  <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
                     {documentSlots.map((slot) => {
                       const state = documentUploads[slot.kind];
                       const uploaded = state.uploaded;

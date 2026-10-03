@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { RefreshCw, Save, X } from 'lucide-react';
 import Button from '../../components/common/Button';
-import { TextInput } from '../../components/common/Input';
+import { TextInput, TextArea } from '../../components/common/Input';
 import { memberApi, type MemberProfileData, type MemberProfileUpdate } from '../../api/member';
 import { normalizeError } from '../../api/client';
 
@@ -24,6 +24,7 @@ export default function EditProfileDialog({ profile, onClose, onSaved }: {
   const legacyPhoneId = useId();
   const alive = useRef(true);
   const [values, setValues] = useState<MemberProfileUpdate>({
+    communicationAddress: profile.communicationAddress, permanentAddress: profile.permanentAddress,
     phone: validPhone(profile.phone) ? profile.phone : '', websiteUrl: profile.websiteUrl, scholarUrl: profile.scholarUrl, orcid: profile.orcid,
   });
   const [saving, setSaving] = useState(false);
@@ -74,6 +75,11 @@ export default function EditProfileDialog({ profile, onClose, onSaved }: {
       phoneInput.current?.focus();
       return;
     }
+    const addressErrors = Object.fromEntries((['communicationAddress', 'permanentAddress'] as const).flatMap(name => {
+      const value = values[name]?.trim() ?? '';
+      return value && (value.length < 5 || value.length > 1000) ? [[name, 'Enter 5–1,000 characters for the address.']] : [];
+    }));
+    if (Object.keys(addressErrors).length) { setFieldErrors(addressErrors); return; }
     setSaving(true);
     setError(null);
     setFieldErrors({});
@@ -116,6 +122,12 @@ export default function EditProfileDialog({ profile, onClose, onSaved }: {
             Enter a valid 10-digit number before saving. Your saved profile stays unchanged until you save.
           </p>}
         </div>
+        {(['communicationAddress', 'permanentAddress'] as const).map(name => <TextArea key={name}
+          label={name === 'communicationAddress' ? 'Communication Address' : 'Permanent Address'}
+          value={values[name] ?? ''} maxLength={1000} rows={3} disabled={saving}
+          hint="Optional. Enter 5–1,000 characters, or leave blank to clear."
+          error={fieldErrors[name]}
+          onChange={event => setValues(previous => ({ ...previous, [name]: event.target.value }))} />)}
         {fields.map((field) => <TextInput key={field.name} label={field.label} type={field.type}
           maxLength={field.maxLength} value={values[field.name] ?? ''} disabled={saving}
           error={fieldErrors[field.name]}

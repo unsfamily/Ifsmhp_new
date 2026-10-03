@@ -118,6 +118,8 @@ model User {
   // Admins still sign in with a password, so existing hashes are preserved.
   passwordHash            String?
   fullName                String
+  firstName               String?                   @db.VarChar(59)
+  lastName                String?                   @db.VarChar(59)
   role                    UserRole                  @default(APPLICANT)
   status                  UserStatus                @default(PENDING)
   passwordChangedAt       DateTime?
@@ -229,6 +231,8 @@ model MemberProfile {
   country           String?
   phone             String?
   biography         String?                  @db.Text
+  communicationAddress String?                @db.Text
+  permanentAddress  String?                  @db.Text
   publicEmail       String?
   websiteUrl        String?
   scholarUrl        String?

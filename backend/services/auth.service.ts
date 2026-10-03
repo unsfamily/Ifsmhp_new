@@ -26,6 +26,10 @@ import {
 } from './registration-documents.service';
 
 export interface RegisterInput {
+  firstName?: string;
+  lastName?: string;
+  communicationAddress?: string | null;
+  permanentAddress?: string | null;
   fullName: string;
   email: string;
   professionalType: string;
@@ -91,6 +95,8 @@ function jsonPayload(value: unknown): Prisma.InputJsonValue {
 }
 
 function publicUser(user: {
+  firstName?: string | null;
+  lastName?: string | null;
   id: string;
   email: string;
   fullName: string;
@@ -103,6 +109,8 @@ function publicUser(user: {
     id: user.id,
     email: user.email,
     fullName: user.fullName,
+    firstName: user.firstName ?? null,
+    lastName: user.lastName ?? null,
     role: user.role,
     status: user.status,
     memberId: user.memberProfile?.memberId ?? null,
@@ -200,6 +208,8 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         // Members authenticate by emailed OTP; no password is ever set.
         passwordHash: null,
         fullName: input.fullName.trim(),
+        firstName: input.firstName ?? null,
+        lastName: input.lastName ?? null,
         role: 'APPLICANT',
         status: 'PENDING',
       },
@@ -213,6 +223,8 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         country: input.country ?? null,
         phone: input.phone ?? null,
         biography: input.credentials,
+        communicationAddress: input.communicationAddress ?? null,
+        permanentAddress: input.permanentAddress ?? null,
         interests: {
           create: interests.length > 0 ? interests.map((name) => ({ name })) : [{ name: input.professionalType }],
         },

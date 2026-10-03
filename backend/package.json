@@ -36,7 +36,8 @@
     "test:project-timeline:browser": "node tests/project-timeline.browser.cjs",
     "test:chat-attachments:browser": "node tests/chat-attachments.browser.cjs",
     "test:member-status:browser": "node tests/community-member-status.browser.cjs",
-    "test:community-session:browser": "node tests/community-session.browser.cjs"
+    "test:community-session:browser": "node tests/community-session.browser.cjs",
+    "test:registration:browser": "node tests/registration-fields.browser.cjs"
   },
   "prisma": {
     "schema": "database/prisma/schema.prisma",

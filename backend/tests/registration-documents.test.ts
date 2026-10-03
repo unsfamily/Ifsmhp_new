@@ -417,3 +417,85 @@ describe('scientist profile persistence and isolation', () => {
     await access(token);
   });
 });
+
+describe('extended registration fields', () => {
+  async function draft(key: string, fields: Record<string, unknown> = {}) {
+    const { cv, credential } = await uploadRequiredPair(key);
+    return { ...registrationPayload(key, [
+      { kind: 'CV', fileId: cv.id, claimToken: cv.claimToken },
+      { kind: 'CREDENTIAL', fileId: credential.id, claimToken: credential.claimToken },
+    ]), ...fields };
+  }
+  it('preserves new fields through OTP resend, verification, session and private detail responses', async () => {
+    const fields = { firstName: '  ஜேன்  ', lastName: '  O’Connor  ', fullName: 'ஜேன் O’Connor', communicationAddress: '  10 Research Road\nChennai 600001  ', permanentAddress: '  20 Home Street\nMadurai 625001 ', phone: '+44 1234567890' };
+    const body = await draft('new-fields', fields);
+    expect((await request(app).post('/api/v1/auth/otp/request').send(body)).status).toBe(200);
+    const pending = await prisma.emailOtp.findFirstOrThrow({ where: { email: body.email, consumedAt: null } });
+    expect(pending.payload).toMatchObject({ firstName: 'ஜேன்', lastName: 'O’Connor', communicationAddress: fields.communicationAddress.trim(), permanentAddress: fields.permanentAddress.trim() });
+    expect(await prisma.user.findUnique({ where: { email: body.email } })).toBeNull();
+    await prisma.emailOtp.update({ where: { id: pending.id }, data: { lastSentAt: new Date(Date.now() - 120000) } });
+    expect((await request(app).post('/api/v1/auth/otp/resend').send({ email: body.email, purpose: 'REGISTER' })).status).toBe(200);
+    const result = await request(app).post('/api/v1/auth/otp/verify').send({ email: body.email, purpose: 'REGISTER', code: sentCodes.at(-1) });
+    expect(result.status).toBe(201);
+    const { user, accessToken, applicationId } = result.body.data;
+    expect(user).toMatchObject({ firstName: 'ஜேன்', lastName: 'O’Connor', fullName: fields.fullName, role: 'APPLICANT', status: 'PENDING' });
+    const stored = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: { memberProfile: true } });
+    expect(stored).toMatchObject({ firstName: 'ஜேன்', lastName: 'O’Connor', fullName: fields.fullName });
+    expect(stored.memberProfile).toMatchObject({ communicationAddress: fields.communicationAddress.trim(), permanentAddress: fields.permanentAddress.trim(), phone: fields.phone });
+    const session = await request(app).get('/api/v1/auth/me').auth(accessToken, { type: 'bearer' });
+    expect(session.body.data.user).toMatchObject({ firstName: 'ஜேன்', lastName: 'O’Connor' });
+    expect(session.body.data.user).not.toHaveProperty('communicationAddress');
+    expect(await memberProfile(user.id)).toMatchObject({ communicationAddress: fields.communicationAddress.trim(), firstName: 'ஜேன்' });
+    expect(await adminMemberDetail(applicationId)).toMatchObject({ permanentAddress: fields.permanentAddress.trim(), lastName: 'O’Connor' });
+    expect(JSON.stringify(await prisma.auditLog.findMany({ where: { actorId: user.id } }))).not.toContain('Research Road');
+  });
+  it('accepts maximum-length names and addresses, and normalizes blank/null addresses', async () => {
+    const firstName = 'A'.repeat(59), lastName = 'B'.repeat(59);
+    const body = await draft('boundaries', { firstName, lastName, fullName: `${firstName} ${lastName}`, communicationAddress: '界'.repeat(1000), permanentAddress: ' \n ' });
+    expect((await request(app).post('/api/v1/auth/otp/request').send(body)).status).toBe(200);
+    const result = await request(app).post('/api/v1/auth/otp/verify').send({ email: body.email, purpose: 'REGISTER', code: sentCodes.at(-1) });
+    expect(result.status).toBe(201);
+    expect(await memberProfile(result.body.data.user.id)).toMatchObject({ firstName, lastName, communicationAddress: '界'.repeat(1000), permanentAddress: null });
+  });
+  it('returns field errors for malformed names and addresses before sending OTP or creating accounts', async () => {
+    const body = await draft('invalid-fields');
+    for (const [fields, field] of [
+      [{ firstName: 'Jane' }, 'lastName'], [{ lastName: 'Smith' }, 'firstName'],
+      [{ firstName: '', lastName: 'Smith' }, 'firstName'], [{ firstName: 'A'.repeat(60), lastName: 'Smith' }, 'firstName'],
+      [{ firstName: 'Jane', lastName: 'Smith', fullName: 'Different Name' }, 'fullName'],
+      [{ firstName: null }, 'firstName'], [{ communicationAddress: 'abcd' }, 'communicationAddress'],
+      [{ permanentAddress: 'A'.repeat(1001) }, 'permanentAddress'],
+      [{ communicationAddress: ['10 Test Street'] }, 'communicationAddress'], [{ permanentAddress: 12345 }, 'permanentAddress'],
+    ] as const) {
+      const count = sentCodes.length;
+      const response = await request(app).post('/api/v1/auth/otp/request').send({ ...body, ...fields });
+      expect(response.status, JSON.stringify(response.body)).toBe(422);
+      expect(response.body.errors.some((error: { field: string }) => error.field === field)).toBe(true);
+      expect(sentCodes.length).toBe(count);
+    }
+    expect(await prisma.user.findUnique({ where: { email: body.email } })).toBeNull();
+  });
+  it('edits and clears private addresses, retaining omission, phone rules, isolation and audit rollback', async () => {
+    const { user, token } = await createScientist('addresses');
+    const patch = (body: Record<string, unknown>) => request(app).patch('/api/v1/members/me/profile').auth(token, { type: 'bearer' }).send(body);
+    expect((await patch({ communicationAddress: '10 Test Street' })).status).toBe(422); // Existing invalid phone must be corrected.
+    const saved = await patch({ phone: '0123456789', communicationAddress: ' 10 Test Street\nChennai ', permanentAddress: '20 Other Street' });
+    expect(saved.status).toBe(200);
+    expect(saved.body.data).toMatchObject({ communicationAddress: '10 Test Street\nChennai', permanentAddress: '20 Other Street', firstName: null, lastName: null });
+    expect((await patch({ communicationAddress: 'Changed Street' })).body.data.permanentAddress).toBe('20 Other Street');
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { actorId: user.id, action: 'UserProfileUpdated' } });
+    expect(JSON.stringify(audit.metadata)).toContain('communicationAddress'); expect(JSON.stringify(audit)).not.toContain('Test Street');
+    const before = await prisma.memberProfile.findUniqueOrThrow({ where: { userId: user.id } });
+    rejectProfileAudit = true;
+    try { expect((await patch({ communicationAddress: 'Must not persist' })).status).toBe(500); } finally { rejectProfileAudit = false; }
+    expect(await prisma.memberProfile.findUniqueOrThrow({ where: { userId: user.id } })).toEqual(before);
+    for (const bad of [{ communicationAddress: 'tiny' }, { permanentAddress: 'x'.repeat(1001) }, { permanentAddress: {} }, { firstName: 'Changed' }, { lastName: 'Changed' }]) expect((await patch(bad)).status).toBe(422);
+    const community = await request(app).get('/api/v1/members/me/community').auth(token, { type: 'bearer' });
+    expect(community.status).toBe(200); expect(JSON.stringify(community.body)).not.toMatch(/communicationAddress|permanentAddress|Changed Street|Other Street/);
+    const stranger = await createScientist('address-stranger');
+    expect((await request(app).get('/api/v1/members/me/profile').auth(stranger.token, { type: 'bearer' })).body.data.communicationAddress).toBeNull();
+    expect((await request(app).patch('/api/v1/members/me/profile').send({ communicationAddress: 'Unauthenticated' })).status).toBe(401);
+    const cleared = await patch({ communicationAddress: ' \n ', permanentAddress: null });
+    expect(cleared.body.data).toMatchObject({ communicationAddress: null, permanentAddress: null });
+  });
+});

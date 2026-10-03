@@ -22,13 +22,17 @@ Access tokens are short-lived JWTs returned in the response body. Refresh tokens
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/auth/register` | Create a pending applicant, profile, and membership application |
+| `POST` | `/auth/otp/request` | Validate a registration draft or request a login code |
+| `POST` | `/auth/otp/resend` | Resend a code using the stored draft |
+| `POST` | `/auth/otp/verify` | Verify the code, create the applicant on registration, and issue a session |
 | `POST` | `/auth/login` | Verify password, create session, set refresh cookie |
 | `POST` | `/auth/logout` | Revoke current refresh session and clear cookie |
 | `POST` | `/auth/refresh` | Rotate refresh token and return a new access token |
 | `GET` | `/auth/me` | Return current user/profile |
 | `POST` | `/auth/forgot-password` | Create a hashed reset token record |
 | `POST` | `/auth/reset-password` | Consume reset token and update password hash |
+
+Registration requests retain `fullName` and accept optional `firstName` and `lastName` together (trimmed, 1–59 characters each, matching the combined full name). Optional `communicationAddress` and `permanentAddress` accept null/blank as null, or trimmed text of 5–1,000 characters. Older requests and OTP drafts may omit these fields. The current form requires both names and addresses. Session responses add nullable split names; private member profile and admin member detail responses also include both nullable addresses. See [registration fields](member-registration-fields.md).
 
 ## Public
 
@@ -51,7 +55,7 @@ All member routes require an active `MEMBER` session. Admins may pass member rou
 |---|---|---|
 | `GET` | `/members/me/dashboard` | Member dashboard aggregate |
 | `GET` | `/members/me/profile` | Current member profile |
-| `PATCH` | `/members/me/profile` | Update phone, website URL, Scholar URL, or ORCID; returns the updated profile |
+| `PATCH` | `/members/me/profile` | Update phone, addresses, website URL, Scholar URL, or ORCID; returns the updated profile |
 | `GET` | `/members/me/projects` | Owned projects |
 | `POST` | `/members/me/projects` | Create draft/submitted project |
 | `PATCH` | `/members/me/projects/:projectId` | Edit an owned draft/submitted project, or submit an owned draft |
@@ -65,7 +69,7 @@ All member routes require an active `MEMBER` session. Admins may pass member rou
 | `GET` | `/members/me/documents` | Attachments visible to the member |
 | `GET` | `/members/me/community` | Member directory, groups, and threads |
 
-Member profile updates accept only the editable fields `phone`, `websiteUrl`, `scholarUrl`, and `orcid`, with at least one field provided. `phone`, when supplied, must be a JSON string containing exactly ten ASCII digits (`0–9`), e.g. `"0123456789"`; leading zeros are preserved. Null, empty, whitespace, punctuation, country prefixes, Unicode numerals, and numeric JSON values return `422` with a `phone` field error: “Enter exactly 10 digits, without spaces or a country code.” No trimming or normalization is applied to phone numbers. If phone is omitted, the current stored phone must meet the same rule before any profile changes can be saved. Existing invalid or missing numbers remain readable and unchanged until explicitly corrected; no backfill is performed. Other editable fields retain their existing optional/clearing behavior. Profile changes and their audit event commit together; invalid requests change neither. This rule is specific to Member Edit Profile, not registration or administrator contact information.
+Member profile updates accept only the editable fields `phone`, `communicationAddress`, `permanentAddress`, `websiteUrl`, `scholarUrl`, and `orcid`, with at least one field provided. `phone`, when supplied, must be a JSON string containing exactly ten ASCII digits (`0–9`), e.g. `"0123456789"`; leading zeros are preserved. Null, empty, whitespace, punctuation, country prefixes, Unicode numerals, and numeric JSON values return `422` with a `phone` field error: “Enter exactly 10 digits, without spaces or a country code.” No trimming or normalization is applied to phone numbers. If phone is omitted, the current stored phone must meet the same rule before any profile changes can be saved. Existing invalid or missing numbers remain readable and unchanged until explicitly corrected; no backfill is performed. Addresses use the registration address validation: omitted fields remain unchanged, while null or blank clears the address. Names remain read-only. Other editable fields retain their existing optional/clearing behavior. Profile changes and their audit event commit together; invalid requests change neither. This rule is specific to Member Edit Profile, not registration or administrator contact information.
 
 ### Project timelines
 

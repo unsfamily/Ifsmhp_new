@@ -78,6 +78,10 @@ interface StatusHistoryEntry {
 }
 
 interface ApplicationRecord {
+  firstName: string | null;
+  lastName: string | null;
+  communicationAddress: string | null;
+  permanentAddress: string | null;
   id: string;
   fullName: string;
   email: string;
@@ -113,6 +117,10 @@ function toApplicationRecord(detail: AdminMemberDetail): ApplicationRecord {
   return {
     id: detail.id,
     fullName: detail.fullName,
+    firstName: detail.firstName,
+    lastName: detail.lastName,
+    communicationAddress: detail.communicationAddress,
+    permanentAddress: detail.permanentAddress,
     email: detail.email,
     phone: detail.phone ?? undefined,
     professionalTitle: detail.professionalTitle ?? '—',
@@ -628,6 +636,16 @@ export default function AdminMemberDetailPage() {
                 <InfoRow icon={Globe2} label="Country" value={application.country} />
                 <InfoRow icon={Briefcase} label="Professional Title" value={application.professionalTitle} />
                 <InfoRow icon={Briefcase} label="Professional Type" value={application.professionalType} badgeVariant={TYPE_BADGE} />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 text-sm">
+                {[
+                  ['First Name', application.firstName], ['Last Name', application.lastName],
+                  ['Communication Address', application.communicationAddress], ['Permanent Address', application.permanentAddress],
+                ].map(([label, value]) => <div key={label}>
+                  <p className="text-xs text-ink-subtle">{label}</p>
+                  <p className="mt-1 whitespace-pre-wrap break-words">{value || 'Not provided'}</p>
+                </div>)}
               </div>
 
               {/*

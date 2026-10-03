@@ -4,6 +4,8 @@ export type Role = 'APPLICANT' | 'MEMBER' | 'ADMIN';
 export type Status = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'DEACTIVATED';
 
 export interface SessionUser {
+  firstName: string | null;
+  lastName: string | null;
   id: string;
   email: string;
   fullName: string;
@@ -21,6 +23,10 @@ interface Envelope<T> {
 }
 
 export interface RegisterPayload {
+  firstName?: string;
+  lastName?: string;
+  communicationAddress?: string | null;
+  permanentAddress?: string | null;
   fullName: string;
   email: string;
   phone?: string;

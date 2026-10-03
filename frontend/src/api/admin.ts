@@ -78,6 +78,10 @@ export interface AdminMembersResult {
 }
 
 export interface AdminMemberDetail {
+  firstName: string | null;
+  lastName: string | null;
+  communicationAddress: string | null;
+  permanentAddress: string | null;
   id: string;
   applicationId: string;
   fullName: string;

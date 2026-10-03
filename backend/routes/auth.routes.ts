@@ -8,6 +8,7 @@ import { sendSuccess } from '../utils/apiResponse';
 import { requireAuth } from '../middleware/auth';
 import rateLimit from 'express-rate-limit';
 import * as authService from '../services/auth.service';
+import { memberAddressSchema, memberNameSchema, validateRegistrationNames } from '../domain/member-profile';
 
 const router = Router({ mergeParams: true });
 
@@ -31,6 +32,10 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   fullName: z.string().min(2).max(120),
+  firstName: memberNameSchema.optional(),
+  lastName: memberNameSchema.optional(),
+  communicationAddress: memberAddressSchema,
+  permanentAddress: memberAddressSchema,
   email: z.string().email('Invalid email format'),
   professionalType: z.string().min(2).max(120),
   institution: z.string().min(2).max(200),
@@ -55,7 +60,9 @@ const registerSchema = z.object({
 const otpRequestSchema = z.discriminatedUnion('purpose', [
   z.object({ purpose: z.literal('LOGIN'), email: z.string().email('Enter a valid email address') }).strict(),
   registerSchema.extend({ purpose: z.literal('REGISTER') }).strict(),
-]);
+]).superRefine((value, ctx) => {
+  if (value.purpose === 'REGISTER') validateRegistrationNames(value, ctx);
+});
 
 /** Resend needs only the address — the draft is already on the live OTP row. */
 const otpResendSchema = z.object({

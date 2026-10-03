@@ -22,6 +22,10 @@ export interface MemberCredentialDocument {
 }
 
 export interface MemberProfileData {
+  firstName: string | null;
+  lastName: string | null;
+  communicationAddress: string | null;
+  permanentAddress: string | null;
   id: string;
   fullName: string;
   email: string;
@@ -51,7 +55,7 @@ export interface MemberProfileData {
   credentials: MemberCredentialDocument[];
 }
 
-export type MemberProfileUpdate = Pick<MemberProfileData, 'websiteUrl' | 'scholarUrl' | 'orcid'> & { phone: string };
+export type MemberProfileUpdate = Pick<MemberProfileData, 'websiteUrl' | 'scholarUrl' | 'orcid'> & { phone: string; communicationAddress?: string | null; permanentAddress?: string | null };
 
 /** Display labels produced by the API's `projectStatusLabel` map — not the enum. */
 export type ProjectStatusLabel =
