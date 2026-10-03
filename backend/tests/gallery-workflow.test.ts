@@ -463,3 +463,82 @@ describe('Optional upload name and description', () => {
     expect(await fs.readdir(uploadRoot)).toEqual(before);
   });
 });
+
+describe('Video uploads through the existing gallery flow', () => {
+  const fixture = (name: string) => fs.readFile(new URL(`./fixtures/gallery/${name}`, import.meta.url));
+  it.each(['mp4', 'webm'])('uploads real %s bytes with metadata, mappings and draft visibility', async extension => {
+    const c = await category(); const sub = await subcategory(c.id);
+    const bytes = await fixture(`sample.${extension}`);
+    const result = await as('post', `${base}/photos`).field('categoryId', c.id).field('subcategoryId', sub.id)
+      .field('title', ' Video title ').field('caption', ' Video description ')
+      .attach('file', bytes, { filename: `sample.${extension}`, contentType: `video/${extension}` });
+    expect(result.status, JSON.stringify(result.body)).toBe(201);
+    const p = result.body.data;
+    expect(p).toMatchObject({ type: 'video', title: 'Video title', caption: 'Video description', categoryId: c.id, subcategoryId: sub.id, width: 160, height: 96, published: false });
+    const stored = await prisma.galleryItem.findUniqueOrThrow({ where: { id: p.id }, include: { file: true } });
+    expect(stored.type).toBe('video'); expect(stored.file!.mimeType).toBe(`video/${extension}`);
+    expect(await fs.readFile(assertSafePath(stored.file!.storageKey))).toEqual(bytes);
+    const url = `/api/v1/public/gallery/photos/${p.id}/media`;
+    expect((await request(app).get(url)).status).toBe(404);
+    expect((await as('get', `/api/v1${p.mediaUrl}`, member.token)).status).toBe(403);
+    await as('patch', `${base}/photos/${p.id}`).send({ published: true, title: 'Edited video' });
+    expect((await request(app).get('/api/v1/public/gallery/photos')).body.data.items).toEqual(expect.arrayContaining([expect.objectContaining({ id: p.id, type: 'video', title: 'Edited video' })]));
+    expect((await request(app).get(`/api/v1/public/gallery/subcategories?categoryId=${c.id}`)).body.data.items[0].photoCount).toBe(1);
+    expect((await request(app).get(url)).headers['content-type']).toBe(`video/${extension}`);
+    expect((await as('get', `/api/v1/files/${stored.fileId}/download`, member.token)).status).toBe(200);
+    expect((await request(app).get('/api/v1/public/gallery?type=video')).body.data.items.some((item: { id: string }) => item.id === p.id)).toBe(true);
+    await as('patch', `${base}/categories/${c.id}`).send({ published: false });
+    expect((await request(app).get(url).set('Range', 'bytes=0-9')).status).toBe(404);
+    expect((await as('get', `/api/v1/files/${stored.fileId}/download`, member.token)).status).toBe(404);
+  });
+  it('supports byte ranges, suffixes, HEAD, and current visibility on every request', async () => {
+    const c = await category(); const bytes = await fixture('sample.mp4');
+    const p = (await upload(c.id, bytes, 'sample.mp4', 'video/mp4')).body.data;
+    expect(p?.id).toBeTruthy();
+    await as('patch', `${base}/photos/${p.id}`).send({ published: true });
+    const url = `/api/v1/public/gallery/photos/${p.id}/media`;
+    for (const [range, start, end] of [['bytes=0-9', 0, 9], ['bytes=-10', bytes.length - 10, bytes.length - 1], [`bytes=${bytes.length - 10}-`, bytes.length - 10, bytes.length - 1]] as const) {
+      const response = await request(app).get(url).set('Range', range).buffer(true).parse((res, callback) => {
+        const chunks: Buffer[] = []; res.on('data', chunk => chunks.push(chunk)); res.on('end', () => callback(null, Buffer.concat(chunks)));
+      });
+      expect(response.status).toBe(206); expect(response.headers['content-range']).toBe(`bytes ${start}-${end}/${bytes.length}`);
+      expect(response.body).toEqual(bytes.subarray(start, end + 1)); expect(response.headers['cache-control']).toContain('no-store');
+    }
+    const head = await request(app).head(url); expect(head.status).toBe(200); expect(head.headers['content-length']).toBe(String(bytes.length));
+    expect((await request(app).get(url).set('Range', `bytes=${bytes.length}-`)).status).toBe(416);
+    expect((await request(app).get(url).set('Range', 'invalid')).status).toBe(200);
+    expect((await request(app).get(url).set('Range', 'bytes=0-9').set('If-Range', '"stale"')).status).toBe(200);
+    expect((await request(app).get(url.replace('/media', '/image'))).status).toBe(200);
+    await as('patch', `${base}/photos/${p.id}`).send({ published: false });
+    expect((await request(app).head(url)).status).toBe(404);
+  });
+  it('rejects spoofed, truncated, unsupported and stale video uploads without leaking files', async () => {
+    const c = await category(); const other = await category('Other'); const sub = await subcategory(other.id);
+    const bytes = await fixture('sample.mp4'); const before = (await fs.readdir(uploadRoot)).sort();
+    for (const [buffer, name, mime] of [[png, 'fake.mp4', 'video/mp4'], [bytes, 'wrong.webm', 'video/webm'], [bytes.subarray(0, 100), 'broken.mp4', 'video/mp4'], [await fixture('unsupported.mp4'), 'codec.mp4', 'video/mp4']] as const) {
+      const response = await upload(c.id, buffer, name, mime); expect(response.status, JSON.stringify(response.body)).toBe(422);
+      expect(response.body.errors[0].field).toBe('file');
+    }
+    const stale = await as('post', `${base}/photos`).field('categoryId', c.id).field('subcategoryId', sub.id).attach('file', bytes, { filename: 'sample.mp4', contentType: 'video/mp4' });
+    expect(stale.status).toBe(422);
+    expect((await fs.readdir(uploadRoot)).sort()).toEqual(before);
+    expect(await prisma.galleryItem.count({ where: { albumId: c.id } })).toBe(0);
+    expect((await upload(c.id, bytes, 'sample.mp4', 'video/mp4')).status).toBe(201);
+  });
+  it('moves assigned videos with their subcategory, preserves mixed ordering and deletes files safely', async () => {
+    const a = await category(); const b = await category('Destination'); const sub = await subcategory(a.id);
+    const image = (await upload(b.id)).body.data;
+    const result = await as('post', `${base}/photos`).field('categoryId', a.id).field('subcategoryId', sub.id).attach('file', await fixture('sample.webm'), { filename: 'sample.webm', contentType: 'video/webm' });
+    expect(result.status).toBe(201); const p = result.body.data;
+    const stored = await prisma.galleryItem.findUniqueOrThrow({ where: { id: p.id }, include: { file: true } });
+    expect((await as('delete', `${base}/subcategories/${sub.id}`)).status).toBe(409);
+    await as('patch', `${base}/subcategories/${sub.id}`).send({ categoryId: b.id });
+    const items = (await as('get', `${base}/photos?categoryId=${b.id}`)).body.data.items;
+    expect(items.map((item: { id: string }) => item.id)).toEqual([image.id, p.id]);
+    expect(items[1]).toMatchObject({ type: 'video', subcategoryId: sub.id, displayOrder: 2 });
+    expect((await as('delete', `${base}/photos/${p.id}`)).status).toBe(200);
+    await expect(fs.access(assertSafePath(stored.file!.storageKey))).rejects.toThrow();
+    expect((await as('delete', `${base}/subcategories/${sub.id}`)).status).toBe(200);
+    expect(await prisma.auditLog.count({ where: { actorId: admin.id, entity: `GalleryItem ${p.id}`, action: 'GalleryPhotoUploaded' } })).toBe(1);
+  });
+});

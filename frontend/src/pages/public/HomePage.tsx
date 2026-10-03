@@ -242,7 +242,6 @@ export default function HomePage() {
         <div className="relative h-[560px] sm:h-[520px] lg:h-[620px]">
           {HOME_BANNERS.map((slide, i) => {
             const active = i === bannerIndex;
-            const Icon = slide.eyebrow.icon;
             return (
               <div
                 key={slide.id}

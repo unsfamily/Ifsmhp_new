@@ -19,7 +19,7 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SelectInput, TextArea, TextInput, Checkbox } from '../../components/common/Input';
+import { SelectInput, TextArea, TextInput } from '../../components/common/Input';
 import { memberApi } from '../../api/member';
 import { normalizeError } from '../../api/client';
 import { useApiData } from '../../hooks/useApiData';

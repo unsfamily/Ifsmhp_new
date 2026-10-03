@@ -44,6 +44,7 @@ const envSchema = z.object({
   ADMIN_AVATAR_MAX_UPLOAD_MB: z.coerce.number().int().positive().max(25).default(5),
   ADMIN_EMAIL_WORKER_ENABLED: z.enum(['true', 'false']).default('true').transform(v => v === 'true'),
   GALLERY_MAX_UPLOAD_MB: z.coerce.number().int().positive().max(1024).default(100),
+  GALLERY_FFPROBE_PATH: z.string().optional(),
   MAX_UPLOAD_MB: z.coerce.number().int().positive().default(25),
   SEED_ADMIN_EMAIL: z.string().email().default('admin@ifsmhp.local'),
   SEED_ADMIN_PASSWORD: z.string().min(12).default('ChangeMeNow!2026'),

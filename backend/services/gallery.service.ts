@@ -9,7 +9,7 @@ import { ApiError } from '../utils/ApiError';
 import { buildPaginatedResult, paginationQuerySchema, toSkipTake } from '../utils/pagination';
 import { assertSafePath } from '../utils/fileStorage';
 import { logger } from '../utils/logger';
-import { galleryPolicy, inspectImage } from './gallery-upload.service';
+import { galleryPolicy, inspectMedia } from './gallery-upload.service';
 
 type DB = Prisma.TransactionClient;
 const text = (max: number) => z.string().trim().max(max);
@@ -20,7 +20,7 @@ export const categoryBody = z.object({ name: text(191).min(1), description: text
 export const photoBody = z.object({ title: text(191).min(1), caption: text(10000), altText: text(2000), categoryId: identifier, subcategoryId: identifier.nullable(), published: z.boolean(), displayOrder: order }).partial().strict();
 export const reorderBody = z.object({ direction: z.union([z.literal(-1), z.literal(1)]) }).strict();
 const listQuery = paginationQuerySchema.extend({ categoryId: z.string().max(191).optional(), subcategoryId: identifier.optional(), search: text(200).default('') });
-export const publicPhotoScope = { visibility: 'PUBLIC', album: { visibility: 'PUBLIC' }, type: 'image', file: { is: { deletedAt: null, mimeType: { in: galleryPolicy.mimeTypes } } } } satisfies Prisma.GalleryItemWhereInput;
+export const publicPhotoScope = { visibility: 'PUBLIC', album: { visibility: 'PUBLIC' }, type: { in: ['image', 'video'] }, file: { is: { deletedAt: null, mimeType: { in: galleryPolicy.mimeTypes } } } } satisfies Prisma.GalleryItemWhereInput;
 const categorySort = [{ displayOrder: 'asc' }, { id: 'asc' }] satisfies Prisma.GalleryAlbumOrderByWithRelationInput[];
 const photoSort = [{ album: { displayOrder: 'asc' } }, { albumId: 'asc' }, { displayOrder: 'asc' }, { id: 'asc' }] satisfies Prisma.GalleryItemOrderByWithRelationInput[];
 
@@ -29,6 +29,7 @@ function categoryDto(c: Prisma.GalleryAlbumGetPayload<{ include: { _count: { sel
 }
 function photoDto(p: Prisma.GalleryItemGetPayload<{ include: { file: true } }>, admin: boolean) {
   return { id: p.id, categoryId: p.albumId, subcategoryId: p.subcategoryId, title: p.title, caption: p.caption, altText: p.altText, displayOrder: p.displayOrder, published: p.visibility === 'PUBLIC', uploadedAt: p.createdAt, updatedAt: p.updatedAt,
+    type: p.type, mediaUrl: p.file && !p.file.deletedAt ? `/${admin ? 'admin' : 'public'}/gallery/photos/${p.id}/media` : '',
     imageUrl: p.file && !p.file.deletedAt ? `/${admin ? 'admin' : 'public'}/gallery/photos/${p.id}/image` : '', fileSizeBytes: p.file?.sizeBytes, width: p.width ?? undefined, height: p.height ?? undefined, aspect: p.aspect };
 }
 export async function categories(query: unknown, admin: boolean) {
@@ -160,12 +161,12 @@ export async function uploadPhoto(actor: AuthenticatedUser, input: unknown, file
     title: z.string().trim().max(191, 'Name must be 191 characters or fewer.').optional(),
     caption: z.string().trim().max(10000, 'Description must be 10,000 characters or fewer.').optional(),
   }).strict().parse(input);
-  const metadata = await inspectImage(file);
+  const metadata = await inspectMedia(file);
   return mutate(actor, 'PhotoUploaded', 'photos', body.categoryId, async db => {
     await album(db, body.categoryId);
     await validateAssignment(db, body.categoryId, body.subcategoryId);
     const stored = await db.fileObject.create({ data: { uploaderId: actor.id, storageKey: file!.filename, originalName: file!.originalname.slice(0, 191), mimeType: file!.mimetype, sizeBytes: file!.size, checksum: metadata.checksum, visibility: 'PRIVATE', galleryManaged: true } });
-    const record = await db.galleryItem.create({ data: { albumId: body.categoryId, subcategoryId: body.subcategoryId, fileId: stored.id, type: 'image', visibility: 'PRIVATE', title: body.title || file!.originalname.replace(/\.[^.]+$/, '').slice(0, 191) || 'Photograph', caption: body.caption ?? '', altText: '', capturedAt: new Date(), location: '', photographer: '', creditLine: '', sizeMB: file!.size / 1024 / 1024, width: metadata.width, height: metadata.height, aspect: metadata.aspect, resolution: `${metadata.width}x${metadata.height}`, displayOrder: await db.galleryItem.count({ where: { albumId: body.categoryId } }) + 1 }, include: { file: true } });
+    const record = await db.galleryItem.create({ data: { albumId: body.categoryId, subcategoryId: body.subcategoryId, fileId: stored.id, type: metadata.type, visibility: 'PRIVATE', title: body.title || file!.originalname.replace(/\.[^.]+$/, '').slice(0, 191) || 'Photograph', caption: body.caption ?? '', altText: '', capturedAt: new Date(), location: '', photographer: '', creditLine: '', sizeMB: file!.size / 1024 / 1024, width: metadata.width, height: metadata.height, aspect: metadata.aspect, resolution: `${metadata.width}x${metadata.height}`, displayOrder: await db.galleryItem.count({ where: { albumId: body.categoryId } }) + 1 }, include: { file: true } });
     return photoDto(record, true);
   });
 }
@@ -222,9 +223,9 @@ export async function remove(actor: AuthenticatedUser, kind: 'categories' | 'pho
   await purgeGalleryFiles();
   return result;
 }
-export async function imageFile(id: string, admin: boolean) {
+export async function mediaFile(id: string, admin: boolean) {
   const item = await prisma.galleryItem.findFirst({ where: { id, ...(admin ? {} : publicPhotoScope) }, include: { file: true } });
-  if (!item?.file || item.file.deletedAt || !galleryPolicy.mimeTypes.includes(item.file.mimeType)) throw ApiError.notFound('Image not found');
+  if (!item?.file || item.file.deletedAt || !galleryPolicy.mimeTypes.includes(item.file.mimeType)) throw ApiError.notFound('Media not found');
   return item.file;
 }
 export async function authorizeGalleryFile(fileId: string, admin: boolean) {

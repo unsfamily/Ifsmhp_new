@@ -54,7 +54,7 @@ async function run() {
   await row(adminPage, second).getByRole('button', { name: 'Move up', exact: true }).click(); await status(adminPage, 'Collection order updated.');
   checks.push('Create collections and persist collection ordering');
   await screenshot(adminPage, 'collections-desktop');
-  await adminPage.getByRole('button', { name: 'Upload Photos', exact: true }).click();
+  await adminPage.getByRole('button', { name: 'Upload Media', exact: true }).click();
   await adminPage.getByRole('combobox', { name: 'Default collection', exact: true }).selectOption(a.id);
   const png = await sharp({ create: { width: 640, height: 400, channels: 3, background: '#527e86' } }).png().toBuffer();
   await adminPage.locator('input[type=file]').setInputFiles([{ name: 'symposium-first.png', mimeType: 'image/png', buffer: png }, { name: 'symposium-second.png', mimeType: 'image/png', buffer: png }]);
@@ -62,7 +62,7 @@ async function run() {
   let photos = (await api(admin, `/admin/gallery/photos?categoryId=${a.id}`)).items; assert.equal(photos.length, 2); assert.ok(photos.every(p => !p.published));
   checks.push('Multiple real uploads finish once each, with draft status and stored image metadata');
   await screenshot(adminPage, 'uploads-desktop');
-  await adminPage.getByRole('button', { name: 'Photographs', exact: true }).click(); await ready(adminPage);
+  await adminPage.getByRole('button', { name: 'Media', exact: true }).click(); await ready(adminPage);
   await row(adminPage, 'symposium-second').getByRole('button', { name: 'Reorder up', exact: true }).click(); await status(adminPage, 'Photo order updated.');
   await row(adminPage, 'symposium-first').getByRole('button', { name: 'Edit', exact: true }).click();
   const title = adminPage.getByPlaceholder('Formal title for this photograph'); await title.fill('Published symposium photo');
@@ -91,7 +91,7 @@ async function run() {
   await adminPage.unroute('**/admin/gallery/photos?*');
   await adminPage.getByRole('button', { name: 'Retry', exact: true }).click(); await ready(adminPage); await row(adminPage, 'Published symposium photo').waitFor();
   checks.push('List error and retry recover without mock fallback');
-  await adminPage.reload(); await ready(adminPage); await adminPage.getByRole('button', { name: 'Photographs', exact: true }).click();
+  await adminPage.reload(); await ready(adminPage); await adminPage.getByRole('button', { name: 'Media', exact: true }).click();
   await row(adminPage, 'Published symposium photo').waitFor();
   await adminPage.waitForFunction(() => Array.from(document.querySelectorAll('tbody img')).some(img => img.alt === 'Teal image from symposium' && img.complete && img.naturalWidth > 0));
   await publicPage.goto(`${site}/#gallery-section`); await publicPage.locator('#gallery-section').getByText('Published symposium photo', { exact: true }).waitFor();
@@ -106,7 +106,7 @@ async function run() {
   await row(adminPage, second).getByRole('button', { name: 'Toggle published', exact: true }).click(); await status(adminPage, 'Collection status updated.');
   checks.push('Collection publication controls public visibility');
   const mobile = await pageFor(admin, true); await mobile.goto(`${site}/admin/gallery`); await ready(mobile); await screenshot(mobile, 'collections-mobile');
-  await mobile.getByRole('button', { name: 'Photographs', exact: true }).click(); await screenshot(mobile, 'photographs-mobile');
+  await mobile.getByRole('button', { name: 'Media', exact: true }).click(); await screenshot(mobile, 'photographs-mobile');
   const memberMobile = await pageFor(member, true); await memberMobile.goto(`${site}/dashboard/gallery`); await memberMobile.getByText('Published symposium photo', { exact: true }).waitFor(); await screenshot(memberMobile, 'member-gallery-mobile');
   checks.push('Desktop and mobile layouts without horizontal page overflow');
   const template = await prisma.galleryItem.findUniqueOrThrow({ where: { id: photos[0].id } });
@@ -114,20 +114,20 @@ async function run() {
   const bulkIds = Array.from({ length: 104 }, () => crypto.randomUUID());
   await prisma.galleryItem.createMany({ data: bulkIds.map((id, n) => ({ ...templateFields, id, title: `Bulk photograph ${String(n).padStart(3, '0')}`, displayOrder: n + 3 })) });
   await adminPage.getByRole('button', { name: 'Refresh', exact: true }).click(); await ready(adminPage);
-  await adminPage.getByRole('button', { name: 'Photographs', exact: true }).click();
+  await adminPage.getByRole('button', { name: 'Media', exact: true }).click();
   await row(adminPage, 'Bulk photograph 103').waitFor(); assert.equal(await adminPage.locator('tbody tr').count(), 106);
   await prisma.galleryItem.deleteMany({ where: { id: { in: bulkIds } } });
   await adminPage.getByRole('button', { name: 'Refresh', exact: true }).click(); await ready(adminPage);
   checks.push('Admin consumes all API pages beyond 100 photographs');
 
   // Invalid upload and server failure must not stall the next task.
-  await adminPage.getByRole('button', { name: 'Upload Photos', exact: true }).click(); await adminPage.getByRole('combobox', { name: 'Default collection', exact: true }).selectOption(a.id);
+  await adminPage.getByRole('button', { name: 'Upload Media', exact: true }).click(); await adminPage.getByRole('combobox', { name: 'Default collection', exact: true }).selectOption(a.id);
   let rejected = false;
   await adminPage.route('**/admin/gallery/photos', route => { if (route.request().method() === 'POST' && !rejected) { rejected = true; return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ success: false, message: 'Temporary upload failure', errors: [] }) }); } return route.continue(); });
   await adminPage.locator('input[type=file]').setInputFiles([{ name: 'bad.txt', mimeType: 'text/plain', buffer: Buffer.from('invalid') }, { name: 'failure.png', mimeType: 'image/png', buffer: png }, { name: 'recovery.png', mimeType: 'image/png', buffer: png }]);
   await adminPage.getByText('Temporary upload failure', { exact: true }).waitFor(); await adminPage.getByText('1 successful', { exact: true }).waitFor(); await adminPage.getByText('2 rejected', { exact: true }).waitFor(); await adminPage.unroute('**/admin/gallery/photos');
   checks.push('Invalid files and failed uploads do not stall subsequent tasks');
-  await adminPage.getByRole('button', { name: 'Photographs', exact: true }).click(); await ready(adminPage);
+  await adminPage.getByRole('button', { name: 'Media', exact: true }).click(); await ready(adminPage);
   await row(adminPage, 'Published symposium photo').getByRole('button', { name: 'Delete', exact: true }).click(); await status(adminPage, 'Photograph deleted.');
   assert.equal(await row(adminPage, 'Published symposium photo').count(), 0);
   await adminPage.getByRole('button', { name: 'Categories', exact: true }).click(); await row(adminPage, first).getByRole('button', { name: 'Delete category', exact: true }).click(); await status(adminPage, 'Collection deleted.');
@@ -162,7 +162,7 @@ async function run() {
   await adminPage.getByRole('button', { name: 'Save subcategory', exact: true }).click(); await status(adminPage, 'Subcategory updated.');
   const sub = (await api(admin, `/admin/gallery/subcategories?categoryId=${events.id}`)).items[0];
   await screenshot(adminPage, 'subcategories-desktop');
-  await adminPage.getByRole('button', { name: 'Upload Photos', exact: true }).click();
+  await adminPage.getByRole('button', { name: 'Upload Media', exact: true }).click();
   await adminPage.getByRole('combobox', { name: 'Default collection', exact: true }).selectOption(events.id);
   await adminPage.getByRole('combobox', { name: 'Subcategory', exact: true }).selectOption(sub.id);
   await adminPage.getByRole('combobox', { name: 'Default collection', exact: true }).selectOption(projects.id);
@@ -173,7 +173,7 @@ async function run() {
   await adminPage.getByText('1 successful', { exact: true }).waitFor();
   const assigned = (await api(admin, `/admin/gallery/photos?subcategoryId=${sub.id}`)).items[0];
   assert.equal(assigned.categoryId, events.id);
-  await adminPage.getByRole('button', { name: 'Photographs', exact: true }).click();
+  await adminPage.getByRole('button', { name: 'Media', exact: true }).click();
   await adminPage.getByRole('combobox', { name: 'Filter category', exact: true }).selectOption(events.id); await ready(adminPage);
   await adminPage.getByRole('combobox', { name: 'Filter subcategory', exact: true }).selectOption(sub.id); await ready(adminPage);
   await row(adminPage, 'subcategory-photo').waitFor();
@@ -275,7 +275,7 @@ async function run() {
   const detailsCategory = (await api(admin, '/admin/gallery/categories')).items.find(c => c.name === detailsCategoryName);
   const detailsSubcategory = await api(admin, '/admin/gallery/subcategories', 'POST', { name: 'Details', categoryId: detailsCategory.id });
   await adminPage.getByRole('button', { name: 'Refresh', exact: true }).click(); await ready(adminPage);
-  await adminPage.getByRole('button', { name: 'Upload Photos', exact: true }).click();
+  await adminPage.getByRole('button', { name: 'Upload Media', exact: true }).click();
   await adminPage.getByRole('combobox', { name: 'Default collection', exact: true }).selectOption(detailsCategory.id);
   await adminPage.getByRole('combobox', { name: 'Subcategory', exact: true }).selectOption(detailsSubcategory.id);
   const uploadName = adminPage.getByLabel('Name (optional)', { exact: true });
@@ -313,10 +313,10 @@ async function run() {
   await adminPage.waitForFunction(() => document.querySelector('aside').getBoundingClientRect().right <= 0);
   await screenshot(adminPage, 'upload-details-mobile');
   await adminPage.setViewportSize({ width: 1440, height: 1000 });
-  await adminPage.getByRole('button', { name: 'Photographs', exact: true }).click();
+  await adminPage.getByRole('button', { name: 'Media', exact: true }).click();
   await adminPage.getByRole('combobox', { name: 'Filter category', exact: true }).selectOption(detailsCategory.id); await ready(adminPage);
   await adminPage.reload(); await ready(adminPage);
-  await adminPage.getByRole('button', { name: 'Photographs', exact: true }).click();
+  await adminPage.getByRole('button', { name: 'Media', exact: true }).click();
   const firstDetailsRow = row(adminPage, 'Batch name').first();
   await firstDetailsRow.getByRole('button', { name: 'Edit', exact: true }).click();
   assert.equal(await adminPage.getByLabel('Name (title)', { exact: true }).inputValue(), 'Batch name');
@@ -338,6 +338,38 @@ async function run() {
     await page.getByRole('button', { name: 'Close viewer', exact: true }).click();
   }
   checks.push('Optional upload metadata: four combinations, shared batch snapshots, original filenames, mappings, reload/edit persistence, public/member details and mobile form');
+  await adminPage.getByRole('button', { name: 'Upload Media', exact: true }).click();
+  await adminPage.getByRole('combobox', { name: 'Default collection', exact: true }).selectOption(detailsCategory.id);
+  await adminPage.getByRole('combobox', { name: 'Subcategory', exact: true }).selectOption(detailsSubcategory.id);
+  await uploadName.fill('Gallery video'); await uploadDescription.fill('Video description');
+  const videoFiles = await Promise.all(['mp4', 'webm'].map(async extension => ({ name: `gallery-video.${extension}`, mimeType: `video/${extension}`, buffer: await fs.readFile(path.join(__dirname, 'fixtures/gallery', `sample.${extension}`)) })));
+  await adminPage.locator('input[type=file]').setInputFiles(videoFiles);
+  await adminPage.getByText('2 successful', { exact: true }).waitFor(); await ready(adminPage);
+  const videos = (await api(admin, `/admin/gallery/photos?categoryId=${detailsCategory.id}`)).items.filter(p => p.type === 'video');
+  assert.equal(videos.length, 2); assert.ok(videos.every(p => p.subcategoryId === detailsSubcategory.id && p.caption === 'Video description' && !p.published));
+  await adminPage.getByRole('button', { name: 'Media', exact: true }).click(); await ready(adminPage);
+  await row(adminPage, 'Gallery video').first().getByRole('button', { name: 'Edit', exact: true }).click();
+  await adminPage.waitForFunction(() => { const video = document.querySelector('form video'); return video && video.readyState >= 2 && video.videoWidth === 160; });
+  await adminPage.getByLabel('Name (title)', { exact: true }).fill('Edited gallery video');
+  await adminPage.getByRole('button', { name: 'Save photograph', exact: true }).click(); await status(adminPage, 'Photograph updated.');
+  for (const video of videos) await api(admin, `/admin/gallery/photos/${video.id}`, 'PATCH', { published: true });
+  for (const [page, url, sectionId] of [[publicPage, `${site}/#gallery-section`, 'gallery-section'], [memberPage, `${site}/dashboard/gallery`, 'member-gallery-view']]) {
+    await page.goto(url); await page.reload(); await ready(page);
+    const gallery = page.locator(`#${sectionId}`);
+    await gallery.getByRole('button', { name: detailsCategoryName, exact: true }).click();
+    for (const title of ['Edited gallery video', 'Gallery video']) {
+      await gallery.getByRole('button', { name: `Open ${title}`, exact: true }).click();
+      const viewer = page.getByRole('dialog', { name: title, exact: true });
+      await viewer.getByText('Video description', { exact: true }).waitFor();
+      await page.waitForFunction(() => { const video = document.querySelector('[role=dialog] video'); return video && video.readyState >= 2 && video.videoWidth === 160; });
+      await viewer.locator('video').evaluate(async video => { video.muted = true; await video.play(); });
+      await page.waitForFunction(() => document.querySelector('[role=dialog] video').currentTime > 0);
+      await viewer.locator('video').evaluate(video => { video.pause(); video.currentTime = 1; });
+      await page.waitForFunction(() => { const video = document.querySelector('[role=dialog] video'); return !video.seeking && video.currentTime >= 1; });
+      await page.getByRole('button', { name: 'Close viewer', exact: true }).click();
+    }
+  }
+  checks.push('Real MP4/WebM batch upload, mappings, authenticated preview/edit, persisted metadata, public/member playback and seeking');
   assert.deepEqual(errors, []);
   await fs.writeFile(path.join(output, 'results.json'), JSON.stringify({ checks, errors }, null, 2)); console.log(JSON.stringify({ passed: checks.length, checks, output }, null, 2));
 }

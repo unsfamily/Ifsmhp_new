@@ -43,6 +43,7 @@
     "seed": "tsx database/prisma/seed.ts"
   },
   "dependencies": {
+    "@ffprobe-installer/ffprobe": "^2.1.2",
     "@prisma/client": "^5.22.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",

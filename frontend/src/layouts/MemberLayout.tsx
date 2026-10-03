@@ -18,7 +18,6 @@ import {
   Bell,
   IdCard,
   Building2,
-  Images,
 } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import logoImg from '../assets/images/logo.webp';

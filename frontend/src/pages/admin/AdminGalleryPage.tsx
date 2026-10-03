@@ -40,10 +40,7 @@ import type {
 } from '../../types/gallery';
 
 type TabId = 'categories' | 'photos' | 'upload';
-const VIDEO_FORMATS = [
-  { extension: 'mp4', mimeType: 'video/mp4' },
-  { extension: 'webm', mimeType: 'video/webm' },
-];
+
 
 const ADMIN_TABS: Array<{ id: TabId; label: string; icon: typeof FolderKanban }> = [
   { id: 'categories', label: 'Categories', icon: FolderKanban },
@@ -159,9 +156,8 @@ export default function AdminGalleryPage() {
     }
     const next = Array.from(files).map((file): PhotoUploadTask => {
       const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-      const supportedImage = policy.extensions.includes(extension) && policy.mimeTypes.includes(file.type);
-      const supportedVideo = VIDEO_FORMATS.some(format => format.extension === extension && format.mimeType === file.type);
-      const error = !file.size ? 'Choose a non-empty image or video.' : !supportedImage && !supportedVideo ? 'Choose a JPEG, PNG, WebP, MP4, or WebM file.' : file.size > policy.maxBytes ? `File exceeds ${MAX_UPLOAD_MB} MB.` : null;
+      const supportedMedia = policy.extensions.includes(extension) && policy.mimeTypes.includes(file.type);
+      const error = !file.size ? 'Choose a non-empty image or video.' : !supportedMedia ? 'Choose a JPEG, PNG, WebP, MP4, or WebM file.' : file.size > policy.maxBytes ? `File exceeds ${MAX_UPLOAD_MB} MB.` : null;
       return { id: crypto.randomUUID(), categoryId: defaultUploadCategoryId, subcategoryId: uploadSubcategoryId || null, file, name: file.name, title, caption, sizeBytes: file.size, status: error ? 'error' : 'queued', error, progress: 0, photo: null, previewUrl: error ? null : URL.createObjectURL(file) };
     });
     setUploadTasks(previous => [...previous, ...next]);
@@ -848,8 +844,8 @@ function UploadPanel({
   policy: GalleryPolicy | null;
 }) {
   const MAX_UPLOAD_MB = (policy?.maxBytes ?? 0) / 1024 / 1024;
-  const ACCEPTED_EXTENSIONS = [...new Set([...(policy?.extensions ?? []), ...VIDEO_FORMATS.map(format => format.extension)])];
-  const ACCEPTED_FILE_ATTR = [...(policy?.mimeTypes ?? []), ...VIDEO_FORMATS.map(format => format.mimeType), ...ACCEPTED_EXTENSIONS.map(e => `.${e}`)].join(',');
+  const ACCEPTED_EXTENSIONS = policy?.extensions ?? [];
+  const ACCEPTED_FILE_ATTR = [...(policy?.mimeTypes ?? []), ...ACCEPTED_EXTENSIONS.map(e => `.${e}`)].join(',');
   const anyQueued = uploadTasks.some((t) => t.status === 'queued' || t.status === 'uploading');
   const successCount = uploadTasks.filter((t) => t.status === 'success').length;
   const errorCount = uploadTasks.filter((t) => t.status === 'error').length;
@@ -864,7 +860,7 @@ function UploadPanel({
           Drop images or videos below, or click to browse. You can queue multiple
           files at once. Original media is stored securely and displayed in the gallery when published.
         </p>
-        <p className="text-xs text-ink-subtle">MP4/WebM selection and preview are available in this frontend; the current gallery API still accepts images only, so video upload needs server support.</p>
+        <p className="text-xs text-ink-subtle">Videos: MP4 with H.264, or WebM with VP8/VP9. Uploads remain drafts until published.</p>
       </div>
 
       <Card className="p-5 sm:p-6 space-y-5">

@@ -10,7 +10,7 @@ function readCategoryLayouts(): Record<string, GalleryCategory['displayLayout']>
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(CATEGORY_LAYOUTS_KEY) ?? '{}');
     if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {};
-    return Object.fromEntries(Object.entries(stored).filter(([, value]) => displayLayouts.includes(value as GalleryCategory['displayLayout']))) as Record<string, GalleryCategory['displayLayout']>;
+    return Object.fromEntries(Object.entries(stored).filter(([, value]) => displayLayouts.includes(value as (typeof displayLayouts)[number]))) as Record<string, GalleryCategory['displayLayout']>;
   } catch {
     return {};
   }
