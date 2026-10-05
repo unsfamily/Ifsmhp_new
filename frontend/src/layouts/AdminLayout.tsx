@@ -18,7 +18,6 @@ import {
   Mail,
   History,
   BarChart3,
-  Settings,
   UserCircle,
   Clock,
   Images,
@@ -277,22 +276,14 @@ export default function AdminLayout() {
 
         <div className="border-t border-forum-700 shrink-0 bg-forum-900">
           <div className="p-3 space-y-1">
-            {user?.role === 'ADMIN' && <><Link
+            {user?.role === 'ADMIN' && <Link
               to="/admin/profile"
               onClick={() => setSidebarOpen(false)}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-forum-100/80 hover:bg-forum-800 hover:text-white transition-colors"
             >
               <UserCircle className="h-4.5 w-4.5 shrink-0" />
               <span className="flex-1">Admin Profile</span>
-            </Link>
-            <Link
-              to="/admin/settings"
-              onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-forum-100/80 hover:bg-forum-800 hover:text-white transition-colors"
-            >
-              <Settings className="h-4.5 w-4.5 shrink-0" />
-              <span className="flex-1">Settings</span>
-            </Link></>}
+            </Link>}
             <button
               type="button"
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-forum-100/70 hover:bg-forum-800 hover:text-white transition-colors"
