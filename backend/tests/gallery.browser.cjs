@@ -30,7 +30,11 @@ async function screenshot(page, name) { await page.waitForFunction(() => Array.f
 async function api(actor, url, method = 'GET', body) {
   const response = await fetch(`${base}${url}`, { method, headers: { Authorization: `Bearer ${actor.token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) }); const data = await response.json(); assert.ok(response.ok, JSON.stringify(data)); return data.data;
 }
-async function ready(page) { await page.getByText('Loading gallery…', { exact: true }).waitFor({ state: 'hidden' }); }
+async function ready(page) {
+  await page.locator('main').waitFor();
+  if (new URL(page.url()).pathname === '/admin/gallery') await page.locator('main fieldset[aria-busy="false"]').waitFor();
+  else await page.getByText('Loading gallery…', { exact: true }).waitFor({ state: 'hidden' });
+}
 async function status(page, message) { await page.getByRole('status').filter({ hasText: message }).waitFor(); await ready(page); }
 const row = (page, text) => page.getByRole('row').filter({ hasText: text });
 async function createCollection(page, name) {

@@ -59,7 +59,7 @@ async function scenario(viewport, reducedMotion = 'no-preference') {
   const context = await browser.newContext({ viewport, reducedMotion });
   await context.addInitScript(token => { if (!localStorage.getItem('ifsmhp.accessToken')) localStorage.setItem('ifsmhp.accessToken', token); }, jwt('session-a'));
   const page = await context.newPage(); page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
-  let batch, fail = false, empty = false;
+  let batch, fail = 0, empty = false;
   let completed = [];
   page.on('response', response => { if (response.ok() && response.url().includes('/admin/gallery/') && !response.url().includes('/media')) completed.push(response.url()); });
   const hold = () => { batch = Object.fromEntries(['categories', 'subcategories', 'photos', 'options'].map(kind => [kind, deferred()])); return batch; };
@@ -70,7 +70,7 @@ async function scenario(viewport, reducedMotion = 'no-preference') {
     if (url.pathname.includes('/gallery/')) {
       if (kind === 'media') return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') });
       const gate = batch?.[kind]; if (gate) await gate.promise;
-      if (fail) return route.fulfill({ status: 503, json: { success: false, message: 'Gallery temporarily unavailable' } }).catch(() => undefined);
+      if (fail) return route.fulfill({ status: fail, json: { success: false, message: 'Gallery temporarily unavailable' } }).catch(() => undefined);
       const items = empty ? [] : kind === 'categories' ? categories : kind === 'subcategories' ? subcategories : photos.filter(p => !url.searchParams.get('search') || p.title.includes(url.searchParams.get('search')));
       const number = Number(url.searchParams.get('page') || 1);
       data = kind === 'options' ? { maxBytes: 104857600, mimeTypes: ['image/png'], extensions: ['png'] } : { items: items.slice((number - 1) * 100, number * 100), pagination: { page: number, pages: Math.ceil(items.length / 100), total: items.length, limit: 100 } };
@@ -144,9 +144,9 @@ async function scenario(viewport, reducedMotion = 'no-preference') {
 
     await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
     await page.getByRole('button', { name: 'Categories', exact: true }).click();
-    fail = true; await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await page.getByRole('alert').waitFor();
+    fail = 503; await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await page.getByRole('alert').waitFor();
     assert.equal((await sample(page)).rows, 107); assert.equal((await sample(page)).skeletons, 0);
-    fail = false; await page.getByRole('button', { name: 'Retry', exact: true }).click(); await ready(page);
+    fail = 0; await page.getByRole('button', { name: 'Retry', exact: true }).click(); await ready(page);
     empty = true; await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await ready(page);
     await page.getByText('No categories yet', { exact: true }).waitFor();
     assert.equal(await page.getByRole('checkbox', { name: 'Visibility of all collections' }).isDisabled(), true);
@@ -157,7 +157,15 @@ async function scenario(viewport, reducedMotion = 'no-preference') {
     await page.evaluate(token => { localStorage.setItem('ifsmhp.accessToken', token); window.dispatchEvent(new StorageEvent('storage', { key: 'ifsmhp.accessToken', newValue: token })); }, jwt('session-b'));
     await page.locator('[data-gallery-skeleton]').first().waitFor(); assert.equal((await sample(page)).rows, 5);
     Object.values(gates).forEach(gate => gate.resolve()); await ready(page);
-    checks.push(`${label}: initial/return/reload layout, atomic pagination, request counts, refresh height/scroll, media retention, failure/retry, empty state, session isolation`);
+
+    fail = 503; await page.reload(); await page.getByRole('alert').waitFor(); await ready(page);
+    assert.equal(await page.getByText('No categories yet', { exact: true }).count(), 0);
+    await page.getByText('Unable to load collections. Use Retry above.', { exact: true }).waitFor();
+    fail = 0; await page.getByRole('button', { name: 'Retry', exact: true }).click(); await ready(page);
+    assert.equal((await sample(page)).rows, 107);
+    fail = 403; await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await page.getByRole('alert').waitFor(); await ready(page);
+    assert.equal((await sample(page)).rows, 1, 'Denied admin access must clear cached collection rows');
+    checks.push(`${label}: initial/return/reload layout, atomic pagination, request counts, refresh height/scroll, media retention, first-load/refresh failure and retry, empty state, session isolation and access revocation`);
   } finally { if (batch) Object.values(batch).forEach(gate => gate.resolve()); await context.close(); }
 }
 (async () => {
