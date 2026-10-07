@@ -38,6 +38,93 @@ const passwordSchema = z.object({
 });
 type PasswordForm = z.infer<typeof passwordSchema>;
 
+function BrandMark({ compact = false }: { compact?: boolean }) {
+  return (
+    <Link to="/" className="inline-flex items-center gap-2.5" aria-label="IFSMHP home">
+      <img
+        src={logoImg}
+        alt="IFSMHP Logo"
+        className={compact ? 'h-9 w-9 rounded-lg object-contain p-0.5 shadow-md shadow-forum-900/20' : 'h-10 w-10 rounded-lg object-contain bg-white p-0.5 shadow-md shadow-forum-900/20'}
+      />
+      <div className={compact ? 'flex items-center gap-2' : ''}>
+        <span className={compact ? 'font-display text-lg font-semibold text-forum-900' : 'block font-display text-lg font-semibold'}>
+          IFSMHP
+        </span>
+        {!compact && (
+          <span className="block text-[10px] uppercase tracking-wider text-forum-200/60">Member Portal</span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function AuthAmbientBackground() {
+  const lines = [
+    [0.18, 0.28, 0.33, 0.5],
+    [0.18, 0.28, 0.54, 0.74],
+    [0.33, 0.5, 0.44, 0.38],
+    [0.44, 0.38, 0.7, 0.31],
+    [0.54, 0.74, 0.68, 0.64],
+    [0.68, 0.64, 0.82, 0.72],
+    [0.7, 0.31, 0.82, 0.18],
+    [0.52, 0.18, 0.76, 0.12],
+  ] as const;
+
+  const nodes = [
+    [0.18, 0.28, '0.7s'],
+    [0.33, 0.5, '1.6s'],
+    [0.44, 0.38, '2.1s'],
+    [0.54, 0.74, '0.9s'],
+    [0.68, 0.64, '1.3s'],
+    [0.82, 0.72, '2.6s'],
+    [0.82, 0.18, '1.9s'],
+    [0.7, 0.31, '2.8s'],
+    [0.52, 0.18, '1.1s'],
+    [0.76, 0.12, '2.3s'],
+  ] as const;
+
+  return (
+    <div className="auth-background" aria-hidden="true">
+      <div className="auth-background__glow auth-background__glow--blue" />
+      <div className="auth-background__glow auth-background__glow--gold" />
+      <div className="auth-background__glow auth-background__glow--slate" />
+
+      <svg className="auth-background__network" viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="auth-network-stroke" x1="0%" x2="100%" y1="0%" y2="0%">
+            <stop offset="0%" stopColor="rgba(17, 24, 39, 0.18)" />
+            <stop offset="50%" stopColor="rgba(152, 170, 188, 0.28)" />
+            <stop offset="100%" stopColor="rgba(17, 24, 39, 0.12)" />
+          </linearGradient>
+        </defs>
+
+        {lines.map(([x1, y1, x2, y2], index) => (
+          <line
+            key={`line-${index}`}
+            x1={x1 * 1200}
+            y1={y1 * 900}
+            x2={x2 * 1200}
+            y2={y2 * 900}
+            className="auth-network-line"
+            style={{ animationDelay: `${index * 0.5}s` }}
+          />
+        ))}
+
+        {nodes.map(([x, y, delay], index) => (
+          <circle
+            key={`node-${index}`}
+            cx={x * 1200}
+            cy={y * 900}
+            r={index % 3 === 0 ? 7 : 5}
+            className="auth-network-node"
+            style={{ animationDelay: delay }}
+          />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const [mode, setMode] = useState<'otp' | 'password'>('otp');
   const navigate = useNavigate();
@@ -56,9 +143,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-forum-900 via-forum-700 to-forum-600 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-5xl grid lg:grid-cols-2 rounded-2xl overflow-hidden shadow-2xl">
-        <div className="hidden lg:flex flex-col justify-between bg-forum-900 p-10 text-white relative overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-forum-900 via-forum-700 to-forum-600 px-4 py-12">
+      <AuthAmbientBackground />
+
+      <div className="relative z-10 flex min-h-[calc(100vh-6rem)] items-center justify-center">
+        <div className="w-full max-w-5xl grid lg:grid-cols-2 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="hidden lg:flex flex-col justify-between bg-forum-900 p-10 text-white relative overflow-hidden">
           <div
             className="absolute inset-0 opacity-10"
             style={{
@@ -67,19 +157,7 @@ export default function LoginPage() {
             }}
           />
           <div className="relative">
-            <Link to="/" className="flex items-center gap-2.5">
-              <img
-                src={logoImg}
-                alt="IFSMHP Logo"
-                className="h-10 w-10 rounded-lg object-contain bg-white p-0.5"
-              />
-              <div>
-                <span className="block font-display text-lg font-semibold">IFSMHP</span>
-                <span className="block text-[10px] uppercase tracking-wider text-forum-200/60">
-                  Member Portal
-                </span>
-              </div>
-            </Link>
+            <BrandMark />
           </div>
           <div className="relative">
             <h2 className="font-display text-2xl font-semibold leading-tight text-white">
@@ -104,21 +182,17 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="bg-paper-raised p-8 sm:p-10 lg:p-12">
-          <div className="lg:hidden mb-8">
-            <Link to="/" className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-forum-600 text-white">
-                <span className="font-display text-sm font-bold">IF</span>
-              </div>
-              <span className="font-display text-lg font-semibold text-forum-900">IFSMHP</span>
-            </Link>
-          </div>
+          <div className="bg-paper-raised p-8 sm:p-10 lg:p-12">
+            <div className="lg:hidden mb-8">
+              <BrandMark compact />
+            </div>
 
-          {mode === 'otp' ? (
-            <OtpSignIn onSignedIn={routeAfterLogin} onUsePassword={() => setMode('password')} />
-          ) : (
-            <PasswordSignIn onSignedIn={routeAfterLogin} onUseOtp={() => setMode('otp')} />
-          )}
+            {mode === 'otp' ? (
+              <OtpSignIn onSignedIn={routeAfterLogin} onUsePassword={() => setMode('password')} />
+            ) : (
+              <PasswordSignIn onSignedIn={routeAfterLogin} onUseOtp={() => setMode('otp')} />
+            )}
+          </div>
         </div>
       </div>
     </div>
