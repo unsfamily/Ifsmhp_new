@@ -554,7 +554,7 @@ export default function RegisterPage() {
                     <TextInput
                       label="Phone Number"
                       type="tel"
-                      placeholder="+1 555 123 4567"
+                      placeholder="+91 xxx xxx xxxx"
                       required
                       error={errors.phone?.message}
                       {...register('phone')}

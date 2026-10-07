@@ -118,7 +118,7 @@ function PhotoGrid({
             key={photo.id}
             type="button"
             onClick={() => onOpen(idx)}
-            className={`group relative block w-full overflow-hidden rounded-2xl ${layout === 'SQUARE' ? 'aspect-square' : aspectClass} bg-gradient-to-br from-forum-800 via-forum-600 to-brass-500 text-left ring-1 ring-paper-border shadow-sm transition-all duration-300 hover:shadow-xl hover:ring-forum-900/15`}
+            className={`group relative block w-full h-full overflow-hidden rounded-2xl ${layout === 'SQUARE' ? 'aspect-square' : aspectClass} bg-gradient-to-br from-forum-800 via-forum-600 to-brass-500 text-left ring-1 ring-paper-border shadow-sm transition-all duration-300 hover:shadow-xl hover:ring-forum-900/15`}
             aria-label={`Open ${photo.title}`}
           >
             <GalleryMedia
