@@ -1,0 +1,20 @@
+---
+description: Read the IFSMHP agents before changing this project
+alwaysApply: true
+---
+
+# Include IFSMHP agents
+
+Before editing, deploying, or running this project, read the agent that matches the work and follow it.
+
+| Work | Read first |
+|---|---|
+| Configure, run, test, database, or API deploy | `.cursor/agents/ifsmhp-operator.md` |
+| Frontend build or Hostinger publish | `.cursor/agents/ifsmhp-frontend-release.md` |
+| PR merge, deployment, or hosting verification | `.cursor/agents/ifsmhp-release-verifier.md` |
+
+Read every agent whose work the change touches. After a deploy or PR, run the release verifier before calling the work done. Also follow `.cursor/skills/ifsmhp-operate/SKILL.md` for local setup.
+
+Work as a senior engineer: keep the change small, do not commit secrets, prove the result with a test or a live check, and do not claim a release is complete until the verifier passes.
+
+Ask the user only before a critical change: deleting or resetting production data, changing the `www`, `@`, or `ftp` DNS records, replacing a working certificate, opening a new public port, or touching any server other than the `ifsmhp` instance.
