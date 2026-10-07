@@ -189,84 +189,92 @@ describe('Gallery workflow with real storage and authentication', () => {
   });
 });
 
-describe('Bulk collection visibility', () => {
-  const endpoint = `${base}/categories/visibility`;
+describe('Bulk media status', () => {
+  const endpoint = `${base}/photos/status`;
+  const update = (photoIds: string[], published: boolean) => as('patch', endpoint).send({ photoIds, published });
   it('validates the contract and requires an administrator', async () => {
-    const c = await category();
-    const body = { categoryIds: [c.id], published: false };
+    const c = await category(), p = (await upload(c.id)).body.data;
+    const body = { photoIds: [p.id], published: true };
     expect((await request(app).patch(endpoint).send(body)).status).toBe(401);
     expect((await as('patch', endpoint, member.token).send(body)).status).toBe(403);
-    for (const invalid of [{}, { ...body, categoryIds: [] }, { ...body, categoryIds: [' '] }, { ...body, categoryIds: [123] }, { categoryIds: [c.id] }, { ...body, published: 'false' }, { ...body, name: 'Unexpected' }]) {
+    for (const invalid of [{}, { ...body, photoIds: [] }, { ...body, photoIds: [' '] }, { ...body, photoIds: [123] }, { photoIds: [p.id] }, { ...body, published: 'true' }, { ...body, title: 'Unexpected' }]) {
       expect((await as('patch', endpoint).send(invalid)).status).toBe(422);
     }
+    expect((await prisma.galleryItem.findUniqueOrThrow({ where: { id: p.id } })).visibility).toBe('PRIVATE');
+    expect((await as('patch', `${base}/categories/visibility`).send({ categoryIds: [c.id], published: false })).status).toBe(422);
     expect((await prisma.galleryAlbum.findUniqueOrThrow({ where: { id: c.id } })).visibility).toBe('PUBLIC');
   });
-  it('persists both directions, deduplicates IDs, audits only changes, and preserves individual photo settings', async () => {
-    const a = await category('Bulk A'), b = await category('Bulk B'), untouched = await category('Outside grid');
-    const publishedPhoto = (await upload(a.id)).body.data, draftPhoto = (await upload(b.id)).body.data;
-    await as('patch', `${base}/photos/${publishedPhoto.id}`).send({ published: true });
-    const originals = await prisma.galleryAlbum.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } });
-    const hide = await as('patch', endpoint).send({ categoryIds: [a.id, b.id, a.id], published: false });
-    expect(hide.status).toBe(200);
-    expect(hide.body.data.updatedCount).toBe(2);
-    expect(hide.body.data.items).toHaveLength(2);
-    expect(hide.body.data.items.every((c: { published: boolean }) => !c.published)).toBe(true);
-    const list = (await as('get', `${base}/categories`)).body.data.items;
-    expect(list.filter((c: { id: string }) => [a.id, b.id].includes(c.id)).every((c: { published: boolean }) => !c.published)).toBe(true);
-    expect((await prisma.galleryAlbum.findUniqueOrThrow({ where: { id: untouched.id } })).visibility).toBe('PUBLIC');
-    expect((await request(app).get(`/api/v1/public/gallery/photos/${publishedPhoto.id}/image`)).status).toBe(404);
-    const auditWhere = { actorId: admin.id, action: 'GalleryCollectionUpdated', entityId: { in: [a.id, b.id] } };
+  it('publishes images and videos, persists both directions, audits changes, and preserves collections and metadata', async () => {
+    const a = await category('Bulk A'), b = await category('Hidden parent');
+    await as('patch', `${base}/categories/${b.id}`).send({ published: false });
+    const sub = await subcategory(a.id);
+    const image = (await uploadAssigned(a.id, sub.id)).body.data;
+    const bytes = await fs.readFile(new URL('./fixtures/gallery/sample.mp4', import.meta.url));
+    const videoResponse = await upload(b.id, bytes, 'video.mp4', 'video/mp4');
+    expect(videoResponse.status).toBe(201);
+    const video = videoResponse.body.data, untouched = (await upload(a.id)).body.data;
+    const ids = [image.id, video.id];
+    const before = await prisma.galleryItem.findMany({ where: { id: { in: ids } }, orderBy: { id: 'asc' } });
+    const collections = await prisma.galleryAlbum.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } });
+    const show = await update([...ids, image.id], true);
+    expect(show.status).toBe(200); expect(show.body.data.updatedCount).toBe(2);
+    expect(show.body.data.items).toHaveLength(2);
+    expect(show.body.data.items.every((p: { published: boolean }) => p.published)).toBe(true);
+    const list = (await as('get', `${base}/photos`)).body.data.items;
+    expect(list.filter((p: { id: string }) => ids.includes(p.id)).every((p: { published: boolean }) => p.published)).toBe(true);
+    expect((await prisma.galleryItem.findUniqueOrThrow({ where: { id: untouched.id } })).visibility).toBe('PRIVATE');
+    expect((await request(app).get(`/api/v1/public/gallery/photos/${image.id}/media`)).status).toBe(200);
+    expect((await request(app).get(`/api/v1/public/gallery/photos/${video.id}/media`)).status).toBe(404);
+    const auditWhere = { actorId: admin.id, action: 'GalleryPhotoUpdated', entityId: { in: ids } };
     const audits = await prisma.auditLog.findMany({ where: auditWhere });
     expect(audits).toHaveLength(2);
-    for (const audit of audits) expect(audit.changes).toEqual({ visibility: { before: 'PUBLIC', after: 'PRIVATE' } });
-    const saved = await prisma.galleryAlbum.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } });
-    const repeat = await as('patch', endpoint).send({ categoryIds: [a.id, b.id], published: false });
-    expect(repeat.body.data.updatedCount).toBe(0);
-    expect(await prisma.galleryAlbum.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } })).toEqual(saved);
+    for (const audit of audits) expect(audit.changes).toEqual({ visibility: { before: 'PRIVATE', after: 'PUBLIC' } });
+    const saved = await prisma.galleryItem.findMany({ where: { id: { in: ids } }, orderBy: { id: 'asc' } });
+    expect((await update(ids, true)).body.data.updatedCount).toBe(0);
+    expect(await prisma.galleryItem.findMany({ where: { id: { in: ids } }, orderBy: { id: 'asc' } })).toEqual(saved);
     expect(await prisma.auditLog.count({ where: auditWhere })).toBe(2);
-    const show = await as('patch', endpoint).send({ categoryIds: [a.id, b.id], published: true });
-    expect(show.status).toBe(200); expect(show.body.data.updatedCount).toBe(2);
-    const after = await prisma.galleryAlbum.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } });
-    expect(after.map(({ updatedAt: _updatedAt, ...row }) => row)).toEqual(originals.map(({ updatedAt: _updatedAt, ...row }) => row));
-    expect((await prisma.galleryItem.findUniqueOrThrow({ where: { id: publishedPhoto.id } })).visibility).toBe('PUBLIC');
-    expect((await prisma.galleryItem.findUniqueOrThrow({ where: { id: draftPhoto.id } })).visibility).toBe('PRIVATE');
-    expect((await request(app).get(`/api/v1/public/gallery/photos/${publishedPhoto.id}/image`)).status).toBe(200);
-    // Individual row writes continue to work after a bulk change.
-    await as('patch', `${base}/categories/${a.id}`).send({ published: false });
-    const mixed = (await as('get', `${base}/categories`)).body.data.items;
-    expect(mixed.find((c: { id: string }) => c.id === a.id).published).toBe(false);
-    expect(mixed.find((c: { id: string }) => c.id === b.id).published).toBe(true);
+    const hide = await update(ids, false);
+    expect(hide.status).toBe(200); expect(hide.body.data.updatedCount).toBe(2);
+    const after = await prisma.galleryItem.findMany({ where: { id: { in: ids } }, orderBy: { id: 'asc' } });
+    expect(after.map(({ updatedAt: _updatedAt, ...row }) => row)).toEqual(before.map(({ updatedAt: _updatedAt, ...row }) => row));
+    expect(await prisma.galleryAlbum.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } })).toEqual(collections);
+    expect((await request(app).get(`/api/v1/public/gallery/photos/${image.id}/media`)).status).toBe(404);
+    await as('patch', `${base}/photos/${image.id}`).send({ published: true });
+    const mixed = (await as('get', `${base}/photos`)).body.data.items;
+    expect(mixed.find((p: { id: string }) => p.id === image.id).published).toBe(true);
+    expect(mixed.find((p: { id: string }) => p.id === video.id).published).toBe(false);
   });
-  it('rejects a stale collection list without partial changes', async () => {
-    const c = await category();
-    expect((await as('patch', endpoint).send({ categoryIds: [c.id, 'missing'], published: false })).status).toBe(404);
-    expect((await prisma.galleryAlbum.findUniqueOrThrow({ where: { id: c.id } })).visibility).toBe('PUBLIC');
-    expect(await prisma.auditLog.count({ where: { actorId: admin.id, action: 'GalleryCollectionUpdated', entityId: c.id } })).toBe(0);
+  it('rejects missing IDs without partial writes', async () => {
+    const c = await category(), p = (await upload(c.id)).body.data;
+    expect((await update([p.id, 'missing'], true)).status).toBe(404);
+    expect((await prisma.galleryItem.findUniqueOrThrow({ where: { id: p.id } })).visibility).toBe('PRIVATE');
+    expect(await prisma.auditLog.count({ where: { actorId: admin.id, action: 'GalleryPhotoUpdated', entityId: p.id } })).toBe(0);
   });
-  it('rolls back both visibility and audits when the transaction fails', async () => {
-    const a = await category('Rollback A'), b = await category('Rollback B');
+  it('rolls back status and audits when the transaction fails', async () => {
+    const c = await category(), a = (await upload(c.id)).body.data, b = (await upload(c.id)).body.data;
     const original = prisma.$transaction.bind(prisma);
     const transaction = vi.spyOn(prisma, '$transaction').mockImplementationOnce(async (operation, options) => original(async db => {
       await (operation as (db: Prisma.TransactionClient) => Promise<unknown>)(db);
-      throw new Error('Simulated bulk visibility failure after writes');
+      throw new Error('Simulated bulk status failure after writes');
     }, options));
-    try {
-      expect((await as('patch', endpoint).send({ categoryIds: [a.id, b.id], published: false })).status).toBe(500);
-    } finally { transaction.mockRestore(); }
-    expect(await prisma.galleryAlbum.count({ where: { id: { in: [a.id, b.id] }, visibility: 'PUBLIC' } })).toBe(2);
-    expect(await prisma.auditLog.count({ where: { actorId: admin.id, action: 'GalleryCollectionUpdated', entityId: { in: [a.id, b.id] } } })).toBe(0);
+    try { expect((await update([a.id, b.id], true)).status).toBe(500); }
+    finally { transaction.mockRestore(); }
+    expect(await prisma.galleryItem.count({ where: { id: { in: [a.id, b.id] }, visibility: 'PRIVATE' } })).toBe(2);
+    expect(await prisma.auditLog.count({ where: { actorId: admin.id, action: 'GalleryPhotoUpdated', entityId: { in: [a.id, b.id] } } })).toBe(0);
   });
-  it('updates collections across API page boundaries', async () => {
-    await prisma.galleryAlbum.createMany({ data: Array.from({ length: 105 }, (_, index) => ({ id: `${prefix}-bulk-${index}`, key: `${prefix}-bulk-${index}`, label: `${prefix}-Bulk ${index}`, description: '', coverGradient: '', visibility: 'PUBLIC', displayOrder: index + 1 })) });
+  it('updates only the supplied filtered media across API page boundaries', async () => {
+    const c = await category(), template = (await upload(c.id)).body.data;
+    const { id: _id, ...fields } = await prisma.galleryItem.findUniqueOrThrow({ where: { id: template.id } }); void _id;
     const ids = Array.from({ length: 105 }, (_, index) => `${prefix}-bulk-${index}`);
-    const response = await as('patch', endpoint).send({ categoryIds: ids, published: false });
-    expect(response.status).toBe(200); expect(response.body.data.updatedCount).toBe(105);
-    expect(response.body.data.items).toHaveLength(105);
+    await prisma.galleryItem.createMany({ data: ids.map((id, index) => ({ ...fields, id, title: `Filtered ${index}`, displayOrder: index + 2 })) });
+    const response = await update(ids, true);
+    expect(response.status).toBe(200); expect(response.body.data.updatedCount).toBe(105); expect(response.body.data.items).toHaveLength(105);
     for (const page of [1, 2]) {
-      const list = (await as('get', `${base}/categories?limit=100&page=${page}`)).body.data.items;
-      expect(list.length).toBeGreaterThan(0);
-      expect(list.filter((c: { id: string }) => ids.includes(c.id)).every((c: { published: boolean }) => !c.published)).toBe(true);
+      const list = (await as('get', `${base}/photos?categoryId=${c.id}&search=Filtered&limit=100&page=${page}`)).body.data.items;
+      expect(list).toHaveLength(page === 1 ? 100 : 5);
+      expect(list.every((p: { published: boolean }) => p.published)).toBe(true);
     }
+    expect((await prisma.galleryItem.findUniqueOrThrow({ where: { id: template.id } })).visibility).toBe('PRIVATE');
   });
 });
 

@@ -100,7 +100,7 @@ async function scenario(viewport, reducedMotion = 'no-preference') {
     before = await sample(page); await startSamples(page); completed = []; gates = hold();
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     assert.equal((await sample(page)).rows, before.rows); assert.equal((await sample(page)).skeletons, 0);
-    assert.equal(await page.getByRole('checkbox', { name: 'Visibility of all collections' }).isDisabled(), true);
+    assert.equal(await page.getByRole('checkbox', { name: 'Visibility of all collections' }).count(), 0);
     Object.values(gates).forEach(gate => gate.resolve()); await ready(page);
     await stable(page, `${label}: toolbar refresh`, before, true);
     assert.equal(completed.filter(url => url.includes('/categories?')).length, 2);
@@ -139,6 +139,7 @@ async function scenario(viewport, reducedMotion = 'no-preference') {
     before = await sample(page); await startSamples(page); gates = hold();
     await page.evaluate(() => window.dispatchEvent(new Event('focus'))); await page.locator('main fieldset[aria-busy="true"]').waitFor();
     assert.equal((await sample(page)).rows, 12); assert.equal((await sample(page)).skeletons, 0);
+    assert.equal(await page.getByRole('checkbox', { name: 'Status of all media in current grid' }).isDisabled(), true);
     Object.values(gates).forEach(gate => gate.resolve()); await ready(page);
     await stable(page, `${label}: media refresh`, before, true);
 
@@ -149,7 +150,7 @@ async function scenario(viewport, reducedMotion = 'no-preference') {
     fail = 0; await page.getByRole('button', { name: 'Retry', exact: true }).click(); await ready(page);
     empty = true; await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await ready(page);
     await page.getByText('No categories yet', { exact: true }).waitFor();
-    assert.equal(await page.getByRole('checkbox', { name: 'Visibility of all collections' }).isDisabled(), true);
+    assert.equal(await page.getByRole('checkbox', { name: 'Visibility of all collections' }).count(), 0);
     empty = false; await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await ready(page);
 
     // A new session for the same account cannot reuse the old account snapshot.

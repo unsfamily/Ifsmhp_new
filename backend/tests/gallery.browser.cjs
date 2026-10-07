@@ -109,7 +109,7 @@ async function run() {
   await publicPage.reload(); await ready(publicPage); assert.equal(await publicPage.getByText('Published symposium photo', { exact: true }).count(), 0);
   await row(adminPage, second).getByRole('button', { name: 'Toggle published', exact: true }).click(); await status(adminPage, 'Collection status updated.');
   checks.push('Collection publication controls public visibility');
-  await require('./gallery-visibility.browser.cjs')({ adminPage, publicPage, memberPage, ready, status, row, screenshot, prisma, prefix, checks, first, second });
+  await require('./gallery-status.browser.cjs')({ adminPage, publicPage, memberPage, admin, api, ready, status, row, screenshot, prisma, prefix, checks, first, second });
   const mobile = await pageFor(admin, true); await mobile.goto(`${site}/admin/gallery`); await ready(mobile); await screenshot(mobile, 'collections-mobile');
   await mobile.getByRole('button', { name: 'Media', exact: true }).click(); await screenshot(mobile, 'photographs-mobile');
   const memberMobile = await pageFor(member, true); await memberMobile.goto(`${site}/dashboard/gallery`); await memberMobile.getByText('Published symposium photo', { exact: true }).waitFor(); await screenshot(memberMobile, 'member-gallery-mobile');

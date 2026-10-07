@@ -23,7 +23,7 @@ function useGalleryData(admin: boolean, enabled: boolean, identity: string) {
   const queryKey = admin ? JSON.stringify(filters) : 'public';
   const requestKey = `${enabled}:${identity}:${queryKey}`;
   const active = useRef<AbortController | null>(null);
-  const currentScope = useRef({ enabled, identity }); currentScope.current = { enabled, identity };
+  const currentScope = useRef({ enabled, identity, queryKey }); currentScope.current = { enabled, identity, queryKey };
   const refresh = useCallback(async () => {
     active.current?.abort();
     const controller = new AbortController(); active.current = controller;
@@ -69,11 +69,11 @@ function useGalleryData(admin: boolean, enabled: boolean, identity: string) {
     window.addEventListener(SESSION_CHANGED, clear);
     return () => window.removeEventListener(SESSION_CHANGED, clear);
   }, [admin]);
-  const applyCategories = (items: GalleryCategory[]) => {
-    if (!currentScope.current.enabled || currentScope.current.identity !== identity) return;
+  const applyPhotos = (items: GalleryPhoto[]) => {
+    if (!currentScope.current.enabled || currentScope.current.identity !== identity || currentScope.current.queryKey !== queryKey) return;
     active.current?.abort();
-    const saved = new Map(items.map(category => [category.id, category]));
-    setSnapshot(previous => previous?.identity === identity ? { ...previous, categories: previous.categories.map(category => saved.get(category.id) ?? category) } : previous);
+    const saved = new Map(items.map(photo => [photo.id, photo]));
+    setSnapshot(previous => previous?.identity === identity && previous.queryKey === queryKey ? { ...previous, photos: previous.photos.map(photo => saved.get(photo.id) ?? photo) } : previous);
   };
   const usable = enabled && snapshot?.identity === identity ? snapshot : null;
   const hasLoaded = Boolean(usable);
@@ -101,7 +101,7 @@ function useGalleryData(admin: boolean, enabled: boolean, identity: string) {
       });
     return { groupedByCategory: grouped, flatPhotos: grouped.flatMap(g => g.photos) };
   };
-  return { categories, subcategories, photos, loading, hasLoaded, hasPhotosLoaded, error, refresh, policy, filters, setPhotoFilters, getCategoryPhotos, applyFilters, applyCategories };
+  return { categories, subcategories, photos, loading, hasLoaded, hasPhotosLoaded, error, refresh, policy, filters, setPhotoFilters, getCategoryPhotos, applyFilters, applyPhotos };
 }
 function useGalleryStore() {
   const { user } = useAuth(); const { pathname } = useLocation();
@@ -122,10 +122,10 @@ function useGalleryStore() {
     updateCategory: (id: string, patch: Partial<CategoryInput>) => write(galleryService.updateCategory(id, patch)),
     deleteCategory: (id: string) => write(galleryService.remove('categories', id)),
     toggleCategoryPublished: (id: string) => write(galleryService.updateCategory(id, { published: !adminData.categories.find(c => c.id === id)?.published })),
-    setCategoryVisibility: async (categoryIds: string[], published: boolean) => {
+    setPhotoStatus: async (photoIds: string[], published: boolean) => {
       try {
-        const result = await galleryService.setCategoryVisibility(categoryIds, published);
-        adminData.applyCategories(result.items);
+        const result = await galleryService.setPhotoStatus(photoIds, published);
+        adminData.applyPhotos(result.items);
         await changed(); // Refresh errors are shown independently of a successful save.
         return result;
       } catch (failure) {

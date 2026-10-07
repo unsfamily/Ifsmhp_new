@@ -4,7 +4,7 @@ interface Envelope<T> { data: T }
 interface Page<T> { items: T[]; pagination: { pages: number; total: number } }
 export interface GalleryPolicy { maxBytes: number; mimeTypes: string[]; extensions: string[] }
 export type CategoryInput = Pick<GalleryCategory, 'name' | 'description' | 'published' | 'displayOrder' | 'displayLayout'>;
-export interface CategoryVisibilityResult { items: GalleryCategory[]; updatedCount: number }
+export interface PhotoStatusResult { items: GalleryPhoto[]; updatedCount: number }
 const CATEGORY_LAYOUTS_KEY = 'ifsmhp.gallery.category-layouts';
 const displayLayouts = ['SQUARE', 'FULL', 'HALF', 'QUARTER'] as const;
 function readCategoryLayouts(): Record<string, GalleryCategory['displayLayout']> {
@@ -58,10 +58,8 @@ export const galleryService = {
     return { ...category, displayLayout: layout };
   },
   updatePhoto: async (id: string, body: PhotoPatch) => (await apiClient.patch<Envelope<GalleryPhoto>>(`${root}/photos/${id}`, body)).data.data,
-  setCategoryVisibility: async (categoryIds: string[], published: boolean) => {
-    const result = (await apiClient.patch<Envelope<CategoryVisibilityResult>>(`${root}/categories/visibility`, { categoryIds, published })).data.data;
-    return { ...result, items: withCategoryLayouts(result.items) };
-  },
+  setPhotoStatus: async (photoIds: string[], published: boolean) =>
+    (await apiClient.patch<Envelope<PhotoStatusResult>>(`${root}/photos/status`, { photoIds, published })).data.data,
   remove: async (kind: 'categories' | 'subcategories' | 'photos', id: string) => { await apiClient.delete(`${root}/${kind}/${id}`); },
   reorder: async (kind: 'categories' | 'photos', id: string, direction: -1 | 1) => { await apiClient.post(`${root}/${kind}/${id}/reorder`, { direction }); },
   upload: async (file: File, categoryId: string, signal: AbortSignal, progress: (percent: number) => void, subcategoryId?: string | null, metadata: PhotoUploadMetadata = {}) => {
