@@ -42,6 +42,7 @@ All paths are relative to `/api/v1`; JSON responses use the existing success/err
 |---|---|---|
 | GET | `/admin/gallery/options` | Size limit, MIME types and extensions |
 | GET, POST | `/admin/gallery/categories` | Collections/counts; create collection |
+| PATCH | `/admin/gallery/categories/visibility` | Atomically set visibility for the supplied collection IDs |
 | PATCH, DELETE | `/admin/gallery/categories/:id` | Edit collection; delete with its photographs only when no subcategories exist |
 | GET, POST | `/admin/gallery/subcategories` | List subcategories/counts (optional `categoryId` filter); create subcategory |
 | PATCH, DELETE | `/admin/gallery/subcategories/:id` | Rename/change parent; delete only when no photographs reference it |
@@ -57,6 +58,14 @@ All paths are relative to `/api/v1`; JSON responses use the existing success/err
 | GET | `/public/gallery/photos/:id/image` | Public image, subject to current visibility |
 
 Collection bodies use `name`, `description`, `published`, and optional `displayOrder`. Photo patches accept `title`, `caption`, `altText`, `categoryId`, `subcategoryId`, `published`, and `displayOrder`. Image bytes are immutable through metadata updates. Positions are one-based, and out-of-range positive positions are clamped to the end. A move without an explicit position appends to the destination. Unpublishing a collection retains each photo's individual publication setting.
+
+The Gallery Collections **Visibility** header controls every collection in the fully loaded grid, across all API pages. It shows **All visible**, **None visible**, or **Some visible**; clicking a mixed or off toggle shows all, and clicking an on toggle hides all. Row toggles remain independent. The header is disabled for empty, loading, or failed lists and during saves. Success and error notices report saves; refresh errors appear separately. Visibility is saved to MySQL and survives page reloads.
+
+Admin loading keeps the page shell and table columns stable. The first load uses five skeleton rows; returning to the page retains the last successful in-memory snapshot for the current admin session while revalidating. Categories, subcategories, media, and upload policy commit together after every page succeeds. Refreshing retains existing rows and scroll position; a transient failure keeps the last successful content with a Retry message. Session changes, logout, and denied admin access clear cached admin data. Identical media filters do not restart requests. Entering the gallery resets scroll immediately, without a scroll animation.
+
+Run `npm --prefix backend run test:gallery:layout` with the frontend running (default `http://localhost:5173`, override `GALLERY_WEB_URL`) for deterministic layout checks. This test intercepts all API traffic, requires no database, and measures anchors, table columns, refresh height/scroll, pagination, session isolation, and desktop/mobile/reduced-motion navigation. It writes screenshots and measurements to `/private/tmp/ifsmhp-gallery-layout` (override `GALLERY_LAYOUT_OUTPUT`). The existing `test:gallery:browser` command verifies real backend persistence against a dedicated migrated database.
+
+Bulk visibility accepts `{ categoryIds: string[], published: boolean }` with a nonempty list of IDs and no unknown fields. IDs are deduplicated. All IDs must exist or the request returns 404 without changes. The standard success envelope contains `{ items: GalleryCategory[], updatedCount: number }`, where items are the requested collections and updatedCount counts actual visibility changes. The operation is transactional, uses the existing collection locks/retries, and audits each changed collection with `GalleryCollectionUpdated`. Repeating the same state is a successful no-op. Only the captured IDs are affected; collection order, metadata, and individual photo publication settings are preserved. No migration is required.
 
 Writes, moves and ordering are transactional, serialized through collection locks with deadlock retries, and audited. Names are trimmed and case-insensitively unique under the project's MySQL collation. Client-supplied file URLs, timestamps and IDs are not accepted as editable metadata.
 

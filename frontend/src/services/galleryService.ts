@@ -4,6 +4,7 @@ interface Envelope<T> { data: T }
 interface Page<T> { items: T[]; pagination: { pages: number; total: number } }
 export interface GalleryPolicy { maxBytes: number; mimeTypes: string[]; extensions: string[] }
 export type CategoryInput = Pick<GalleryCategory, 'name' | 'description' | 'published' | 'displayOrder' | 'displayLayout'>;
+export interface CategoryVisibilityResult { items: GalleryCategory[]; updatedCount: number }
 const CATEGORY_LAYOUTS_KEY = 'ifsmhp.gallery.category-layouts';
 const displayLayouts = ['SQUARE', 'FULL', 'HALF', 'QUARTER'] as const;
 function readCategoryLayouts(): Record<string, GalleryCategory['displayLayout']> {
@@ -42,7 +43,7 @@ export const galleryService = {
   subcategories: (admin: boolean, signal: AbortSignal, progress: (items: GallerySubcategory[]) => void) => all<GallerySubcategory>(`/${admin ? 'admin' : 'public'}/gallery/subcategories`, {}, signal, progress),
   createSubcategory: async (body: SubcategoryInput) => (await apiClient.post<Envelope<GallerySubcategory>>(`${root}/subcategories`, body)).data.data,
   updateSubcategory: async (id: string, body: Partial<SubcategoryInput>) => (await apiClient.patch<Envelope<GallerySubcategory>>(`${root}/subcategories/${id}`, body)).data.data,
-  categories: (admin: boolean, signal: AbortSignal, progress: (items: GalleryCategory[]) => void) => all<GalleryCategory>(`/${admin ? 'admin' : 'public'}/gallery/categories`, {}, signal, items => progress(withCategoryLayouts(items))),
+  categories: async (admin: boolean, signal: AbortSignal, progress: (items: GalleryCategory[]) => void) => withCategoryLayouts(await all<GalleryCategory>(`/${admin ? 'admin' : 'public'}/gallery/categories`, {}, signal, items => progress(withCategoryLayouts(items)))),
   photos: (admin: boolean, params: Record<string, unknown>, signal: AbortSignal, progress: (items: GalleryPhoto[]) => void) => all<GalleryPhoto>(`/${admin ? 'admin' : 'public'}/gallery/photos`, params, signal, progress),
   options: async (signal: AbortSignal) => (await apiClient.get<Envelope<GalleryPolicy>>(`${root}/options`, { signal })).data.data,
   createCategory: async ({ displayLayout, ...body }: CategoryInput) => {
@@ -57,6 +58,10 @@ export const galleryService = {
     return { ...category, displayLayout: layout };
   },
   updatePhoto: async (id: string, body: PhotoPatch) => (await apiClient.patch<Envelope<GalleryPhoto>>(`${root}/photos/${id}`, body)).data.data,
+  setCategoryVisibility: async (categoryIds: string[], published: boolean) => {
+    const result = (await apiClient.patch<Envelope<CategoryVisibilityResult>>(`${root}/categories/visibility`, { categoryIds, published })).data.data;
+    return { ...result, items: withCategoryLayouts(result.items) };
+  },
   remove: async (kind: 'categories' | 'subcategories' | 'photos', id: string) => { await apiClient.delete(`${root}/${kind}/${id}`); },
   reorder: async (kind: 'categories' | 'photos', id: string, direction: -1 | 1) => { await apiClient.post(`${root}/${kind}/${id}/reorder`, { direction }); },
   upload: async (file: File, categoryId: string, signal: AbortSignal, progress: (percent: number) => void, subcategoryId?: string | null, metadata: PhotoUploadMetadata = {}) => {

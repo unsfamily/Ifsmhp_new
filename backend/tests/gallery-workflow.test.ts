@@ -189,6 +189,87 @@ describe('Gallery workflow with real storage and authentication', () => {
   });
 });
 
+describe('Bulk collection visibility', () => {
+  const endpoint = `${base}/categories/visibility`;
+  it('validates the contract and requires an administrator', async () => {
+    const c = await category();
+    const body = { categoryIds: [c.id], published: false };
+    expect((await request(app).patch(endpoint).send(body)).status).toBe(401);
+    expect((await as('patch', endpoint, member.token).send(body)).status).toBe(403);
+    for (const invalid of [{}, { ...body, categoryIds: [] }, { ...body, categoryIds: [' '] }, { ...body, categoryIds: [123] }, { categoryIds: [c.id] }, { ...body, published: 'false' }, { ...body, name: 'Unexpected' }]) {
+      expect((await as('patch', endpoint).send(invalid)).status).toBe(422);
+    }
+    expect((await prisma.galleryAlbum.findUniqueOrThrow({ where: { id: c.id } })).visibility).toBe('PUBLIC');
+  });
+  it('persists both directions, deduplicates IDs, audits only changes, and preserves individual photo settings', async () => {
+    const a = await category('Bulk A'), b = await category('Bulk B'), untouched = await category('Outside grid');
+    const publishedPhoto = (await upload(a.id)).body.data, draftPhoto = (await upload(b.id)).body.data;
+    await as('patch', `${base}/photos/${publishedPhoto.id}`).send({ published: true });
+    const originals = await prisma.galleryAlbum.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } });
+    const hide = await as('patch', endpoint).send({ categoryIds: [a.id, b.id, a.id], published: false });
+    expect(hide.status).toBe(200);
+    expect(hide.body.data.updatedCount).toBe(2);
+    expect(hide.body.data.items).toHaveLength(2);
+    expect(hide.body.data.items.every((c: { published: boolean }) => !c.published)).toBe(true);
+    const list = (await as('get', `${base}/categories`)).body.data.items;
+    expect(list.filter((c: { id: string }) => [a.id, b.id].includes(c.id)).every((c: { published: boolean }) => !c.published)).toBe(true);
+    expect((await prisma.galleryAlbum.findUniqueOrThrow({ where: { id: untouched.id } })).visibility).toBe('PUBLIC');
+    expect((await request(app).get(`/api/v1/public/gallery/photos/${publishedPhoto.id}/image`)).status).toBe(404);
+    const auditWhere = { actorId: admin.id, action: 'GalleryCollectionUpdated', entityId: { in: [a.id, b.id] } };
+    const audits = await prisma.auditLog.findMany({ where: auditWhere });
+    expect(audits).toHaveLength(2);
+    for (const audit of audits) expect(audit.changes).toEqual({ visibility: { before: 'PUBLIC', after: 'PRIVATE' } });
+    const saved = await prisma.galleryAlbum.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } });
+    const repeat = await as('patch', endpoint).send({ categoryIds: [a.id, b.id], published: false });
+    expect(repeat.body.data.updatedCount).toBe(0);
+    expect(await prisma.galleryAlbum.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } })).toEqual(saved);
+    expect(await prisma.auditLog.count({ where: auditWhere })).toBe(2);
+    const show = await as('patch', endpoint).send({ categoryIds: [a.id, b.id], published: true });
+    expect(show.status).toBe(200); expect(show.body.data.updatedCount).toBe(2);
+    const after = await prisma.galleryAlbum.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } });
+    expect(after.map(({ updatedAt: _updatedAt, ...row }) => row)).toEqual(originals.map(({ updatedAt: _updatedAt, ...row }) => row));
+    expect((await prisma.galleryItem.findUniqueOrThrow({ where: { id: publishedPhoto.id } })).visibility).toBe('PUBLIC');
+    expect((await prisma.galleryItem.findUniqueOrThrow({ where: { id: draftPhoto.id } })).visibility).toBe('PRIVATE');
+    expect((await request(app).get(`/api/v1/public/gallery/photos/${publishedPhoto.id}/image`)).status).toBe(200);
+    // Individual row writes continue to work after a bulk change.
+    await as('patch', `${base}/categories/${a.id}`).send({ published: false });
+    const mixed = (await as('get', `${base}/categories`)).body.data.items;
+    expect(mixed.find((c: { id: string }) => c.id === a.id).published).toBe(false);
+    expect(mixed.find((c: { id: string }) => c.id === b.id).published).toBe(true);
+  });
+  it('rejects a stale collection list without partial changes', async () => {
+    const c = await category();
+    expect((await as('patch', endpoint).send({ categoryIds: [c.id, 'missing'], published: false })).status).toBe(404);
+    expect((await prisma.galleryAlbum.findUniqueOrThrow({ where: { id: c.id } })).visibility).toBe('PUBLIC');
+    expect(await prisma.auditLog.count({ where: { actorId: admin.id, action: 'GalleryCollectionUpdated', entityId: c.id } })).toBe(0);
+  });
+  it('rolls back both visibility and audits when the transaction fails', async () => {
+    const a = await category('Rollback A'), b = await category('Rollback B');
+    const original = prisma.$transaction.bind(prisma);
+    const transaction = vi.spyOn(prisma, '$transaction').mockImplementationOnce(async (operation, options) => original(async db => {
+      await (operation as (db: Prisma.TransactionClient) => Promise<unknown>)(db);
+      throw new Error('Simulated bulk visibility failure after writes');
+    }, options));
+    try {
+      expect((await as('patch', endpoint).send({ categoryIds: [a.id, b.id], published: false })).status).toBe(500);
+    } finally { transaction.mockRestore(); }
+    expect(await prisma.galleryAlbum.count({ where: { id: { in: [a.id, b.id] }, visibility: 'PUBLIC' } })).toBe(2);
+    expect(await prisma.auditLog.count({ where: { actorId: admin.id, action: 'GalleryCollectionUpdated', entityId: { in: [a.id, b.id] } } })).toBe(0);
+  });
+  it('updates collections across API page boundaries', async () => {
+    await prisma.galleryAlbum.createMany({ data: Array.from({ length: 105 }, (_, index) => ({ id: `${prefix}-bulk-${index}`, key: `${prefix}-bulk-${index}`, label: `${prefix}-Bulk ${index}`, description: '', coverGradient: '', visibility: 'PUBLIC', displayOrder: index + 1 })) });
+    const ids = Array.from({ length: 105 }, (_, index) => `${prefix}-bulk-${index}`);
+    const response = await as('patch', endpoint).send({ categoryIds: ids, published: false });
+    expect(response.status).toBe(200); expect(response.body.data.updatedCount).toBe(105);
+    expect(response.body.data.items).toHaveLength(105);
+    for (const page of [1, 2]) {
+      const list = (await as('get', `${base}/categories?limit=100&page=${page}`)).body.data.items;
+      expect(list.length).toBeGreaterThan(0);
+      expect(list.filter((c: { id: string }) => ids.includes(c.id)).every((c: { published: boolean }) => !c.published)).toBe(true);
+    }
+  });
+});
+
 describe('Gallery subcategory relationships', () => {
   it('requires admin access, validates names and parents, and preserves mappings when renamed', async () => {
     const a = await category(), b = await category('Two');

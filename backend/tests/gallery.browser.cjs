@@ -26,7 +26,7 @@ async function pageFor(actor, mobile = false) {
   if (actor) await context.addInitScript(token => localStorage.setItem('ifsmhp.accessToken', token), actor.token);
   const page = await context.newPage(); page.setDefaultTimeout(12000); page.on('pageerror', e => errors.push(e.message)); page.on('dialog', dialog => dialog.accept()); return page;
 }
-async function screenshot(page, name) { await page.waitForFunction(() => Array.from(document.querySelectorAll('main img')).filter(img => img.getBoundingClientRect().top < innerHeight && img.getBoundingClientRect().bottom > 0).every(img => img.complete && img.naturalWidth > 0)); await page.screenshot({ path: path.join(output, `${name}.png`), fullPage: true }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}: horizontal overflow`); }
+async function screenshot(page, name) { await page.waitForFunction(() => Array.from(document.querySelectorAll('main img')).filter(img => img.getBoundingClientRect().top < innerHeight && img.getBoundingClientRect().bottom > 0).every(img => img.complete && img.naturalWidth > 0)); await page.screenshot({ path: path.join(output, `${name}.png`), fullPage: true, animations: 'disabled' }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}: horizontal overflow`); }
 async function api(actor, url, method = 'GET', body) {
   const response = await fetch(`${base}${url}`, { method, headers: { Authorization: `Bearer ${actor.token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) }); const data = await response.json(); assert.ok(response.ok, JSON.stringify(data)); return data.data;
 }
@@ -105,6 +105,7 @@ async function run() {
   await publicPage.reload(); await ready(publicPage); assert.equal(await publicPage.getByText('Published symposium photo', { exact: true }).count(), 0);
   await row(adminPage, second).getByRole('button', { name: 'Toggle published', exact: true }).click(); await status(adminPage, 'Collection status updated.');
   checks.push('Collection publication controls public visibility');
+  await require('./gallery-visibility.browser.cjs')({ adminPage, publicPage, memberPage, ready, status, row, screenshot, prisma, prefix, checks, first, second });
   const mobile = await pageFor(admin, true); await mobile.goto(`${site}/admin/gallery`); await ready(mobile); await screenshot(mobile, 'collections-mobile');
   await mobile.getByRole('button', { name: 'Media', exact: true }).click(); await screenshot(mobile, 'photographs-mobile');
   const memberMobile = await pageFor(member, true); await memberMobile.goto(`${site}/dashboard/gallery`); await memberMobile.getByText('Published symposium photo', { exact: true }).waitFor(); await screenshot(memberMobile, 'member-gallery-mobile');

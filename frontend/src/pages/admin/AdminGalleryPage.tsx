@@ -22,6 +22,7 @@ import {
   Film,
   PanelLeft,
   ListOrdered,
+  Minus,
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
@@ -63,22 +64,23 @@ export default function AdminGalleryPage() {
     updateCategory,
     deleteCategory,
     toggleCategoryPublished,
+    setCategoryVisibility,
     reorderCategory,
     updatePhoto,
     deletePhoto,
     togglePhotoPublished,
     movePhoto,
     reorderPhoto,
-    uploadPhoto, loading, error, refresh, policy, setPhotoFilters,
+    uploadPhoto, loading, hasLoaded, hasPhotosLoaded, error, refresh, policy, filters: photoFilters, setPhotoFilters,
   } = useAdminGallery();
 
   const [activeTab, setActiveTab] = useState<TabId>('categories');
 
-  const [catFilter, setCatFilter] = useState<string>('all');
+  const [catFilter, setCatFilter] = useState(photoFilters.categoryId);
   useEffect(() => { if (!loading && catFilter !== 'all' && !categories.some(c => c.id === catFilter)) setCatFilter('all'); }, [loading, catFilter, categories]);
-  const [subFilter, setSubFilter] = useState('all');
+  const [subFilter, setSubFilter] = useState(photoFilters.subcategoryId);
   useEffect(() => { if (!loading && subFilter !== 'all' && subFilter !== 'none' && !subcategories.some(s => s.id === subFilter && s.categoryId === catFilter)) setSubFilter('all'); }, [loading, subFilter, subcategories, catFilter]);
-  const [catSearch, setCatSearch] = useState('');
+  const [catSearch, setCatSearch] = useState(photoFilters.search);
 
   const sortedCategories = useMemo(
     () => [...categories].sort((a, b) => a.displayOrder - b.displayOrder),
@@ -180,27 +182,30 @@ export default function AdminGalleryPage() {
           <p className="text-sm text-ink-muted max-w-2xl">
             Organise collections, upload photos and videos, and control what appears
             on the IFSMHP homepage gallery. Max{' '}
-            <span className="font-semibold text-forum-800">{MAX_UPLOAD_MB} MB</span> per file.
+            <span className="inline-block w-[7ch] whitespace-nowrap font-semibold tabular-nums text-forum-800">{MAX_UPLOAD_MB} MB</span> per file.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            disabled={busy || loading}
-            onClick={() => void refresh()}
-          >
-            <RotateCcw className="h-4 w-4" /> Refresh
-          </Button>
-          <Button
-            onClick={() => setActiveTab('upload')}
-            className="bg-forum-900 hover:bg-forum-800"
-          >
-            <ImagePlus className="h-4 w-4" /> Upload media
-          </Button>
+        <div className="shrink-0 space-y-1">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              disabled={busy || loading}
+              onClick={() => void refresh()}
+            >
+              <RotateCcw className="h-4 w-4" /> Refresh
+            </Button>
+            <Button
+              onClick={() => setActiveTab('upload')}
+              className="bg-forum-900 hover:bg-forum-800"
+            >
+              <ImagePlus className="h-4 w-4" /> Upload media
+            </Button>
+          </div>
+          <p role="status" aria-live="polite" className="h-5 text-sm leading-5 text-ink-muted sm:text-right">{loading ? 'Loading gallery…' : ''}</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-paper-border bg-white p-1.5 shadow-sm inline-flex flex-wrap gap-1">
+      <div role="group" aria-label="Gallery views" className="rounded-2xl border border-paper-border bg-white p-1.5 shadow-sm inline-flex flex-wrap gap-1">
         {ADMIN_TABS.map((tab) => {
           const active = activeTab === tab.id;
           const Icon = tab.icon;
@@ -209,7 +214,7 @@ export default function AdminGalleryPage() {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
                 active
                   ? 'bg-forum-900 text-white shadow-sm'
                   : 'text-forum-700 hover:bg-forum-50'
@@ -222,13 +227,19 @@ export default function AdminGalleryPage() {
         })}
       </div>
 
-      {loading && <p role="status" className="text-sm text-ink-muted">Loading gallery…</p>}
       {error && <div role="alert" className="rounded-lg bg-danger-50 p-3 text-danger-700">{error} <button className="underline" onClick={() => void refresh()}>Retry</button></div>}
       {notice && <div role={notice.error ? 'alert' : 'status'} className={`rounded-lg p-3 text-sm ${notice.error ? 'bg-danger-50 text-danger-700' : 'bg-forum-50 text-forum-900'}`}>{notice.message}</div>}
-      <fieldset disabled={busy || loading || uploadTasks.some(t => t.status === 'uploading')} className="min-w-0 space-y-6">
+      <fieldset aria-busy={loading} disabled={busy || loading || uploadTasks.some(t => t.status === 'uploading')} className="min-w-0 space-y-6">
       {activeTab === 'categories' ? (
         <CategoriesPanel
           categories={sortedCategories}
+          initialLoading={!hasLoaded && loading}
+          loadError={!hasLoaded ? error : ''}
+          visibilityDisabled={loading || Boolean(error)}
+          onSetVisibility={published => {
+            const ids = sortedCategories.map(category => category.id);
+            void run(() => setCategoryVisibility(ids, published), published ? 'All collections are now visible.' : 'All collections are now hidden.');
+          }}
           subcategories={subcategories}
           onAddSubcategory={c => { setNotice(null); setSubcategoryDialog({ initial: null, parentId: c.id }); }}
           onEditSubcategory={sub => { setNotice(null); setSubcategoryDialog({ initial: sub, parentId: sub.categoryId }); }}
@@ -255,6 +266,7 @@ export default function AdminGalleryPage() {
         <PhotosPanel
           photos={filteredPhotos}
           loading={loading}
+          initialLoading={!hasPhotosLoaded && loading}
           loadError={error}
           categories={sortedCategories}
           catFilter={catFilter}
@@ -340,6 +352,7 @@ export default function AdminGalleryPage() {
 
 function CategoriesPanel({
   categories, subcategories, onAddSubcategory, onEditSubcategory, onDeleteSubcategory,
+  visibilityDisabled, onSetVisibility, initialLoading, loadError,
   getCount,
   onEdit,
   onDelete,
@@ -349,6 +362,10 @@ function CategoriesPanel({
   onNew,
 }: {
   categories: GalleryCategory[];
+  initialLoading: boolean;
+  loadError: string;
+  visibilityDisabled: boolean;
+  onSetVisibility: (published: boolean) => void;
   subcategories: GallerySubcategory[];
   onAddSubcategory: (c: GalleryCategory) => void;
   onEditSubcategory: (s: GallerySubcategory) => void;
@@ -361,6 +378,10 @@ function CategoriesPanel({
   onTogglePublish: (id: string) => void;
   onNew: () => void;
 }) {
+  const visibleCount = categories.filter(category => category.published).length;
+  const allVisible = categories.length > 0 && visibleCount === categories.length;
+  const mixedVisibility = visibleCount > 0 && !allVisible;
+  const visibilityLabel = allVisible ? 'All visible' : mixedVisibility ? 'Some visible' : 'None visible';
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -380,7 +401,8 @@ function CategoriesPanel({
 
       <Card className="p-0 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-paper-border">
+          <table aria-label="Gallery collections" className="w-full min-w-[800px] table-fixed divide-y divide-paper-border">
+            <colgroup><col className="w-24" /><col /><col className="w-24" /><col className="w-32" /><col className="w-48" /></colgroup>
             <thead className="bg-forum-50/70">
               <tr>
                 <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-24">
@@ -395,7 +417,25 @@ function CategoriesPanel({
                   Photos
                 </th>
                 <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-32">
-                  Visibility
+                  <div className="flex flex-col items-start gap-2">
+                    <span>Visibility</span>
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-label="Visibility of all collections"
+                      aria-checked={mixedVisibility ? 'mixed' : allVisible}
+                      aria-describedby="collection-visibility-state"
+                      title={allVisible ? 'Hide all collections' : 'Show all collections'}
+                      disabled={visibilityDisabled || categories.length === 0}
+                      onClick={() => onSetVisibility(!allVisible)}
+                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${allVisible ? 'bg-forum-900' : mixedVisibility ? 'bg-brass-500' : 'bg-ink-subtle/25'}`}
+                    >
+                      <span aria-hidden="true" className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-forum-900 shadow-sm ring-1 ring-black/5 transition-transform ${allVisible ? 'translate-x-5' : mixedVisibility ? 'translate-x-2.5' : 'translate-x-0.5'}`}>
+                        {mixedVisibility ? <Minus className="h-3 w-3" /> : allVisible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                      </span>
+                    </button>
+                    <span id="collection-visibility-state" className="whitespace-nowrap text-[11px] font-normal normal-case tracking-normal">{visibilityLabel}</span>
+                  </div>
                 </th>
                 <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-48">
                   Actions
@@ -403,7 +443,9 @@ function CategoriesPanel({
               </tr>
             </thead>
             <tbody className="divide-y divide-paper-border bg-white">
-              {categories.length === 0 ? (
+              {initialLoading ? <GallerySkeletonRows columns={5} /> : loadError ? (
+                <tr><td colSpan={5} className="h-[470px] px-5 text-center text-sm text-ink-muted">Unable to load collections. Use Retry above.</td></tr>
+              ) : categories.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-5 py-12 text-center">
                     <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-forum-50 text-forum-500 ring-1 ring-forum-100">
@@ -454,7 +496,7 @@ function CategoriesPanel({
                             <FolderKanban className="h-4.5 w-4.5" />
                           </div>
                           <div className="min-w-0">
-                            <div className="font-medium text-forum-900 leading-snug">
+                            <div className="break-words font-medium text-forum-900 leading-snug">
                               {c.name}
                             </div>
                             <p className="mt-0.5 text-sm text-ink-muted line-clamp-2 max-w-2xl">
@@ -480,6 +522,7 @@ function CategoriesPanel({
                             c.published ? 'bg-forum-900' : 'bg-ink-subtle/25'
                           }`}
                           aria-label="Toggle published"
+                          aria-pressed={c.published}
                         >
                           <span
                             className={`inline-flex items-center justify-center h-6 w-6 rounded-full bg-white shadow-sm ring-1 ring-black/5 transform transition-transform ${
@@ -527,7 +570,7 @@ function CategoriesPanel({
                     </tr>
                     {subcategories.filter(sub => sub.categoryId === c.id).map(sub => <tr key={sub.id} className="bg-forum-50/30">
                       <td />
-                      <td className="px-5 py-3"><div className="pl-6 border-l-2 border-forum-200"><span className="font-medium text-forum-800">{sub.name}</span><p className="text-xs text-ink-muted">Subcategory of {c.name}</p></div></td>
+                      <td className="px-5 py-3"><div className="break-words pl-6 border-l-2 border-forum-200"><span className="font-medium text-forum-800">{sub.name}</span><p className="text-xs text-ink-muted">Subcategory of {c.name}</p></div></td>
                       <td className="px-5 py-3"><Badge variant="default">{sub.photoCount}</Badge></td>
                       <td className="px-5 py-3 text-xs text-ink-muted">Follows category</td>
                       <td className="px-5 py-3 text-right">
@@ -551,9 +594,19 @@ function CategoriesPanel({
   );
 }
 
+function GallerySkeletonRows({ columns }: { columns: number }) {
+  return <>{Array.from({ length: 5 }, (_, row) => <tr key={row} aria-hidden="true" data-gallery-skeleton>
+    {Array.from({ length: columns }, (_, column) => <td key={column} className="h-[94px] px-5 py-3.5">
+      <div className={`h-4 rounded bg-forum-100 motion-safe:animate-pulse ${column === 1 ? 'w-3/4' : 'w-10'}`} />
+      {column === 1 && <div className="mt-2 h-3 w-1/2 rounded bg-forum-50 motion-safe:animate-pulse" />}
+    </td>)}
+  </tr>)}</>;
+}
+
 function PhotosPanel({
   subcategories, subFilter, setSubFilter,
   loading,
+  initialLoading,
   loadError,
   photos,
   categories,
@@ -572,6 +625,7 @@ function PhotosPanel({
 }: {
   photos: GalleryPhoto[];
   loading: boolean;
+  initialLoading: boolean;
   loadError: string;
   categories: GalleryCategory[];
   subcategories: GallerySubcategory[];
@@ -633,7 +687,7 @@ function PhotosPanel({
         </div>
       </div>
 
-      {photos.length === 0 ? (loading || loadError ? null : (
+      {photos.length === 0 && !initialLoading && !loadError ? (loading ? null : (
         <Card className="p-10 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-forum-50 text-forum-400 ring-1 ring-forum-100">
             <Images className="h-6 w-6" />
@@ -646,7 +700,8 @@ function PhotosPanel({
       )) : (
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-paper-border">
+            <table aria-label="Gallery media" className="w-full min-w-[1000px] table-fixed divide-y divide-paper-border">
+              <colgroup><col className="w-28" /><col /><col className="w-48" /><col className="w-24" /><col className="w-28" /><col className="w-56" /></colgroup>
               <thead className="bg-forum-50/70">
                 <tr>
                   <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-28">
@@ -672,7 +727,7 @@ function PhotosPanel({
                 </tr>
               </thead>
               <tbody className="divide-y divide-paper-border bg-white">
-                {photos.map((p) => {
+                {initialLoading ? <GallerySkeletonRows columns={6} /> : photos.length === 0 && loadError ? <tr><td colSpan={6} className="h-[470px] px-4 text-center text-sm text-ink-muted">Unable to load media. Use Retry above.</td></tr> : photos.map((p) => {
                   const siblingCount = categories.find(c => c.id === p.categoryId)?.photoCount ?? 0;
                   return (
                     <tr key={p.id} className="hover:bg-forum-50/30 transition-colors">
@@ -687,7 +742,7 @@ function PhotosPanel({
                         </div>
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <div className="font-medium text-forum-900 leading-snug">
+                        <div className="break-words font-medium text-forum-900 leading-snug">
                           {p.title || (
                             <span className="italic text-ink-subtle">Untitled</span>
                           )}

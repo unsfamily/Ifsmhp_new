@@ -1,38 +1,90 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { normalizeError } from '../api/client';
+import { attachmentSessionIdentity, getSessionGeneration, normalizeError, SESSION_CHANGED } from '../api/client';
 import { galleryService, type CategoryInput, type SubcategoryInput, type GalleryPolicy, type PhotoPatch, type PhotoUploadMetadata } from '../services/galleryService';
 import type { GalleryCategory, GalleryFilters, GalleryPhoto, GallerySubcategory } from '../types/gallery';
 
+type PhotoFilters = { categoryId: string; subcategoryId: string; search: string };
+const defaultFilters: PhotoFilters = { categoryId: 'all', subcategoryId: 'all', search: '' };
+type GallerySnapshot = {
+  identity: string; queryKey: string;
+  categories: GalleryCategory[]; subcategories: GallerySubcategory[]; photos: GalleryPhoto[];
+  policy: GalleryPolicy | null;
+};
+
 function useGalleryData(admin: boolean, enabled: boolean, identity: string) {
-  const [snapshot, setSnapshot] = useState<{ identity: string; categories: GalleryCategory[]; subcategories: GallerySubcategory[]; photos: GalleryPhoto[] }>({ identity: '', categories: [], subcategories: [], photos: [] });
-  const [loading, setLoading] = useState(false); const [error, setError] = useState('');
-  const [filters, setPhotoFilters] = useState({ categoryId: 'all', subcategoryId: 'all', search: '' });
-  const [policy, setPolicy] = useState<GalleryPolicy | null>(null);
+  const [snapshot, setSnapshot] = useState<GallerySnapshot | null>(null);
+  const [request, setRequest] = useState({ key: '', pending: false, error: '' });
+  const [filters, setFilters] = useState(defaultFilters);
+  const setPhotoFilters = useCallback((next: PhotoFilters) => setFilters(previous =>
+    previous.categoryId === next.categoryId && previous.subcategoryId === next.subcategoryId && previous.search === next.search ? previous : next
+  ), []);
+  const queryKey = admin ? JSON.stringify(filters) : 'public';
+  const requestKey = `${enabled}:${identity}:${queryKey}`;
   const active = useRef<AbortController | null>(null);
+  const currentScope = useRef({ enabled, identity }); currentScope.current = { enabled, identity };
   const refresh = useCallback(async () => {
     active.current?.abort();
     const controller = new AbortController(); active.current = controller;
-    if (!enabled) { setSnapshot({ identity: '', categories: [], subcategories: [], photos: [] }); setPolicy(null); setLoading(false); return; }
-    setLoading(true); setError('');
-    setSnapshot(previous => ({ identity, categories: previous.identity === identity ? previous.categories : [], subcategories: previous.identity === identity ? previous.subcategories : [], photos: [] }));
-    const update = (patch: Partial<typeof snapshot>) => { if (!controller.signal.aborted) setSnapshot(previous => ({ ...previous, ...patch, identity })); };
+    // Keep the last administrator snapshot on route changes, but never across sessions.
+    if (!enabled) {
+      if (!identity || !admin) setSnapshot(null);
+      setRequest({ key: requestKey, pending: false, error: '' });
+      return;
+    }
+    const generation = getSessionGeneration();
+    const isCurrent = () => !controller.signal.aborted && generation === getSessionGeneration() && currentScope.current.enabled && currentScope.current.identity === identity;
+    setRequest({ key: requestKey, pending: true, error: '' });
     try {
-      await Promise.all([
-        galleryService.subcategories(admin, controller.signal, subcategories => update({ subcategories })),
-        galleryService.categories(admin, controller.signal, categories => update({ categories })),
-        galleryService.photos(admin, admin ? filters : {}, controller.signal, photos => update({ photos })),
-        admin ? galleryService.options(controller.signal).then(value => { if (!controller.signal.aborted) setPolicy(value); }) : Promise.resolve(),
+      const [subcategories, categories, photos, policy] = await Promise.all([
+        galleryService.subcategories(admin, controller.signal, () => undefined),
+        galleryService.categories(admin, controller.signal, () => undefined),
+        galleryService.photos(admin, admin ? filters : {}, controller.signal, () => undefined),
+        admin ? galleryService.options(controller.signal) : Promise.resolve(null),
       ]);
-    } catch (failure) { if (!controller.signal.aborted) setError(normalizeError(failure).message); }
-    finally { if (!controller.signal.aborted) setLoading(false); }
-  }, [admin, enabled, identity, filters]);
+      if (isCurrent()) {
+        setSnapshot({ identity, queryKey, categories, subcategories, photos, policy });
+        setRequest({ key: requestKey, pending: false, error: '' });
+      }
+    } catch (failure) {
+      if (isCurrent()) {
+        const details = normalizeError(failure);
+        if (admin && [401, 403].includes(details.status ?? 0)) setSnapshot(null);
+        setRequest({ key: requestKey, pending: false, error: details.message });
+      }
+      controller.abort(); // Discard remaining pages after any failed member of the snapshot.
+    }
+  }, [admin, enabled, identity, filters, queryKey, requestKey]);
   useEffect(() => { void refresh(); return () => active.current?.abort(); }, [refresh]);
-  useEffect(() => { const focus = () => { void refresh(); }; window.addEventListener('focus', focus); return () => window.removeEventListener('focus', focus); }, [refresh]);
-  const categories = enabled && snapshot.identity === identity ? snapshot.categories : [];
-  const subcategories = enabled && snapshot.identity === identity ? snapshot.subcategories : [];
-  const photos = enabled && snapshot.identity === identity ? snapshot.photos : [];
+  useEffect(() => {
+    if (!enabled) return;
+    const focus = () => { if (!document.hidden) void refresh(); };
+    window.addEventListener('focus', focus);
+    return () => window.removeEventListener('focus', focus);
+  }, [enabled, refresh]);
+  useEffect(() => {
+    if (!admin) return;
+    const clear = () => { active.current?.abort(); setSnapshot(null); setFilters(defaultFilters); setRequest({ key: '', pending: false, error: '' }); };
+    window.addEventListener(SESSION_CHANGED, clear);
+    return () => window.removeEventListener(SESSION_CHANGED, clear);
+  }, [admin]);
+  const applyCategories = (items: GalleryCategory[]) => {
+    if (!currentScope.current.enabled || currentScope.current.identity !== identity) return;
+    active.current?.abort();
+    const saved = new Map(items.map(category => [category.id, category]));
+    setSnapshot(previous => previous?.identity === identity ? { ...previous, categories: previous.categories.map(category => saved.get(category.id) ?? category) } : previous);
+  };
+  const usable = enabled && snapshot?.identity === identity ? snapshot : null;
+  const hasLoaded = Boolean(usable);
+  const hasPhotosLoaded = Boolean(usable && usable.queryKey === queryKey);
+  // Derive pending on entry, before effects run, to avoid a one-frame empty state.
+  const loading = enabled && (request.key !== requestKey || request.pending);
+  const error = enabled && request.key === requestKey ? request.error : '';
+  const categories = usable?.categories ?? [];
+  const subcategories = usable?.subcategories ?? [];
+  const photos = hasPhotosLoaded ? usable!.photos : [];
+  const policy = usable?.policy ?? null;
   const getCategoryPhotos = (id: string, options?: { onlyPublished?: boolean }) => photos.filter(p => p.categoryId === id && (!options?.onlyPublished || p.published));
   const applyFilters = (query: GalleryFilters) => {
     const grouped = categories
@@ -49,14 +101,14 @@ function useGalleryData(admin: boolean, enabled: boolean, identity: string) {
       });
     return { groupedByCategory: grouped, flatPhotos: grouped.flatMap(g => g.photos) };
   };
-  return { categories, subcategories, photos, loading, error, refresh, policy, filters, setPhotoFilters, getCategoryPhotos, applyFilters };
+  return { categories, subcategories, photos, loading, hasLoaded, hasPhotosLoaded, error, refresh, policy, filters, setPhotoFilters, getCategoryPhotos, applyFilters, applyCategories };
 }
 function useGalleryStore() {
   const { user } = useAuth(); const { pathname } = useLocation();
   const adminEnabled = user?.role === 'ADMIN' && pathname.startsWith('/admin/gallery');
   const publicEnabled = pathname === '/' || pathname === '/gallery' || pathname.startsWith('/dashboard/gallery');
   const publicData = useGalleryData(false, publicEnabled, 'public');
-  const adminData = useGalleryData(true, adminEnabled, user?.id ?? '');
+  const adminData = useGalleryData(true, adminEnabled, user?.role === 'ADMIN' ? `${user.id}:${attachmentSessionIdentity() ?? ''}` : '');
   const publicRefresh = useRef(publicData.refresh); publicRefresh.current = publicData.refresh;
   const adminRefresh = useRef(adminData.refresh); adminRefresh.current = adminData.refresh;
   const changed = useCallback(async () => { await Promise.all([adminRefresh.current(), publicRefresh.current()]); }, []);
@@ -70,6 +122,17 @@ function useGalleryStore() {
     updateCategory: (id: string, patch: Partial<CategoryInput>) => write(galleryService.updateCategory(id, patch)),
     deleteCategory: (id: string) => write(galleryService.remove('categories', id)),
     toggleCategoryPublished: (id: string) => write(galleryService.updateCategory(id, { published: !adminData.categories.find(c => c.id === id)?.published })),
+    setCategoryVisibility: async (categoryIds: string[], published: boolean) => {
+      try {
+        const result = await galleryService.setCategoryVisibility(categoryIds, published);
+        adminData.applyCategories(result.items);
+        await changed(); // Refresh errors are shown independently of a successful save.
+        return result;
+      } catch (failure) {
+        await changed(); // A lost response may still have committed on the server.
+        throw failure;
+      }
+    },
     reorderCategory: (id: string, direction: -1 | 1) => write(galleryService.reorder('categories', id, direction)),
     updatePhoto: (id: string, patch: PhotoPatch) => write(galleryService.updatePhoto(id, patch)),
     deletePhoto: (id: string) => write(galleryService.remove('photos', id)),

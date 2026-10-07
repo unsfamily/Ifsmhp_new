@@ -19,6 +19,7 @@ const order = z.number().int().min(1).max(1000000);
 export const categoryBody = z.object({ name: text(191).min(1), description: text(10000).default(''), published: z.boolean().default(true), displayOrder: order.optional() }).strict();
 export const photoBody = z.object({ title: text(191).min(1), caption: text(10000), altText: text(2000), categoryId: identifier, subcategoryId: identifier.nullable(), published: z.boolean(), displayOrder: order }).partial().strict();
 export const reorderBody = z.object({ direction: z.union([z.literal(-1), z.literal(1)]) }).strict();
+const categoryVisibilityBody = z.object({ categoryIds: z.array(identifier).min(1), published: z.boolean() }).strict();
 const listQuery = paginationQuerySchema.extend({ categoryId: z.string().max(191).optional(), subcategoryId: identifier.optional(), search: text(200).default('') });
 export const publicPhotoScope = { visibility: 'PUBLIC', album: { visibility: 'PUBLIC' }, type: { in: ['image', 'video'] }, file: { is: { deletedAt: null, mimeType: { in: galleryPolicy.mimeTypes } } } } satisfies Prisma.GalleryItemWhereInput;
 const categorySort = [{ displayOrder: 'asc' }, { id: 'asc' }] satisfies Prisma.GalleryAlbumOrderByWithRelationInput[];
@@ -80,6 +81,24 @@ async function normalize(db: DB, albumId?: string, movedId?: string, position?: 
     if (albumId === undefined) await db.galleryAlbum.update({ where: { id: row.id }, data: { displayOrder: idx + 1 } });
     else await db.galleryItem.update({ where: { id: row.id }, data: { displayOrder: idx + 1 } });
   }
+}
+export async function setCategoryVisibility(actor: AuthenticatedUser, input: unknown) {
+  const body = categoryVisibilityBody.parse(input);
+  const categoryIds = [...new Set(body.categoryIds)];
+  return mutate(actor, 'CollectionUpdated', 'categories', 'Gallery', async db => {
+    const before = await db.galleryAlbum.findMany({ where: { id: { in: categoryIds } }, orderBy: categorySort });
+    if (before.length !== categoryIds.length) throw ApiError.notFound('One or more collections no longer exist. Refresh the gallery and try again.');
+    const visibility = body.published ? 'PUBLIC' as const : 'PRIVATE' as const;
+    const changed = before.filter(row => row.visibility !== visibility);
+    if (changed.length) {
+      await db.galleryAlbum.updateMany({ where: { id: { in: changed.map(row => row.id) } }, data: { visibility } });
+      for (const row of changed) {
+        await writeAudit({ actorId: actor.id, action: 'GalleryCollectionUpdated', entity: `GalleryAlbum ${row.id}`, changes: changesBetween(row, { ...row, visibility }), metadata: { changedFields: ['visibility'] } }, db);
+      }
+    }
+    const items = await db.galleryAlbum.findMany({ where: { id: { in: categoryIds } }, orderBy: categorySort, include: { _count: { select: { items: true } } } });
+    return { items: items.map(categoryDto), updatedCount: changed.length };
+  });
 }
 export async function saveCategory(actor: AuthenticatedUser, input: unknown, id?: string) {
   const body = (id ? categoryBody.partial() : categoryBody).parse(input);

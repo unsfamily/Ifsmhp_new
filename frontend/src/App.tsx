@@ -1,6 +1,6 @@
 import ApplicationStatusPage from './pages/auth/ApplicationStatusPage';
 import { RequireCommunityManager } from './components/community/CommunityAccess';
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { Route, Routes, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import PublicLayout from './layouts/PublicLayout';
 import MemberLayout from './layouts/MemberLayout';
@@ -74,7 +74,12 @@ function GalleryAnchorRedirect() {
 
 function NavigationScrollHandler() {
   const location = useLocation();
+  const galleryRoute = location.pathname === '/admin/gallery';
+  useLayoutEffect(() => {
+    if (galleryRoute) window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [galleryRoute, location.key]);
   useEffect(() => {
+    if (galleryRoute) return;
     const frame = window.requestAnimationFrame(() => {
       const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
         ? 'instant'
@@ -92,7 +97,7 @@ function NavigationScrollHandler() {
       window.scrollTo({ top: 0, behavior });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [location.key, location.pathname, location.hash]);
+  }, [galleryRoute, location.key, location.pathname, location.hash]);
   return null;
 }
 

@@ -25,6 +25,7 @@
     "db:seed": "tsx database/prisma/seed.ts",
     "gallery:purge": "tsx scripts/purge-gallery-files.ts",
     "test:gallery:browser": "node tests/gallery.browser.cjs",
+    "test:gallery:layout": "node tests/gallery-layout.browser.cjs",
     "db:studio": "prisma studio",
     "test:community:browser": "node tests/community.browser.cjs",
     "test:moderation:browser": "node tests/community-moderation.browser.cjs",

@@ -1,5 +1,5 @@
 import { usePublicSettings } from '../context/SettingsContext';
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -116,6 +116,10 @@ const navSections: NavSection[] = [
 ];
 
 export default function AdminLayout() {
+  useLayoutEffect(() => {
+    document.documentElement.classList.add('admin-shell');
+    return () => document.documentElement.classList.remove('admin-shell');
+  }, []);
   const settings = usePublicSettings();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Real counts; a failure just leaves the badges off rather than showing
@@ -143,7 +147,7 @@ export default function AdminLayout() {
         onClick={() => setSidebarOpen(false)}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 transform bg-forum-900 text-white transition-transform lg:translate-x-0 lg:sticky lg:top-0 lg:z-auto flex flex-col h-screen overflow-hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 shrink-0 transform bg-forum-900 text-white transition-transform lg:translate-x-0 lg:sticky lg:top-0 lg:z-auto flex flex-col h-screen overflow-hidden ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

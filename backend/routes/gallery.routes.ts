@@ -53,6 +53,7 @@ galleryAdminRoutes.post('/subcategories', asyncHandler(async (req, res) => sendS
 galleryAdminRoutes.patch('/subcategories/:id', asyncHandler(async (req, res) => sendSuccess(res, await gallery.saveSubcategory(req.user!, req.body, req.params.id!), 'Subcategory updated')));
 galleryAdminRoutes.delete('/subcategories/:id', asyncHandler(async (req, res) => sendSuccess(res, await gallery.removeSubcategory(req.user!, req.params.id!), 'Subcategory deleted')));
 galleryAdminRoutes.post('/categories', asyncHandler(async (req, res) => sendSuccess(res, await gallery.saveCategory(req.user!, req.body), 'Collection created', 201)));
+galleryAdminRoutes.patch('/categories/visibility', asyncHandler(async (req, res) => sendSuccess(res, await gallery.setCategoryVisibility(req.user!, req.body), 'Collection visibility updated')));
 galleryAdminRoutes.patch('/categories/:id', asyncHandler(async (req, res) => sendSuccess(res, await gallery.saveCategory(req.user!, req.body, req.params.id!), 'Collection updated')));
 galleryAdminRoutes.post('/photos', galleryUpload, asyncHandler(async (req, res) => {
   try {
