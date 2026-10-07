@@ -640,7 +640,7 @@ function PhotosPanel({
               aria-label="Filter category"
               value={catFilter}
               onChange={(e) => setCatFilter(e.target.value)}
-              className="h-10 appearance-none rounded-lg border border-paper-border bg-white pl-3 pr-9 text-sm text-forum-800 focus:border-forum-400 focus:outline-none focus:ring-2 focus:ring-forum-100"
+              className="h-10 w-56 max-w-full appearance-none rounded-lg border border-paper-border bg-white pl-3 pr-9 text-sm text-forum-800 focus:border-forum-400 focus:outline-none focus:ring-2 focus:ring-forum-100"
             >
               <option value="all">All collections</option>
               {categories.map((c) => (
@@ -669,46 +669,46 @@ function PhotosPanel({
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
             <table aria-label="Gallery media" className="w-full min-w-[1000px] table-fixed divide-y divide-paper-border">
-              <colgroup><col className="w-28" /><col /><col className="w-48" /><col className="w-24" /><col className="w-28" /><col className="w-56" /></colgroup>
+              <colgroup><col className="w-28" /><col /><col className="w-48" /><col className="w-24" /><col className="w-40" /><col className="w-56" /></colgroup>
               <thead className="bg-forum-50/70">
                 <tr>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-28">
-                    Preview
+                  <th className="px-4 py-3 align-top text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-28">
+                    <span className="flex h-7 items-center">Preview</span>
                   </th>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">
-                    Media
+                  <th className="px-4 py-3 align-top text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">
+                    <span className="flex h-7 items-center">Media</span>
                   </th>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-40">
-                    Collection
+                  <th className="px-4 py-3 align-top text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-48">
+                    <span className="flex h-7 items-center">Collection</span>
                   </th>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-24">
-                    <div className="flex items-center gap-1">
-                      <ArrowUpDown className="h-3.5 w-3.5" /> Order
+                  <th className="px-4 py-3 align-top text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-24">
+                    <div className="flex h-7 items-center gap-1">
+                      <ArrowUpDown className="h-3.5 w-3.5" /> <span>Order</span>
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-28">
-                  <div className="flex flex-col items-start gap-2">
-                    <span>Status</span>
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-label="Status of all media in current grid"
-                      aria-checked={mixedStatus ? 'mixed' : allLive}
-                      aria-describedby="media-status-state"
-                      title={allLive ? 'Hide all media in current grid' : 'Publish all media in current grid'}
-                      disabled={statusDisabled || photos.length === 0}
-                      onClick={() => onSetStatus(!allLive)}
-                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${allLive ? 'bg-forum-900' : mixedStatus ? 'bg-brass-500' : 'bg-ink-subtle/25'}`}
-                    >
-                      <span aria-hidden="true" className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-forum-900 shadow-sm ring-1 ring-black/5 transition-transform ${allLive ? 'translate-x-5' : mixedStatus ? 'translate-x-2.5' : 'translate-x-0.5'}`}>
-                        {mixedStatus ? <Minus className="h-3 w-3" /> : allLive ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                      </span>
-                    </button>
-                    <span id="media-status-state" className="whitespace-nowrap text-[11px] font-normal normal-case tracking-normal">{statusLabel}</span>
-                  </div>
+                  <th className="px-4 py-3 align-top text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-40">
+                    <div className="grid grid-cols-[48px_1fr] items-center gap-x-3 gap-y-1">
+                      <span className="flex h-7 items-center">Status</span>
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-label="Status of all media in current grid"
+                        aria-checked={mixedStatus ? 'mixed' : allLive}
+                        aria-describedby="media-status-state"
+                        title={allLive ? 'Hide all media in current grid' : 'Publish all media in current grid'}
+                        disabled={statusDisabled || photos.length === 0}
+                        onClick={() => onSetStatus(!allLive)}
+                        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${allLive ? 'bg-forum-900' : mixedStatus ? 'bg-brass-500' : 'bg-ink-subtle/25'}`}
+                      >
+                        <span aria-hidden="true" className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-forum-900 shadow-sm ring-1 ring-black/5 transition-transform ${allLive ? 'translate-x-5' : mixedStatus ? 'translate-x-2.5' : 'translate-x-0.5'}`}>
+                          {mixedStatus ? <Minus className="h-3 w-3" /> : allLive ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                        </span>
+                      </button>
+                      <span id="media-status-state" className="col-start-2 h-4 whitespace-nowrap text-[11px] font-normal normal-case leading-4 tracking-normal">{statusLabel}</span>
+                    </div>
                   </th>
-                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-56">
-                    Actions
+                  <th className="px-4 py-3 align-top text-right text-[11px] font-semibold uppercase tracking-wider text-ink-subtle w-56">
+                    <span className="flex h-7 items-center justify-end">Actions</span>
                   </th>
                 </tr>
               </thead>
@@ -794,32 +794,34 @@ function PhotosPanel({
                         </div>
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <button
-                          type="button"
-                          aria-label={p.published ? 'Unpublish' : 'Publish'}
-                          onClick={() => onTogglePublish(p.id)}
-                          className={`group relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                            p.published ? 'bg-forum-900' : 'bg-ink-subtle/25'
-                          }`}
-                        >
-                          <span
-                            className={`inline-flex items-center justify-center h-6 w-6 rounded-full bg-white shadow-sm ring-1 ring-black/5 transform transition-transform ${
-                              p.published ? 'translate-x-5' : 'translate-x-0.5'
+                        <div className="pl-[60px]">
+                          <button
+                            type="button"
+                            aria-label={p.published ? 'Unpublish' : 'Publish'}
+                            onClick={() => onTogglePublish(p.id)}
+                            className={`group relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                              p.published ? 'bg-forum-900' : 'bg-ink-subtle/25'
                             }`}
                           >
+                            <span
+                              className={`inline-flex items-center justify-center h-6 w-6 rounded-full bg-white shadow-sm ring-1 ring-black/5 transform transition-transform ${
+                                p.published ? 'translate-x-5' : 'translate-x-0.5'
+                              }`}
+                            >
+                              {p.published ? (
+                                <Eye className="h-3 w-3 text-forum-900" />
+                              ) : (
+                                <EyeOff className="h-3 w-3 text-ink-muted" />
+                              )}
+                            </span>
+                          </button>
+                          <div className="mt-1 text-[11px]">
                             {p.published ? (
-                              <Eye className="h-3 w-3 text-forum-900" />
+                              <span className="text-success-700 font-medium">Live</span>
                             ) : (
-                              <EyeOff className="h-3 w-3 text-ink-muted" />
+                              <span className="text-ink-muted">Hidden</span>
                             )}
-                          </span>
-                        </button>
-                        <div className="mt-1 text-[11px]">
-                          {p.published ? (
-                            <span className="text-success-700 font-medium">Live</span>
-                          ) : (
-                            <span className="text-ink-muted">Hidden</span>
-                          )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-3 align-top">

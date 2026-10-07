@@ -11,14 +11,14 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
 const date = '2026-10-07T00:00:00.000Z';
 const categories = Array.from({ length: 105 }, (_, i) => ({ id: `c${i}`, name: i === 4 ? 'A long collection title '.repeat(8) : `Collection ${i + 1}`, description: 'Research photographs', displayOrder: i + 1, published: i % 2 === 0, createdAt: date, updatedAt: date, photoCount: i === 0 ? 12 : 0 }));
 const subcategories = [{ id: 's1', categoryId: 'c0', name: 'Workshops', photoCount: 12, createdAt: date, updatedAt: date }];
-const photos = Array.from({ length: 12 }, (_, i) => ({ id: `p${i}`, categoryId: 'c0', subcategoryId: 's1', title: `Photograph ${i + 1}`, caption: 'Research gathering', altText: '', displayOrder: i + 1, published: true, uploadedAt: date, type: 'image', imageUrl: '/admin/gallery/photos/pixel/media', mediaUrl: '/admin/gallery/photos/pixel/media' }));
+const photos = Array.from({ length: 12 }, (_, i) => ({ id: `p${i}`, categoryId: 'c0', subcategoryId: 's1', title: i === 0 ? 'Long research photograph title '.repeat(6) : `Photograph ${i + 1}`, caption: 'Research gathering', altText: '', displayOrder: i + 1, published: true, uploadedAt: date, type: 'image', imageUrl: '/admin/gallery/photos/pixel/media', mediaUrl: '/admin/gallery/photos/pixel/media' }));
 const checks = [], measurements = [], errors = [];
 let browser;
 const ready = async page => { await page.locator('main fieldset[aria-busy="false"]').waitFor(); };
 async function sample(page) {
   return page.evaluate(() => {
     const rect = element => { const r = element?.getBoundingClientRect(); return r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null; };
-    return { title: rect(document.querySelector('main h1')), tabs: rect(document.querySelector('[aria-label="Gallery views"]')), table: rect(document.querySelector('main table')), sidebar: rect(document.querySelector('aside')), columns: [...document.querySelectorAll('main th')].map(rect), scrollY, rows: document.querySelectorAll('main tbody tr').length, skeletons: document.querySelectorAll('[data-gallery-skeleton]').length, pageWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth };
+    return { title: rect(document.querySelector('main h1')), tabs: rect(document.querySelector('[aria-label="Gallery views"]')), table: rect(document.querySelector('main table')), header: rect(document.querySelector('main thead')), sidebar: rect(document.querySelector('aside')), columns: [...document.querySelectorAll('main th')].map(rect), scrollY, rows: document.querySelectorAll('main tbody tr').length, skeletons: document.querySelectorAll('[data-gallery-skeleton]').length, pageWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth };
   });
 }
 async function startSamples(page) {
@@ -29,8 +29,8 @@ async function startSamples(page) {
     window.galleryObserver.observe({ type: 'layout-shift' });
     const tick = () => {
       if (!window.gallerySampling) return;
-      const rect = selector => { const e = document.querySelector(selector); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width }; };
-      window.gallerySamples.push({ title: rect('main h1'), tabs: rect('[aria-label="Gallery views"]'), table: rect('main table'), sidebar: rect('aside'), columns: [...document.querySelectorAll('main th')].map(e => ({ x: e.getBoundingClientRect().x, width: e.getBoundingClientRect().width })), scrollY });
+      const rect = selector => { const e = document.querySelector(selector); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
+      window.gallerySamples.push({ title: rect('main h1'), tabs: rect('[aria-label="Gallery views"]'), table: rect('main table'), header: rect('main thead'), sidebar: rect('aside'), columns: [...document.querySelectorAll('main th')].map(e => ({ x: e.getBoundingClientRect().x, width: e.getBoundingClientRect().width })), scrollY });
       requestAnimationFrame(tick);
     }; tick();
   });
@@ -41,8 +41,8 @@ async function stable(page, name, before, preserveHeight = false) {
   const observed = await page.evaluate(() => { window.gallerySampling = false; window.galleryObserver.disconnect(); return { frames: window.gallerySamples, shifts: window.galleryShifts }; });
   let maximum = 0;
   for (const frame of [...observed.frames, after]) {
-    for (const anchor of ['title', 'tabs', 'table', 'sidebar']) {
-      for (const property of anchor === 'sidebar' ? ['width'] : ['x', 'y', 'width']) {
+    for (const anchor of ['title', 'tabs', 'table', 'header', 'sidebar']) {
+      for (const property of anchor === 'sidebar' ? ['width'] : anchor === 'header' ? ['x', 'y', 'width', 'height'] : ['x', 'y', 'width']) {
         const delta = Math.abs(frame[anchor][property] - before[anchor][property]); maximum = Math.max(maximum, delta);
         assert.ok(delta <= 1, `${name}: ${anchor}.${property} moved ${delta}px`);
       }
@@ -55,11 +55,33 @@ async function stable(page, name, before, preserveHeight = false) {
   measurements.push({ name, maximumAnchorShift: maximum, frames: observed.frames.length, layoutShifts: observed.shifts });
   return after;
 }
+async function alignedMediaHeader(page) {
+  const layout = await page.getByRole('table', { name: 'Gallery media', exact: true }).evaluate(table => {
+    const bounds = node => { const r = node.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, bottom: r.bottom, right: r.right }; };
+    const headings = [...table.querySelectorAll('th')].map(th => {
+      const walker = document.createTreeWalker(th, NodeFilter.SHOW_TEXT);
+      let text; while ((text = walker.nextNode()) && !text.textContent.trim()) { /* Skip indentation. */ }
+      const range = document.createRange(); range.selectNodeContents(text); return bounds(range);
+    });
+    const toggle = table.querySelector('[role="checkbox"]'), state = table.querySelector('#media-status-state');
+    return { headings, header: bounds(table.querySelector('thead')), column: bounds(toggle.closest('th')), toggle: bounds(toggle), state: bounds(state), rowToggles: [...table.querySelectorAll('tbody button[aria-label="Publish"], tbody button[aria-label="Unpublish"]')].map(bounds) };
+  });
+  assert.ok(Math.max(...layout.headings.map(h => h.bottom)) - Math.min(...layout.headings.map(h => h.bottom)) <= 1, 'Column title baselines must align');
+  assert.equal(layout.column.width, 160);
+  assert.equal(layout.toggle.width, 48); assert.equal(layout.toggle.height, 28);
+  assert.ok(layout.header.height <= 74, 'Header should stay compact');
+  assert.equal(layout.state.height, 16);
+  assert.ok(layout.state.right <= layout.column.right - 15, 'State text must fit in its column');
+  assert.equal(layout.state.x, layout.toggle.x);
+  for (const toggle of layout.rowToggles) assert.ok(Math.abs(toggle.x - layout.toggle.x) <= 1, 'Row toggles must align with bulk toggle');
+  return layout;
+}
 async function scenario(viewport, reducedMotion = 'no-preference') {
   const context = await browser.newContext({ viewport, reducedMotion });
   await context.addInitScript(token => { if (!localStorage.getItem('ifsmhp.accessToken')) localStorage.setItem('ifsmhp.accessToken', token); }, jwt('session-a'));
   const page = await context.newPage(); page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
   let batch, fail = 0, empty = false;
+  const media = photos.map(photo => ({ ...photo }));
   let completed = [];
   page.on('response', response => { if (response.ok() && response.url().includes('/admin/gallery/') && !response.url().includes('/media')) completed.push(response.url()); });
   const hold = () => { batch = Object.fromEntries(['categories', 'subcategories', 'photos', 'options'].map(kind => [kind, deferred()])); return batch; };
@@ -71,7 +93,7 @@ async function scenario(viewport, reducedMotion = 'no-preference') {
       if (kind === 'media') return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') });
       const gate = batch?.[kind]; if (gate) await gate.promise;
       if (fail) return route.fulfill({ status: fail, json: { success: false, message: 'Gallery temporarily unavailable' } }).catch(() => undefined);
-      const items = empty ? [] : kind === 'categories' ? categories : kind === 'subcategories' ? subcategories : photos.filter(p => !url.searchParams.get('search') || p.title.includes(url.searchParams.get('search')));
+      const items = empty ? [] : kind === 'categories' ? categories : kind === 'subcategories' ? subcategories : media.filter(p => !url.searchParams.get('search') || p.title.includes(url.searchParams.get('search')));
       const number = Number(url.searchParams.get('page') || 1);
       data = kind === 'options' ? { maxBytes: 104857600, mimeTypes: ['image/png'], extensions: ['png'] } : { items: items.slice((number - 1) * 100, number * 100), pagination: { page: number, pages: Math.ceil(items.length / 100), total: items.length, limit: 100 } };
     }
@@ -135,6 +157,7 @@ async function scenario(viewport, reducedMotion = 'no-preference') {
 
     await page.getByRole('button', { name: 'Media', exact: true }).click();
     await page.getByRole('table', { name: 'Gallery media', exact: true }).waitFor();
+    await alignedMediaHeader(page);
     await page.evaluate(() => scrollTo({ top: 200, behavior: 'instant' }));
     before = await sample(page); await startSamples(page); gates = hold();
     await page.evaluate(() => window.dispatchEvent(new Event('focus'))); await page.locator('main fieldset[aria-busy="true"]').waitFor();
@@ -144,6 +167,36 @@ async function scenario(viewport, reducedMotion = 'no-preference') {
     await stable(page, `${label}: media refresh`, before, true);
 
     await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
+    const statusToggle = page.getByRole('checkbox', { name: 'Status of all media in current grid' });
+    // The same header geometry must survive every aggregate state and retained error/empty state.
+    for (const state of ['mixed', 'none', 'all']) {
+      media.forEach((photo, index) => { photo.published = state === 'all' || state === 'mixed' && index % 2 === 0; });
+      before = await sample(page); await startSamples(page);
+      await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await ready(page);
+      await stable(page, `${label}: media ${state} status`, before, true);
+      assert.equal(await statusToggle.getAttribute('aria-checked'), state === 'mixed' ? 'mixed' : String(state === 'all'));
+      await alignedMediaHeader(page);
+      if (state === 'mixed') {
+        await statusToggle.focus(); await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
+        assert.equal(await statusToggle.evaluate(button => button.matches(':focus-visible')), true);
+        await page.screenshot({ path: path.join(output, `${label}-media-header.png`), animations: 'disabled' });
+      }
+    }
+    fail = 503; await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await page.getByRole('alert').waitFor();
+    assert.equal(await statusToggle.isDisabled(), true); await alignedMediaHeader(page);
+    fail = 0; await page.getByRole('button', { name: 'Retry', exact: true }).click(); await ready(page);
+    empty = true; await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await ready(page);
+    assert.equal(await statusToggle.isDisabled(), true); await alignedMediaHeader(page);
+    empty = false; await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await ready(page);
+    // A fresh session clears the snapshot; select Media while its first load is pending.
+    gates = hold();
+    await page.evaluate(token => { localStorage.setItem('ifsmhp.accessToken', token); window.dispatchEvent(new StorageEvent('storage', { key: 'ifsmhp.accessToken', newValue: token })); }, jwt('session-media'));
+    await page.locator('[data-gallery-skeleton]').first().waitFor();
+    await page.getByRole('button', { name: 'Media', exact: true }).click();
+    before = await sample(page); await startSamples(page);
+    assert.equal(await statusToggle.isDisabled(), true); await alignedMediaHeader(page);
+    Object.values(gates).forEach(gate => gate.resolve()); await ready(page);
+    await stable(page, `${label}: media initial loading`, before); await alignedMediaHeader(page);
     await page.getByRole('button', { name: 'Categories', exact: true }).click();
     fail = 503; await page.getByRole('button', { name: 'Refresh', exact: true }).click(); await page.getByRole('alert').waitFor();
     assert.equal((await sample(page)).rows, 107); assert.equal((await sample(page)).skeletons, 0);

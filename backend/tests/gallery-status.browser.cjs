@@ -45,7 +45,12 @@ module.exports = async function verifyBulkStatus({ adminPage: page, publicPage, 
     await route.fulfill({ response }).catch(() => undefined); staleFinished();
   });
   await page.route(endpoint, async route => { writes++; requested(); await gate; await route.continue(); });
+  const headerBeforeSave = await page.locator('table[aria-label="Gallery media"] thead').boundingBox();
   await header.click(); await started;
+  const headerWhileSaving = await page.locator('table[aria-label="Gallery media"] thead').boundingBox();
+  // Existing notifications above the grid can appear/disappear during a save.
+  assert.equal(headerWhileSaving.width, headerBeforeSave.width, 'Saving must preserve header width');
+  assert.equal(headerWhileSaving.height, headerBeforeSave.height, 'Saving must preserve header height');
   assert.equal(await header.isDisabled(), true);
   assert.equal(await row(page, live.title).getByRole('button', { name: 'Unpublish', exact: true }).isDisabled(), true);
   await page.evaluate(() => window.dispatchEvent(new Event('focus'))); await staleStarted;
