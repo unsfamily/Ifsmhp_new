@@ -22,6 +22,8 @@ export interface MemberCredentialDocument {
 }
 
 export interface MemberProfileData {
+  avatarFileId: string | null;
+  avatarPolicy: { maxBytes: number; mimeTypes: string[]; extensions: string[] };
   firstName: string | null;
   lastName: string | null;
   communicationAddress: string | null;
@@ -308,6 +310,14 @@ export function isMemberEditable(status: ProjectStatusLabel) {
 export const memberApi = {
   dashboard: async () => (await apiClient.get<Envelope<unknown>>('/members/me/dashboard')).data.data,
   profile: async () => (await apiClient.get<Envelope<MemberProfileData>>('/members/me/profile')).data.data,
+  uploadAvatar: async (file: File, signal?: AbortSignal) => {
+    const body = new FormData();
+    body.append('file', file);
+    return (await apiClient.post<Envelope<{ avatarFileId: string }>>('/members/me/profile/avatar', body,
+      { headers: { 'Content-Type': 'multipart/form-data' }, signal, timeout: 120000 })).data.data;
+  },
+  avatar: async (signal?: AbortSignal) =>
+    (await apiClient.get<Blob>('/members/me/profile/avatar', { responseType: 'blob', signal })).data,
   updateProfile: async (payload: Partial<MemberProfileUpdate>) =>
     (await apiClient.patch<Envelope<MemberProfileData>>('/members/me/profile', payload)).data.data,
   projects: async (params?: Record<string, unknown>) =>

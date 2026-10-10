@@ -101,7 +101,7 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
 export const requireVerifiedSession: RequestHandler = (req, _res, next) => {
   if (!req.user?.sessionId) {
     req.user = undefined;
-    return next(new ApiError(401, 'A verified administrator session is required'));
+    return next(new ApiError(401, 'A verified session is required'));
   }
   next();
 };

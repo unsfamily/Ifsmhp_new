@@ -1,4 +1,4 @@
-import { authorizeAvatar } from '../services/admin-avatar.service';
+import { authorizeAvatar } from '../services/avatar-storage.service';
 import { authorizeGalleryFile } from '../services/gallery.service';
 import crypto from 'node:crypto';
 import fs from 'node:fs';

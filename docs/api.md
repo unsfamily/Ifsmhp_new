@@ -196,3 +196,39 @@ Audit listing and CSV export additionally support the exact `actorId` query para
 ### Authentication recovery for Community clients
 
 Concurrent protected-request 401 responses share one refresh operation. Successful renewal retries each request once; a repeated 401 or definitive refresh rejection clears authentication. Transient refresh errors remain retryable and do not fabricate success or sign the user out. Refresh-cookie rotation rechecks revocation, expiration, account eligibility, and the original cookie hash atomically. Stale/reused cookies receive 401 without a new cookie. Session changes invalidate earlier requests and reload verified account identity. See [Community session recovery](community-session-recovery.md) for validation and rollout details.
+
+## Member profile images
+
+`GET /api/v1/members/me/profile` includes `avatarFileId` (nullable) and
+`avatarPolicy: { maxBytes, mimeTypes, extensions }`. Existing members have no
+image until they upload one. The profile image is independent of profile-detail
+validation, including phone numbers.
+
+| Method | Endpoint | Request / response |
+| --- | --- | --- |
+| POST | `/api/v1/members/me/profile/avatar` | Multipart with exactly one `file`, no text fields or query parameters. Success: `{ success: true, data: { avatarFileId }, message }`. |
+| GET | `/api/v1/members/me/profile/avatar` | Current image bytes, `Content-Type: image/webp`, `Cache-Control: private, no-store`, and `X-Content-Type-Options: nosniff`. |
+
+Both endpoints require an active MEMBER account and a persisted, verified bearer
+session. Development role headers do not authorize image requests. Ownership is
+always derived from the session; administrators use `/admin/profile/avatar`.
+Generic `/files/:id/download` access also restricts avatars to their current owner,
+including when the requester is an administrator. Superseded images are unavailable.
+
+Accept JPEG (`.jpg`, `.jpeg`), PNG, and WebP up to and including the policy's byte
+limit (default 5 × 1024 × 1024). Extension, declared MIME type, detected content,
+and decoding must agree. Empty, malformed, animated, and unsupported images are
+rejected. Images are orientation-corrected, resized inside 1024 × 1024 without
+upscaling, and re-encoded as WebP with metadata removed. Files remain private in
+the existing upload storage.
+
+Errors use the standard failure envelope: 401 for invalid/unverified sessions or
+inactive accounts, 403 for non-member roles, 404 for missing profiles/images,
+and 422 for invalid files or multipart/query fields. Database failures preserve
+the previous image and remove uncommitted files. Replacements serialize per
+owner; the last committed upload becomes current. A successful change emits
+`UserProfileUpdated` with `changedFields: ["avatarFileId"]`.
+
+The frontend validates files before preview, uploads only on Save Image, and
+loads the saved image using an authenticated blob request. Cancel leaves the
+saved image untouched. Refresh and subsequent sign-ins reload the persisted image.

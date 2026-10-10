@@ -1,8 +1,11 @@
 import { Router } from 'express';
+import { memberAvatarUpload, replaceMemberAvatar, streamMemberAvatar } from '../services/member-avatar.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 import {
   requireAuth,
+  requireExactRole,
+  requireVerifiedSession,
   requireRole,
   requireMembershipStatus,
 } from '../middleware/auth';
@@ -288,6 +291,10 @@ router.get('/me/document-exchange', asyncHandler(async (req, res) => sendSuccess
 router.get('/me/document-exchange/items', asyncHandler(async (req, res) => sendSuccess(res, await exchange.listItems(req.user!.id, req.query), 'Exchange items')));
 router.post('/me/document-exchange/items', validate({ body: exchangeSendBody }), asyncHandler(async (req, res) => sendSuccess(res, await exchange.send(req.user!.id, req.body), 'Sent to CRO', 201)));
 
+router.use('/me/profile/avatar', requireExactRole('MEMBER'), requireVerifiedSession, validate({ query: z.object({}).strict() }));
+router.get('/me/profile/avatar', streamMemberAvatar);
+router.post('/me/profile/avatar', memberAvatarUpload, asyncHandler(async (req, res) =>
+  sendSuccess(res, await replaceMemberAvatar(req.user!.id, req.file), 'Profile image saved successfully.')));
 router.get('/me/profile', asyncHandler(async (req, res) => sendSuccess(res, await service.memberProfile(req.user!.id), 'My profile')));
 router.patch('/me/profile', validate({ body: profileSchema }), asyncHandler(async (req, res) => sendSuccess(res, await service.updateMemberProfile(req.user!.id, req.body), 'Profile updated')));
 

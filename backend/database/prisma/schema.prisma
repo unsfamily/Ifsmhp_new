@@ -224,6 +224,8 @@ model EmailOtp {
 model MemberProfile {
   id                String                   @id @default(cuid())
   userId            String                   @unique
+  avatarFileId      String?                  @unique
+  avatar            FileObject?              @relation(fields: [avatarFileId], references: [id], onDelete: SetNull)
   memberId          String?                  @unique
   professionalTitle String?
   professionalType  String
@@ -366,6 +368,7 @@ model FileObject {
   messageAttachments MessageAttachment[]
   avatarManaged      Boolean @default(false)
   adminAvatars        AdminProfile[]
+  memberAvatars       MemberProfile[]
   galleryManaged     Boolean @default(false)
   purgedAt           DateTime?
   communityManaged   Boolean @default(false)

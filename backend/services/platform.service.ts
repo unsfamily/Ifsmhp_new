@@ -1,3 +1,4 @@
+import { memberAvatarPolicy } from '../domain/member-avatar';
 import { membershipDetail, lockApplication, approvalProblems, issueMembershipId, policyFor, createCharge } from './membership-policy.service';
 import { effectiveSettings, membershipAge } from './settings.service';
 import { notifyAdmins } from './admin-notifications.service';
@@ -396,6 +397,8 @@ export async function memberProfile(userId: string) {
     fullName: user.fullName,
     firstName: user.firstName,
     lastName: user.lastName,
+    avatarFileId: user.memberProfile.avatarFileId,
+    avatarPolicy: memberAvatarPolicy,
     communicationAddress: user.memberProfile.communicationAddress,
     permanentAddress: user.memberProfile.permanentAddress,
     email: user.email,

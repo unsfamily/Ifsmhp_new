@@ -5,7 +5,9 @@
   "description": "IFSMHP platform \u2014 REST API",
   "main": "dist/server.js",
   "scripts": {
+    "predev": "prisma generate",
     "dev": "tsx watch server.ts",
+    "prebuild": "prisma generate",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -39,7 +41,8 @@
     "test:member-status:browser": "node tests/community-member-status.browser.cjs",
     "test:community-session:browser": "node tests/community-session.browser.cjs",
     "test:registration:browser": "node tests/registration-fields.browser.cjs",
-    "test:membership:browser": "node tests/membership-settings.browser.cjs"
+    "test:membership:browser": "node tests/membership-settings.browser.cjs",
+    "test:member-avatar:browser": "node tests/member-avatar.browser.cjs"
   },
   "prisma": {
     "schema": "database/prisma/schema.prisma",

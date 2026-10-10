@@ -27,6 +27,7 @@ import { memberApi, type MemberProfileData, type MemberCredentialDocument } from
 import { useApiData } from '../../hooks/useApiData';
 import { useAuth } from '../../context/AuthContext';
 import EditProfileDialog from './EditProfileDialog';
+import MemberProfileImage from './MemberProfileImage';
 
 function safeUrl(value: string | null | undefined) {
   try {
@@ -49,6 +50,7 @@ export default function MemberProfilePage() {
 }
 
 function ScientistProfile() {
+  const { user } = useAuth();
   const [revision, setRevision] = useState(0);
   const { data, loading: credentialsLoading, error: credentialsError, setData } = useApiData<MemberProfileData>(
     () => memberApi.profile(),
@@ -122,20 +124,8 @@ function ScientistProfile() {
       <Card>
         <CardContent className="p-6 sm:p-8">
           <div className="flex flex-col lg:flex-row gap-6 items-start">
-            <div className="relative">
-              <div className="flex h-28 w-28 items-center justify-center rounded-full bg-forum-100 ring-4 ring-brass-500/20 text-forum-700">
-                <span className="font-display text-3xl font-bold">{initials}</span>
-              </div>
-              <button
-                type="button"
-                className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full bg-forum-600 text-white shadow-md hover:bg-forum-700 transition-colors"
-                aria-label="Upload photo"
-                aria-disabled="true"
-                title="Photo upload is unavailable"
-              >
-                <Upload className="h-4 w-4" />
-              </button>
-            </div>
+            <MemberProfileImage profile={profile} initials={initials} editable={user?.role === 'MEMBER'}
+              onSaved={avatarFileId => setData(current => current ? { ...current, avatarFileId } : current)} />
             <div className="flex-1 min-w-0 w-full">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div style={{ overflowWrap: 'anywhere' }}>
