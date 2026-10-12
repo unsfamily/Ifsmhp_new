@@ -41,7 +41,7 @@ type MockSessionUser = {
 const MOCK_ADMIN: MockSessionUser = {
   id: 'mock-admin-001',
   email: 'admin@ifsmhp.org',
-  fullName: 'Chief Research Office',
+  fullName: 'Chief Research Officer',
   role: 'ADMIN',
   status: 'ACTIVE',
   professionalType: 'Administrator',

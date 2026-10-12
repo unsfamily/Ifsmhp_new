@@ -21,7 +21,7 @@ export default function DocumentExchangePage() {
       <div>
         <h1 className="font-display text-2xl font-semibold text-forum-900">Document Exchange with CRO</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Manage document exchange, communications, and important updates with the Chief Research Office.
+          Manage document exchange, communications, and important updates with the Chief Research Officer.
         </p>
       </div>
 

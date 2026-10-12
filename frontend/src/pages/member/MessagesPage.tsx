@@ -151,7 +151,7 @@ export default function MessagesPage() {
       <div>
         <h1 className="font-display text-2xl font-semibold text-forum-900">Messages from CRO</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Your conversations with the Chief Research Office. Replies usually arrive within a working day.
+          Your conversations with the Chief Research Officer. Replies usually arrive within a working day.
         </p>
       </div>
 
@@ -339,7 +339,7 @@ export default function MessagesPage() {
                   <div className="min-w-0 flex-1">
                     <h3 className="font-display text-lg font-semibold text-forum-900">{selected.subject}</h3>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted">
-                      <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />Chief Research Office</span>
+                      <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />Chief Research Officer</span>
                       <span className="inline-flex items-center gap-1"><Hash className="h-3.5 w-3.5" />{selected.category}</span>
                       <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{formatRelative(selected.lastActivity)}</span>
                       <Badge variant="info" className="!text-[10px]">{selected.status}</Badge>
