@@ -468,7 +468,7 @@ export default function AdminHomePage() {
                 </div>
                 <div className="hidden sm:block leading-tight text-left">
                   <p className="text-sm font-semibold text-forum-900">Admin</p>
-                  <p className="text-xs text-ink-subtle">Chief Research Office</p>
+                  <p className="text-xs text-ink-subtle">Chief Research Officer</p>
                 </div>
                 <UserCircle2 className="h-4.5 w-4.5 text-ink-subtle hidden sm:block" />
               </Link>

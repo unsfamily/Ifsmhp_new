@@ -163,7 +163,7 @@ export default function AdminLayout() {
                 {settings?.shortName || 'IFSMHP'} Admin
               </span>
               <span className="block text-[10px] uppercase tracking-wider text-forum-200/60">
-                Chief Research Office
+                Chief Research Officer
               </span>
             </div>
           </Link>
@@ -317,7 +317,7 @@ export default function AdminLayout() {
                   {loc.pathname === '/admin/profile' ? 'Profile & Preferences' : currentPage?.label || 'Admin Dashboard'}
                 </h1>
                 <p className="text-xs text-ink-subtle truncate">
-                  Chief Research Office · <span className="font-medium text-ink-muted">Elevated permissions</span>
+                  Chief Research Officer· <span className="font-medium text-ink-muted">Elevated permissions</span>
                 </p>
               </div>
               <div className="sm:hidden">
