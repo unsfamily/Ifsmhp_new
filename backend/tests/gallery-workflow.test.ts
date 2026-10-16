@@ -1,5 +1,9 @@
 import request from 'supertest';
 import type { Prisma } from '@prisma/client';
+import { execFile } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import sharp from 'sharp';
@@ -601,6 +605,30 @@ describe('Video uploads through the existing gallery flow', () => {
     await as('patch', `${base}/photos/${p.id}`).send({ published: false });
     expect((await request(app).head(url)).status).toBe(404);
   });
+  it('converts phone HEVC and 10-bit MP4s to stored H.264 that the gallery can play', async () => {
+    const c = await category();
+    const probeFile = promisify(execFile);
+    for (const name of ['hevc.mp4', 'high10.mp4'] as const) {
+      const bytes = await fixture(name);
+      const result = await upload(c.id, bytes, name, 'video/mp4');
+      expect(result.status, JSON.stringify(result.body)).toBe(201);
+      const stored = await prisma.galleryItem.findUniqueOrThrow({ where: { id: result.body.data.id }, include: { file: true } });
+      const saved = await fs.readFile(assertSafePath(stored.file!.storageKey));
+      expect(saved.equals(bytes)).toBe(false);
+      expect(stored.file!.mimeType).toBe('video/mp4');
+      expect(stored.width).toBe(320);
+      expect(stored.height).toBe(180);
+      const temp = path.join(os.tmpdir(), `gallery-probe-${stored.id}.mp4`);
+      await fs.writeFile(temp, saved);
+      try {
+        const executable = (await import('@ffprobe-installer/ffprobe')).default.path;
+        const { stdout } = await probeFile(executable, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,pix_fmt,width,height', '-of', 'json', temp], { windowsHide: true });
+        expect(JSON.parse(stdout).streams[0]).toMatchObject({ codec_name: 'h264', pix_fmt: 'yuv420p', width: 320, height: 180 });
+      } finally {
+        await fs.unlink(temp).catch(() => undefined);
+      }
+    }
+  }, 90_000);
   it('rejects spoofed, truncated, unsupported and stale video uploads without leaking files', async () => {
     const c = await category(); const other = await category('Other'); const sub = await subcategory(other.id);
     const bytes = await fixture('sample.mp4'); const before = (await fs.readdir(uploadRoot)).sort();

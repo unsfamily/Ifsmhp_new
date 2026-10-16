@@ -902,7 +902,7 @@ function UploadPanel({
           Drop images or videos below, or click to browse. You can queue multiple
           files at once. Original media is stored securely and displayed in the gallery when published.
         </p>
-        <p className="text-xs text-ink-subtle">Videos: MP4 with H.264, or WebM with VP8/VP9. Uploads remain drafts until published.</p>
+        <p className="text-xs text-ink-subtle">Videos: H.264 MP4 and VP8/VP9 WebM play directly. Phone HEVC or 10-bit MP4s are converted to H.264. Uploads remain drafts until published.</p>
       </div>
 
       <Card className="p-5 sm:p-6 space-y-5">

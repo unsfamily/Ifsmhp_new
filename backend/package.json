@@ -2,7 +2,7 @@
   "name": "ifsmhp-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "IFSMHP platform \u2014 REST API",
+  "description": "IFSMHP platform — REST API",
   "main": "dist/server.js",
   "scripts": {
     "predev": "prisma generate",
@@ -49,6 +49,7 @@
     "seed": "tsx database/prisma/seed.ts"
   },
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "@prisma/client": "^5.22.0",
     "@types/jsonwebtoken": "^9.0.10",

@@ -1,7 +1,9 @@
 These synthetic two-second 160×96 teal videos with a 440 Hz tone were generated for gallery regression tests. They contain no personal or third-party media.
 
-- `sample.mp4`: H.264, yuv420p, AAC; valid upload/playback fixture.
+- `sample.mp4`: H.264, yuv420p, AAC; valid upload/playback fixture stored unchanged.
 - `sample.webm`: VP9, yuv420p, Opus; valid upload/playback fixture.
+- `hevc.mp4`: HEVC, yuv420p, AAC; phone-style recording converted to H.264 on upload.
+- `high10.mp4`: H.264 High 10, yuv420p10le, AAC; converted to 8-bit H.264 on upload.
 - `unsupported.mp4`: MPEG-4 Part 2, AAC; unsupported-codec rejection fixture.
 
 Example reproduction with FFmpeg (use `libvpx-vp9`/`libopus` for WebM, `mpeg4`/`aac` for the rejection case):
