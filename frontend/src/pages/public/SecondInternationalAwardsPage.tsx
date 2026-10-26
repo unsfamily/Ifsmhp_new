@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Award, CalendarClock, Presentation, UserRound, Users } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
+import CeremonyAwardProgramme from '../../components/awards/CeremonyAwardProgramme';
 import CeremonyRegistrationDialog from '../../components/awards/CeremonyRegistrationDialog';
 import CeremonyRegistrationQr from '../../components/awards/CeremonyRegistrationQr';
+import { ceremonyProgramme } from '../../domain/ceremonyProgramme';
 import { CEREMONY_DATE_NOTICE, CEREMONY_INTEREST_NOTICE, CEREMONY_REGISTER_PATH } from '../../domain/ceremonyRegistration';
 
 type Source = 'hero' | 'cta';
@@ -118,6 +120,8 @@ export default function SecondInternationalAwardsPage() {
           </div>
         </div>
       </section>
+
+      <CeremonyAwardProgramme programme={ceremonyProgramme} />
 
       <Section>
         <div className="max-w-2xl">
