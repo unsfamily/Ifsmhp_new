@@ -4,10 +4,9 @@ import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
 import CeremonyRegistrationDialog from '../../components/awards/CeremonyRegistrationDialog';
 import CeremonyRegistrationQr from '../../components/awards/CeremonyRegistrationQr';
+import PreviousAwardPhotos from '../../components/awards/PreviousAwardPhotos';
 import { CEREMONY_ADDRESS, CEREMONY_EVENT_DATE, CEREMONY_VENUE } from '../../domain/ceremonyProgramme';
 import { CEREMONY_INFORMATION_PATH, CEREMONY_INTEREST_NOTICE, CEREMONY_NOMINATE_PATH } from '../../domain/ceremonyRegistration';
-
-type Source = 'hero' | 'cta';
 
 const participation = [
   {
@@ -30,7 +29,6 @@ const participation = [
 export default function SecondInternationalAwardsPage() {
   const bannerRef = useRef<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [source, setSource] = useState<Source>('hero');
 
   useEffect(() => {
     const previous = document.title;
@@ -56,10 +54,7 @@ export default function SecondInternationalAwardsPage() {
     return () => observer?.disconnect();
   }, []);
 
-  const openFrom = (next: Source) => {
-    setSource(next);
-    setOpen(true);
-  };
+  const openRegistration = () => setOpen(true);
 
   return (
     <>
@@ -85,14 +80,7 @@ export default function SecondInternationalAwardsPage() {
               <p className="mt-7 max-w-2xl text-base leading-relaxed text-forum-900/80 sm:text-lg sm:leading-[1.75]">
                 The second international IFSMHP awards ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune. Nomination is separate from membership and does not guarantee selection.
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Button as="link" to={CEREMONY_NOMINATE_PATH} size="lg">
-                  Submit a nomination
-                </Button>
-                <Button id="ceremony-register-hero" type="button" size="lg" variant="outline" onClick={() => openFrom('hero')}>
-                  Register for the Ceremony
-                </Button>
-              </div>
+              <PreviousAwardPhotos />
             </div>
 
             <div className="rounded-2xl border border-paper-border bg-paper-raised p-6 shadow-sm sm:p-8">
@@ -195,7 +183,7 @@ export default function SecondInternationalAwardsPage() {
             Tell us you would like to attend on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}. This records interest and does not reserve admission.
           </p>
           <div className="mt-8 flex justify-center">
-            <Button id="ceremony-register-cta" type="button" size="lg" onClick={() => openFrom('cta')}>
+            <Button id="ceremony-register-cta" type="button" size="lg" onClick={openRegistration}>
               Register for the Ceremony
             </Button>
           </div>
@@ -205,7 +193,7 @@ export default function SecondInternationalAwardsPage() {
       <CeremonyRegistrationDialog
         open={open}
         onClose={() => setOpen(false)}
-        returnFocusId={source === 'hero' ? 'ceremony-register-hero' : 'ceremony-register-cta'}
+        returnFocusId="ceremony-register-cta"
       />
     </>
   );

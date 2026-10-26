@@ -4,9 +4,9 @@ test.describe.configure({ mode: 'serial' });
 
 const email = `ceremony-e2e-${Date.now()}@example.test`;
 
-async function openRegistration(page: Page, trigger: 'hero' | 'cta' = 'hero') {
+async function openRegistration(page: Page) {
   await page.goto('/awards/second-international');
-  await page.locator(trigger === 'hero' ? '#ceremony-register-hero' : '#ceremony-register-cta').click();
+  await page.locator('#ceremony-register-cta').click();
   const dialog = page.getByRole('dialog', { name: 'Register for the Ceremony' });
   await expect(dialog).toBeVisible();
   await expect(page).toHaveURL(/\/awards\/second-international$/);
@@ -23,7 +23,7 @@ async function fillRegistration(page: Page, name = 'Ada Ceremony') {
   await dialog.getByRole('checkbox', { name: /privacy policy/ }).check();
 }
 
-test('opens and closes the same ceremony registration dialog from both buttons', async ({ page }) => {
+test('opens and closes the ceremony registration dialog', async ({ page }) => {
   const dialog = await openRegistration(page);
   await expect(page.getByRole('checkbox', { name: /privacy policy/ })).not.toBeChecked();
   await expect(dialog.getByText('The ceremony is on 26 December 2026 at A.R. Shaikh Assembly Hall (Azam Campus), Pune. Registering your interest does not reserve admission.')).toBeVisible();
@@ -38,7 +38,7 @@ test('opens and closes the same ceremony registration dialog from both buttons',
   expect(await focusedInside()).toBe(true);
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
-  await expect(page.locator('#ceremony-register-hero')).toBeFocused();
+  await expect(page.locator('#ceremony-register-cta')).toBeFocused();
   await expect(page).toHaveURL(/\/awards\/second-international$/);
 
   await page.locator('#ceremony-register-cta').click();
@@ -52,7 +52,7 @@ test('uses a nearly full-screen dialog on a phone and keeps the page from scroll
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/awards/second-international');
   await page.evaluate(() => { document.body.style.minHeight = '4000px'; window.scrollTo(0, 240); });
-  await page.locator('#ceremony-register-hero').click();
+  await page.locator('#ceremony-register-cta').click();
   const box = await page.getByRole('dialog').boundingBox();
   expect(box?.width ?? 0).toBeGreaterThan(390 * 0.9);
   expect(box?.height ?? 0).toBeGreaterThan(844 * 0.85);
@@ -60,7 +60,7 @@ test('uses a nearly full-screen dialog on a phone and keeps the page from scroll
   await page.mouse.wheel(0, 600);
   expect(await page.evaluate(() => window.scrollY)).toBe(before);
   await page.getByRole('button', { name: 'Close' }).click();
-  await expect(page.locator('#ceremony-register-hero')).toBeFocused();
+  await expect(page.locator('#ceremony-register-cta')).toBeFocused();
 });
 
 test('keeps entered values after validation and a server error, then saves once', async ({ page }) => {
