@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 export const CEREMONY_SLUG = 'second-international';
+export const CEREMONY_PAGE_PATH = '/awards/second-international';
+export const CEREMONY_REGISTER_PATH = '/awards/second-international/register';
 export const CEREMONY_MESSAGE_LIMIT = 1000;
 
 export const PARTICIPATION_OPTIONS = [

@@ -15,6 +15,7 @@ import ResearchPublicationsPage from './pages/public/ResearchPublicationsPage';
 import SupportServicesPage from './pages/public/SupportServicesPage';
 import EventsPage from './pages/public/EventsPage';
 import SecondInternationalAwardsPage from './pages/public/SecondInternationalAwardsPage';
+import CeremonyRegistrationPage from './pages/public/CeremonyRegistrationPage';
 import ContactPage from './pages/public/ContactPage';
 import ProductReviewsPage from './pages/public/ProductReviewsPage';
 import PolicyPage from './pages/public/PolicyPage';
@@ -119,6 +120,7 @@ export default function App() {
           <Route path="support-services" element={<SupportServicesPage />} />
           <Route path="events" element={<EventsPage />} />
           <Route path="awards/second-international" element={<SecondInternationalAwardsPage />} />
+          <Route path="awards/second-international/register" element={<CeremonyRegistrationPage />} />
           <Route path="contact" element={<ContactPage />} />
           <Route path="privacy-policy" element={<PolicyPage />} />
           <Route path="terms-of-service" element={<PolicyPage />} />

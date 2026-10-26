@@ -11,6 +11,7 @@ const navLinks = [
   { to: '/gallery', label: 'Gallery', anchor: true },
   { to: '/support-services', label: 'Support', },
   { to: '/events', label: 'Events' },
+  { to: '/awards/second-international', label: 'Awards' },
   { to: '/contact', label: 'Contact' },
 ];
 
@@ -136,7 +137,9 @@ export default function Navbar() {
                     </Link>
                   );
                 }
-                const isActive = location.pathname === link.to;
+                const isActive = link.to === '/'
+                  ? location.pathname === '/'
+                  : location.pathname === link.to || location.pathname.startsWith(`${link.to}/`);
                 return (
                   <Link
                     key={link.to}

@@ -120,7 +120,35 @@ test('does not send a second registration while the first request is pending', a
   expect(posts).toBe(1);
 });
 
+test('opens the ceremony page from the menu and the form from its QR address', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+  await page.getByRole('navigation').getByRole('link', { name: 'Awards', exact: true }).click();
+  await expect(page).toHaveURL(/\/awards\/second-international$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Second International Awards Ceremony' })).toBeVisible();
+  const qr = page.locator('[data-registration-url]');
+  await expect(qr).toContainText('/awards/second-international/register');
+  await expect(qr).toHaveAttribute('data-registration-url', /\/awards\/second-international\/register$/);
+  await page.getByRole('link', { name: 'Open the ceremony registration form' }).click();
+  await expect(page).toHaveURL(/\/awards\/second-international\/register$/);
+  await expect(page.getByRole('heading', { name: 'Register for the Ceremony' })).toBeVisible();
+  await expect(page.getByText('Event date and venue are being finalised. Register your interest to receive ceremony updates.')).toBeVisible();
+  await page.getByRole('button', { name: 'Submit registration' }).click();
+  await expect(page.getByText('Enter your full name.')).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /privacy policy/ })).not.toBeChecked();
+});
+
+test('shows the awards link in the phone menu', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Toggle menu' }).click();
+  await page.getByRole('navigation').getByRole('link', { name: 'Awards', exact: true }).click();
+  await expect(page).toHaveURL(/\/awards\/second-international$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Second International Awards Ceremony' })).toBeVisible();
+});
+
 test('treats a repeated ceremony email as the same registration', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   const dialog = await openRegistration(page);
   await fillRegistration(page, 'Ada Ceremony Updated');
   await dialog.getByRole('button', { name: 'Submit registration' }).click();
