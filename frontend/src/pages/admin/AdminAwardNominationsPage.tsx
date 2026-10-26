@@ -5,6 +5,12 @@ import { Card, CardContent, CardHeader } from '../../components/common/Card';
 import { adminApi, type AwardNominationRow } from '../../api/admin';
 import { useApiData } from '../../hooks/useApiData';
 
+const divisionLabel: Record<string, string> = {
+  DISTINGUISHED_FELLOWS: 'Senior — Distinguished Lifetime Contribution',
+  EXCELLENCE: 'Mid-career — Distinguished Excellence',
+  RISING_ACHIEVERS: 'Young — Emerging Excellence',
+};
+
 function formatWhen(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -60,7 +66,7 @@ export default function AdminAwardNominationsPage() {
                     <tr key={row.id} className="border-t border-paper-border align-top">
                       <td className="px-3 py-3 font-medium text-forum-900">{row.reference}</td>
                       <td className="px-3 py-3">{row.nomineeName}<br /><span className="text-ink-muted">{row.nomineeEmail}</span></td>
-                      <td className="px-3 py-3">{row.awardName}{row.division ? <><br /><span className="text-ink-muted">{row.division}</span></> : null}</td>
+                      <td className="px-3 py-3">{row.awardName}{row.division ? <><br /><span className="text-ink-muted">{divisionLabel[row.division] ?? row.division}</span></> : null}</td>
                       <td className="px-3 py-3">{row.nominatorName}<br /><span className="text-ink-muted">{row.nominatorEmail}</span></td>
                       <td className="px-3 py-3">{row.acknowledgementSentAt ? formatWhen(row.acknowledgementSentAt) : 'Not sent'}</td>
                       <td className="px-3 py-3 whitespace-nowrap">{formatWhen(row.updatedAt)}</td>

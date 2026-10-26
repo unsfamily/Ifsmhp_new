@@ -63,7 +63,7 @@ export default function AwardInformationPage() {
             2nd International IFSMHP Awards 2026
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-relaxed text-ink-muted sm:text-lg">
-            Seventy-five disciplinary awards across twenty-five disciplines, each offered in three recognition divisions, and three special lifetime achievement gold medals.
+            {ceremonyProgramme.totalLabel}. Three special lifetime achievement gold medals are separate honours.
           </p>
           <div className="mt-8">
             <Button as="link" to={CEREMONY_NOMINATE_PATH} size="lg">Submit a nomination</Button>
@@ -85,9 +85,11 @@ export default function AwardInformationPage() {
           <article className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-50 to-paper p-6 shadow-sm sm:p-8">
             <h2 className="font-display text-3xl font-semibold text-forum-900">What these honours recognise</h2>
             <ul className="mt-5 space-y-3 text-sm leading-relaxed text-ink">
-              <li className="rounded-lg bg-white/80 px-4 py-3 ring-1 ring-paper-border">Distinguished Fellows Awards recognise a lifetime contribution.</li>
-              <li className="rounded-lg bg-white/80 px-4 py-3 ring-1 ring-paper-border">Excellence Awards recognise an established contribution.</li>
-              <li className="rounded-lg bg-white/80 px-4 py-3 ring-1 ring-paper-border">Rising Achievers Awards recognise an emerging contribution.</li>
+              {ceremonyProgramme.divisions.map((division) => (
+                <li key={division.title} className="rounded-lg bg-white/80 px-4 py-3 ring-1 ring-paper-border">
+                  {division.level}: {division.title}. Also listed as {division.description}.
+                </li>
+              ))}
               <li className="rounded-lg bg-white/80 px-4 py-3 ring-1 ring-paper-border">Nomination does not guarantee selection and is subject to independent review.</li>
             </ul>
           </article>

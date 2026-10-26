@@ -8,6 +8,14 @@ function awardNumber(groups: CeremonyProgramme['groups'], groupIndex: number, aw
 export default function CeremonyAwardProgramme({ programme }: { programme: CeremonyProgramme }) {
   const groups = programme.groups.filter((group) => group.awards.length > 0);
   const divisions = programme.divisions.filter((division) => division.title.trim());
+  const allocation = programme.allocation ?? [];
+  const allocationTotal = allocation.reduce((sum, row) => ({
+    categories: sum.categories + row.categories,
+    senior: sum.senior + row.senior,
+    midCareer: sum.midCareer + row.midCareer,
+    young: sum.young + row.young,
+    total: sum.total + row.total,
+  }), { categories: 0, senior: 0, midCareer: 0, young: 0, total: 0 });
   const hasGroups = groups.length > 0;
   const hasDivisions = divisions.length > 0;
 
@@ -32,6 +40,51 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
             </p>
           )}
         </div>
+
+        {allocation.length > 0 && (
+          <div className="mt-10 overflow-hidden rounded-2xl border border-paper-border bg-paper shadow-sm">
+            <div className="border-b border-paper-border bg-forum-50 px-5 py-4 sm:px-6">
+              <h3 className="font-display text-xl font-semibold text-forum-900 sm:text-2xl">Final allocation of 75 awards</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <caption className="sr-only">Award allocation by academic division and recipient level</caption>
+                <thead className="bg-forum-900 text-xs uppercase tracking-wide text-white">
+                  <tr>
+                    <th className="px-4 py-3 font-medium" scope="col">Academic division</th>
+                    <th className="px-4 py-3 text-right font-medium" scope="col">Categories</th>
+                    <th className="px-4 py-3 text-right font-medium" scope="col">Senior</th>
+                    <th className="px-4 py-3 text-right font-medium" scope="col">Mid-career</th>
+                    <th className="px-4 py-3 text-right font-medium" scope="col">Young</th>
+                    <th className="px-4 py-3 text-right font-medium" scope="col">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allocation.map((row) => (
+                    <tr key={row.division} className="border-t border-paper-border">
+                      <th className="px-4 py-3 font-medium text-forum-900" scope="row">{row.division}</th>
+                      <td className="px-4 py-3 text-right tabular-nums text-ink">{row.categories}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-ink">{row.senior}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-ink">{row.midCareer}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-ink">{row.young}</td>
+                      <td className="px-4 py-3 text-right font-semibold tabular-nums text-forum-900">{row.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-forum-900 text-white">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold" scope="row">Total</th>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums">{allocationTotal.categories}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums">{allocationTotal.senior}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums">{allocationTotal.midCareer}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums">{allocationTotal.young}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-brass-500">{allocationTotal.total}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
 
         {hasGroups ? (
           <div className="mt-10 space-y-8">
@@ -91,10 +144,13 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
             <ul className="mt-6 grid gap-6 md:grid-cols-3">
               {divisions.map((division) => (
                 <li key={division.title} className="rounded-2xl border border-paper-border bg-paper p-6 shadow-sm">
-                  {division.detail && (
-                    <p className="font-display text-4xl font-semibold text-brass-600">{division.detail}</p>
+                  {division.level && (
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{division.level}</p>
                   )}
-                  <h4 className={`${division.detail ? 'mt-3' : ''} font-display text-xl font-semibold text-forum-900`}>{division.title}</h4>
+                  {division.detail && (
+                    <p className={`${division.level ? 'mt-2' : ''} font-display text-4xl font-semibold text-brass-600`}>{division.detail}</p>
+                  )}
+                  <h4 className={`${division.detail || division.level ? 'mt-3' : ''} font-display text-xl font-semibold text-forum-900`}>{division.title}</h4>
                   {division.description && <p className="mt-2 text-sm leading-relaxed text-ink-muted">{division.description}</p>}
                 </li>
               ))}

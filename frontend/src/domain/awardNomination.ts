@@ -39,9 +39,9 @@ export const MEDAL_OPTIONS = [
 ] as const;
 
 export const DIVISION_OPTIONS = [
-  ['DISTINGUISHED_FELLOWS', 'Distinguished Fellows Award — Lifetime contribution'],
-  ['EXCELLENCE', 'Excellence Award — Established contribution'],
-  ['RISING_ACHIEVERS', 'Rising Achievers Award — Emerging contribution'],
+  ['DISTINGUISHED_FELLOWS', 'Senior — Distinguished Lifetime Contribution Award (Distinguished Fellows)'],
+  ['EXCELLENCE', 'Mid-career — Distinguished Excellence Award (Excellence)'],
+  ['RISING_ACHIEVERS', 'Young — Emerging Excellence Award (Rising Achievers)'],
 ] as const;
 
 const medalCodes = MEDAL_OPTIONS.map(([code]) => code);
