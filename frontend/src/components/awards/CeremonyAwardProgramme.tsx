@@ -71,6 +71,17 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
           </div>
         )}
 
+        {programme.medals && programme.medals.length > 0 && (
+          <div className="mt-12">
+            <h3 className="font-display text-2xl font-semibold text-forum-900 sm:text-3xl">Special lifetime achievement gold medals</h3>
+            <ul className="mt-6 grid gap-6 md:grid-cols-3">
+              {programme.medals.map((medal) => (
+                <li key={medal.name} className="rounded-2xl border border-paper-border bg-paper p-6 shadow-sm font-display text-xl font-semibold text-forum-900">{medal.name}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="mt-12">
           <h3 className="font-display text-2xl font-semibold text-forum-900 sm:text-3xl">Recognition divisions</h3>
           {programme.divisionNote && (
@@ -84,6 +95,7 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
                     <p className="font-display text-4xl font-semibold text-brass-600">{division.detail}</p>
                   )}
                   <h4 className={`${division.detail ? 'mt-3' : ''} font-display text-xl font-semibold text-forum-900`}>{division.title}</h4>
+                  {division.description && <p className="mt-2 text-sm leading-relaxed text-ink-muted">{division.description}</p>}
                 </li>
               ))}
             </ul>

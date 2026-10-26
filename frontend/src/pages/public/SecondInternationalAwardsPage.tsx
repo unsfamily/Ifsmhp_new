@@ -2,11 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Award, CalendarClock, Presentation, UserRound, Users } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
-import CeremonyAwardProgramme from '../../components/awards/CeremonyAwardProgramme';
 import CeremonyRegistrationDialog from '../../components/awards/CeremonyRegistrationDialog';
 import CeremonyRegistrationQr from '../../components/awards/CeremonyRegistrationQr';
-import { ceremonyProgramme } from '../../domain/ceremonyProgramme';
-import { CEREMONY_DATE_NOTICE, CEREMONY_INTEREST_NOTICE, CEREMONY_REGISTER_PATH } from '../../domain/ceremonyRegistration';
+import { CEREMONY_ADDRESS, CEREMONY_EVENT_DATE, CEREMONY_VENUE } from '../../domain/ceremonyProgramme';
+import { CEREMONY_INFORMATION_PATH, CEREMONY_INTEREST_NOTICE, CEREMONY_NOMINATE_PATH } from '../../domain/ceremonyRegistration';
 
 type Source = 'hero' | 'cta';
 
@@ -24,7 +23,7 @@ const participation = [
   {
     icon: Award,
     title: 'Award nomination',
-    text: 'Tell us you are interested in an award nomination. Nomination requirements will be communicated separately.',
+    text: 'Use the official nomination form to nominate someone. Registering interest on this page does not submit a nomination.',
   },
 ];
 
@@ -84,14 +83,14 @@ export default function SecondInternationalAwardsPage() {
                 Second International <span className="text-brass-600">Awards</span> Ceremony
               </h1>
               <p className="mt-7 max-w-2xl text-base leading-relaxed text-forum-900/80 sm:text-lg sm:leading-[1.75]">
-                Register your interest in attending the second international IFSMHP awards ceremony. The date and venue are still being finalised.
+                The second international IFSMHP awards ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune. Nomination is separate from membership and does not guarantee selection.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Button id="ceremony-register-hero" type="button" size="lg" onClick={() => openFrom('hero')}>
-                  Register for the Ceremony
+                <Button as="link" to={CEREMONY_NOMINATE_PATH} size="lg">
+                  Submit a nomination
                 </Button>
-                <Button as="link" to={CEREMONY_REGISTER_PATH} size="lg" variant="outline">
-                  Open the form
+                <Button id="ceremony-register-hero" type="button" size="lg" variant="outline" onClick={() => openFrom('hero')}>
+                  Register for the Ceremony
                 </Button>
               </div>
             </div>
@@ -101,27 +100,25 @@ export default function SecondInternationalAwardsPage() {
                 <CalendarClock className="h-6 w-6" aria-hidden="true" />
               </div>
               <h2 className="mt-5 font-display text-2xl font-semibold text-forum-900">Date and venue</h2>
-              <p className="mt-3 text-sm leading-relaxed text-ink-muted">{CEREMONY_DATE_NOTICE}</p>
+              <p className="mt-3 text-sm leading-relaxed text-ink-muted">{CEREMONY_ADDRESS}</p>
               <dl className="mt-6 divide-y divide-paper-border text-sm">
                 <div className="flex items-start justify-between gap-4 py-3">
                   <dt className="text-ink-muted">Date</dt>
-                  <dd className="text-right font-medium text-forum-900">Being finalised</dd>
+                  <dd className="text-right font-medium text-forum-900">{CEREMONY_EVENT_DATE}</dd>
                 </div>
                 <div className="flex items-start justify-between gap-4 py-3">
                   <dt className="text-ink-muted">Venue</dt>
-                  <dd className="text-right font-medium text-forum-900">Being finalised</dd>
+                  <dd className="text-right font-medium text-forum-900">{CEREMONY_VENUE}</dd>
                 </div>
                 <div className="flex items-start justify-between gap-4 py-3">
-                  <dt className="text-ink-muted">Registration</dt>
-                  <dd className="text-right font-medium text-forum-900">Interest only</dd>
+                  <dt className="text-ink-muted">Nomination</dt>
+                  <dd className="text-right font-medium text-forum-900">Separate from membership</dd>
                 </div>
               </dl>
             </div>
           </div>
         </div>
       </section>
-
-      <CeremonyAwardProgramme programme={ceremonyProgramme} />
 
       <Section>
         <div className="max-w-2xl">
@@ -171,13 +168,16 @@ export default function SecondInternationalAwardsPage() {
       <Section>
         <div className="grid items-center gap-10 rounded-2xl border border-paper-border bg-paper-raised p-6 shadow-sm sm:p-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16">
           <div>
-            <h2 className="font-display text-3xl font-semibold text-forum-900">Open the form with a QR code</h2>
+            <h2 className="font-display text-3xl font-semibold text-forum-900">Open the nomination form with a QR code</h2>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-ink-muted">
-              The code opens a registration page, so it works when someone scans it from a poster or another phone. The buttons on this page still open the same form here, without leaving the ceremony page.
+              The code opens the award nomination form. It is separate from IFSMHP membership registration. Interest registration on this page does not submit a nomination.
             </p>
-            <div className="mt-6">
-              <Button as="link" to={CEREMONY_REGISTER_PATH} variant="outline">
-                Go to the registration form
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button as="link" to={CEREMONY_NOMINATE_PATH}>
+                Go to the nomination form
+              </Button>
+              <Button as="link" to={CEREMONY_INFORMATION_PATH} variant="outline">
+                Award information
               </Button>
             </div>
           </div>
@@ -192,7 +192,7 @@ export default function SecondInternationalAwardsPage() {
           </div>
           <h2 className="mt-5 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">Register your interest</h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-ink-muted">
-            Tell us you would like to attend. Ceremony updates will follow once the date and venue are confirmed.
+            Tell us you would like to attend on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}. This records interest and does not reserve admission.
           </p>
           <div className="mt-8 flex justify-center">
             <Button id="ceremony-register-cta" type="button" size="lg" onClick={() => openFrom('cta')}>

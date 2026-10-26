@@ -104,6 +104,7 @@ const navSections: NavSection[] = [
       { to: '/admin/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'messagesAwaitingReply' },
       { to: '/admin/events', label: 'Events', icon: Calendar },
       { to: '/admin/ceremony-registrations', label: 'Ceremony registrations', icon: Award },
+      { to: '/admin/award-nominations', label: 'Award nominations', icon: Award },
       { to: '/admin/inquiries', label: 'Contact Inquiries', icon: Mail, badgeKey: 'newInquiries' },
     ],
   },

@@ -3,6 +3,8 @@ import { z } from 'zod';
 export const CEREMONY_SLUG = 'second-international';
 export const CEREMONY_PAGE_PATH = '/awards/second-international';
 export const CEREMONY_REGISTER_PATH = '/awards/second-international/register';
+export const CEREMONY_INFORMATION_PATH = '/awards/second-international/information';
+export const CEREMONY_NOMINATE_PATH = '/awards/second-international/nominate';
 export const CEREMONY_MESSAGE_LIMIT = 1000;
 
 export const PARTICIPATION_OPTIONS = [
@@ -33,7 +35,7 @@ export const ceremonyRegistrationSchema = z.object({
   consent: z.literal(true, { errorMap: () => ({ message: 'Acknowledge the privacy policy and consent to be contacted about this ceremony.' }) }),
 });
 
-export const CEREMONY_DATE_NOTICE = 'Event date and venue are being finalised. Register your interest to receive ceremony updates.';
+export const CEREMONY_DATE_NOTICE = 'The ceremony is on 26 December 2026 at A.R. Shaikh Assembly Hall (Azam Campus), Pune. Registering your interest does not reserve admission.';
 export const CEREMONY_INTEREST_NOTICE = 'Registering records your interest in attending. It does not guarantee an award, acceptance of a poster, or reserved admission. Award nomination and poster submission requirements will be communicated separately.';
 export const CEREMONY_SUCCESS_MESSAGE = 'Your registration of interest has been received.';
 

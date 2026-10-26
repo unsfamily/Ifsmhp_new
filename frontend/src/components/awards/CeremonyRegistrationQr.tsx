@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { Link } from 'react-router-dom';
-import { CEREMONY_REGISTER_PATH } from '../../domain/ceremonyRegistration';
+import { CEREMONY_NOMINATE_PATH } from '../../domain/ceremonyRegistration';
 
-export function ceremonyRegistrationUrl() {
-  if (typeof window === 'undefined') return CEREMONY_REGISTER_PATH;
-  return `${window.location.origin}${CEREMONY_REGISTER_PATH}`;
+export function ceremonyRegistrationUrl(path = CEREMONY_NOMINATE_PATH) {
+  if (typeof window === 'undefined') return path;
+  return `${window.location.origin}${path}`;
 }
 
 export default function CeremonyRegistrationQr() {
@@ -42,15 +42,15 @@ export default function CeremonyRegistrationQr() {
   return (
     <div className="flex flex-col items-center text-center" data-registration-url={url}>
       <Link
-        to={CEREMONY_REGISTER_PATH}
+        to={CEREMONY_NOMINATE_PATH}
         className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-paper-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-600"
-        aria-label="Open the ceremony registration form"
+        aria-label="Open the award nomination form"
       >
         <span ref={hostRef} className={`block h-[196px] w-[196px] [&>svg]:h-full [&>svg]:w-full ${ready ? '' : 'sr-only'}`} />
         {!ready && <span className="flex h-[196px] w-[196px] items-center justify-center text-sm text-ink-muted">Preparing QR code</span>}
       </Link>
       <p className="mt-4 text-sm leading-relaxed text-ink-muted">
-        Scan this code to open the registration form on your phone.
+        Scan this code to open the award nomination form.
       </p>
       <p className="mt-2 break-all text-xs text-ink-subtle">{url}</p>
     </div>

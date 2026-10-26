@@ -94,4 +94,6 @@ export const publicApi = {
     fullName: string; email: string; phone: string; institution: string; designation?: string;
     participationType: 'DELEGATE' | 'STUDENT_POSTER' | 'AWARD_NOMINATION'; message?: string; consent: true;
   }) => (await apiClient.post<Envelope<{ received: true }>>(`/public/awards/${encodeURIComponent(slug)}/registrations`, payload)).data,
+  nominateAward: async (slug: string, payload: Record<string, unknown>) =>
+    (await apiClient.post<Envelope<{ received: true; acknowledgementSent: boolean }>>(`/public/awards/${encodeURIComponent(slug)}/nominations`, payload)).data,
 };

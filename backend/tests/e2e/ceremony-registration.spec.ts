@@ -26,7 +26,7 @@ async function fillRegistration(page: Page, name = 'Ada Ceremony') {
 test('opens and closes the same ceremony registration dialog from both buttons', async ({ page }) => {
   const dialog = await openRegistration(page);
   await expect(page.getByRole('checkbox', { name: /privacy policy/ })).not.toBeChecked();
-  await expect(dialog.getByText('Event date and venue are being finalised. Register your interest to receive ceremony updates.')).toBeVisible();
+  await expect(dialog.getByText('The ceremony is on 26 December 2026 at A.R. Shaikh Assembly Hall (Azam Campus), Pune. Registering your interest does not reserve admission.')).toBeVisible();
   const focusedInside = () => page.evaluate(() => {
     const node = document.querySelector('dialog');
     return Boolean(node && (node === document.activeElement || node.contains(document.activeElement)));
@@ -127,15 +127,14 @@ test('opens the ceremony page from the menu and the form from its QR address', a
   await expect(page).toHaveURL(/\/awards\/second-international$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Second International Awards Ceremony' })).toBeVisible();
   const qr = page.locator('[data-registration-url]');
-  await expect(qr).toContainText('/awards/second-international/register');
-  await expect(qr).toHaveAttribute('data-registration-url', /\/awards\/second-international\/register$/);
-  await page.getByRole('link', { name: 'Open the ceremony registration form' }).click();
-  await expect(page).toHaveURL(/\/awards\/second-international\/register$/);
-  await expect(page.getByRole('heading', { name: 'Register for the Ceremony' })).toBeVisible();
-  await expect(page.getByText('Event date and venue are being finalised. Register your interest to receive ceremony updates.')).toBeVisible();
-  await page.getByRole('button', { name: 'Submit registration' }).click();
-  await expect(page.getByText('Enter your full name.')).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: /privacy policy/ })).not.toBeChecked();
+  await expect(qr).toContainText('/awards/second-international/nominate');
+  await expect(qr).toHaveAttribute('data-registration-url', /\/awards\/second-international\/nominate$/);
+  await page.getByRole('link', { name: 'Open the award nomination form' }).click();
+  await expect(page).toHaveURL(/\/awards\/second-international\/nominate$/);
+  await expect(page.getByRole('heading', { name: 'Official nomination form' })).toBeVisible();
+  await page.getByRole('button', { name: 'Submit nomination' }).click();
+  await expect(page.getByText("Enter the nominee's full name.")).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /does not guarantee selection/ })).not.toBeChecked();
 });
 
 test('shows the awards link in the phone menu', async ({ page }) => {

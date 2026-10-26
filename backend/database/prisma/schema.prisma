@@ -831,6 +831,60 @@ model CeremonyRegistration {
   @@index([ceremonySlug, updatedAt])
 }
 
+model AwardNomination {
+  id                       String    @id @default(cuid())
+  ceremonySlug             String    @db.VarChar(80)
+  reference                String    @unique @db.VarChar(40)
+  awardCode                String    @db.VarChar(40)
+  awardName                String    @db.VarChar(160)
+  division                 String?   @db.VarChar(40)
+  nomineeName              String    @db.VarChar(160)
+  dateOfBirth              String    @db.VarChar(40)
+  nationality              String    @db.VarChar(80)
+  qualification            String    @db.VarChar(200)
+  designation              String    @db.VarChar(160)
+  institution              String    @db.VarChar(200)
+  specialisation           String    @db.VarChar(200)
+  yearsOfContribution      String    @db.VarChar(40)
+  countryOfResidence       String    @db.VarChar(80)
+  nomineeEmail             String    @db.VarChar(191)
+  nomineeEmailNormalized   String    @db.VarChar(191)
+  nomineePhone             String    @db.VarChar(30)
+  orcid                    String?   @db.VarChar(200)
+  careerOverview           String    @db.Text
+  principalContributions   String    @db.Text
+  impact                   String    @db.Text
+  leadership               String    @db.Text
+  majorAwards              String    @db.Text
+  publications             String    @db.Text
+  patents                  String    @db.Text
+  projects                 String    @db.Text
+  institutionsEstablished  String    @db.Text
+  societalImpact           String    @db.Text
+  statement                String    @db.Text
+  nominationType           String    @db.VarChar(20)
+  nominatorName            String    @db.VarChar(160)
+  nominatorDesignation     String    @db.VarChar(160)
+  nominatorInstitution     String    @db.VarChar(200)
+  nominatorEmail           String    @db.VarChar(191)
+  nominatorPhone           String    @db.VarChar(30)
+  relationship             String    @db.VarChar(200)
+  checklistCv              Boolean
+  checklistStatement       Boolean
+  checklistEvidence        Boolean
+  checklistHonours         Boolean
+  checklistRecommendation  Boolean
+  checklistPhotograph      Boolean
+  checklistConsent         Boolean
+  declaredAt               DateTime
+  acknowledgementSentAt    DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@unique([ceremonySlug, nomineeEmailNormalized, awardCode], map: "AwardNomination_ceremony_email_award")
+  @@index([ceremonySlug, updatedAt])
+}
+
 model EventResource {
   id      String  @id @default(cuid())
   eventId String

@@ -87,11 +87,13 @@ function useGalleryData(admin: boolean, enabled: boolean, identity: string) {
   const policy = usable?.policy ?? null;
   const getCategoryPhotos = (id: string, options?: { onlyPublished?: boolean }) => photos.filter(p => p.categoryId === id && (!options?.onlyPublished || p.published));
   const applyFilters = (query: GalleryFilters) => {
-    const grouped = categories
+    const grouped = [...categories]
+      .sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name))
       .filter(c => (!query.onlyPublished || c.published) && (query.categoryId === 'all' || c.id === query.categoryId))
       .map(category => {
-        const categoryPhotos = getCategoryPhotos(category.id, { onlyPublished: query.onlyPublished });
-        const children = subcategories.filter(s => s.categoryId === category.id);
+        const categoryPhotos = getCategoryPhotos(category.id, { onlyPublished: query.onlyPublished })
+          .sort((a, b) => a.displayOrder - b.displayOrder || a.title.localeCompare(b.title));
+        const children = subcategories.filter(s => s.categoryId === category.id).sort((a, b) => a.name.localeCompare(b.name));
         const directPhotos = categoryPhotos.filter(p => !p.subcategoryId);
         const sections: { subcategory: GallerySubcategory | null; photos: GalleryPhoto[] }[] = [];
         if (directPhotos.length || !children.length || query.subcategoryId === 'none') sections.push({ subcategory: null, photos: directPhotos });
