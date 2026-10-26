@@ -252,6 +252,21 @@ export interface AdminPublicationDetail extends AdminPublicationRow {
   history: AdminPublicationHistoryEntry[];
 }
 
+export interface CeremonyRegistrationRow {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  institution: string;
+  designation: string | null;
+  participationType: 'DELEGATE' | 'STUDENT_POSTER' | 'AWARD_NOMINATION';
+  participationLabel: string;
+  message: string | null;
+  consentAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const get = async (url: string, params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>(url, { params })).data.data;
 const post = async (url: string, payload?: unknown) => (await apiClient.post<Envelope<unknown>>(url, payload ?? {})).data.data;
 const patch = async (url: string, payload?: unknown) => (await apiClient.patch<Envelope<unknown>>(url, payload ?? {})).data.data;
@@ -310,6 +325,7 @@ export const adminApi = {
   createEvent: (payload: unknown) => post('/admin/events', payload),
   updateEvent: (id: string, payload: unknown) => patch(`/admin/events/${id}`, payload),
   inquiries: (params?: Record<string, unknown>) => get('/admin/inquiries', params),
+  ceremonyRegistrations: (params?: Record<string, unknown>) => get('/admin/ceremony-registrations', params) as Promise<{ items: CeremonyRegistrationRow[]; pagination: { page: number; limit: number; total: number; pages: number } }>,
   replyInquiry: (id: string, text: string) => post(`/admin/inquiries/${id}/reply`, { text }),
   gallery: (params?: Record<string, unknown>) => get('/admin/gallery', params),
   auditLog: (params?: Record<string, unknown>) => get('/admin/audit-log', params),

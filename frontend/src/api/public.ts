@@ -90,4 +90,8 @@ export const publicApi = {
   eventCalendar: async (month: string) => (await apiClient.get<Envelope<PublicEventCalendar>>('/public/events/calendar', { params: { month } })).data.data,
   gallery: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/public/gallery', { params })).data.data,
   contact: async (payload: unknown) => (await apiClient.post<Envelope<unknown>>('/contact', payload)).data.data,
+  registerCeremony: async (slug: string, payload: {
+    fullName: string; email: string; phone: string; institution: string; designation?: string;
+    participationType: 'DELEGATE' | 'STUDENT_POSTER' | 'AWARD_NOMINATION'; message?: string; consent: true;
+  }) => (await apiClient.post<Envelope<{ received: true }>>(`/public/awards/${encodeURIComponent(slug)}/registrations`, payload)).data,
 };

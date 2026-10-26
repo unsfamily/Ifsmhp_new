@@ -15,7 +15,7 @@ const groups: Record<string, string[]> = {
   INQUIRY: ['InquiryCreated', 'InquiryReplied', 'InquiryStatusChanged'],
   MESSAGE: ['ConversationCreated', 'MessageSent'],
   DOCUMENT: ['FileUploaded', 'FileUploadRemoved', 'FileAccessGranted', 'CredentialAccessGranted', 'DocumentExchangeSent'],
-  EVENT: ['EventCreated', 'EventUpdated', 'EventPublished', 'EventCancelled', 'EventDeleted', 'EventScheduledPublished', 'EventDeliveryOutcome'],
+  EVENT: ['EventCreated', 'EventUpdated', 'EventPublished', 'EventCancelled', 'EventDeleted', 'EventScheduledPublished', 'EventDeliveryOutcome', 'CeremonyInterestRegistered'],
   ANNOUNCEMENT: ['AnnouncementSaved', 'Announcementpreview', 'Announcementretry', 'Announcementsend', 'Announcementschedule', 'Announcementcancel', 'Announcementdelete', 'AnnouncementSignOff', 'AnnouncementExpired', 'AnnouncementDispatchStarted', 'AnnouncementDeliveryUpdated', 'AnnouncementRead', 'AnnouncementUnread', 'AnnouncementEmailUnsubscribed'],
   REPORT: ['ReportGenerated', 'ReportExported', 'AuditLogExported'],
   NOTIFICATION: ['NotificationsRead', 'NotificationsUnread', 'AdminPreferencesUpdated', 'AdminEmailDeliveryOutcome'], SYSTEM: ['SeedCreated'], SETTINGS: ['PlatformSettingsUpdated'], OTHER: [],

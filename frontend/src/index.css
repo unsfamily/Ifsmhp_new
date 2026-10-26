@@ -1375,3 +1375,34 @@
     break-inside: avoid;
   }
 }
+
+dialog.ceremony-dialog {
+  display: none;
+  width: calc(100% - 0.75rem);
+  height: calc(100dvh - 0.75rem);
+  max-width: none;
+  max-height: none;
+  margin: 0.375rem auto;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+}
+
+dialog.ceremony-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+dialog.ceremony-dialog::backdrop {
+  background: rgb(15 23 42 / 0.55);
+}
+
+@media (min-width: 640px) {
+  dialog.ceremony-dialog {
+    width: min(32rem, calc(100% - 2rem));
+    height: auto;
+    max-height: 90dvh;
+    margin: auto;
+  }
+}

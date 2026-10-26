@@ -811,6 +811,26 @@ model EventRegistration {
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
+/// Interest in an awards ceremony. Kept apart from membership applications and event RSVPs.
+model CeremonyRegistration {
+  id                String   @id @default(cuid())
+  ceremonySlug      String   @db.VarChar(80)
+  fullName          String   @db.VarChar(120)
+  email             String   @db.VarChar(191)
+  emailNormalized   String   @db.VarChar(191)
+  phone             String   @db.VarChar(30)
+  institution       String   @db.VarChar(200)
+  designation       String?  @db.VarChar(120)
+  participationType String   @db.VarChar(40)
+  message           String?  @db.Text
+  consentAt         DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([ceremonySlug, emailNormalized])
+  @@index([ceremonySlug, updatedAt])
+}
+
 model EventResource {
   id      String  @id @default(cuid())
   eventId String
