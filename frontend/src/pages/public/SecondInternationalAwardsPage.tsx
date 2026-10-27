@@ -78,7 +78,7 @@ export default function SecondInternationalAwardsPage() {
                 <span className="block">
                   <span className="mr-[0.16em] inline-flex items-start align-baseline text-[1.32em] leading-none text-brass-600" aria-hidden="true">
                     <span>2</span>
-                    <span className="ml-[0.02em] mt-[0.38em] text-[0.38em] font-semibold leading-none">nd</span>
+                    <span className="ml-[0.7em] mt-[0.38em] text-[0.38em] font-semibold leading-none">nd</span>
                   </span>
                   <span className="sr-only">Second</span>
                   {' '}International
