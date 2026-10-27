@@ -1,5 +1,5 @@
 import { usePublicSettings } from '../../context/SettingsContext';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Menu, X, UserPlus, LogIn, Images } from 'lucide-react';
 import logoImg from '../../assets/images/logo.webp';
@@ -15,20 +15,38 @@ const navLinks = [
   { to: '/contact', label: 'Contact' },
 ];
 
-function featuredLinkCls(isActive: boolean) {
-  return `inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold shadow-sm transition-colors ${
-    isActive
-      ? 'bg-brass-600 text-forum-950'
-      : 'bg-brass-500 text-forum-950 hover:bg-brass-400'
-  }`;
+function textParts(value: string) {
+  if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+    return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(value)].map((part) => part.segment);
+  }
+  return Array.from(value);
 }
 
-function FeaturedLabel({ label }: { label: string }) {
+function SupportGlowDot() {
+  return <span className="support-nav-dot" aria-hidden="true" />;
+}
+
+function SupportNavLabel({ children }: { children: string }) {
+  let letter = 0;
   return (
-    <>
-      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-white" aria-hidden="true" />
-      {label}
-    </>
+    <span className="support-nav-label" aria-hidden="true">
+      {textParts(children).map((part, index) => {
+        if (part.trim() === '') {
+          return (
+            <span key={`space-${index}`} className="support-nav-space">
+              {part}
+            </span>
+          );
+        }
+        const order = letter;
+        letter += 1;
+        return (
+          <span key={`${part}-${index}`} className="support-nav-letter" style={{ '--support-letter': order } as CSSProperties}>
+            {part}
+          </span>
+        );
+      })}
+    </span>
   );
 }
 
@@ -102,9 +120,11 @@ export default function Navbar() {
                   <NavLink
                     key={link.to}
                     to={link.to}
-                    className={({ isActive }) => featuredLinkCls(isActive)}
+                    aria-label={link.label}
+                    className="support-nav-link px-3.5 py-1.5 text-sm"
                   >
-                    <FeaturedLabel label={link.label} />
+                    <SupportGlowDot />
+                    <SupportNavLabel>{link.label}</SupportNavLabel>
                   </NavLink>
                 );
               }
@@ -173,10 +193,13 @@ export default function Navbar() {
                     <Link
                       key={link.to}
                       to={link.to}
+                      aria-label={link.label}
+                      aria-current={isActive ? 'page' : undefined}
                       onClick={() => setMobileOpen(false)}
-                      className={`self-start ${featuredLinkCls(isActive)}`}
+                      className="support-nav-link self-start px-3.5 py-1.5 text-sm"
                     >
-                      <FeaturedLabel label={link.label} />
+                      <SupportGlowDot />
+                      <SupportNavLabel>{link.label}</SupportNavLabel>
                     </Link>
                   );
                 }
