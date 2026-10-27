@@ -32,7 +32,7 @@ export default function SecondInternationalAwardsPage() {
 
   useEffect(() => {
     const previous = document.title;
-    document.title = 'Second International Awards Ceremony · IFSMHP';
+    document.title = 'Second International IFSMHP Awards 2026 · IFSMHP';
     return () => { document.title = previous; };
   }, []);
 
@@ -74,16 +74,16 @@ export default function SecondInternationalAwardsPage() {
                 </span>
                 <span aria-hidden="true" className="about-line inline-block h-[2px] w-16 rounded-full bg-brass-500/90 sm:w-24" />
               </div>
-              <h1 id="ceremony-heading" className="mt-7 font-display font-semibold tracking-tight text-forum-900">
-                <span className="mr-[0.08em] inline-flex items-start align-baseline text-[5rem] leading-none text-brass-600 sm:text-[6.25rem] lg:text-[7.5rem]" aria-hidden="true">
-                  <span className="leading-[0.78]">2</span>
-                  <span className="ml-[0.05em] mt-[1.85em] font-sans text-[0.22em] font-medium leading-none tracking-normal text-forum-900">nd</span>
+              <h1 id="ceremony-heading" className="mt-7 font-display text-[1.875rem] font-semibold leading-[0.98] tracking-tight text-forum-900 sm:text-[2.7rem] lg:text-[3.05rem]">
+                <span className="block">
+                  <span className="mr-[0.16em] inline-flex items-start align-baseline text-[1.32em] leading-none text-brass-600" aria-hidden="true">
+                    <span>2</span>
+                    <span className="ml-[0.02em] mt-[0.38em] text-[0.38em] font-semibold leading-none">nd</span>
+                  </span>
+                  <span className="sr-only">Second</span>
+                  {' '}International
                 </span>
-                <span className="sr-only">Second</span>
-                {' '}
-                <span className="text-[1.85rem] leading-[1.12] sm:text-[2.2rem] sm:leading-[1.1] lg:text-[2.65rem] lg:leading-[1.08]">
-                  International <span className="text-brass-600">Awards</span> Ceremony
-                </span>
+                <span className="mt-[0.08em] block">IFSMHP Awards 2026</span>
               </h1>
               <p className="mt-7 max-w-2xl text-base leading-relaxed text-forum-900/80 sm:text-lg sm:leading-[1.75]">
                 The second international IFSMHP awards ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune. Nomination is separate from membership and does not guarantee selection.

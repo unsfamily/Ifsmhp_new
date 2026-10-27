@@ -125,7 +125,7 @@ test('opens the ceremony page from the menu and the form from its QR address', a
   await page.goto('/');
   await page.getByRole('navigation').getByRole('link', { name: 'Awards', exact: true }).click();
   await expect(page).toHaveURL(/\/awards\/second-international$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Second International Awards Ceremony' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Second International IFSMHP Awards 2026' })).toBeVisible();
   const qr = page.locator('[data-registration-url]');
   await expect(qr).toContainText('/awards/second-international/nominate');
   await expect(qr).toHaveAttribute('data-registration-url', /\/awards\/second-international\/nominate$/);
@@ -143,7 +143,7 @@ test('shows the awards link in the phone menu', async ({ page }) => {
   await page.getByRole('button', { name: 'Toggle menu' }).click();
   await page.getByRole('navigation').getByRole('link', { name: 'Awards', exact: true }).click();
   await expect(page).toHaveURL(/\/awards\/second-international$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Second International Awards Ceremony' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Second International IFSMHP Awards 2026' })).toBeVisible();
 });
 
 test('treats a repeated ceremony email as the same registration', async ({ page }) => {
