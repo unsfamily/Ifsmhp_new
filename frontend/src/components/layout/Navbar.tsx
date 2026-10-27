@@ -9,11 +9,28 @@ const navLinks = [
   { to: '/about', label: 'About Us' },
   { to: '/membership', label: 'Membership' },
   { to: '/gallery', label: 'Gallery', anchor: true },
-  { to: '/support-services', label: 'Support', },
+  { to: '/support-services', label: 'Support', featured: true },
   { to: '/events', label: 'Events' },
   { to: '/awards/second-international', label: 'Awards' },
   { to: '/contact', label: 'Contact' },
 ];
+
+function featuredLinkCls(isActive: boolean) {
+  return `inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold shadow-sm transition-colors ${
+    isActive
+      ? 'bg-brass-600 text-forum-950'
+      : 'bg-brass-500 text-forum-950 hover:bg-brass-400'
+  }`;
+}
+
+function FeaturedLabel({ label }: { label: string }) {
+  return (
+    <>
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-white" aria-hidden="true" />
+      {label}
+    </>
+  );
+}
 
 function GalleryNavLink({
   className,
@@ -80,6 +97,17 @@ export default function Navbar() {
                   />
                 );
               }
+              if (link.featured) {
+                return (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    className={({ isActive }) => featuredLinkCls(isActive)}
+                  >
+                    <FeaturedLabel label={link.label} />
+                  </NavLink>
+                );
+              }
               return (
                 <NavLink
                   key={link.to}
@@ -140,6 +168,18 @@ export default function Navbar() {
                 const isActive = link.to === '/'
                   ? location.pathname === '/'
                   : location.pathname === link.to || location.pathname.startsWith(`${link.to}/`);
+                if (link.featured) {
+                  return (
+                    <Link
+                      key={link.to}
+                      to={link.to}
+                      onClick={() => setMobileOpen(false)}
+                      className={`self-start ${featuredLinkCls(isActive)}`}
+                    >
+                      <FeaturedLabel label={link.label} />
+                    </Link>
+                  );
+                }
                 return (
                   <Link
                     key={link.to}
