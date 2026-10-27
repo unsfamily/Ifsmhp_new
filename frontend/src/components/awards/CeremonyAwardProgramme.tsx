@@ -34,6 +34,8 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
           <h2 id="commemorative-awards-heading" className="mt-5 font-display text-3xl font-semibold tracking-tight text-forum-900 sm:text-4xl">
             {programme.title || 'Commemorative awards'}
           </h2>
+          {programme.reference && <p className="mt-3 text-sm font-medium text-forum-900">{programme.reference}</p>}
+          {programme.notice && <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink-muted">{programme.notice}</p>}
           {!hasGroups && (
             <p className="mt-4 text-base leading-relaxed text-ink-muted">
               Award names will be listed here by discipline.
@@ -83,6 +85,7 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
                 </tfoot>
               </table>
             </div>
+            {programme.allocationNote && <p className="border-t border-paper-border px-5 py-4 text-sm leading-relaxed text-ink-muted sm:px-6">{programme.allocationNote}</p>}
           </div>
         )}
 
@@ -151,7 +154,8 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
                     <p className={`${division.level ? 'mt-2' : ''} font-display text-4xl font-semibold text-brass-600`}>{division.detail}</p>
                   )}
                   <h4 className={`${division.detail || division.level ? 'mt-3' : ''} font-display text-xl font-semibold text-forum-900`}>{division.title}</h4>
-                  {division.description && <p className="mt-2 text-sm leading-relaxed text-ink-muted">{division.description}</p>}
+                  {division.description && <p className="mt-2 text-sm font-medium text-forum-900">{division.description}</p>}
+                  {division.eligibility && <p className="mt-2 text-sm leading-relaxed text-ink-muted">{division.eligibility}</p>}
                 </li>
               ))}
             </ul>

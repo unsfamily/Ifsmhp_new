@@ -5,31 +5,31 @@ export const NOMINATION_SUCCESS = 'Your nomination has been received.';
 export const NOMINATION_EMAIL_NOTICE = 'An acknowledgement email has been sent to the nominator.';
 
 export const DISCIPLINARY_AWARD_OPTIONS = [
-  ['SWAMINATHAN', 'Dr. M. S. Swaminathan Award — Agricultural and Forestry Sciences'],
-  ['SALIM_ALI', 'Dr. Salim Ali Award — Animal, Veterinary and Fishery Sciences'],
-  ['NK_BOSE', 'Prof. N. K. Bose Award — Anthropological and Behavioural Sciences'],
+  ['SWAMINATHAN', 'Dr. M. S. Swaminathan Award — Agricultural & Forestry Sciences'],
+  ['SALIM_ALI', 'Dr. Salim Ali Award — Animal, Veterinary & Fishery Sciences'],
+  ['NK_BOSE', 'Prof. N. K. Bose Award — Anthropological & Behavioural Sciences'],
   ['PC_RAY', 'Acharya P. C. Ray Award — Chemical Sciences'],
   ['DN_WADIA', 'Dr. D. N. Wadia Award — Earth System Sciences'],
   ['VISVESVARAYA', 'Sir M. Visvesvaraya Award — Engineering Sciences'],
   ['GADGIL', 'Prof. Madhav Gadgil Award — Environmental Sciences'],
-  ['RAJ_REDDY', 'Dr. Raj Reddy Award — Information and Communication Science and Technology'],
+  ['RAJ_REDDY', 'Dr. Raj Reddy Award — Information & Communication Science & Technology'],
   ['CNR_RAO', 'Prof. C. N. R. Rao Award — Materials Science'],
   ['RAMANUJAN', 'Srinivasa Ramanujan Award — Mathematical Sciences'],
   ['BRAHMACHARI', 'Dr. Upendranath Brahmachari Award — Medical Sciences'],
-  ['KHORANA', 'Dr. Har Gobind Khorana Award — New Biology'],
+  ['KHORANA', 'Dr. Har Gobind Khorana Award — New Biology (including Biochemistry, Biophysics & Molecular Biology)'],
   ['CV_RAMAN', 'Sir C. V. Raman Award — Physical Sciences'],
   ['BIRBAL_SAHNI', 'Prof. Birbal Sahni Award — Plant Sciences'],
   ['AMARTYA_SEN', 'Dr. Amartya Sen Award — Economics'],
-  ['MANMOHAN_SINGH', 'Dr. Manmohan Singh Award — Economic Policy and Development'],
+  ['MANMOHAN_SINGH', 'Dr. Manmohan Singh Award — Economic Policy & Development'],
   ['TAGORE', 'Rabindranath Tagore Award — Literature'],
-  ['BHARATI', 'Subramania Bharati Award — Languages and Literary Scholarship'],
-  ['DOSHI', 'Balkrishna Doshi Award — Architecture and Design'],
+  ['BHARATI', 'Subramania Bharati Award — Languages & Literary Scholarship'],
+  ['DOSHI', 'Balkrishna Doshi Award — Architecture & Design'],
   ['GIRINDRASHEKHAR', 'Dr. Girindrasekhar Bose Award — Psychology'],
-  ['MN_SRINIVAS', 'Prof. M. N. Srinivas Award — Sociology and Anthropology'],
-  ['AMBEDKAR', 'Dr. B. R. Ambedkar Award — Human Rights and Social Justice'],
-  ['VIDYARTHI', 'Ganesh Shankar Vidyarthi Award — Journalism and Media'],
+  ['MN_SRINIVAS', 'Prof. M. N. Srinivas Award — Sociology & Anthropology'],
+  ['AMBEDKAR', 'Dr. B. R. Ambedkar Award — Human Rights & Social Justice'],
+  ['VIDYARTHI', 'Ganesh Shankar Vidyarthi Award — Journalism & Media'],
   ['RADHAKRISHNAN', 'Dr. Sarvepalli Radhakrishnan Award — Education'],
-  ['KRISHNA_IYER', 'Justice V. R. Krishna Iyer Award — Law and Constitutional Studies'],
+  ['KRISHNA_IYER', 'Justice V. R. Krishna Iyer Award — Law & Constitutional Studies'],
 ] as const;
 
 export const MEDAL_OPTIONS = [
@@ -39,9 +39,9 @@ export const MEDAL_OPTIONS = [
 ] as const;
 
 export const DIVISION_OPTIONS = [
-  ['DISTINGUISHED_FELLOWS', 'Senior — Distinguished Lifetime Contribution Award (Distinguished Fellows)'],
-  ['EXCELLENCE', 'Mid-career — Distinguished Excellence Award (Excellence)'],
-  ['RISING_ACHIEVERS', 'Young — Emerging Excellence Award (Rising Achievers)'],
+  ['DISTINGUISHED_FELLOWS', 'Senior — Distinguished Fellows Awards (Lifetime Contribution)'],
+  ['EXCELLENCE', 'Mid-career — Excellence Awards (Established Contribution)'],
+  ['RISING_ACHIEVERS', 'Young — Rising Achievers Awards (Emerging Contribution)'],
 ] as const;
 
 const medalCodes = MEDAL_OPTIONS.map(([code]) => code);

@@ -6,9 +6,9 @@ import { adminApi, type AwardNominationRow } from '../../api/admin';
 import { useApiData } from '../../hooks/useApiData';
 
 const divisionLabel: Record<string, string> = {
-  DISTINGUISHED_FELLOWS: 'Senior — Distinguished Lifetime Contribution',
-  EXCELLENCE: 'Mid-career — Distinguished Excellence',
-  RISING_ACHIEVERS: 'Young — Emerging Excellence',
+  DISTINGUISHED_FELLOWS: 'Senior — Distinguished Fellows (Lifetime Contribution)',
+  EXCELLENCE: 'Mid-career — Excellence (Established Contribution)',
+  RISING_ACHIEVERS: 'Young — Rising Achievers (Emerging Contribution)',
 };
 
 function formatWhen(value: string) {

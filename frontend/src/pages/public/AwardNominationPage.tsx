@@ -8,7 +8,6 @@ import { publicApi } from '../../api/public';
 import {
   DISCIPLINARY_AWARD_OPTIONS,
   DIVISION_OPTIONS,
-  MEDAL_OPTIONS,
   NOMINATION_EMAIL_NOTICE,
   NOMINATION_SUCCESS,
   awardNominationSchema,
@@ -41,7 +40,7 @@ function fieldMap(issues: { path: (string | number)[]; message: string }[]) {
 }
 
 export default function AwardNominationPage() {
-  const [form, setForm] = useState(emptyAwardNomination);
+  const [form, setForm] = useState({ ...emptyAwardNomination, awardKind: 'DISCIPLINARY' as const });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -170,45 +169,22 @@ export default function AwardNominationPage() {
 
               <fieldset className="space-y-4">
                 <legend className="font-display text-xl font-semibold text-forum-900">Award nominated for</legend>
-                <SelectInput id="nomination-awardKind" label="Award type" required value={form.awardKind} error={errors.awardKind} disabled={submitting} onChange={(event) => { update('awardKind', event.target.value); update('awardCode', ''); update('division', ''); }}>
-                  <option value="">Select one</option>
-                  <option value="DISCIPLINARY">Disciplinary award</option>
-                  <option value="MEDAL">Special lifetime achievement gold medal</option>
+                <SelectInput id="nomination-awardCode" label="Commemorative award" required value={form.awardCode} error={errors.awardCode} disabled={submitting} onChange={(event) => update('awardCode', event.target.value)}>
+                  <option value="">Select one of the 25 awards</option>
+                  {DISCIPLINARY_AWARD_OPTIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
                 </SelectInput>
-                {form.awardKind === 'DISCIPLINARY' && (
-                  <>
-                    <SelectInput id="nomination-awardCode" label="Disciplinary award" required value={form.awardCode} error={errors.awardCode} disabled={submitting} onChange={(event) => update('awardCode', event.target.value)}>
-                      <option value="">Select one award</option>
-                      {DISCIPLINARY_AWARD_OPTIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
-                    </SelectInput>
-                    <fieldset id="nomination-division" aria-invalid={Boolean(errors.division)}>
-                      <legend className="mb-2 text-sm font-medium text-ink">Recognition division<span className="ml-1 text-danger-600">*</span></legend>
-                      <div className="space-y-2">
-                        {DIVISION_OPTIONS.map(([code, label]) => (
-                          <label key={code} className="flex items-start gap-2.5 text-sm text-ink">
-                            <input type="radio" name="nominationDivision" className="mt-0.5 h-4 w-4 accent-forum-700" value={code} checked={form.division === code} disabled={submitting} onChange={() => update('division', code)} />
-                            <span>{label}</span>
-                          </label>
-                        ))}
-                      </div>
-                      {errors.division && <p role="alert" className="mt-1 text-xs text-danger-600">{errors.division}</p>}
-                    </fieldset>
-                  </>
-                )}
-                {form.awardKind === 'MEDAL' && (
-                  <fieldset id="nomination-awardCode">
-                    <legend className="mb-2 text-sm font-medium text-ink">Special gold medal<span className="ml-1 text-danger-600">*</span></legend>
-                    <div className="space-y-2">
-                      {MEDAL_OPTIONS.map(([code, label]) => (
-                        <label key={code} className="flex items-start gap-2.5 text-sm text-ink">
-                          <input type="radio" name="nominationMedal" className="mt-0.5 h-4 w-4 accent-forum-700" value={code} checked={form.awardCode === code} disabled={submitting} onChange={() => update('awardCode', code)} />
-                          <span>{label}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {errors.awardCode && <p role="alert" className="mt-1 text-xs text-danger-600">{errors.awardCode}</p>}
-                  </fieldset>
-                )}
+                <fieldset id="nomination-division" aria-invalid={Boolean(errors.division)}>
+                  <legend className="mb-2 text-sm font-medium text-ink">Recognition division<span className="ml-1 text-danger-600">*</span></legend>
+                  <div className="space-y-2">
+                    {DIVISION_OPTIONS.map(([code, label]) => (
+                      <label key={code} className="flex items-start gap-2.5 text-sm text-ink">
+                        <input type="radio" name="nominationDivision" className="mt-0.5 h-4 w-4 accent-forum-700" value={code} checked={form.division === code} disabled={submitting} onChange={() => update('division', code)} />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {errors.division && <p role="alert" className="mt-1 text-xs text-danger-600">{errors.division}</p>}
+                </fieldset>
               </fieldset>
 
               <fieldset className="space-y-4">
