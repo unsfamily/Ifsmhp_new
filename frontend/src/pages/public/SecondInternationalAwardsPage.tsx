@@ -80,7 +80,6 @@ export default function SecondInternationalAwardsPage() {
               <p className="mt-7 max-w-2xl text-base leading-relaxed text-forum-900/80 sm:text-lg sm:leading-[1.75]">
                 The second international IFSMHP awards ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune. Nomination is separate from membership and does not guarantee selection.
               </p>
-              <PreviousAwardPhotos />
             </div>
 
             <div className="rounded-2xl border border-paper-border bg-paper-raised p-6 shadow-sm sm:p-8">
@@ -105,6 +104,7 @@ export default function SecondInternationalAwardsPage() {
               </dl>
             </div>
           </div>
+          <PreviousAwardPhotos />
         </div>
       </section>
 

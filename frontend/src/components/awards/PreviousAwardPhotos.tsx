@@ -1,82 +1,117 @@
-import { useEffect, useState } from 'react';
-import { apiClient } from '../../api/client';
-import GalleryMedia from '../gallery/GalleryMedia';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import stagePhoto from '../../assets/images/conclave-2025-stage.jpg';
+import laureatesPhoto from '../../assets/images/conclave-2025-laureates.jpg';
+import presentationPhoto from '../../assets/images/conclave-2025-presentation.jpg';
 
-type GalleryCategory = { id: string; name: string };
-type GallerySubcategory = { id: string; name: string };
-type GalleryPhoto = {
-  id: string;
-  title: string;
-  caption: string;
-  altText: string;
-  imageUrl: string;
-  mediaUrl?: string;
-  type?: 'image' | 'video';
-  displayOrder: number;
-};
+const photos = [
+  {
+    src: stagePhoto,
+    alt: 'Laureates and guests gathered on stage at the International Laureates Recognition Conclave 2025, holding certificates beneath the Impact Bharath banner.',
+    caption: 'The full stage',
+  },
+  {
+    src: laureatesPhoto,
+    alt: 'Laureates holding certificates on stage at the International Laureates Recognition Conclave 2025.',
+    caption: 'Laureates with certificates',
+  },
+  {
+    src: presentationPhoto,
+    alt: 'A group of laureates presenting certificates on stage at the International Laureates Recognition Conclave 2025.',
+    caption: 'Certificate presentation',
+  },
+];
 
-const AWARDS_CATEGORY = 'awards';
-const LAST_FUNCTION = 'event 2025';
-
-/**
- * Photographs from the previous award function, taken from the published
- * gallery subcategory "Event 2025" inside the Awards category.
- */
 export default function PreviousAwardPhotos() {
-  const [photos, setPhotos] = useState<GalleryPhoto[] | null>(null);
-  const [error, setError] = useState('');
+  const [active, setActive] = useState<number | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    const controller = new AbortController();
-    const load = async () => {
-      const categories = await apiClient.get<{ data: { items: GalleryCategory[] } }>('/public/gallery/categories', { params: { limit: 50 }, signal: controller.signal });
-      const awards = categories.data.data.items.find((category) => category.name.trim().toLowerCase() === AWARDS_CATEGORY);
-      if (!awards) {
-        setPhotos([]);
-        return;
-      }
-      const subcategories = await apiClient.get<{ data: { items: GallerySubcategory[] } }>('/public/gallery/subcategories', { params: { limit: 50, categoryId: awards.id }, signal: controller.signal });
-      const event = subcategories.data.data.items.find((item) => item.name.trim().toLowerCase() === LAST_FUNCTION);
-      if (!event) {
-        setPhotos([]);
-        return;
-      }
-      const response = await apiClient.get<{ data: { items: GalleryPhoto[] } }>('/public/gallery/photos', {
-        params: { limit: 24, categoryId: awards.id, subcategoryId: event.id },
-        signal: controller.signal,
-      });
-      const images = response.data.data.items
-        .filter((photo) => (photo.type ?? 'image') === 'image' && (photo.mediaUrl || photo.imageUrl))
-        .sort((a, b) => a.displayOrder - b.displayOrder || a.title.localeCompare(b.title))
-        .slice(0, 6);
-      setPhotos(images);
-    };
-    load().catch((cause: unknown) => {
-      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'The 2025 award photographs could not be loaded.');
-    });
-    return () => controller.abort();
-  }, []);
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (active === null) {
+      if (dialog.open) dialog.close();
+      return;
+    }
+    if (!dialog.open) dialog.showModal();
+    closeRef.current?.focus();
+  }, [active]);
 
-  if (error) return <p role="alert" className="mt-8 text-sm text-danger-600">{error}</p>;
-  if (!photos) return <p className="mt-8 text-sm text-ink-muted" role="status">Loading photographs from the 2025 award function…</p>;
-  if (photos.length === 0) return <p className="mt-8 text-sm text-ink-muted">Photographs from the 2025 award function will appear here when they are published in the gallery.</p>;
+  const show = (index: number) => setActive((index + photos.length) % photos.length);
+  const current = active === null ? null : photos[active];
 
   return (
-    <div className="mt-8" role="group" aria-label="Photographs from the 2025 award function">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">2025 award function</p>
-      <ul className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
-        {photos.map((photo) => (
-          <li key={photo.id} className="overflow-hidden rounded-xl border border-paper-border bg-paper-raised shadow-sm">
-            <GalleryMedia
-              src={photo.mediaUrl || photo.imageUrl}
-              mediaType="image"
-              alt={photo.altText || photo.caption || photo.title}
-              className="aspect-[4/3] w-full object-cover"
+    <figure className="mt-14 overflow-hidden rounded-3xl bg-forum-950 text-white shadow-xl ring-1 ring-brass-500/30">
+      <figcaption className="flex flex-wrap items-end justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-400">2025 award function</p>
+          <p className="mt-1 font-display text-xl font-semibold sm:text-2xl">International Laureates Recognition Conclave</p>
+        </div>
+        <p className="text-sm text-white/70">Impact Bharath</p>
+      </figcaption>
+      <div className="grid gap-1.5 p-1.5 sm:grid-cols-5 sm:grid-rows-2" role="group" aria-label="Photographs from the 2025 award function">
+        {photos.map((photo, index) => (
+          <button
+            key={photo.caption}
+            type="button"
+            onClick={() => show(index)}
+            className={`group relative overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass-400 focus-visible:ring-offset-2 focus-visible:ring-offset-forum-950 ${
+              index === 0 ? 'sm:col-span-3 sm:row-span-2' : 'sm:col-span-2'
+            }`}
+          >
+            <img
+              src={photo.src}
+              alt={photo.alt}
+              className={`w-full object-cover transition duration-500 group-hover:scale-[1.03] ${
+                index === 0 ? 'aspect-[16/10] sm:aspect-auto sm:h-full sm:min-h-[28rem]' : 'aspect-[16/9] sm:aspect-auto sm:h-full sm:min-h-[13.75rem]'
+              }`}
             />
-            {photo.caption.trim() ? <p className="px-2 py-2 text-xs leading-relaxed text-ink-muted">{photo.caption}</p> : null}
-          </li>
+            <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-forum-950/85 via-forum-950/25 to-transparent px-4 pb-3 pt-10 text-sm font-medium text-white">
+              {photo.caption}
+            </span>
+          </button>
         ))}
-      </ul>
-    </div>
+      </div>
+
+      <dialog
+        ref={dialogRef}
+        className="award-photo-dialog"
+        aria-label="2025 award function photograph"
+        onClose={() => setActive(null)}
+        onClick={(event) => {
+          if (event.target === dialogRef.current) setActive(null);
+        }}
+      >
+        {current && active !== null && (
+          <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 text-white">
+              <p className="font-display text-lg font-semibold">{current.caption}</p>
+              <button
+                ref={closeRef}
+                type="button"
+                onClick={() => setActive(null)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white hover:bg-white/10"
+                aria-label="Close photograph"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+            <img src={current.src} alt={current.alt} className="max-h-[calc(100dvh-8.5rem)] w-full object-contain" />
+            <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-white/80">
+              <button type="button" onClick={() => show(active - 1)} className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 hover:bg-white/10" aria-label="Previous photograph">
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                Previous
+              </button>
+              <span>{active + 1} of {photos.length}</span>
+              <button type="button" onClick={() => show(active + 1)} className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 hover:bg-white/10" aria-label="Next photograph">
+                Next
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        )}
+      </dialog>
+    </figure>
   );
 }

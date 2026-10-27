@@ -1398,19 +1398,40 @@ dialog.ceremony-dialog::backdrop {
   background: rgb(15 23 42 / 0.55);
 }
 
+dialog.award-photo-dialog {
+  width: min(72rem, calc(100% - 1.5rem));
+  max-height: calc(100dvh - 1.5rem);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 1rem;
+  background: #001738;
+}
+
+dialog.award-photo-dialog::backdrop {
+  background: rgb(1 23 56 / 0.78);
+}
+
 .support-nav-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border-radius: 25px;
-  background: #c4840c;
+  border-radius: 10px;
   color: #fff;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
+  --tw-bg-opacity: 1;
+  background-color: rgb(1 37 89 / var(--tw-bg-opacity, 1));
 }
 
 .support-nav-link:hover {
-  background: linear-gradient(rgb(233, 196, 106), rgb(199, 138, 45));
+  background: linear-gradient(
+    135deg,
+    rgb(1, 37, 89) 0%,
+    rgb(20, 61, 115) 55%,
+    rgb(45, 82, 130) 100%
+  );
   color: #fff;
 }
 
