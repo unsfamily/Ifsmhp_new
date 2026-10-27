@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useGallery } from '../../context/GalleryContext';
 import Button from '../common/Button';
-import type { GalleryCategory, GalleryPhoto, GallerySubcategory } from '../../types/gallery';
+import { compareSubcategories, type GalleryCategory, type GalleryPhoto, type GallerySubcategory } from '../../types/gallery';
 
 const ALL_MEDIA_ID = 'all';
 
@@ -351,7 +351,7 @@ export default function GallerySection({
   }, [categories, subcategories, loading, selectedCategory, selectedSubcategory]);
 
   const sortedCategories = useMemo(() => [...categories].filter(c => c.published).sort((a, b) => a.displayOrder - b.displayOrder), [categories]);
-  const selectedChildren = subcategories.filter(s => s.categoryId === selectedCategory);
+  const selectedChildren = subcategories.filter(s => s.categoryId === selectedCategory).sort(compareSubcategories);
   const getCount = (categoryId: string) => getCategoryPhotos(categoryId, { onlyPublished: true }).length;
   const filtered = applyFilters({ categoryId: selectedCategory, subcategoryId: selectedSubcategory, onlyPublished: true });
   const flatPhotosPool = filtered.flatPhotos;

@@ -33,11 +33,12 @@ import GalleryMedia from '../../components/gallery/GalleryMedia';
 import { normalizeError } from '../../api/client';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import type { GalleryPolicy } from '../../services/galleryService';
-import type {
-  GalleryCategory,
-  GallerySubcategory,
-  GalleryPhoto,
-  PhotoUploadTask,
+import {
+  compareSubcategories,
+  type GalleryCategory,
+  type GallerySubcategory,
+  type GalleryPhoto,
+  type PhotoUploadTask,
 } from '../../types/gallery';
 
 type TabId = 'categories' | 'photos' | 'upload';
@@ -543,7 +544,7 @@ function CategoriesPanel({
                         </div>
                       </td>
                     </tr>
-                    {subcategories.filter(sub => sub.categoryId === c.id).map(sub => <tr key={sub.id} className="bg-forum-50/30">
+                    {subcategories.filter(sub => sub.categoryId === c.id).sort(compareSubcategories).map(sub => <tr key={sub.id} className="bg-forum-50/30">
                       <td />
                       <td className="px-5 py-3"><div className="break-words pl-6 border-l-2 border-forum-200"><span className="font-medium text-forum-800">{sub.name}</span><p className="text-xs text-ink-muted">Subcategory of {c.name}</p></div></td>
                       <td className="px-5 py-3"><Badge variant="default">{sub.photoCount}</Badge></td>

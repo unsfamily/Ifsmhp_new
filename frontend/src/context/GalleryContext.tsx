@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { attachmentSessionIdentity, getSessionGeneration, normalizeError, SESSION_CHANGED } from '../api/client';
 import { galleryService, type CategoryInput, type SubcategoryInput, type GalleryPolicy, type PhotoPatch, type PhotoUploadMetadata } from '../services/galleryService';
-import type { GalleryCategory, GalleryFilters, GalleryPhoto, GallerySubcategory } from '../types/gallery';
+import { compareSubcategories, type GalleryCategory, type GalleryFilters, type GalleryPhoto, type GallerySubcategory } from '../types/gallery';
 
 type PhotoFilters = { categoryId: string; subcategoryId: string; search: string };
 const defaultFilters: PhotoFilters = { categoryId: 'all', subcategoryId: 'all', search: '' };
@@ -44,7 +44,7 @@ function useGalleryData(admin: boolean, enabled: boolean, identity: string) {
         admin ? galleryService.options(controller.signal) : Promise.resolve(null),
       ]);
       if (isCurrent()) {
-        setSnapshot({ identity, queryKey, categories, subcategories, photos, policy });
+        setSnapshot({ identity, queryKey, categories, subcategories: [...subcategories].sort((a, b) => a.categoryId.localeCompare(b.categoryId) || compareSubcategories(a, b)), photos, policy });
         setRequest({ key: requestKey, pending: false, error: '' });
       }
     } catch (failure) {
@@ -93,7 +93,7 @@ function useGalleryData(admin: boolean, enabled: boolean, identity: string) {
       .map(category => {
         const categoryPhotos = getCategoryPhotos(category.id, { onlyPublished: query.onlyPublished })
           .sort((a, b) => a.displayOrder - b.displayOrder || a.title.localeCompare(b.title));
-        const children = subcategories.filter(s => s.categoryId === category.id).sort((a, b) => a.name.localeCompare(b.name));
+        const children = subcategories.filter(s => s.categoryId === category.id).sort(compareSubcategories);
         const directPhotos = categoryPhotos.filter(p => !p.subcategoryId);
         const sections: { subcategory: GallerySubcategory | null; photos: GalleryPhoto[] }[] = [];
         if (directPhotos.length || !children.length || query.subcategoryId === 'none') sections.push({ subcategory: null, photos: directPhotos });

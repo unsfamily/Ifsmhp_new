@@ -15,8 +15,13 @@ export interface GallerySubcategory {
   categoryId: string;
   name: string;
   photoCount: number;
+  displayOrder?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export function compareSubcategories(a: GallerySubcategory, b: GallerySubcategory) {
+  return (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || a.name.localeCompare(b.name);
 }
 
 export interface GalleryPhoto {
