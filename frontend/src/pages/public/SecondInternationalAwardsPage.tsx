@@ -75,7 +75,9 @@ export default function SecondInternationalAwardsPage() {
                 <span aria-hidden="true" className="about-line inline-block h-[2px] w-16 rounded-full bg-brass-500/90 sm:w-24" />
               </div>
               <h1 id="ceremony-heading" className="mt-7 font-display text-[2.5rem] font-semibold leading-[1.1] tracking-tight text-forum-900 sm:text-5xl sm:leading-[1.08] lg:text-6xl lg:leading-[1.05]">
-                Second International <span className="text-brass-600">Awards</span> Ceremony
+                <span className="text-brass-600" aria-hidden="true">2<sup className="ml-[0.04em] align-super font-sans text-[0.38em] font-medium tracking-normal text-forum-900">nd</sup></span>
+                <span className="sr-only">Second</span>
+                {' '}International <span className="text-brass-600">Awards</span> Ceremony
               </h1>
               <p className="mt-7 max-w-2xl text-base leading-relaxed text-forum-900/80 sm:text-lg sm:leading-[1.75]">
                 The second international IFSMHP awards ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune. Nomination is separate from membership and does not guarantee selection.
