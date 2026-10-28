@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import Button from '../../components/common/Button';
 import CeremonyAwardProgramme from '../../components/awards/CeremonyAwardProgramme';
+import CeremonyCommittee from '../../components/awards/CeremonyCommittee';
 import GalleryMedia from '../../components/gallery/GalleryMedia';
 import { apiClient } from '../../api/client';
 import { CEREMONY_ADDRESS, CEREMONY_EVENT_DATE, CEREMONY_VENUE, ceremonyProgramme } from '../../domain/ceremonyProgramme';
@@ -95,6 +96,10 @@ export default function AwardInformationPage() {
           </article>
         </div>
       </section>
+
+      {ceremonyProgramme.committee && ceremonyProgramme.committee.length > 0 && (
+        <CeremonyCommittee members={ceremonyProgramme.committee} />
+      )}
 
       <CeremonyAwardProgramme programme={ceremonyProgramme} />
 

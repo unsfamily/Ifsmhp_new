@@ -1,4 +1,5 @@
 import type { CeremonyProgramme } from '../../domain/ceremonyProgramme';
+import CeremonyCommittee from './CeremonyCommittee';
 
 function awardNumber(groups: CeremonyProgramme['groups'], groupIndex: number, awardIndex: number) {
   const earlier = groups.slice(0, groupIndex).reduce((sum, group) => sum + group.awards.length, 0);
@@ -169,12 +170,8 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
           )}
         </div>
 
-        {programme.attribution && (
-          <footer className="mt-12 border-t border-paper-border pt-6">
-            <p className="font-display text-lg font-semibold text-forum-900">{programme.attribution.name}</p>
-            <p className="mt-1 text-sm text-ink-muted">{programme.attribution.role}</p>
-            <p className="text-sm text-ink-muted">{programme.attribution.organisation}</p>
-          </footer>
+        {programme.committee && programme.committee.length > 0 && (
+          <CeremonyCommittee members={programme.committee} variant="footer" />
         )}
       </div>
     </section>
