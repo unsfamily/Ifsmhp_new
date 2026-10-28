@@ -75,15 +75,7 @@ export default function AwardInformationPage() {
             {ceremonyProgramme.totalLabel}. The ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune.
           </p>
           <div className="mt-6">
-            <Button
-              as="link"
-              to={CEREMONY_NOMINATE_PATH}
-              size="lg"
-              variant="secondary"
-              className="!bg-gradient-to-r !from-brass-400 !via-brass-300 !to-brass-500 !text-forum-950 shadow-md shadow-brass-400/40 hover:!from-brass-300 hover:!via-brass-200 hover:!to-brass-400"
-            >
-              Submit a nomination
-            </Button>
+            <Button as="link" to={CEREMONY_NOMINATE_PATH} size="lg">Submit a nomination</Button>
           </div>
         </div>
       </section>
