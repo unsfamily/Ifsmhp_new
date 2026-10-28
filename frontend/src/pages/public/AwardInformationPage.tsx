@@ -56,7 +56,7 @@ export default function AwardInformationPage() {
     <>
       <section className="border-b border-paper-border bg-paper" aria-labelledby="award-information-heading">
         <div className="mx-auto max-w-6xl px-4 pb-10 pt-12 sm:px-6 lg:pb-12 lg:pt-14">
-          <Link to={CEREMONY_PAGE_PATH} className="inline-flex items-center gap-1.5 text-sm font-medium text-forum-700 hover:text-forum-900">
+          <Link to={CEREMONY_PAGE_PATH} className="inline-flex items-center gap-1.5 text-[15px] font-medium text-forum-700 hover:text-forum-900">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Second International Awards Ceremony
           </Link>
@@ -71,7 +71,7 @@ export default function AwardInformationPage() {
             </span>
             <span className="mt-[0.08em] block">Awards 2026</span>
           </h1>
-          <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink-muted sm:text-lg">
+          <p className="mt-4 max-w-3xl text-[17px] leading-relaxed text-ink-muted sm:text-[19px]">
             {ceremonyProgramme.totalLabel}. The ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune.
           </p>
           <div className="mt-6">
@@ -81,19 +81,19 @@ export default function AwardInformationPage() {
       </section>
 
       <section className="bg-paper" aria-labelledby="venue-heading">
-        <div className="mx-auto grid max-w-6xl items-start gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:py-12">
+        <div className="mx-auto grid max-w-6xl items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:py-12">
           <article className="rounded-2xl border border-paper-border bg-paper-raised p-5 shadow-sm sm:p-6">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-forum-600 text-white">
               <MapPin className="h-5 w-5" aria-hidden="true" />
             </div>
             <h2 id="venue-heading" className="mt-4 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">Venue</h2>
-            <p className="mt-3 font-medium text-forum-900">{CEREMONY_VENUE}</p>
-            <p className="mt-2 text-sm leading-relaxed text-ink-muted">{CEREMONY_ADDRESS}</p>
-            <p className="mt-3 text-sm font-medium text-forum-900">{CEREMONY_EVENT_DATE}</p>
+            <p className="mt-3 text-[15px] font-medium text-forum-900">{CEREMONY_VENUE}</p>
+            <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">{CEREMONY_ADDRESS}</p>
+            <p className="mt-3 text-[15px] font-medium text-forum-900">{CEREMONY_EVENT_DATE}</p>
           </article>
           <article className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-50 to-paper p-5 shadow-sm sm:p-6">
             <h2 className="font-display text-2xl font-semibold text-forum-900 sm:text-3xl">What these honours recognise</h2>
-            <ul className="mt-4 space-y-2.5 text-sm leading-relaxed text-ink">
+            <ul className="mt-4 space-y-2.5 text-[15px] leading-relaxed text-ink">
               {ceremonyProgramme.divisions.map((division) => (
                 <li key={division.title} className="rounded-lg bg-white/80 px-4 py-2.5 ring-1 ring-paper-border">
                   {division.level}: {division.title} — {division.description}.
@@ -114,13 +114,13 @@ export default function AwardInformationPage() {
       <section className="border-t border-paper-border bg-paper" aria-labelledby="eligibility-heading">
         <div className="mx-auto max-w-6xl px-4 pb-8 pt-6 sm:px-6 lg:pb-10 lg:pt-8">
           <h2 id="eligibility-heading" className="font-display text-3xl font-semibold text-forum-900">Eligibility and nomination</h2>
-          {ceremonyProgramme.eligibilityIntro && <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink-muted">{ceremonyProgramme.eligibilityIntro}</p>}
+          {ceremonyProgramme.eligibilityIntro && <p className="mt-4 max-w-3xl text-[17px] leading-relaxed text-ink-muted">{ceremonyProgramme.eligibilityIntro}</p>}
           {ceremonyProgramme.eligibilityRules && ceremonyProgramme.eligibilityRules.length > 0 && (
             <ul className="mt-6 max-w-3xl space-y-3">
               {ceremonyProgramme.eligibilityRules.map((rule) => (
                 <li key={rule.title} className="rounded-2xl border border-paper-border bg-paper-raised px-5 py-4">
-                  <h3 className="font-medium text-forum-900">{rule.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-ink-muted">{rule.detail}</p>
+                  <h3 className="text-[15px] font-medium text-forum-900">{rule.title}</h3>
+                  <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">{rule.detail}</p>
                 </li>
               ))}
             </ul>
@@ -131,8 +131,8 @@ export default function AwardInformationPage() {
               <ul className="mt-5 grid gap-4 md:grid-cols-2">
                 {ceremonyProgramme.contributionRules.map((rule) => (
                   <li key={rule.field} className="rounded-2xl border border-paper-border bg-paper px-5 py-4">
-                    <h4 className="font-medium text-forum-900">{rule.field}</h4>
-                    <p className="mt-2 text-sm leading-relaxed text-ink-muted">{rule.detail}</p>
+                    <h4 className="text-[15px] font-medium text-forum-900">{rule.field}</h4>
+                    <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">{rule.detail}</p>
                   </li>
                 ))}
               </ul>
@@ -142,7 +142,7 @@ export default function AwardInformationPage() {
             {ceremonyProgramme.nominationDocuments && (
               <article className="rounded-2xl border border-paper-border bg-paper-raised p-6">
                 <h3 className="font-display text-2xl font-semibold text-forum-900">Nomination documents</h3>
-                <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-relaxed text-ink-muted">
+                <ul className="mt-4 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-ink-muted">
                   {ceremonyProgramme.nominationDocuments.map((item) => <li key={item}>{item}</li>)}
                 </ul>
               </article>
@@ -150,10 +150,10 @@ export default function AwardInformationPage() {
             {ceremonyProgramme.evaluation && (
               <article className="rounded-2xl border border-paper-border bg-paper-raised p-6">
                 <h3 className="font-display text-2xl font-semibold text-forum-900">Evaluation</h3>
-                <table className="mt-4 w-full text-left text-sm">
+                <table className="mt-4 w-full text-left text-[15px]">
                   <caption className="sr-only">Evaluation marks for award nominations</caption>
                   <thead>
-                    <tr className="border-b border-paper-border text-xs uppercase tracking-wide text-ink-subtle">
+                    <tr className="border-b border-paper-border text-[13px] uppercase tracking-wide text-ink-subtle">
                       <th className="py-2 font-medium" scope="col">Parameter</th>
                       <th className="py-2 text-right font-medium" scope="col">Marks</th>
                     </tr>
@@ -173,31 +173,31 @@ export default function AwardInformationPage() {
                     </tr>
                   </tfoot>
                 </table>
-                {ceremonyProgramme.qualifyingScores && <p className="mt-4 text-sm leading-relaxed text-ink-muted">{ceremonyProgramme.qualifyingScores}</p>}
+                {ceremonyProgramme.qualifyingScores && <p className="mt-4 text-[15px] leading-relaxed text-ink-muted">{ceremonyProgramme.qualifyingScores}</p>}
               </article>
             )}
           </div>
-          {ceremonyProgramme.selectionNote && <p className="mt-6 max-w-3xl text-sm leading-relaxed text-ink-muted">{ceremonyProgramme.selectionNote}</p>}
+          {ceremonyProgramme.selectionNote && <p className="mt-6 max-w-3xl text-[15px] leading-relaxed text-ink-muted">{ceremonyProgramme.selectionNote}</p>}
         </div>
       </section>
 
       <section className="bg-paper" aria-labelledby="previous-photographs-heading">
         <div className="mx-auto max-w-6xl px-4 pb-16 pt-4 sm:px-6 lg:pb-20 lg:pt-6">
           <h2 id="previous-photographs-heading" className="font-display text-3xl font-semibold text-forum-900">Previous event photographs</h2>
-          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-ink-muted">
+          <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-ink-muted">
             Published gallery photographs, in category order, with their captions.
           </p>
-          {galleryError && <p role="alert" className="mt-6 text-sm text-danger-600">{galleryError}</p>}
-          {!galleryError && orderedPhotos.length === 0 && <p className="mt-6 text-sm text-ink-muted">Photographs from previous IFSMHP events will appear here when they are published in the gallery.</p>}
+          {galleryError && <p role="alert" className="mt-6 text-[15px] text-danger-600">{galleryError}</p>}
+          {!galleryError && orderedPhotos.length === 0 && <p className="mt-6 text-[15px] text-ink-muted">Photographs from previous IFSMHP events will appear here when they are published in the gallery.</p>}
           {orderedPhotos.length > 0 && (
             <ul className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {orderedPhotos.map((photo) => (
                 <li key={photo.id} className="overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm">
                   <GalleryMedia src={photo.mediaUrl || photo.imageUrl} mediaType={photo.type ?? 'image'} alt={photo.altText || photo.caption || photo.title} className="aspect-[4/3] w-full object-cover" />
                   <div className="p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brass-700">{categoryName.get(photo.categoryId) || 'Event'}</p>
-                    <h3 className="mt-2 font-medium text-forum-900">{photo.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-ink-muted">{photo.caption || 'No caption has been added for this photograph.'}</p>
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-brass-700">{categoryName.get(photo.categoryId) || 'Event'}</p>
+                    <h3 className="mt-2 text-[15px] font-medium text-forum-900">{photo.title}</h3>
+                    <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">{photo.caption || 'No caption has been added for this photograph.'}</p>
                   </div>
                 </li>
               ))}

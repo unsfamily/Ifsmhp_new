@@ -21,19 +21,19 @@ function MemberCard({ member, featured = false }: { member: CeremonyCommitteeMem
         </figure>
       )}
       <div className={featured ? 'p-5 sm:p-6' : ''}>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{member.role}</p>
+        <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-brass-700">{member.role}</p>
         <h3 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{member.name}</h3>
-        {member.tagline && <p className="mt-2 text-sm font-medium text-forum-900">{member.tagline}</p>}
-        <p className="mt-3 text-sm leading-relaxed text-ink-muted">{member.organisation}</p>
-        {member.affiliation && <p className="mt-1 text-sm leading-relaxed text-ink-muted">{member.affiliation}</p>}
+        {member.tagline && <p className="mt-2 text-[15px] font-medium text-forum-900">{member.tagline}</p>}
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">{member.organisation}</p>
+        {member.affiliation && <p className="mt-1 text-[15px] leading-relaxed text-ink-muted">{member.affiliation}</p>}
         {member.summary?.map((paragraph) => (
-          <p key={paragraph.slice(0, 48)} className="mt-3 text-sm leading-relaxed text-ink-muted">{paragraph}</p>
+          <p key={paragraph.slice(0, 48)} className="mt-3 text-[15px] leading-relaxed text-ink-muted">{paragraph}</p>
         ))}
         {member.highlights && member.highlights.length > 0 && (
           <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {member.highlights.map((item) => (
               <div key={item.label} className="rounded-xl bg-forum-50 px-3 py-2.5 ring-1 ring-paper-border">
-                <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">{item.label}</dt>
+                <dt className="text-[12px] font-semibold uppercase tracking-wider text-ink-subtle">{item.label}</dt>
                 <dd className="mt-1 font-display text-xl font-semibold text-forum-900 sm:text-2xl">{item.value}</dd>
               </div>
             ))}
@@ -46,7 +46,7 @@ function MemberCard({ member, featured = false }: { member: CeremonyCommitteeMem
               {member.milestones.map((item) => (
                 <li key={item.title} className="rounded-xl border border-paper-border bg-paper-raised px-4 py-2.5">
                   <p className="font-medium text-forum-900">{item.title}</p>
-                  <p className="mt-1 text-sm leading-relaxed text-ink-muted">{item.detail}</p>
+                  <p className="mt-1 text-[15px] leading-relaxed text-ink-muted">{item.detail}</p>
                 </li>
               ))}
             </ul>
@@ -57,12 +57,12 @@ function MemberCard({ member, featured = false }: { member: CeremonyCommitteeMem
             {member.identifiers.map((item) => (
               <li key={item.label}>
                 {item.href ? (
-                  <a href={item.href} className="inline-flex rounded-full bg-forum-50 px-3 py-1.5 text-xs font-medium text-forum-800 ring-1 ring-paper-border hover:bg-forum-100" target="_blank" rel="noopener noreferrer">
+                  <a href={item.href} className="inline-flex rounded-full bg-forum-50 px-3 py-1.5 text-[13px] font-medium text-forum-800 ring-1 ring-paper-border hover:bg-forum-100" target="_blank" rel="noopener noreferrer">
                     {item.label}
                     <span className="sr-only"> (opens in a new tab)</span>
                   </a>
                 ) : (
-                  <span className="inline-flex rounded-full bg-forum-50 px-3 py-1.5 text-xs font-medium text-forum-800 ring-1 ring-paper-border">{item.label}</span>
+                  <span className="inline-flex rounded-full bg-forum-50 px-3 py-1.5 text-[13px] font-medium text-forum-800 ring-1 ring-paper-border">{item.label}</span>
                 )}
               </li>
             ))}
@@ -78,13 +78,13 @@ export default function CeremonyCommittee({ members, variant = 'full' }: { membe
   if (variant === 'footer') {
     return (
       <footer className="mt-6 border-t border-paper-border pt-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">Organising committee</p>
+        <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-brass-700">Organising committee</p>
         <ul className="mt-3 grid gap-4 sm:grid-cols-2">
           {members.map((member) => (
             <li key={`${member.role}-${member.name}`}>
               <p className="font-display text-lg font-semibold text-forum-900">{member.name}</p>
-              <p className="mt-1 text-sm text-ink-muted">{member.role}</p>
-              <p className="text-sm text-ink-muted">{member.organisation}</p>
+              <p className="mt-1 text-[15px] text-ink-muted">{member.role}</p>
+              <p className="text-[15px] text-ink-muted">{member.organisation}</p>
             </li>
           ))}
         </ul>
@@ -97,9 +97,9 @@ export default function CeremonyCommittee({ members, variant = 'full' }: { membe
 
   return (
     <section aria-labelledby="organising-committee-heading" className="bg-paper">
-      <div className="mx-auto max-w-6xl px-4 pb-6 pt-10 sm:px-6 lg:pb-8 lg:pt-12">
+      <div className="mx-auto max-w-6xl px-4 pb-6 pt-2 sm:px-6 lg:pb-8 lg:pt-2">
         <div className="max-w-3xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-700">Organiser</p>
+          <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-brass-700">Organiser</p>
           <h2 id="organising-committee-heading" className="mt-3 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">Organising committee</h2>
         </div>
         {named.length > 0 && (

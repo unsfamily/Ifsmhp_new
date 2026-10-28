@@ -201,7 +201,7 @@ export default function SecondInternationalAwardsPage() {
 
       <EvenSection>
         <div className="max-w-2xl">
-          <h2 className="font-display text-3xl font-semibold text-forum-900">Ways to take part</h2>
+          <h2 className="font-display text-3xl font-semibold text-forum-900 pt-4">Ways to take part</h2>
           <p className="mt-4 text-base leading-relaxed text-ink-muted">
             Choose one participation type when you register. Each option records your interest. It does not confirm a place, a poster, or an award.
           </p>
