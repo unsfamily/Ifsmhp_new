@@ -42,7 +42,7 @@ export default function PreviousAwardPhotos() {
   const current = active === null ? null : photos[active];
 
   return (
-    <figure className="mt-14 overflow-hidden rounded-3xl bg-forum-950 text-white shadow-xl ring-1 ring-brass-500/30">
+    <figure className="overflow-hidden rounded-3xl bg-forum-950 text-white shadow-xl ring-1 ring-brass-500/30">
       <figcaption className="flex flex-wrap items-end justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-400">2025 award function</p>

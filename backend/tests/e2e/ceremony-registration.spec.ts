@@ -28,7 +28,7 @@ test('opens and closes the ceremony registration dialog', async ({ page }) => {
   await expect(page.getByRole('checkbox', { name: /privacy policy/ })).not.toBeChecked();
   await expect(dialog.getByText('The ceremony is on 26 December 2026 at A.R. Shaikh Assembly Hall (Azam Campus), Pune. Registering your interest does not reserve admission.')).toBeVisible();
   const focusedInside = () => page.evaluate(() => {
-    const node = document.querySelector('dialog');
+    const node = document.querySelector('dialog[open]');
     return Boolean(node && (node === document.activeElement || node.contains(document.activeElement)));
   });
   expect(await focusedInside()).toBe(true);
