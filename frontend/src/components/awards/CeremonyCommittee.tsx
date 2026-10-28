@@ -77,7 +77,7 @@ export default function CeremonyCommittee({ members, variant = 'full' }: { membe
   if (!members.length) return null;
   if (variant === 'footer') {
     return (
-      <footer className="mt-8 border-t border-paper-border pt-5">
+      <footer className="mt-6 border-t border-paper-border pt-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">Organising committee</p>
         <ul className="mt-3 grid gap-4 sm:grid-cols-2">
           {members.map((member) => (
@@ -97,7 +97,7 @@ export default function CeremonyCommittee({ members, variant = 'full' }: { membe
 
   return (
     <section aria-labelledby="organising-committee-heading" className="bg-paper">
-      <div className="mx-auto max-w-6xl px-4 pb-8 pt-10 sm:px-6 lg:pb-10 lg:pt-12">
+      <div className="mx-auto max-w-6xl px-4 pb-6 pt-10 sm:px-6 lg:pb-8 lg:pt-12">
         <div className="max-w-3xl">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-700">Organiser</p>
           <h2 id="organising-committee-heading" className="mt-3 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">Organising committee</h2>

@@ -22,7 +22,7 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
 
   return (
     <section id="commemorative-awards" aria-labelledby="commemorative-awards-heading" className="bg-paper-raised">
-      <div className="mx-auto max-w-6xl px-4 pb-14 pt-8 sm:px-6 lg:pb-16 lg:pt-10">
+      <div className="mx-auto max-w-6xl px-4 pb-6 pt-8 sm:px-6 lg:pb-8 lg:pt-10">
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center rounded-full bg-brass-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-700 ring-1 ring-inset ring-brass-500/20">

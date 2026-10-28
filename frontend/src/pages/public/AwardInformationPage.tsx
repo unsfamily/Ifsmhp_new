@@ -104,7 +104,7 @@ export default function AwardInformationPage() {
       <CeremonyAwardProgramme programme={ceremonyProgramme} />
 
       <section className="border-t border-paper-border bg-paper" aria-labelledby="eligibility-heading">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+        <div className="mx-auto max-w-6xl px-4 pb-8 pt-6 sm:px-6 lg:pb-10 lg:pt-8">
           <h2 id="eligibility-heading" className="font-display text-3xl font-semibold text-forum-900">Eligibility and nomination</h2>
           {ceremonyProgramme.eligibilityIntro && <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink-muted">{ceremonyProgramme.eligibilityIntro}</p>}
           {ceremonyProgramme.eligibilityRules && ceremonyProgramme.eligibilityRules.length > 0 && (
@@ -169,12 +169,12 @@ export default function AwardInformationPage() {
               </article>
             )}
           </div>
-          {ceremonyProgramme.selectionNote && <p className="mt-8 max-w-3xl text-sm leading-relaxed text-ink-muted">{ceremonyProgramme.selectionNote}</p>}
+          {ceremonyProgramme.selectionNote && <p className="mt-6 max-w-3xl text-sm leading-relaxed text-ink-muted">{ceremonyProgramme.selectionNote}</p>}
         </div>
       </section>
 
       <section className="bg-paper" aria-labelledby="previous-photographs-heading">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+        <div className="mx-auto max-w-6xl px-4 pb-16 pt-4 sm:px-6 lg:pb-20 lg:pt-6">
           <h2 id="previous-photographs-heading" className="font-display text-3xl font-semibold text-forum-900">Previous event photographs</h2>
           <p className="mt-4 max-w-3xl text-sm leading-relaxed text-ink-muted">
             Published gallery photographs, in category order, with their captions.
