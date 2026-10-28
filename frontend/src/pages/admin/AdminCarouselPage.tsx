@@ -15,9 +15,9 @@ const MAX_SLIDES = 12;
 const MAX_BYTES = 15 * 1024 * 1024;
 const PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const BUILTIN = [
-  { src: ceremonyConclave01, label: 'Awardees close-up' },
-  { src: ceremonyConclave02, label: 'Plaque presentation' },
-  { src: ceremonyConclave03, label: 'Conclave stage with sparks' },
+  { src: ceremonyConclave01, label: 'Laureates with plaques' },
+  { src: ceremonyConclave02, label: 'Certificate presentation' },
+  { src: ceremonyConclave03, label: 'Full stage' },
 ];
 
 function SlidePreview({ src, alt }: { src: string; alt: string }) {
