@@ -60,14 +60,30 @@ export default function AwardInformationPage() {
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Second International Awards Ceremony
           </Link>
-          <h1 id="award-information-heading" className="mt-5 max-w-3xl font-display text-4xl font-semibold tracking-tight text-forum-900 sm:text-5xl">
-            2nd International IFSMHP Awards 2026
+          <h1 id="award-information-heading" className="mt-5 max-w-3xl font-display text-4xl font-semibold leading-[0.98] tracking-tight text-forum-900 sm:text-5xl">
+            <span className="block">
+              <span className="mr-[0.16em] inline-flex items-start align-baseline text-[1.32em] leading-none text-brass-600" aria-hidden="true">
+                <span>2</span>
+                <span className="ml-[0.2em] mt-[0.6em] text-[0.40em] font-semibold leading-none">nd</span>
+              </span>
+              <span className="sr-only">Second</span>
+              {' '}International IFSMHP
+            </span>
+            <span className="mt-[0.08em] block">Awards 2026</span>
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink-muted sm:text-lg">
             {ceremonyProgramme.totalLabel}. The ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune.
           </p>
           <div className="mt-6">
-            <Button as="link" to={CEREMONY_NOMINATE_PATH} size="lg">Submit a nomination</Button>
+            <Button
+              as="link"
+              to={CEREMONY_NOMINATE_PATH}
+              size="lg"
+              variant="secondary"
+              className="!bg-gradient-to-r !from-brass-400 !via-brass-300 !to-brass-500 !text-forum-950 shadow-md shadow-brass-400/40 hover:!from-brass-300 hover:!via-brass-200 hover:!to-brass-400"
+            >
+              Submit a nomination
+            </Button>
           </div>
         </div>
       </section>
