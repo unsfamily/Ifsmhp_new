@@ -24,9 +24,12 @@ import Button from '../../components/common/Button';
 import GallerySection from '../../components/gallery/GallerySection';
 import { homeCarouselImageUrl, publicApi } from '../../api/public';
 
-import ceremonySparks from '../../assets/images/carousel/laureates-conclave-01.jpg';
-import ceremonyCertificates from '../../assets/images/carousel/laureates-conclave-02.jpg';
-import ceremonyGroup from '../../assets/images/carousel/laureates-conclave-03.jpg';
+import ceremonyConclave01 from '../../assets/images/carousel/laureates-conclave-01.jpg';
+import ceremonyConclave02 from '../../assets/images/carousel/laureates-conclave-02.jpg';
+import ceremonyConclave03 from '../../assets/images/carousel/laureates-conclave-03.jpg';
+import ceremonyConclave04 from '../../assets/images/carousel/laureates-conclave-04.jpg';
+import ceremonyConclave05 from '../../assets/images/carousel/laureates-conclave-05.jpg';
+import ceremonyConclave06 from '../../assets/images/carousel/laureates-conclave-06.jpg';
 import logoImg from '../../assets/images/logo.webp';
 
 const stats = [
@@ -182,18 +185,33 @@ interface CarouselPhoto {
 const BUILTIN_CAROUSEL: CarouselPhoto[] = [
   {
     id: 'laureates-conclave-01',
-    src: ceremonySparks,
-    alt: 'Laureates on stage at the International Laureates Recognition Conclave 2025, with ceremonial sparks',
+    src: ceremonyConclave01,
+    alt: 'Laureates on stage at the International Laureates Recognition Conclave 2025 with ceremonial sparks',
   },
   {
     id: 'laureates-conclave-02',
-    src: ceremonyCertificates,
-    alt: 'Award recipients holding certificates at the Impact Bharath conclave',
+    src: ceremonyConclave02,
+    alt: 'Awardees holding plaques at the International Laureates Recognition Conclave 2025',
   },
   {
     id: 'laureates-conclave-03',
-    src: ceremonyGroup,
-    alt: 'Group photograph of the International Laureates Recognition Conclave 2025',
+    src: ceremonyConclave03,
+    alt: 'Certificate and plaque presentation at the Impact Bharath conclave',
+  },
+  {
+    id: 'laureates-conclave-04',
+    src: ceremonyConclave04,
+    alt: 'International Laureates Recognition Conclave 2025 stage group with ceremonial sparks',
+  },
+  {
+    id: 'laureates-conclave-05',
+    src: ceremonyConclave05,
+    alt: 'Honorees seated and standing with certificates at the Impact Bharath ceremony',
+  },
+  {
+    id: 'laureates-conclave-06',
+    src: ceremonyConclave06,
+    alt: 'Full stage group photograph at the International Laureates Recognition Conclave 2025',
   },
 ];
 
