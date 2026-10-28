@@ -1,56 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import Button from '../../components/common/Button';
 import CeremonyAwardProgramme from '../../components/awards/CeremonyAwardProgramme';
 import CeremonyCommittee from '../../components/awards/CeremonyCommittee';
-import GalleryMedia from '../../components/gallery/GalleryMedia';
-import { apiClient } from '../../api/client';
+import PreviousAwardPhotos from '../../components/awards/PreviousAwardPhotos';
 import { CEREMONY_ADDRESS, CEREMONY_EVENT_DATE, CEREMONY_VENUE, ceremonyProgramme } from '../../domain/ceremonyProgramme';
 import { CEREMONY_NOMINATE_PATH, CEREMONY_PAGE_PATH } from '../../domain/ceremonyRegistration';
 
-type GalleryPhoto = {
-  id: string;
-  title: string;
-  caption: string;
-  altText: string;
-  imageUrl: string;
-  mediaUrl?: string;
-  type?: 'image' | 'video';
-  categoryId: string;
-  displayOrder: number;
-};
-
-type GalleryCategory = { id: string; name: string; displayOrder: number };
-
 export default function AwardInformationPage() {
-  const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
-  const [categories, setCategories] = useState<GalleryCategory[]>([]);
-  const [galleryError, setGalleryError] = useState('');
-
   useEffect(() => {
     const previous = document.title;
     document.title = 'Award information · IFSMHP Awards 2026';
     return () => { document.title = previous; };
   }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    Promise.all([
-      apiClient.get<{ data: { items: GalleryCategory[] } }>('/public/gallery/categories', { params: { limit: 50 }, signal: controller.signal }),
-      apiClient.get<{ data: { items: GalleryPhoto[] } }>('/public/gallery/photos', { params: { limit: 24 }, signal: controller.signal }),
-    ]).then(([categoryResponse, photoResponse]) => {
-      setCategories(categoryResponse.data.data.items);
-      setPhotos(photoResponse.data.data.items);
-    }).catch((error: unknown) => {
-      if (!controller.signal.aborted) setGalleryError(error instanceof Error ? error.message : 'Previous ceremony photographs could not be loaded.');
-    });
-    return () => controller.abort();
-  }, []);
-
-  const categoryOrder = new Map(categories.map((category) => [category.id, category.displayOrder]));
-  const categoryName = new Map(categories.map((category) => [category.id, category.name]));
-  const orderedPhotos = [...photos].sort((a, b) => (categoryOrder.get(a.categoryId) ?? 0) - (categoryOrder.get(b.categoryId) ?? 0) || a.displayOrder - b.displayOrder || a.title.localeCompare(b.title));
 
   return (
     <>
@@ -185,24 +148,11 @@ export default function AwardInformationPage() {
         <div className="mx-auto max-w-6xl px-4 pb-16 pt-4 sm:px-6 lg:pb-20 lg:pt-6">
           <h2 id="previous-photographs-heading" className="font-display text-3xl font-semibold text-forum-900">Previous event photographs</h2>
           <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-ink-muted">
-            Published gallery photographs, in category order, with their captions.
+            Photographs from the 2025 International Laureates Recognition Conclave.
           </p>
-          {galleryError && <p role="alert" className="mt-6 text-[15px] text-danger-600">{galleryError}</p>}
-          {!galleryError && orderedPhotos.length === 0 && <p className="mt-6 text-[15px] text-ink-muted">Photographs from previous IFSMHP events will appear here when they are published in the gallery.</p>}
-          {orderedPhotos.length > 0 && (
-            <ul className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {orderedPhotos.map((photo) => (
-                <li key={photo.id} className="overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm">
-                  <GalleryMedia src={photo.mediaUrl || photo.imageUrl} mediaType={photo.type ?? 'image'} alt={photo.altText || photo.caption || photo.title} className="aspect-[4/3] w-full object-cover" />
-                  <div className="p-4">
-                    <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-brass-700">{categoryName.get(photo.categoryId) || 'Event'}</p>
-                    <h3 className="mt-2 text-[15px] font-medium text-forum-900">{photo.title}</h3>
-                    <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">{photo.caption || 'No caption has been added for this photograph.'}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="mt-8">
+            <PreviousAwardPhotos />
+          </div>
         </div>
       </section>
     </>
