@@ -64,6 +64,11 @@ export default function PreviousAwardPhotos() {
               <img
                 src={photo.src}
                 alt={photo.alt}
+                width={1024}
+                height={682}
+                loading={index === 0 ? 'eager' : 'lazy'}
+                decoding="async"
+                fetchPriority={index === 0 ? 'high' : 'low'}
                 className={`w-full object-cover transition duration-500 group-hover:scale-[1.03] ${
                   index === 0 ? 'aspect-[16/10] sm:aspect-auto sm:h-full sm:min-h-[28rem]' : 'aspect-[16/9] sm:aspect-auto sm:h-full sm:min-h-[13.75rem]'
                 }`}
@@ -98,7 +103,7 @@ export default function PreviousAwardPhotos() {
                   <X className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
-              <img src={current.src} alt={current.alt} className="max-h-[calc(100dvh-8.5rem)] w-full object-contain" />
+              <img src={current.src} alt={current.alt} width={1024} height={682} decoding="async" className="max-h-[calc(100dvh-8.5rem)] w-full object-contain" />
               <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-white/80">
                 <button type="button" onClick={() => show(active - 1)} className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 hover:bg-white/10" aria-label="Previous photograph">
                   <ChevronLeft className="h-4 w-4" aria-hidden="true" />
