@@ -370,6 +370,7 @@ model FileObject {
   adminAvatars        AdminProfile[]
   memberAvatars       MemberProfile[]
   galleryManaged     Boolean @default(false)
+  carouselManaged    Boolean @default(false)
   purgedAt           DateTime?
   communityManaged   Boolean @default(false)
   communityImages    Community[] @relation("CommunityImage")
@@ -378,6 +379,7 @@ model FileObject {
   communityEvidence CommunityReportEvidence[]
   eventCovers        Event[]                    @relation("EventCover")
   galleryItems       GalleryItem[]
+  homeCarouselSlides HomeCarouselSlide[]
   inquiryAttachments ContactInquiryAttachment[]
 
   @@index([uploaderId])
@@ -811,6 +813,80 @@ model EventRegistration {
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
+/// Interest in an awards ceremony. Kept apart from membership applications and event RSVPs.
+model CeremonyRegistration {
+  id                String   @id @default(cuid())
+  ceremonySlug      String   @db.VarChar(80)
+  fullName          String   @db.VarChar(120)
+  email             String   @db.VarChar(191)
+  emailNormalized   String   @db.VarChar(191)
+  phone             String   @db.VarChar(30)
+  institution       String   @db.VarChar(200)
+  designation       String?  @db.VarChar(120)
+  participationType String   @db.VarChar(40)
+  message           String?  @db.Text
+  consentAt         DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([ceremonySlug, emailNormalized])
+  @@index([ceremonySlug, updatedAt])
+}
+
+model AwardNomination {
+  id                       String    @id @default(cuid())
+  ceremonySlug             String    @db.VarChar(80)
+  reference                String    @unique @db.VarChar(40)
+  awardCode                String    @db.VarChar(40)
+  awardName                String    @db.VarChar(160)
+  division                 String?   @db.VarChar(40)
+  nomineeName              String    @db.VarChar(160)
+  dateOfBirth              String    @db.VarChar(40)
+  nationality              String    @db.VarChar(80)
+  qualification            String    @db.VarChar(200)
+  designation              String    @db.VarChar(160)
+  institution              String    @db.VarChar(200)
+  specialisation           String    @db.VarChar(200)
+  yearsOfContribution      String    @db.VarChar(40)
+  countryOfResidence       String    @db.VarChar(80)
+  nomineeEmail             String    @db.VarChar(191)
+  nomineeEmailNormalized   String    @db.VarChar(191)
+  nomineePhone             String    @db.VarChar(30)
+  orcid                    String?   @db.VarChar(200)
+  careerOverview           String    @db.Text
+  principalContributions   String    @db.Text
+  impact                   String    @db.Text
+  leadership               String    @db.Text
+  majorAwards              String    @db.Text
+  publications             String    @db.Text
+  patents                  String    @db.Text
+  projects                 String    @db.Text
+  institutionsEstablished  String    @db.Text
+  societalImpact           String    @db.Text
+  statement                String    @db.Text
+  nominationType           String    @db.VarChar(20)
+  nominatorName            String    @db.VarChar(160)
+  nominatorDesignation     String    @db.VarChar(160)
+  nominatorInstitution     String    @db.VarChar(200)
+  nominatorEmail           String    @db.VarChar(191)
+  nominatorPhone           String    @db.VarChar(30)
+  relationship             String    @db.VarChar(200)
+  checklistCv              Boolean
+  checklistStatement       Boolean
+  checklistEvidence        Boolean
+  checklistHonours         Boolean
+  checklistRecommendation  Boolean
+  checklistPhotograph      Boolean
+  checklistConsent         Boolean
+  declaredAt               DateTime
+  acknowledgementSentAt    DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@unique([ceremonySlug, nomineeEmailNormalized, awardCode], map: "AwardNomination_ceremony_email_award")
+  @@index([ceremonySlug, updatedAt])
+}
+
 model EventResource {
   id      String  @id @default(cuid())
   eventId String
@@ -837,15 +913,17 @@ model GalleryAlbum {
 }
 
 model GallerySubcategory {
-  id         String        @id @default(cuid())
-  categoryId String
-  name       String        @db.VarChar(191)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  category   GalleryAlbum  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  items      GalleryItem[]
+  id           String        @id @default(cuid())
+  categoryId   String
+  name         String        @db.VarChar(191)
+  displayOrder Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  category     GalleryAlbum  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  items        GalleryItem[]
 
   @@unique([categoryId, name])
+  @@index([categoryId, displayOrder])
 }
 
 model GalleryItem {
@@ -901,6 +979,19 @@ model GalleryBanner {
   tagline       String
   promptSubject String       @db.Text
   album         GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+}
+
+model HomeCarouselSlide {
+  id           String     @id @default(cuid())
+  fileId       String     @unique
+  altText      String     @default("") @db.VarChar(191)
+  displayOrder Int        @default(0)
+  published    Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  file         FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([published, displayOrder])
 }
 
 model InterestGroup {

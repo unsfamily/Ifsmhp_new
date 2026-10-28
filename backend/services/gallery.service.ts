@@ -131,7 +131,7 @@ export async function subcategories(query: unknown, admin: boolean) {
     ...(page.categoryId && page.categoryId !== 'all' ? { categoryId: page.categoryId } : {}),
   };
   const [items, total] = await prisma.$transaction([
-    prisma.gallerySubcategory.findMany({ where, ...toSkipTake(page), orderBy: [{ category: { displayOrder: 'asc' } }, { categoryId: 'asc' }, { name: 'asc' }, { id: 'asc' }], include: { _count: { select: { items: admin ? true : { where: publicPhotoScope } } } } }),
+    prisma.gallerySubcategory.findMany({ where, ...toSkipTake(page), orderBy: [{ category: { displayOrder: 'asc' } }, { categoryId: 'asc' }, { displayOrder: 'asc' }, { name: 'asc' }, { id: 'asc' }], include: { _count: { select: { items: admin ? true : { where: publicPhotoScope } } } } }),
     prisma.gallerySubcategory.count({ where }),
   ]);
   return buildPaginatedResult(items.map(subcategoryDto), total, page);
@@ -146,7 +146,8 @@ export async function saveSubcategory(actor: AuthenticatedUser, input: unknown, 
       const name = body.name ?? current!.name;
       await album(db, categoryId);
       if (await db.gallerySubcategory.findFirst({ where: { categoryId, name, ...(id ? { id: { not: id } } : {}) } })) throw duplicateSubcategory();
-      const record = id ? await db.gallerySubcategory.update({ where: { id }, data: { categoryId, name } }) : await db.gallerySubcategory.create({ data: { categoryId, name } });
+      const nextOrder = id ? null : ((await db.gallerySubcategory.aggregate({ where: { categoryId }, _max: { displayOrder: true } }))._max.displayOrder ?? 0) + 1;
+      const record = id ? await db.gallerySubcategory.update({ where: { id }, data: { categoryId, name } }) : await db.gallerySubcategory.create({ data: { categoryId, name, displayOrder: nextOrder! } });
       if (current && current.categoryId !== categoryId) {
         await normalize(db, categoryId);
         const items = await db.galleryItem.findMany({ where: { subcategoryId: record.id }, orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }] });
@@ -217,7 +218,7 @@ export async function reorder(actor: AuthenticatedUser, kind: 'categories' | 'ph
 }
 // A tombstone is a durable cleanup queue; the retry script can resume unlinking
 // after a process crash. Shared legacy files are retained until unreferenced.
-const unreferenced = { communityEvidence: { none: {} }, galleryItems: { none: {} }, credentials: { none: {} }, projectFiles: { none: {} }, publicationFiles: { none: {} }, messageAttachments: { none: {} }, eventCovers: { none: {} }, inquiryAttachments: { none: {} }, communityImages: { none: {} }, communityBanners: { none: {} }, communityAttachments: { none: {} } } satisfies Prisma.FileObjectWhereInput;
+const unreferenced = { communityEvidence: { none: {} }, galleryItems: { none: {} }, homeCarouselSlides: { none: {} }, credentials: { none: {} }, projectFiles: { none: {} }, publicationFiles: { none: {} }, messageAttachments: { none: {} }, eventCovers: { none: {} }, inquiryAttachments: { none: {} }, communityImages: { none: {} }, communityBanners: { none: {} }, communityAttachments: { none: {} } } satisfies Prisma.FileObjectWhereInput;
 export async function purgeGalleryFiles() {
   const files = await prisma.fileObject.findMany({ where: { galleryManaged: true, deletedAt: { not: null }, purgedAt: null, ...unreferenced } });
   for (const file of files) {

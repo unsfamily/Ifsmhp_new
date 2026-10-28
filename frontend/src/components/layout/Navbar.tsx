@@ -1,5 +1,5 @@
 import { usePublicSettings } from '../../context/SettingsContext';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Menu, X, UserPlus, LogIn, Images } from 'lucide-react';
 import logoImg from '../../assets/images/logo.webp';
@@ -9,10 +9,46 @@ const navLinks = [
   { to: '/about', label: 'About Us' },
   { to: '/membership', label: 'Membership' },
   { to: '/gallery', label: 'Gallery', anchor: true },
-  { to: '/support-services', label: 'Support', },
+  { to: '/support-services', label: 'Support', featured: true },
   { to: '/events', label: 'Events' },
+  { to: '/awards/second-international', label: 'Awards' },
   { to: '/contact', label: 'Contact' },
 ];
+
+function textParts(value: string) {
+  if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+    return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(value)].map((part) => part.segment);
+  }
+  return Array.from(value);
+}
+
+function SupportGlowDot() {
+  return <span className="support-nav-dot" aria-hidden="true" />;
+}
+
+function SupportNavLabel({ children }: { children: string }) {
+  let letter = 0;
+  return (
+    <span className="support-nav-label" aria-hidden="true">
+      {textParts(children).map((part, index) => {
+        if (part.trim() === '') {
+          return (
+            <span key={`space-${index}`} className="support-nav-space">
+              {part}
+            </span>
+          );
+        }
+        const order = letter;
+        letter += 1;
+        return (
+          <span key={`${part}-${index}`} className="support-nav-letter" style={{ '--support-letter': order } as CSSProperties}>
+            {part}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 function GalleryNavLink({
   className,
@@ -79,6 +115,19 @@ export default function Navbar() {
                   />
                 );
               }
+              if (link.featured) {
+                return (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    aria-label={link.label}
+                    className="support-nav-link px-3.5 py-1.5 text-sm"
+                  >
+                    <SupportGlowDot />
+                    <SupportNavLabel>{link.label}</SupportNavLabel>
+                  </NavLink>
+                );
+              }
               return (
                 <NavLink
                   key={link.to}
@@ -136,7 +185,24 @@ export default function Navbar() {
                     </Link>
                   );
                 }
-                const isActive = location.pathname === link.to;
+                const isActive = link.to === '/'
+                  ? location.pathname === '/'
+                  : location.pathname === link.to || location.pathname.startsWith(`${link.to}/`);
+                if (link.featured) {
+                  return (
+                    <Link
+                      key={link.to}
+                      to={link.to}
+                      aria-label={link.label}
+                      aria-current={isActive ? 'page' : undefined}
+                      onClick={() => setMobileOpen(false)}
+                      className="support-nav-link self-start px-3.5 py-1.5 text-sm"
+                    >
+                      <SupportGlowDot />
+                      <SupportNavLabel>{link.label}</SupportNavLabel>
+                    </Link>
+                  );
+                }
                 return (
                   <Link
                     key={link.to}

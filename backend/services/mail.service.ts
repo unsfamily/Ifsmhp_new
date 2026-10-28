@@ -205,6 +205,30 @@ export async function sendEventEmail(email: string, event: { title: string; date
   return true;
 }
 
+/** Tells the nominator the submission was saved. Does not repeat the nomination text. */
+export async function sendAwardNominationAcknowledgement(to: string, reference: string): Promise<boolean> {
+  if (!env.mailConfigured) return false;
+  const text = [
+    'Your nomination for the 2nd International IFSMHP Awards 2026 has been received.',
+    `Reference: ${reference}`,
+    'Nomination does not guarantee selection. It is subject to independent review and verification by IFSMHP.',
+    'This message is not a membership confirmation.',
+  ].join('\n\n');
+  try {
+    const result = await sendConfiguredMail({
+      from: env.mailFrom,
+      to,
+      subject: 'Your IFSMHP award nomination has been received',
+      text,
+      html: `<div style="font-family:system-ui;max-width:640px;white-space:pre-wrap">${text.replace(/[&<>]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[character] ?? character))}</div>`,
+    });
+    return Boolean(result.accepted?.length);
+  } catch {
+    logger.error('Award nomination acknowledgement could not be sent');
+    return false;
+  }
+}
+
 /** Operational notices contain a link, never private message or inquiry text. */
 export async function sendAdminNotificationEmail(input: { to: string; title: string; link: string; key: string }): Promise<boolean> {
   if (!env.mailConfigured) return false;

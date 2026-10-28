@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import Button from '../common/Button';
-import type { GalleryCategory, GallerySubcategory } from '../../types/gallery';
+import { compareSubcategories, type GalleryCategory, type GallerySubcategory } from '../../types/gallery';
 import type { SubcategoryInput } from '../../services/galleryService';
 
 export function SubcategorySelect({ subcategories, categoryId, value, onChange, filter = false }: {
@@ -14,7 +14,7 @@ export function SubcategorySelect({ subcategories, categoryId, value, onChange, 
       className="h-11 w-full rounded-xl border border-paper-border bg-white px-3 text-sm text-forum-800">
       {filter && <option value="all">All subcategories</option>}
       <option value={filter ? 'none' : ''}>No subcategory</option>
-      {subcategories.filter(s => s.categoryId === categoryId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+      {subcategories.filter(s => s.categoryId === categoryId).sort(compareSubcategories).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
     </select>
   </div>;
 }

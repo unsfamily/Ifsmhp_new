@@ -25,6 +25,7 @@ const quickLinks = [
   { to: '/gallery', label: 'Media Gallery', anchor: true },
   { to: '/support-services', label: 'Support Services' },
   { to: '/events', label: 'Events' },
+  { to: '/awards/second-international', label: 'Awards Ceremony' },
   { to: '/contact', label: 'Contact' },
 ];
 

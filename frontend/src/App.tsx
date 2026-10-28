@@ -14,6 +14,10 @@ import MembershipPage from './pages/public/MembershipPage';
 import ResearchPublicationsPage from './pages/public/ResearchPublicationsPage';
 import SupportServicesPage from './pages/public/SupportServicesPage';
 import EventsPage from './pages/public/EventsPage';
+import SecondInternationalAwardsPage from './pages/public/SecondInternationalAwardsPage';
+import CeremonyRegistrationPage from './pages/public/CeremonyRegistrationPage';
+import AwardInformationPage from './pages/public/AwardInformationPage';
+import AwardNominationPage from './pages/public/AwardNominationPage';
 import ContactPage from './pages/public/ContactPage';
 import ProductReviewsPage from './pages/public/ProductReviewsPage';
 import PolicyPage from './pages/public/PolicyPage';
@@ -47,6 +51,8 @@ import AdminSupportDetailPage from './pages/admin/AdminSupportDetailPage';
 import AdminMessagesPage from './pages/admin/AdminMessagesPage';
 import AdminMessagesDetailPage from './pages/admin/AdminMessagesDetailPage';
 import AdminEventsPage from './pages/admin/AdminEventsPage';
+import AdminCeremonyRegistrationsPage from './pages/admin/AdminCeremonyRegistrationsPage';
+import AdminAwardNominationsPage from './pages/admin/AdminAwardNominationsPage';
 import AdminNewEventPage from './pages/admin/AdminNewEventPage';
 import AdminEditEventPage from './pages/admin/AdminEditEventPage';
 import AdminInquiriesPage from './pages/admin/AdminInquiriesPage';
@@ -58,6 +64,7 @@ import AdminReportsPage from './pages/admin/AdminReportsPage';
 import AdminProfilePage from './pages/admin/AdminProfilePage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import AdminGalleryPage from './pages/admin/AdminGalleryPage';
+import AdminCarouselPage from './pages/admin/AdminCarouselPage';
 import AdminCommunityDashboard from './pages/admin/community/AdminCommunityDashboard';
 import AdminCommunitiesPage from './pages/admin/community/AdminCommunitiesPage';
 import AdminCommunityMembersPage from './pages/admin/community/AdminCommunityMembersPage';
@@ -116,6 +123,10 @@ export default function App() {
           <Route path="gallery" element={<GalleryAnchorRedirect />} />
           <Route path="support-services" element={<SupportServicesPage />} />
           <Route path="events" element={<EventsPage />} />
+          <Route path="awards/second-international" element={<SecondInternationalAwardsPage />} />
+          <Route path="awards/second-international/register" element={<CeremonyRegistrationPage />} />
+          <Route path="awards/second-international/information" element={<AwardInformationPage />} />
+          <Route path="awards/second-international/nominate" element={<AwardNominationPage />} />
           <Route path="contact" element={<ContactPage />} />
           <Route path="privacy-policy" element={<PolicyPage />} />
           <Route path="terms-of-service" element={<PolicyPage />} />
@@ -163,6 +174,7 @@ export default function App() {
           <Route path="publications" element={<AdminPublicationsPage />} />
           <Route path="publications/:id" element={<AdminPublicationDetailPage />} />
           <Route path="gallery" element={<AdminGalleryPage />} />
+          <Route path="carousel" element={<AdminCarouselPage />} />
           <Route path="community/communities" element={<AdminCommunitiesPage />} />
 
           <Route path="support" element={<AdminSupportPage />} />
@@ -170,6 +182,8 @@ export default function App() {
           <Route path="messages" element={<AdminMessagesPage />} />
           <Route path="messages/:conversationId" element={<AdminMessagesDetailPage />} />
           <Route path="events" element={<AdminEventsPage />} />
+          <Route path="ceremony-registrations" element={<AdminCeremonyRegistrationsPage />} />
+          <Route path="award-nominations" element={<AdminAwardNominationsPage />} />
           <Route path="events/new" element={<AdminNewEventPage />} />
           <Route path="events/:id/edit" element={<AdminEditEventPage />} />
           <Route path="events/:id" element={<AdminEditEventPage />} />

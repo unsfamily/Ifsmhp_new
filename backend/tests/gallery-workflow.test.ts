@@ -283,6 +283,19 @@ describe('Bulk media status', () => {
 });
 
 describe('Gallery subcategory relationships', () => {
+  it('lists subcategories in display order', async () => {
+    const cat = await category('Order');
+    for (const name of ['Coaching', 'Convocation', 'Event 2025', 'Lab Visit', 'NASA']) await subcategory(cat.id, name);
+    const saved = await prisma.gallerySubcategory.findMany({ where: { categoryId: cat.id } });
+    const order = ['Event 2025', 'NASA', 'Convocation', 'Lab Visit', 'Coaching'];
+    for (const [index, name] of order.entries()) {
+      await prisma.gallerySubcategory.update({ where: { id: saved.find((row) => row.name === name)!.id }, data: { displayOrder: index + 1 } });
+    }
+    const listed = await as('get', `${base}/subcategories`).query({ categoryId: cat.id, limit: 20 });
+    expect(listed.status, JSON.stringify(listed.body)).toBe(200);
+    expect(listed.body.data.items.map((item: { name: string }) => item.name)).toEqual(order);
+  });
+
   it('requires admin access, validates names and parents, and preserves mappings when renamed', async () => {
     const a = await category(), b = await category('Two');
     expect((await request(app).get(`${base}/subcategories`)).status).toBe(401);
