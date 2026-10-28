@@ -46,11 +46,13 @@ const professionalTypes = [
   'professor',
   'Lecturer', 
   'Therapist',
-  'Practitioner in alternative medicine (AYUSH)',
+  'Practitioner in AYUSH',
   'Social Worker',
   'Doctoral Candidate',
   'Academic Researcher',
   'Mental Health Professional',
+  'Public Servant',
+  'Physical Education',
   'Others',
 ];
 
