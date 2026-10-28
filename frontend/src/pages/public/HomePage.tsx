@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Users,
   HeartHandshake,
@@ -22,15 +22,11 @@ import {
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
 import GallerySection from '../../components/gallery/GallerySection';
+import { homeCarouselImageUrl, publicApi } from '../../api/public';
 
-import bannerCommunity from '../../assets/images/slide_01.jpg';
-import bannerCommunityWebp from '../../assets/images/slide_01.webp';
-import bannerSymposium from '../../assets/images/slide_02.jpg';
-import bannerSymposiumWebp from '../../assets/images/slide_02.webp';
-import bannerAwards from '../../assets/images/slide_03.jpg';
-import bannerAwardsWebp from '../../assets/images/slide_03.webp';
-import bannerReviews from '../../assets/images/slide_04.jpg';
-import bannerReviewsWebp from '../../assets/images/slide_04.webp';
+import ceremonySparks from '../../assets/images/carousel/laureates-conclave-01.jpg';
+import ceremonyCertificates from '../../assets/images/carousel/laureates-conclave-02.jpg';
+import ceremonyGroup from '../../assets/images/carousel/laureates-conclave-03.jpg';
 import logoImg from '../../assets/images/logo.webp';
 
 const stats = [
@@ -98,8 +94,6 @@ interface HomeBannerSlide {
   lead: string;
   chips: Array<{ label: string; value?: string }>;
   gradientOverlay: string;
-  bgImage: string;
-  bgImageWebp: string;
   ctas: Array<{
     to: string;
     label: string;
@@ -120,9 +114,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
       { label: 'Across', value: '14 countries' },
       { label: '1,000 target', value: 'by 2027' },
     ],
-    gradientOverlay: 'from-forum-950/85 via-forum-900/65 to-forum-700/35',
-    bgImage: bannerCommunity,
-    bgImageWebp: bannerCommunityWebp,
+    gradientOverlay: 'from-forum-950/75 via-forum-950/30 to-transparent',
     ctas: [
       { to: '/register', label: 'Become a Member', variant: 'primary', icon: ArrowRight },
       { to: '/research', label: 'View Published Research', variant: 'outline', icon: FileText },
@@ -139,9 +131,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
       { label: 'Venue', value: 'India' },
       { label: '3 tracks', value: '9 keynotes' },
     ],
-    gradientOverlay: 'from-forum-950/80 via-forum-800/60 to-slateteal-900/40',
-    bgImage: bannerSymposium,
-    bgImageWebp: bannerSymposiumWebp,
+    gradientOverlay: 'from-forum-950/75 via-forum-900/28 to-transparent',
     ctas: [
       { to: '/events', label: 'View Event Programme', variant: 'primary', icon: ArrowRight },
       { to: '/#gallery-section', label: 'Browse Event Gallery', variant: 'outline', icon: Sparkles },
@@ -158,9 +148,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
       { label: 'Categories', value: '4 prizes' },
       { label: 'Portraits', value: '11 curated' },
     ],
-    gradientOverlay: 'from-brass-950/80 via-brass-900/55 to-forum-950/40',
-    bgImage: bannerAwards,
-    bgImageWebp: bannerAwardsWebp,
+    gradientOverlay: 'from-forum-950/70 via-brass-950/25 to-transparent',
     ctas: [
       { to: '/product-reviews', label: 'Read Awardee Citations', variant: 'primary', icon: ArrowRight },
       { to: '/#gallery-section', label: 'View Awards Gallery', variant: 'outline', icon: Sparkles },
@@ -177,9 +165,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
       { label: 'This quarter', value: '15 new reviews' },
       { label: 'Disclosures', value: '100% declared' },
     ],
-    gradientOverlay: 'from-slateteal-950/80 via-forum-900/55 to-forum-950/40',
-    bgImage: bannerReviews,
-    bgImageWebp: bannerReviewsWebp,
+    gradientOverlay: 'from-forum-950/75 via-slateteal-950/25 to-transparent',
     ctas: [
       { to: '/product-reviews', label: 'Browse Expert Reviews', variant: 'primary', icon: ArrowRight },
       { to: '/membership', label: 'Become a Reviewer', variant: 'outline', icon: BookOpen },
@@ -187,32 +173,84 @@ const HOME_BANNERS: HomeBannerSlide[] = [
   },
 ];
 
+interface CarouselPhoto {
+  id: string;
+  src: string;
+  alt: string;
+}
+
+const BUILTIN_CAROUSEL: CarouselPhoto[] = [
+  {
+    id: 'laureates-conclave-01',
+    src: ceremonySparks,
+    alt: 'Laureates on stage at the International Laureates Recognition Conclave 2025, with ceremonial sparks',
+  },
+  {
+    id: 'laureates-conclave-02',
+    src: ceremonyCertificates,
+    alt: 'Award recipients holding certificates at the Impact Bharath conclave',
+  },
+  {
+    id: 'laureates-conclave-03',
+    src: ceremonyGroup,
+    alt: 'Group photograph of the International Laureates Recognition Conclave 2025',
+  },
+];
+
+function useCarouselPhotos() {
+  const [photos, setPhotos] = useState<CarouselPhoto[] | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    publicApi.homeCarousel(controller.signal).then(items => {
+      if (controller.signal.aborted) return;
+      setPhotos(items.map(item => ({
+        id: item.id,
+        src: homeCarouselImageUrl(item.imageUrl),
+        alt: item.altText || 'IFSMHP event photograph',
+      })));
+    }).catch(() => {
+      if (!controller.signal.aborted) setPhotos([]);
+    });
+    return () => controller.abort();
+  }, []);
+  return photos && photos.length ? photos : BUILTIN_CAROUSEL;
+}
+
 const TRIANGLE_SVG =
   "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")";
 
 export default function HomePage() {
+  const photos = useCarouselPhotos();
+  const slides = useMemo(() => photos.map((photo, index) => {
+    const effect = HOME_BANNERS[index % HOME_BANNERS.length]!;
+    return { ...effect, id: photo.id, bgImage: photo.src, alt: photo.alt };
+  }), [photos]);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [bannerHover, setBannerHover] = useState(false);
   const [loadedSlides, setLoadedSlides] = useState<number[]>(() => [0, 1]);
 
   useEffect(() => {
-    const upcoming = (bannerIndex + 1) % HOME_BANNERS.length;
+    setBannerIndex(index => index % slides.length);
+  }, [slides.length]);
+
+  useEffect(() => {
+    const upcoming = (bannerIndex + 1) % slides.length;
     setLoadedSlides((current) => {
       if (current.includes(bannerIndex) && current.includes(upcoming)) return current;
       return Array.from(new Set([...current, bannerIndex, upcoming]));
     });
-  }, [bannerIndex]);
+  }, [bannerIndex, slides.length]);
 
   useEffect(() => {
-    if (bannerHover) return;
+    if (bannerHover || slides.length < 2) return;
     const t = window.setInterval(() => {
-      setBannerIndex((i) => (i + 1) % HOME_BANNERS.length);
+      setBannerIndex((i) => (i + 1) % slides.length);
     }, 6200);
     return () => window.clearInterval(t);
-  }, [bannerHover]);
+  }, [bannerHover, slides.length]);
 
-  const goPrev = () => setBannerIndex((i) => (i - 1 + HOME_BANNERS.length) % HOME_BANNERS.length);
-  const goNext = () => setBannerIndex((i) => (i + 1) % HOME_BANNERS.length);
+  const goPrev = () => setBannerIndex((i) => (i - 1 + slides.length) % slides.length);
+  const goNext = () => setBannerIndex((i) => (i + 1) % slides.length);
 
   return (
     <>
@@ -240,29 +278,27 @@ export default function HomePage() {
         onBlur={() => setBannerHover(false)}
       >
         <div className="relative h-[560px] sm:h-[520px] lg:h-[620px]">
-          {HOME_BANNERS.map((slide, i) => {
+          {slides.map((slide, i) => {
             const active = i === bannerIndex;
             return (
               <div
                 key={slide.id}
                 id={`home-banner-slide-${slide.id}`}
                 aria-roledescription="slide"
-                aria-label={`${i + 1} of ${HOME_BANNERS.length}: ${slide.eyebrow.label}`}
+                aria-label={`${i + 1} of ${slides.length}: ${slide.alt}`}
                 aria-hidden={!active}
                 className={`absolute inset-0 bg-forum-800 transition-opacity duration-700 ease-in-out ${active ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
               >
                 {loadedSlides.includes(i) ? (
-                  <picture>
-                    <source srcSet={slide.bgImageWebp} type="image/webp" />
-                    <img
-                      src={slide.bgImage}
-                      alt=""
-                      className="absolute inset-0 h-full w-full object-cover"
-                      decoding="async"
-                      fetchPriority={i === bannerIndex ? 'high' : 'low'}
-                    />
-                  </picture>
+                  <img
+                    src={slide.bgImage}
+                    alt={slide.alt}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    decoding="async"
+                    fetchPriority={i === bannerIndex ? 'high' : 'low'}
+                  />
                 ) : null}
+                <div className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${slide.gradientOverlay}`} />
                 <div className="relative z-10 mx-auto grid h-full w-full max-w-7xl items-center px-4 pb-28 pt-24 sm:px-6 sm:pb-12 sm:pt-20 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] lg:gap-8 lg:px-8 lg:pb-16 lg:pt-20">
                   {/* <div className="relative max-w-xl pr-[104px] sm:pr-0">
                     <div className="absolute -inset-x-4 -inset-y-5 -z-10 rounded-2xl bg-forum-950/25 backdrop-blur-[2px]" aria-hidden />
@@ -363,7 +399,7 @@ export default function HomePage() {
         <div className="absolute bottom-4 left-0 right-0 z-20 flex items-center justify-center gap-3 px-4 sm:bottom-6 sm:justify-between sm:px-8 lg:px-12">
           <span className="hidden sm:block" aria-hidden="true" />
           <ol role="tablist" aria-label="Home banner slides" className="flex items-center gap-2">
-            {HOME_BANNERS.map((slide, i) => (
+            {slides.map((slide, i) => (
               <li key={slide.id}>
                 <button
                   role="tab"
@@ -379,7 +415,7 @@ export default function HomePage() {
             ))}
           </ol>
           <span className="hidden rounded-full border border-white/15 bg-forum-950/35 px-3 py-1 text-[11px] font-semibold text-white/90 backdrop-blur sm:inline-flex">
-            {bannerIndex + 1} / {HOME_BANNERS.length}
+            {bannerIndex + 1} / {slides.length}
           </span>
         </div>
       </section>

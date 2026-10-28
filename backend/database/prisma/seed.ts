@@ -65,6 +65,7 @@ async function clearDevelopmentData() {
   await prisma.emailVerificationToken.deleteMany();
   await prisma.passwordResetToken.deleteMany();
   await prisma.session.deleteMany();
+  await prisma.homeCarouselSlide.deleteMany();
   await prisma.fileObject.deleteMany();
   await prisma.memberIdSequence.deleteMany();
   await prisma.user.deleteMany();

@@ -72,6 +72,10 @@ export function publicationFileUrl(slugOrId: string, options: { inline?: boolean
   return `${baseURL}/public/publications/${encodeURIComponent(slugOrId)}/file${query}`;
 }
 
+export function homeCarouselImageUrl(path: string) {
+  return path.startsWith('http') ? path : `${baseURL}${path}`;
+}
+
 /** Resolves a DOI to its canonical landing page. */
 export function doiUrl(doi: string) {
   return `https://doi.org/${doi.replace(/^https?:\/\/doi\.org\//i, '')}`;
@@ -89,6 +93,8 @@ export const publicApi = {
   event: async (id: string) => (await apiClient.get<Envelope<{ event: PublicEventDetail }>>(`/public/events/${encodeURIComponent(id)}`)).data.data.event,
   eventCalendar: async (month: string) => (await apiClient.get<Envelope<PublicEventCalendar>>('/public/events/calendar', { params: { month } })).data.data,
   gallery: async (params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>('/public/gallery', { params })).data.data,
+  homeCarousel: async (signal?: AbortSignal) =>
+    (await apiClient.get<Envelope<{ items: Array<{ id: string; altText: string; displayOrder: number; imageUrl: string }> }>>('/public/home-carousel', { signal })).data.data.items,
   contact: async (payload: unknown) => (await apiClient.post<Envelope<unknown>>('/contact', payload)).data.data,
   registerCeremony: async (slug: string, payload: {
     fullName: string; email: string; phone: string; institution: string; designation?: string;

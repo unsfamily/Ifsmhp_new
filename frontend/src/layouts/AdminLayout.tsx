@@ -22,6 +22,7 @@ import {
   UserCircle,
   Clock,
   Images,
+  GalleryHorizontal,
   ChevronDown,
   Globe2,
   MessagesSquare,
@@ -95,6 +96,7 @@ const navSections: NavSection[] = [
       { to: '/admin/projects', label: 'Research Projects', icon: FolderKanban },
       { to: '/admin/publications', label: 'Publications', icon: FileText, badgeKey: 'publicationsQueue' },
       { to: '/admin/gallery', label: 'Media Gallery', icon: Images },
+      { to: '/admin/carousel', label: 'Home carousel', icon: GalleryHorizontal },
     ],
   },
   {
