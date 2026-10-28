@@ -280,27 +280,20 @@ export default function SecondInternationalAwardsPage() {
       </EvenSection>
 
       <EvenSection id="ceremony-cta">
-        <div className="relative mx-auto max-w-lg overflow-hidden rounded-2xl bg-gradient-to-r from-forum-950 via-forum-800 to-brass-600 p-5 text-center text-white shadow-[0_16px_36px_-16px_rgba(1,37,89,0.55),0_6px_16px_-8px_rgba(195,157,73,0.45)] sm:max-w-xl sm:p-7">
-          <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-brass-400/15 via-transparent to-brass-300/30" />
-          <div aria-hidden="true" className="absolute -left-10 -top-10 h-28 w-28 rounded-full border border-brass-400/30" />
-          <div aria-hidden="true" className="absolute -bottom-10 -right-8 h-32 w-32 rounded-full border border-brass-300/25" />
+        <div className="relative overflow-hidden rounded-2xl border border-paper-border bg-gradient-to-r from-forum-50 via-white to-brass-50 px-6 py-6 text-center shadow-[0_14px_32px_-18px_rgba(1,37,89,0.28)] sm:px-8 sm:py-7">
+          <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-forum-100/70 via-transparent to-brass-100/80" />
+          <div aria-hidden="true" className="absolute -left-12 -top-12 h-36 w-36 rounded-full border border-forum-200/80" />
+          <div aria-hidden="true" className="absolute -bottom-14 -right-10 h-40 w-40 rounded-full border border-brass-200/80" />
           <div className="relative">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-brass-500/25 text-brass-300 ring-1 ring-inset ring-brass-400/45">
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-forum-600 text-white shadow-sm shadow-forum-900/20">
               <Award className="h-5 w-5" aria-hidden="true" />
             </div>
-            <h2 className="mt-3 font-display text-2xl font-semibold text-white sm:text-[1.75rem]">Register your interest</h2>
-            <p className="mx-auto mt-2.5 max-w-sm text-sm leading-relaxed text-forum-100">
+            <h2 className="mt-3 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">Register your interest</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-ink-muted sm:text-base">
               Tell us you would like to attend on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}. This records interest and does not reserve admission.
             </p>
-            <div className="mt-5 flex justify-center">
-              <Button
-                id="ceremony-register-cta"
-                type="button"
-                size="lg"
-                variant="secondary"
-                className="!bg-gradient-to-r !from-brass-400 !via-brass-300 !to-brass-500 !text-forum-950 shadow-md shadow-brass-400/40 hover:!from-brass-300 hover:!via-brass-200 hover:!to-brass-400"
-                onClick={openRegistration}
-              >
+            <div className="mt-4 flex justify-center">
+              <Button id="ceremony-register-cta" type="button" size="lg" variant="primary" onClick={openRegistration}>
                 Register for the Ceremony
               </Button>
             </div>
