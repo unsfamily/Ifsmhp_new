@@ -168,13 +168,16 @@ export default function EventsPage() {
                     key={e.id}
                     className="group rounded-xl border border-paper-border bg-paper-raised shadow-sm hover:shadow-md transition-all overflow-hidden sm:flex"
                   >
-                    <div className="sm:w-28 shrink-0 bg-gradient-to-br from-forum-600 to-forum-900 p-5 text-white text-center flex sm:flex-col justify-center sm:justify-start items-center sm:items-stretch gap-3">
+                    <time
+                      dateTime={e.startsAt || e.date || undefined}
+                      className="sm:w-28 shrink-0 bg-gradient-to-br from-forum-600 to-forum-900 p-5 text-white text-center flex sm:flex-col justify-center sm:justify-start items-center sm:items-stretch gap-3"
+                    >
                       <div>
                         <span className="font-display text-3xl font-semibold block leading-none">{d.day}</span>
                         <span className="text-xs uppercase tracking-wider mt-1 block text-forum-100/70">{d.month}</span>
                       </div>
                       <span className="text-[11px] text-forum-100/50">{d.year}</span>
-                    </div>
+                    </time>
                     <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] p-5 sm:p-6">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant={typeBadge[e.type] ?? 'default'}>{e.type}</Badge>
