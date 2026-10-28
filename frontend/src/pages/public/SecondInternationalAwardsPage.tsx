@@ -171,21 +171,23 @@ export default function SecondInternationalAwardsPage() {
           </div>
           {organisingSecretary && (
             <div className={SECTION_GAP}>
-              <article className="grid overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
+              <article className="grid overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm sm:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
                 <img
                   src={yaseenShaikhPortrait}
                   alt={`${organisingSecretary.name}, ${organisingSecretary.role}, in NCC uniform`}
-                  className="h-56 w-full object-cover object-top sm:h-full"
+                  className="h-64 w-full object-cover object-top sm:h-full sm:min-h-[16rem]"
                 />
-                <div className="p-6 sm:p-8">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{organisingSecretary.role}</p>
-                  <h2 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{organisingSecretary.name}</h2>
-                  {organisingSecretary.tagline && <p className="mt-2 text-sm font-medium text-forum-900">{organisingSecretary.tagline}</p>}
-                  {organisingSecretary.affiliation && <p className="mt-3 text-sm leading-relaxed text-ink-muted">{organisingSecretary.affiliation}</p>}
-                  <div className="mt-5">
-                    <Button as="link" to={CEREMONY_INFORMATION_PATH} variant="outline">
-                      Organising committee profile
-                    </Button>
+                <div className="flex flex-col px-6 pb-6 pt-6 sm:px-8 sm:pb-8 sm:pt-8">
+                  <div className="mt-auto">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{organisingSecretary.role}</p>
+                    <h2 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{organisingSecretary.name}</h2>
+                    {organisingSecretary.tagline && <p className="mt-2 text-sm font-medium text-forum-900">{organisingSecretary.tagline}</p>}
+                    {organisingSecretary.affiliation && <p className="mt-3 text-sm leading-relaxed text-ink-muted">{organisingSecretary.affiliation}</p>}
+                    <div className="mt-5">
+                      <Button as="link" to={CEREMONY_INFORMATION_PATH} variant="outline">
+                        Organising committee profile
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -199,7 +201,7 @@ export default function SecondInternationalAwardsPage() {
 
       <EvenSection>
         <div className="max-w-2xl">
-          <h2 className="font-display text-3xl font-semibold text-forum-900">Ways to take part</h2>
+          <h2 className="font-display text-3xl font-semibold text-forum-900 pt-4">Ways to take part</h2>
           <p className="mt-4 text-base leading-relaxed text-ink-muted">
             Choose one participation type when you register. Each option records your interest. It does not confirm a place, a poster, or an award.
           </p>
@@ -278,20 +280,20 @@ export default function SecondInternationalAwardsPage() {
       </EvenSection>
 
       <EvenSection id="ceremony-cta">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-forum-900 via-forum-800 to-forum-950 p-8 text-center text-white shadow-[0_20px_48px_-18px_rgba(1,37,89,0.55),0_8px_20px_-10px_rgba(195,157,73,0.35)] sm:p-10">
-          <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-tr from-brass-500/10 via-transparent to-brass-400/15" />
-          <div aria-hidden="true" className="absolute -left-16 -top-16 h-48 w-48 rounded-full border border-brass-400/20" />
-          <div aria-hidden="true" className="absolute -bottom-20 -right-10 h-56 w-56 rounded-full border border-brass-400/15" />
+        <div className="relative overflow-hidden rounded-2xl border border-paper-border bg-gradient-to-r from-forum-50 via-white to-brass-50 px-6 py-6 text-center shadow-[0_14px_32px_-18px_rgba(1,37,89,0.28)] sm:px-8 sm:py-7">
+          <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-forum-100/70 via-transparent to-brass-100/80" />
+          <div aria-hidden="true" className="absolute -left-12 -top-12 h-36 w-36 rounded-full border border-forum-200/80" />
+          <div aria-hidden="true" className="absolute -bottom-14 -right-10 h-40 w-40 rounded-full border border-brass-200/80" />
           <div className="relative">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brass-500/15 text-brass-400 ring-1 ring-inset ring-brass-400/30">
-              <Award className="h-7 w-7" aria-hidden="true" />
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-forum-600 text-white shadow-sm shadow-forum-900/20">
+              <Award className="h-5 w-5" aria-hidden="true" />
             </div>
-            <h2 className="mt-5 font-display text-3xl font-semibold text-white sm:text-4xl">Register your interest</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-forum-100">
+            <h2 className="mt-3 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">Register your interest</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-ink-muted sm:text-base">
               Tell us you would like to attend on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}. This records interest and does not reserve admission.
             </p>
-            <div className="mt-8 flex justify-center">
-              <Button id="ceremony-register-cta" type="button" size="lg" variant="secondary" onClick={openRegistration}>
+            <div className="mt-4 flex justify-center">
+              <Button id="ceremony-register-cta" type="button" size="lg" variant="primary" onClick={openRegistration}>
                 Register for the Ceremony
               </Button>
             </div>
