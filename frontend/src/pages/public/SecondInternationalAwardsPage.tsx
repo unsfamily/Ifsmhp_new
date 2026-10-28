@@ -25,8 +25,8 @@ const participation = [
   },
 ];
 
-const SECTION_INNER = 'mx-auto max-w-6xl px-4 pb-8 sm:px-6';
-const SECTION_GAP = 'mt-8';
+const SECTION_INNER = 'mx-auto max-w-6xl px-4 pb-16 sm:px-6';
+const SECTION_GAP = 'mt-16';
 const [eventDay, ...eventMonthYear] = CEREMONY_EVENT_DATE.split(' ');
 const directionsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(CEREMONY_ADDRESS)}`;
 
@@ -183,7 +183,7 @@ export default function SecondInternationalAwardsPage() {
           {participation.map((item) => (
             <article
               key={item.title}
-              className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-paper-border bg-gradient-to-br from-white via-paper to-forum-50 p-6 shadow-[0_12px_28px_-16px_rgba(1,37,89,0.35)]"
+              className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-paper-border bg-gradient-to-br from-white via-paper to-forum-50 p-6 shadow-[0_12px_28px_-16px_rgba(1,37,89,0.35)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-18px_rgba(1,37,89,0.4)]"
             >
               <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-forum-700 via-brass-500 to-brass-400" />
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-forum-700 to-forum-900 text-brass-400 shadow-md shadow-forum-900/20">
@@ -198,7 +198,7 @@ export default function SecondInternationalAwardsPage() {
 
       <EvenSection bg="raised">
         <div className="grid items-stretch gap-6 lg:grid-cols-2 lg:gap-8">
-          <article className="rounded-2xl border border-paper-border bg-gradient-to-br from-white to-forum-50 p-6 shadow-[0_14px_32px_-18px_rgba(1,37,89,0.38)] sm:p-8">
+          <article className="rounded-2xl border border-paper-border bg-gradient-to-br from-white to-forum-50 p-6 shadow-[0_14px_32px_-18px_rgba(1,37,89,0.38)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_44px_-18px_rgba(1,37,89,0.42)] sm:p-8">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-forum-600 to-forum-900 text-white shadow-md shadow-forum-900/25">
               <UserRound className="h-5 w-5" aria-hidden="true" />
             </div>
@@ -210,7 +210,7 @@ export default function SecondInternationalAwardsPage() {
               {' '}remains on its own page.
             </p>
           </article>
-          <article className="rounded-2xl border border-brass-500/20 bg-gradient-to-br from-brass-50 via-white to-forum-50 p-6 shadow-[0_14px_32px_-18px_rgba(195,157,73,0.35)] sm:p-8">
+          <article className="rounded-2xl border border-brass-500/20 bg-gradient-to-br from-brass-50 via-white to-forum-50 p-6 shadow-[0_14px_32px_-18px_rgba(195,157,73,0.35)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_44px_-18px_rgba(195,157,73,0.4)] sm:p-8">
             <h2 className="font-display text-2xl font-semibold text-forum-900">Included in your registration</h2>
             <ul className="mt-5 space-y-3 text-sm leading-relaxed text-ink">
               <li className="flex gap-3 rounded-lg bg-white/90 px-4 py-3 shadow-sm ring-1 ring-paper-border">
