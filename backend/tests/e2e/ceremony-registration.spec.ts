@@ -127,8 +127,8 @@ test('opens the ceremony page from the menu and the form from its QR address', a
   await expect(page).toHaveURL(/\/awards\/second-international$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Second International IFSMHP Awards 2026' })).toBeVisible();
   const qr = page.locator('[data-registration-url]');
-  await expect(qr).toContainText('/awards/second-international/nominate');
-  await expect(qr).toHaveAttribute('data-registration-url', /\/awards\/second-international\/nominate$/);
+  await expect(qr).toContainText('https://www.ifsmhp.com/awards/second-international/nominate');
+  await expect(qr).toHaveAttribute('data-registration-url', 'https://www.ifsmhp.com/awards/second-international/nominate');
   await page.getByRole('link', { name: 'Open the award nomination form' }).click();
   await expect(page).toHaveURL(/\/awards\/second-international\/nominate$/);
   await expect(page.getByRole('heading', { name: 'Official nomination form' })).toBeVisible();

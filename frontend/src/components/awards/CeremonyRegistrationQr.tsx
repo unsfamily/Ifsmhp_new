@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { Link } from 'react-router-dom';
-import { CEREMONY_NOMINATE_PATH } from '../../domain/ceremonyRegistration';
+import { CEREMONY_NOMINATE_PATH, CEREMONY_NOMINATE_URL, CEREMONY_PUBLIC_ORIGIN } from '../../domain/ceremonyRegistration';
 
 export function ceremonyRegistrationUrl(path = CEREMONY_NOMINATE_PATH) {
-  if (typeof window === 'undefined') return path;
-  return `${window.location.origin}${path}`;
+  return `${CEREMONY_PUBLIC_ORIGIN}${path}`;
 }
 
 export default function CeremonyRegistrationQr() {
-  const url = ceremonyRegistrationUrl();
+  const url = CEREMONY_NOMINATE_URL;
   const hostRef = useRef<HTMLSpanElement>(null);
   const [ready, setReady] = useState(false);
 
