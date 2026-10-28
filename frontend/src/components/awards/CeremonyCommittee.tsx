@@ -8,43 +8,43 @@ const portraits: Record<NonNullable<CeremonyCommitteeMember['photoKey']>, string
 function MemberCard({ member, featured = false }: { member: CeremonyCommitteeMember; featured?: boolean }) {
   const photo = member.photoKey ? portraits[member.photoKey] : undefined;
   return (
-    <article className={`overflow-hidden rounded-2xl border border-paper-border bg-paper shadow-sm ${featured ? 'lg:grid lg:grid-cols-[minmax(0,0.42fr)_minmax(0,1fr)]' : 'p-6'}`}>
+    <article className={`overflow-hidden rounded-2xl border border-paper-border bg-paper shadow-sm ${featured ? 'lg:grid lg:grid-cols-[minmax(0,0.42fr)_minmax(0,1fr)]' : 'p-5'}`}>
       {photo && (
-        <figure className={featured ? 'bg-forum-950' : 'mb-5 overflow-hidden rounded-xl'}>
+        <figure className={featured ? 'relative min-h-[18rem] overflow-hidden bg-forum-950 lg:min-h-full' : 'mb-4 overflow-hidden rounded-xl'}>
           <img
             src={photo}
             alt={member.photoKey === 'yaseen-shaikh'
               ? `${member.name}, Organising Committee Secretary, in NCC uniform`
               : member.name}
-            className={featured ? 'h-full w-full object-cover object-top lg:min-h-[28rem]' : 'aspect-square w-full object-cover object-top'}
+            className={featured ? 'absolute inset-0 h-full w-full object-cover object-top' : 'aspect-square w-full object-cover object-top'}
           />
         </figure>
       )}
-      <div className={featured ? 'p-6 sm:p-8' : ''}>
+      <div className={featured ? 'p-5 sm:p-6' : ''}>
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{member.role}</p>
         <h3 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{member.name}</h3>
         {member.tagline && <p className="mt-2 text-sm font-medium text-forum-900">{member.tagline}</p>}
         <p className="mt-3 text-sm leading-relaxed text-ink-muted">{member.organisation}</p>
         {member.affiliation && <p className="mt-1 text-sm leading-relaxed text-ink-muted">{member.affiliation}</p>}
         {member.summary?.map((paragraph) => (
-          <p key={paragraph.slice(0, 48)} className="mt-4 text-sm leading-relaxed text-ink-muted">{paragraph}</p>
+          <p key={paragraph.slice(0, 48)} className="mt-3 text-sm leading-relaxed text-ink-muted">{paragraph}</p>
         ))}
         {member.highlights && member.highlights.length > 0 && (
-          <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {member.highlights.map((item) => (
-              <div key={item.label} className="rounded-xl bg-forum-50 px-3 py-3 ring-1 ring-paper-border">
+              <div key={item.label} className="rounded-xl bg-forum-50 px-3 py-2.5 ring-1 ring-paper-border">
                 <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">{item.label}</dt>
-                <dd className="mt-1 font-display text-2xl font-semibold text-forum-900">{item.value}</dd>
+                <dd className="mt-1 font-display text-xl font-semibold text-forum-900 sm:text-2xl">{item.value}</dd>
               </div>
             ))}
           </dl>
         )}
         {member.milestones && member.milestones.length > 0 && (
-          <div className="mt-8">
+          <div className="mt-6">
             <h4 className="font-display text-xl font-semibold text-forum-900">NCC milestones</h4>
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-3 space-y-2.5">
               {member.milestones.map((item) => (
-                <li key={item.title} className="rounded-xl border border-paper-border bg-paper-raised px-4 py-3">
+                <li key={item.title} className="rounded-xl border border-paper-border bg-paper-raised px-4 py-2.5">
                   <p className="font-medium text-forum-900">{item.title}</p>
                   <p className="mt-1 text-sm leading-relaxed text-ink-muted">{item.detail}</p>
                 </li>
@@ -53,7 +53,7 @@ function MemberCard({ member, featured = false }: { member: CeremonyCommitteeMem
           </div>
         )}
         {member.identifiers && member.identifiers.length > 0 && (
-          <ul className="mt-6 flex flex-wrap gap-2">
+          <ul className="mt-5 flex flex-wrap gap-2">
             {member.identifiers.map((item) => (
               <li key={item.label}>
                 {item.href ? (
@@ -77,9 +77,9 @@ export default function CeremonyCommittee({ members, variant = 'full' }: { membe
   if (!members.length) return null;
   if (variant === 'footer') {
     return (
-      <footer className="mt-12 border-t border-paper-border pt-6">
+      <footer className="mt-8 border-t border-paper-border pt-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">Organising committee</p>
-        <ul className="mt-4 grid gap-6 sm:grid-cols-2">
+        <ul className="mt-3 grid gap-4 sm:grid-cols-2">
           {members.map((member) => (
             <li key={`${member.role}-${member.name}`}>
               <p className="font-display text-lg font-semibold text-forum-900">{member.name}</p>
@@ -97,13 +97,13 @@ export default function CeremonyCommittee({ members, variant = 'full' }: { membe
 
   return (
     <section aria-labelledby="organising-committee-heading" className="bg-paper">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+      <div className="mx-auto max-w-6xl px-4 pb-8 pt-10 sm:px-6 lg:pb-10 lg:pt-12">
         <div className="max-w-3xl">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-700">Organiser</p>
           <h2 id="organising-committee-heading" className="mt-3 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">Organising committee</h2>
         </div>
         {named.length > 0 && (
-          <ul className="mt-8 grid gap-6 md:grid-cols-2">
+          <ul className="mt-6 grid gap-6 md:grid-cols-2">
             {named.map((member) => (
               <li key={`${member.role}-${member.name}`}>
                 <MemberCard member={member} />
@@ -111,7 +111,7 @@ export default function CeremonyCommittee({ members, variant = 'full' }: { membe
             ))}
           </ul>
         )}
-        <div className="mt-8 space-y-8">
+        <div className="mt-6 space-y-6">
           {featured.map((member) => (
             <MemberCard key={`${member.role}-${member.name}`} member={member} featured />
           ))}

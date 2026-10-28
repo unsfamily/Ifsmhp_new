@@ -22,7 +22,7 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
 
   return (
     <section id="commemorative-awards" aria-labelledby="commemorative-awards-heading" className="bg-paper-raised">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+      <div className="mx-auto max-w-6xl px-4 pb-14 pt-8 sm:px-6 lg:pb-16 lg:pt-10">
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center rounded-full bg-brass-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-700 ring-1 ring-inset ring-brass-500/20">
@@ -32,11 +32,11 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
               <time className="text-sm font-medium text-forum-900">{programme.date}</time>
             )}
           </div>
-          <h2 id="commemorative-awards-heading" className="mt-5 font-display text-3xl font-semibold tracking-tight text-forum-900 sm:text-4xl">
+          <h2 id="commemorative-awards-heading" className="mt-4 font-display text-3xl font-semibold tracking-tight text-forum-900 sm:text-4xl">
             {programme.title || 'Commemorative awards'}
           </h2>
-          {programme.reference && <p className="mt-3 text-sm font-medium text-forum-900">{programme.reference}</p>}
-          {programme.notice && <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink-muted">{programme.notice}</p>}
+          {programme.reference && <p className="mt-2 text-sm font-medium text-forum-900">{programme.reference}</p>}
+          {programme.notice && <p className="mt-3 max-w-3xl text-base leading-relaxed text-ink-muted">{programme.notice}</p>}
           {!hasGroups && (
             <p className="mt-4 text-base leading-relaxed text-ink-muted">
               Award names will be listed here by discipline.
