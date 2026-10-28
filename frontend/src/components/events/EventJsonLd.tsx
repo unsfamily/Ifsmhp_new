@@ -13,8 +13,8 @@ function safeJsonLd(value: unknown) {
 export function EventJsonLd({ events }: { events: EventLike[] }) {
   const json = useMemo(() => {
     if (!events.length) return null;
-    const payload = events.length === 1 ? toSchemaOrgEvent(events[0]) : events.map((event) => toSchemaOrgEvent(event));
-    return safeJsonLd(payload);
+    if (events.length === 1) return safeJsonLd(toSchemaOrgEvent(events[0]!));
+    return safeJsonLd(events.map((event) => toSchemaOrgEvent(event)));
   }, [events]);
 
   if (!json) return null;
