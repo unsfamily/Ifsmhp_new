@@ -16,7 +16,7 @@ const MAX_BYTES = 15 * 1024 * 1024;
 const PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const BUILTIN = [
   { src: ceremonyConclave01, label: 'Awardees close-up' },
-  { src: ceremonyConclave02, label: 'Plaque presentation' },
+  { src: ceremonyConclave02, label: 'Full stage' },
   { src: ceremonyConclave03, label: 'Conclave stage with sparks' },
 ];
 

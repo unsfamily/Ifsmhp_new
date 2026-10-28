@@ -190,8 +190,8 @@ const BUILTIN_CAROUSEL: CarouselPhoto[] = [
   {
     id: 'laureates-conclave-02',
     src: ceremonyConclave02,
-    alt: 'Certificate and plaque presentation at the Impact Bharath conclave',
-    focusPosition: '50% 36%',
+    alt: 'Laureates and guests on the full stage at the International Laureates Recognition Conclave 2025',
+    focusPosition: '50% 48%',
   },
   {
     id: 'laureates-conclave-03',
