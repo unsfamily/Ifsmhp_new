@@ -82,6 +82,11 @@ export type CeremonyProgramme = {
 };
 
 export const CEREMONY_EVENT_DATE = '26 December 2026';
+/** ISO-8601 with Asia/Kolkata offset — required for Schema.org / Google Event rich results. */
+export const CEREMONY_START_ISO = '2026-12-26T09:00:00+05:30';
+export const CEREMONY_END_ISO = '2026-12-26T18:00:00+05:30';
+export const CEREMONY_DATE_ISO = '2026-12-26';
+export const CEREMONY_PAGE_TITLE = 'Second International IFSMHP Awards 2026';
 export const CEREMONY_VENUE = 'A.R. Shaikh Assembly Hall (Azam Campus)';
 export const CEREMONY_ADDRESS = 'Azam Campus, 2390 K.B. Hidayatullah Road, New Modikhana, Camp, Pune, Maharashtra 411001';
 

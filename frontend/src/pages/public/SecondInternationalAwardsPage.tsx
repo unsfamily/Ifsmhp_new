@@ -5,7 +5,8 @@ import CeremonyRegistrationDialog from '../../components/awards/CeremonyRegistra
 import CeremonyRegistrationQr from '../../components/awards/CeremonyRegistrationQr';
 import PreviousAwardPhotos from '../../components/awards/PreviousAwardPhotos';
 import yaseenShaikhPortrait from '../../assets/images/awards/yaseen-ismail-shaikh.jpg';
-import { CEREMONY_ADDRESS, CEREMONY_EVENT_DATE, CEREMONY_VENUE, ceremonyProgramme } from '../../domain/ceremonyProgramme';
+import { AwardsCeremonyJsonLd } from '../../components/events/EventJsonLd';
+import { CEREMONY_ADDRESS, CEREMONY_DATE_ISO, CEREMONY_EVENT_DATE, CEREMONY_VENUE, ceremonyProgramme } from '../../domain/ceremonyProgramme';
 import { CEREMONY_INFORMATION_PATH, CEREMONY_INTEREST_NOTICE, CEREMONY_NOMINATE_PATH } from '../../domain/ceremonyRegistration';
 
 const organisingSecretary = ceremonyProgramme.committee?.find((member) => member.role === 'Organising Committee Secretary');
@@ -81,6 +82,7 @@ export default function SecondInternationalAwardsPage() {
 
   return (
     <>
+      <AwardsCeremonyJsonLd />
       <section ref={bannerRef} className="about-banner bg-paper border-b border-paper-border" aria-labelledby="ceremony-heading">
         <div aria-hidden="true" className="about-shape about-shape-blob-blue" style={{ top: '-90px', right: '-110px' }} />
         <div aria-hidden="true" className="about-shape about-shape-blob-gold hidden sm:block" style={{ bottom: '-80px', left: '-60px' }} />
@@ -109,7 +111,9 @@ export default function SecondInternationalAwardsPage() {
                 <span className="mt-[0.08em] block">IFSMHP Awards 2026</span>
               </h1>
               <p className="about-paragraph mt-7 max-w-2xl text-base leading-relaxed text-forum-900/80 sm:text-lg sm:leading-[1.75]">
-                The second international IFSMHP awards ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune. Nomination is separate from membership and does not guarantee selection.
+                The second international IFSMHP awards ceremony is on{' '}
+                <time dateTime={CEREMONY_DATE_ISO}>{CEREMONY_EVENT_DATE}</time>
+                {' '}at {CEREMONY_VENUE}, Pune. Nomination is separate from membership and does not guarantee selection.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button type="button" size="lg" onClick={openRegistration}>
@@ -130,13 +134,13 @@ export default function SecondInternationalAwardsPage() {
                   <CalendarDays className="h-4 w-4" aria-hidden="true" />
                   Date and venue
                 </h2>
-                <p className="relative mt-4 flex items-end gap-4">
+                <time dateTime={CEREMONY_DATE_ISO} className="relative mt-4 flex items-end gap-4">
                   <span className="font-display text-6xl font-semibold leading-none text-brass-400">{eventDay}</span>
                   <span className="pb-1 text-lg font-medium leading-tight">
                     {eventMonthYear[0]}
                     <span className="block text-forum-100">{eventMonthYear.slice(1).join(' ')}</span>
                   </span>
-                </p>
+                </time>
               </div>
               <dl className="divide-y divide-paper-border px-6 sm:px-8">
                 <div className="flex gap-4 py-5">

@@ -20,6 +20,7 @@ import Badge from '../../components/common/Badge';
 import { publicApi } from '../../api/public';
 import { usePolledApiData } from '../../hooks/usePolledApiData';
 import { EventListState, EventPagination, EventRegistration, formatEventDate as formatDate, resourceKinds } from '../../components/events/PublicEventControls';
+import { EventJsonLd } from '../../components/events/EventJsonLd';
 import PublicEventDetails from '../../components/events/PublicEventDetails';
 
 const typeBadge: Record<string, 'default' | 'success' | 'warning' | 'info'> = {
@@ -75,6 +76,7 @@ export default function EventsPage() {
 
   return (
     <>
+      <EventJsonLd events={upcomingEvents} />
       <section
         ref={bannerRef}
         className="about-banner bg-paper border-b border-paper-border"

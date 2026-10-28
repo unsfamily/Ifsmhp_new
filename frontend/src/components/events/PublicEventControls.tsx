@@ -9,10 +9,39 @@ export function formatEventDate(value: string | null, settings: PublicSettings |
   const date = new Date(`${value}T00:00:00Z`);
   return { day: date.toLocaleDateString(settings?.locale ?? 'en-GB', { day: '2-digit', timeZone: 'UTC' }), month: date.toLocaleDateString(settings?.locale ?? 'en-GB', { month: 'short', timeZone: 'UTC' }), year: date.toLocaleDateString(settings?.locale ?? 'en-GB', { year: 'numeric', timeZone: 'UTC' }), full: formatConfiguredDate(date, settings, 'UTC') };
 }
+const registerClasses =
+  'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors duration-150 bg-forum-600 text-white hover:bg-forum-700 shadow-sm px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-600 focus-visible:ring-offset-2 focus-visible:ring-offset-paper';
+
 export function EventRegistration({ event }: { event: PublicEvent }) {
   if (event.past) return null;
-  return event.registrationRequired && event.externalUrl ? <Button as="link" to={event.externalUrl} target="_blank" rel="noopener noreferrer" size="sm"><Calendar className="h-4 w-4" />Register</Button>
-    : <Button size="sm" disabled title={event.registrationRequired ? 'The organizer has not supplied a registration link.' : 'This event does not require registration.'}><Calendar className="h-4 w-4" />{event.registrationRequired ? 'Registration unavailable' : 'No registration required'}</Button>;
+  if (event.registrationRequired && event.externalUrl) {
+    const absolute = /^https?:\/\//i.test(event.externalUrl);
+    if (absolute) {
+      return (
+        <a href={event.externalUrl} target="_blank" rel="noopener noreferrer" className={registerClasses}>
+          <Calendar className="h-4 w-4" aria-hidden="true" />
+          Register
+          <span className="sr-only">(opens in a new tab)</span>
+        </a>
+      );
+    }
+    return (
+      <Button as="link" to={event.externalUrl} size="sm">
+        <Calendar className="h-4 w-4" />
+        Register
+      </Button>
+    );
+  }
+  return (
+    <Button
+      size="sm"
+      disabled
+      title={event.registrationRequired ? 'The organizer has not supplied a registration link.' : 'This event does not require registration.'}
+    >
+      <Calendar className="h-4 w-4" />
+      {event.registrationRequired ? 'Registration unavailable' : 'No registration required'}
+    </Button>
+  );
 }
 export function EventListState({ loading, error, empty, retry, label }: { loading: boolean; error: string | null; empty: boolean; retry: () => void; label: string }) {
   if (error) return <div role="alert" className="rounded-lg border border-paper-border bg-paper-raised p-5 text-sm text-ink-muted">{error}<Button onClick={retry} variant="outline" size="sm" className="ml-3"><RefreshCw className="h-4 w-4" />Retry {label}</Button></div>;
