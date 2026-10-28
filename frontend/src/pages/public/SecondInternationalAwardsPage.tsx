@@ -169,9 +169,6 @@ export default function SecondInternationalAwardsPage() {
               </div>
             </aside>
           </div>
-          <div className={SECTION_GAP}>
-            <PreviousAwardPhotos />
-          </div>
           {organisingSecretary && (
             <div className={SECTION_GAP}>
               <article className="grid overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
@@ -194,6 +191,9 @@ export default function SecondInternationalAwardsPage() {
               </article>
             </div>
           )}
+          <div className={SECTION_GAP}>
+            <PreviousAwardPhotos />
+          </div>
         </div>
       </section>
 
