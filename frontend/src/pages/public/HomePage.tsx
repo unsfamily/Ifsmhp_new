@@ -295,7 +295,7 @@ export default function HomePage() {
         onFocus={() => setBannerHover(true)}
         onBlur={() => setBannerHover(false)}
       >
-        <div className="relative h-[560px] sm:h-[540px] lg:h-[682px]">
+        <div className="relative h-[540px] sm:h-[520px] lg:h-[640px]">
           {slides.map((slide, i) => {
             const active = i === bannerIndex;
             return (
@@ -309,36 +309,39 @@ export default function HomePage() {
               >
                 {loadedSlides.includes(i) ? (
                   <>
-                    <img
-                      src={slide.bgImage}
-                      alt=""
+                    <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-55 blur-2xl saturate-150"
-                      decoding="async"
+                      className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_75%_85%_at_50%_50%,#074263_0%,#022552_58%,#011432_100%)]"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <img
+                        src={slide.bgImage}
+                        alt={slide.alt}
+                        width={1024}
+                        height={682}
+                        style={{
+                          WebkitMaskImage:
+                            'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.22) 8%, rgba(0,0,0,0.68) 18%, black 27%, black 73%, rgba(0,0,0,0.68) 82%, rgba(0,0,0,0.22) 92%, transparent 100%)',
+                          maskImage:
+                            'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.22) 8%, rgba(0,0,0,0.68) 18%, black 27%, black 73%, rgba(0,0,0,0.68) 82%, rgba(0,0,0,0.22) 92%, transparent 100%)',
+                        }}
+                        className="block h-full w-auto max-w-none select-none"
+                        decoding="async"
+                        fetchPriority={i === bannerIndex ? 'high' : 'low'}
+                      />
+                    </div>
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(1,22,56,0.42)_0%,rgba(1,22,56,0)_26%,rgba(1,22,56,0)_74%,rgba(1,22,56,0.44)_100%)]"
                     />
                     <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(1,20,50,0.08)_0%,rgba(1,20,50,0.72)_88%)]"
+                      className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-forum-950/45 via-forum-950/12 to-transparent"
                     />
                     <CarouselAiBackdrop index={i} active={active} />
-                    <div className="absolute inset-0 flex items-center justify-center px-2 py-3 sm:px-6 lg:px-10">
-                      <div className="relative flex max-h-full max-w-full items-center justify-center overflow-hidden rounded-2xl border border-brass-300/35 bg-forum-950/40 shadow-[0_24px_70px_rgba(1,12,32,0.78),0_0_42px_rgba(128,214,228,0.18)] ring-1 ring-white/20">
-                        <img
-                          src={slide.bgImage}
-                          alt={slide.alt}
-                          width={1024}
-                          height={682}
-                          className="block h-auto max-h-[520px] w-auto max-w-full select-none sm:max-h-[500px] lg:max-h-[640px] lg:max-w-[1024px]"
-                          decoding="async"
-                          fetchPriority={i === bannerIndex ? 'high' : 'low'}
-                        />
-                        <CarouselStageAiOverlay active={active} />
-                      </div>
-                    </div>
                   </>
                 ) : null}
-                <div className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${slide.gradientOverlay}`} />
-                <div className="relative z-10 mx-auto grid h-full w-full max-w-7xl items-center px-4 pb-28 pt-24 sm:px-6 sm:pb-12 sm:pt-20 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] lg:gap-8 lg:px-8 lg:pb-16 lg:pt-20">
+                <div className="relative z-10 mx-auto grid h-full w-full max-w-[1920px] items-center px-4 pb-24 pt-24 sm:px-6 sm:pb-12 sm:pt-20 lg:grid-cols-[minmax(160px,225px)_1fr_minmax(180px,245px)] lg:gap-2 lg:px-14 lg:pb-14 lg:pt-20 xl:px-16">
                   {/* <div className="relative max-w-xl pr-[104px] sm:pr-0">
                     <div className="absolute -inset-x-4 -inset-y-5 -z-10 rounded-2xl bg-forum-950/25 backdrop-blur-[2px]" aria-hidden />
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-forum-950/40 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-brass-100 ring-1 ring-inset ring-white/20 backdrop-blur sm:text-[11px]">
@@ -408,9 +411,12 @@ export default function HomePage() {
                       })}
                     </div>
                   </div> */}
-                  <div className="relative max-w-xl pr-[104px] sm:pr-0">
-                    <h1 className="mt-5 text-xl font-semibold leading-[1.2] text-white drop-shadow-[0_2px_16px_rgba(1,20,40,0.85)] sm:mt-6 sm:max-w-4xl sm:text-5xl lg:text-4xl">International Forum for Scientists and Mental Health Professionals</h1>
+                  <div className="relative max-w-xs pr-[92px] sm:pr-0 lg:max-w-[205px] xl:max-w-[245px]">
+                    <h1 className="text-lg font-semibold leading-[1.24] text-white drop-shadow-[0_2px_18px_rgba(1,16,38,0.95)] sm:text-3xl lg:text-[20px] xl:text-[25px]">
+                      International Forum for Scientists and Mental Health Professionals
+                    </h1>
                   </div>
+                  <div className="hidden lg:block" aria-hidden="true" />
                   <BannerGlobe chips={slide.chips} active={active} />
                 </div>
               </div>
@@ -821,10 +827,10 @@ function BannerGlobe({
         </svg>
       </div>
 
-      <svg viewBox="0 0 520 430" className="home-globe-connectors" focusable="false">
-        <path d="M116 78 C164 78 166 122 205 145" />
-        <path d="M414 174 C376 174 360 186 329 198" />
-        <path d="M134 357 C176 333 183 298 216 277" />
+      <svg viewBox="0 0 260 360" className="home-globe-connectors" focusable="false">
+        <path d="M74 52 C104 68 112 94 128 116" />
+        <path d="M214 168 C196 168 186 172 172 178" />
+        <path d="M84 316 C108 292 118 268 134 246" />
       </svg>
 
       {chips.slice(0, 3).map((chip, index) => (
@@ -849,9 +855,9 @@ function BannerGlobe({
 const AI_CONSTELLATIONS = [
   {
     nodes: [
-      { x: 90, y: 120 }, { x: 220, y: 80 }, { x: 340, y: 175 }, { x: 185, y: 260 },
-      { x: 1260, y: 110 }, { x: 1410, y: 195 }, { x: 1510, y: 95 }, { x: 1365, y: 315 },
-      { x: 145, y: 495 }, { x: 295, y: 560 }, { x: 1320, y: 525 }, { x: 1485, y: 465 },
+      { x: 55, y: 115 }, { x: 165, y: 78 }, { x: 245, y: 175 }, { x: 120, y: 265 },
+      { x: 1355, y: 108 }, { x: 1465, y: 192 }, { x: 1545, y: 92 }, { x: 1405, y: 318 },
+      { x: 85, y: 495 }, { x: 215, y: 562 }, { x: 1375, y: 528 }, { x: 1525, y: 468 },
     ],
     edges: [
       [0, 1], [1, 2], [0, 3], [2, 3],
@@ -861,9 +867,9 @@ const AI_CONSTELLATIONS = [
   },
   {
     nodes: [
-      { x: 110, y: 95 }, { x: 255, y: 140 }, { x: 165, y: 285 }, { x: 310, y: 240 },
-      { x: 1290, y: 130 }, { x: 1450, y: 88 }, { x: 1390, y: 255 }, { x: 1515, y: 295 },
-      { x: 120, y: 520 }, { x: 270, y: 470 }, { x: 1345, y: 540 }, { x: 1490, y: 430 },
+      { x: 68, y: 92 }, { x: 190, y: 138 }, { x: 115, y: 282 }, { x: 235, y: 238 },
+      { x: 1365, y: 128 }, { x: 1505, y: 86 }, { x: 1435, y: 258 }, { x: 1548, y: 298 },
+      { x: 78, y: 522 }, { x: 205, y: 472 }, { x: 1388, y: 542 }, { x: 1522, y: 432 },
     ],
     edges: [
       [0, 1], [0, 2], [1, 3], [2, 3],
@@ -884,14 +890,14 @@ function CarouselAiBackdrop({ index, active }: { index: number; active: boolean 
       className="pointer-events-none absolute inset-0 h-full w-full"
     >
       <defs>
-        <radialGradient id={`ai-LeftGlow-${uid}`} cx="14%" cy="38%" r="48%">
-          <stop offset="0%" stopColor="#80d6e4" stopOpacity="0.42" />
-          <stop offset="55%" stopColor="#07516d" stopOpacity="0.16" />
+        <radialGradient id={`ai-LeftGlow-${uid}`} cx="11%" cy="42%" r="36%">
+          <stop offset="0%" stopColor="#80d6e4" stopOpacity="0.34" />
+          <stop offset="55%" stopColor="#07516d" stopOpacity="0.14" />
           <stop offset="100%" stopColor="#011432" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id={`ai-RightGlow-${uid}`} cx="86%" cy="52%" r="46%">
-          <stop offset="0%" stopColor="#e7b34b" stopOpacity="0.36" />
-          <stop offset="58%" stopColor="#07516d" stopOpacity="0.14" />
+        <radialGradient id={`ai-RightGlow-${uid}`} cx="89%" cy="50%" r="36%">
+          <stop offset="0%" stopColor="#e7b34b" stopOpacity="0.3" />
+          <stop offset="58%" stopColor="#07516d" stopOpacity="0.12" />
           <stop offset="100%" stopColor="#011432" stopOpacity="0" />
         </radialGradient>
         <linearGradient id={`ai-EdgeLine-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
@@ -904,10 +910,11 @@ function CarouselAiBackdrop({ index, active }: { index: number; active: boolean 
       <rect width="1600" height="682" fill={`url(#ai-LeftGlow-${uid})`} />
       <rect width="1600" height="682" fill={`url(#ai-RightGlow-${uid})`} />
 
-      <g opacity="0.24" stroke="#80d6e4" strokeWidth="0.8" fill="none">
-        <path d="M0 590 Q 400 540 800 590 T 1600 575" />
-        <path d="M0 630 Q 420 585 800 625 T 1600 615" />
-        <path d="M0 92 Q 420 138 800 96 T 1600 110" />
+      <g opacity="0.26" stroke="#80d6e4" strokeWidth="0.9" fill="none">
+        <path d="M0 595 Q 140 555 275 595" />
+        <path d="M1325 588 Q 1460 550 1600 582" />
+        <path d="M0 96 Q 135 132 270 98" />
+        <path d="M1330 104 Q 1465 138 1600 108" />
       </g>
 
       <g
@@ -937,47 +944,6 @@ function CarouselAiBackdrop({ index, active }: { index: number; active: boolean 
             />
           </g>
         ))}
-      </g>
-    </svg>
-  );
-}
-
-function CarouselStageAiOverlay({ active }: { active: boolean }) {
-  const uid = useId().replace(/:/g, '');
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 1024 682"
-      preserveAspectRatio="none"
-      className="pointer-events-none absolute inset-0 h-full w-full"
-    >
-      <defs>
-        <radialGradient id={`stage-top-light-${uid}`} cx="50%" cy="6%" r="58%">
-          <stop offset="0%" stopColor="#fff6d6" stopOpacity="0.28" />
-          <stop offset="45%" stopColor="#e7b34b" stopOpacity="0.1" />
-          <stop offset="100%" stopColor="#011432" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id={`stage-frame-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#80d6e4" stopOpacity="0.65" />
-          <stop offset="50%" stopColor="#e7b34b" stopOpacity="0.75" />
-          <stop offset="100%" stopColor="#80d6e4" stopOpacity="0.65" />
-        </linearGradient>
-      </defs>
-
-      <rect width="1024" height="682" fill={`url(#stage-top-light-${uid})`} />
-
-      <g stroke={`url(#stage-frame-${uid})`} strokeWidth="2" fill="none" opacity="0.85">
-        <path d="M14 42 V14 H42" />
-        <path d="M982 14 H1010 V42" />
-        <path d="M14 640 V668 H42" />
-        <path d="M982 668 H1010 V640" />
-      </g>
-
-      <g className={active ? 'home-globe-points' : ''} opacity="0.85">
-        <circle cx="88" cy="76" r="2.2" fill="#e7b34b" />
-        <circle cx="942" cy="84" r="2.4" fill="#80d6e4" />
-        <circle cx="156" cy="48" r="1.8" fill="#ffffff" />
-        <circle cx="868" cy="52" r="1.8" fill="#e7b34b" />
       </g>
     </svg>
   );

@@ -1087,8 +1087,8 @@
 /* Homepage hero network globe */
 .home-globe-visual {
   position: relative;
-  width: min(40vw, 520px);
-  height: 430px;
+  width: 260px;
+  height: 360px;
   justify-self: end;
   opacity: 0;
   transform: translateX(28px) scale(0.96);
@@ -1102,13 +1102,13 @@
 
 .home-globe-sphere {
   position: absolute;
-  left: 110px;
-  top: 62px;
+  left: 38px;
+  top: 72px;
   z-index: 2;
-  width: 300px;
-  height: 300px;
+  width: 190px;
+  height: 190px;
   border-radius: 9999px;
-  filter: drop-shadow(0 24px 40px rgb(1 37 89 / 42%));
+  filter: drop-shadow(0 20px 34px rgb(1 37 89 / 46%));
   animation: home-globe-float 6s ease-in-out infinite;
 }
 
@@ -1163,31 +1163,31 @@
 }
 
 .home-globe-orbit-one {
-  left: 86px;
-  top: 93px;
-  width: 350px;
-  height: 238px;
+  left: 20px;
+  top: 90px;
+  width: 226px;
+  height: 154px;
   transform: rotate(-14deg);
   animation: home-orbit-one 13s linear infinite;
 }
 
 .home-globe-orbit-one::after {
-  right: 38px;
-  top: 24px;
+  right: 26px;
+  top: 16px;
 }
 
 .home-globe-orbit-two {
-  left: 142px;
-  top: 43px;
-  width: 238px;
-  height: 338px;
+  left: 58px;
+  top: 56px;
+  width: 154px;
+  height: 220px;
   transform: rotate(26deg);
   animation: home-orbit-two 17s linear infinite reverse;
 }
 
 .home-globe-orbit-two::after {
-  bottom: 34px;
-  left: 24px;
+  bottom: 24px;
+  left: 16px;
 }
 
 .home-globe-connectors {
@@ -1221,14 +1221,14 @@
   position: absolute;
   z-index: 4;
   display: flex;
-  min-width: 126px;
+  min-width: 112px;
   align-items: center;
-  gap: 9px;
-  border: 1px solid rgb(255 255 255 / 18%);
+  gap: 8px;
+  border: 1px solid rgb(255 255 255 / 20%);
   border-radius: 12px;
-  background: rgb(1 37 89 / 58%);
-  padding: 9px 11px;
-  box-shadow: 0 12px 30px rgb(1 20 50 / 25%);
+  background: rgb(1 37 89 / 64%);
+  padding: 7px 10px;
+  box-shadow: 0 12px 30px rgb(1 20 50 / 28%);
   opacity: 0;
   transform: translateY(10px);
   backdrop-filter: blur(10px);
@@ -1240,17 +1240,17 @@
 
 .home-globe-label-1 {
   left: 0;
-  top: 50px;
+  top: 18px;
 }
 
 .home-globe-label-2 {
-  right: -4px;
-  top: 148px;
+  right: 0;
+  top: 144px;
 }
 
 .home-globe-label-3 {
-  left: 14px;
-  bottom: 42px;
+  left: 8px;
+  bottom: 22px;
 }
 
 .is-active .home-globe-label-2 {
