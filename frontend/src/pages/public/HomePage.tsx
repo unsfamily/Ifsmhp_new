@@ -184,20 +184,20 @@ const BUILTIN_CAROUSEL: CarouselPhoto[] = [
   {
     id: 'laureates-conclave-01',
     src: ceremonyConclave01,
-    alt: 'Awardees holding plaques at the International Laureates Recognition Conclave 2025',
-    focusPosition: '50% 36%',
+    alt: 'Laureates holding plaques on stage at the International Laureates Recognition Conclave 2025',
+    focusPosition: '50% 42%',
   },
   {
     id: 'laureates-conclave-02',
     src: ceremonyConclave02,
-    alt: 'Laureates and guests on the full stage at the International Laureates Recognition Conclave 2025',
-    focusPosition: '50% 48%',
+    alt: 'Certificate presentation at the International Laureates Recognition Conclave 2025',
+    focusPosition: '50% 40%',
   },
   {
     id: 'laureates-conclave-03',
     src: ceremonyConclave03,
-    alt: 'Laureates on stage at the International Laureates Recognition Conclave 2025 with ceremonial sparks',
-    focusPosition: '50% 42%',
+    alt: 'Laureates and guests on the full stage at the International Laureates Recognition Conclave 2025',
+    focusPosition: '50% 48%',
   },
 ];
 
