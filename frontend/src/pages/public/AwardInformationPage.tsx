@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import Button from '../../components/common/Button';
 import CeremonyAwardProgramme from '../../components/awards/CeremonyAwardProgramme';
+import CeremonyCommittee from '../../components/awards/CeremonyCommittee';
 import GalleryMedia from '../../components/gallery/GalleryMedia';
 import { apiClient } from '../../api/client';
 import { CEREMONY_ADDRESS, CEREMONY_EVENT_DATE, CEREMONY_VENUE, ceremonyProgramme } from '../../domain/ceremonyProgramme';
@@ -54,47 +55,51 @@ export default function AwardInformationPage() {
   return (
     <>
       <section className="border-b border-paper-border bg-paper" aria-labelledby="award-information-heading">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+        <div className="mx-auto max-w-6xl px-4 pb-10 pt-12 sm:px-6 lg:pb-12 lg:pt-14">
           <Link to={CEREMONY_PAGE_PATH} className="inline-flex items-center gap-1.5 text-sm font-medium text-forum-700 hover:text-forum-900">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Second International Awards Ceremony
           </Link>
-          <h1 id="award-information-heading" className="mt-6 max-w-3xl font-display text-4xl font-semibold tracking-tight text-forum-900 sm:text-5xl">
+          <h1 id="award-information-heading" className="mt-5 max-w-3xl font-display text-4xl font-semibold tracking-tight text-forum-900 sm:text-5xl">
             2nd International IFSMHP Awards 2026
           </h1>
-          <p className="mt-5 max-w-3xl text-base leading-relaxed text-ink-muted sm:text-lg">
+          <p className="mt-4 max-w-3xl text-base leading-relaxed text-ink-muted sm:text-lg">
             {ceremonyProgramme.totalLabel}. The ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune.
           </p>
-          <div className="mt-8">
+          <div className="mt-6">
             <Button as="link" to={CEREMONY_NOMINATE_PATH} size="lg">Submit a nomination</Button>
           </div>
         </div>
       </section>
 
       <section className="bg-paper" aria-labelledby="venue-heading">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:py-20">
-          <article className="rounded-2xl border border-paper-border bg-paper-raised p-6 shadow-sm sm:p-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-forum-600 text-white">
-              <MapPin className="h-6 w-6" aria-hidden="true" />
+        <div className="mx-auto grid max-w-6xl items-start gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:py-12">
+          <article className="rounded-2xl border border-paper-border bg-paper-raised p-5 shadow-sm sm:p-6">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-forum-600 text-white">
+              <MapPin className="h-5 w-5" aria-hidden="true" />
             </div>
-            <h2 id="venue-heading" className="mt-5 font-display text-3xl font-semibold text-forum-900">Venue</h2>
-            <p className="mt-4 font-medium text-forum-900">{CEREMONY_VENUE}</p>
+            <h2 id="venue-heading" className="mt-4 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">Venue</h2>
+            <p className="mt-3 font-medium text-forum-900">{CEREMONY_VENUE}</p>
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">{CEREMONY_ADDRESS}</p>
-            <p className="mt-4 text-sm font-medium text-forum-900">{CEREMONY_EVENT_DATE}</p>
+            <p className="mt-3 text-sm font-medium text-forum-900">{CEREMONY_EVENT_DATE}</p>
           </article>
-          <article className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-50 to-paper p-6 shadow-sm sm:p-8">
-            <h2 className="font-display text-3xl font-semibold text-forum-900">What these honours recognise</h2>
-            <ul className="mt-5 space-y-3 text-sm leading-relaxed text-ink">
+          <article className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-50 to-paper p-5 shadow-sm sm:p-6">
+            <h2 className="font-display text-2xl font-semibold text-forum-900 sm:text-3xl">What these honours recognise</h2>
+            <ul className="mt-4 space-y-2.5 text-sm leading-relaxed text-ink">
               {ceremonyProgramme.divisions.map((division) => (
-                <li key={division.title} className="rounded-lg bg-white/80 px-4 py-3 ring-1 ring-paper-border">
+                <li key={division.title} className="rounded-lg bg-white/80 px-4 py-2.5 ring-1 ring-paper-border">
                   {division.level}: {division.title} — {division.description}.
                 </li>
               ))}
-              <li className="rounded-lg bg-white/80 px-4 py-3 ring-1 ring-paper-border">Nomination does not guarantee selection and is subject to independent review.</li>
+              <li className="rounded-lg bg-white/80 px-4 py-2.5 ring-1 ring-paper-border">Nomination does not guarantee selection and is subject to independent review.</li>
             </ul>
           </article>
         </div>
       </section>
+
+      {ceremonyProgramme.committee && ceremonyProgramme.committee.length > 0 && (
+        <CeremonyCommittee members={ceremonyProgramme.committee} />
+      )}
 
       <CeremonyAwardProgramme programme={ceremonyProgramme} />
 

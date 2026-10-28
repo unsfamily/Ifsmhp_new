@@ -45,10 +45,17 @@ export type CeremonyMedal = {
   name: string;
 };
 
-export type CeremonyAttribution = {
+export type CeremonyCommitteeMember = {
   name: string;
   role: string;
   organisation: string;
+  affiliation?: string;
+  tagline?: string;
+  photoKey?: 'yaseen-shaikh';
+  summary?: string[];
+  highlights?: { label: string; value: string }[];
+  milestones?: { title: string; detail: string }[];
+  identifiers?: { label: string; href?: string }[];
 };
 
 export type CeremonyProgramme = {
@@ -71,7 +78,7 @@ export type CeremonyProgramme = {
   evaluation?: AwardEvaluationRow[];
   qualifyingScores?: string;
   selectionNote?: string;
-  attribution?: CeremonyAttribution;
+  committee?: CeremonyCommitteeMember[];
 };
 
 export const CEREMONY_EVENT_DATE = '26 December 2026';
@@ -205,9 +212,50 @@ export const ceremonyProgramme: CeremonyProgramme = {
   ],
   qualifyingScores: 'Recommended minimum qualifying scores: Distinguished Fellows 80, Excellence 75, and Rising Achievers 70.',
   selectionNote: 'Nominations are screened for eligibility, verified, and reviewed by independent assessors. The committee may request further evidence, reject an inaccurate submission, or withhold an award when the required standard is not met.',
-  attribution: {
-    name: 'Dr. Hemachandran Ravikumar',
-    role: 'Chief Advisor',
-    organisation: 'International Forum for Scientists and Mental Health Professionals (IFSMHP)',
-  },
+  committee: [
+    {
+      name: 'Dr. Hemachandran Ravikumar',
+      role: 'Chief Advisor',
+      organisation: 'International Forum for Scientists and Mental Health Professionals (IFSMHP)',
+    },
+    {
+      name: 'Lt. Dr. Yaseen Ismail Shaikh',
+      role: 'Organising Committee Secretary',
+      organisation: 'International Forum for Scientists and Mental Health Professionals (IFSMHP)',
+      affiliation: "MCE's Abeda Inamdar Senior College (Autonomous), Azam Campus, Pune",
+      tagline: 'Scientist | Researcher | Academician | NCC Officer | Mentor',
+      photoKey: 'yaseen-shaikh',
+      summary: [
+        "Lt. Dr. Yaseen Ismail Shaikh is a distinguished academician, scientist and interdisciplinary researcher, and Assistant Professor in the Department of Chemistry at MCE's Abeda Inamdar Senior College (Autonomous), Azam Campus, Pune. He also serves as Associate NCC Officer with the Army Wing of the 59 Maharashtra Battalion NCC, Pune, and as In-charge Director of Physical Education at the institution.",
+        'His research interests include nanomaterials, green and sustainable chemistry, bio-inspired nanoparticle synthesis, organic and heterocyclic chemistry, multicomponent reactions, computational chemistry, molecular docking, and biological applications of nanomaterials, including antimicrobial, environmental, veterinary and healthcare work.',
+        'He holds a Ph.D. in Chemistry from Savitribai Phule Pune University (2018), with an M.Sc. and M.Phil. in Chemistry, a B.Ed. and an MBA. He qualified CSIR-NET in 2011, securing the 28th rank among 784 candidates. He has taught in higher education since 2010 and at Abeda Inamdar Senior College since July 2017.',
+        'His scholarly record includes research publications, intellectual-property contributions, and the academic book Determination Potentiometric of Stability Constant Nicotinamide and Penicillamine (2024). Through teaching, research mentoring and NCC leadership, he works to connect scientific progress with education, sustainability and society.',
+      ],
+      highlights: [
+        { label: 'Chemistry papers', value: '48' },
+        { label: 'Papers beyond chemistry', value: '4' },
+        { label: 'Intellectual-property contributions', value: '4' },
+        { label: 'Conference abstracts', value: '37' },
+      ],
+      milestones: [
+        {
+          title: 'Republic Day Parade, New Delhi — January 2024',
+          detail: 'Two NCC cadets under his mentorship were selected to participate in the Republic Day Parade in New Delhi.',
+        },
+        {
+          title: "Prime Minister's Rally — January 2026",
+          detail: "One NCC cadet was selected for the Republic Day-related national-level Prime Minister's Rally.",
+        },
+        {
+          title: 'Youth Exchange Programme',
+          detail: 'Two NCC cadets were selected for international Youth Exchange Programmes, in Mauritius and Bhutan.',
+        },
+      ],
+      identifiers: [
+        { label: 'ORCID 0000-0002-3760-548X', href: 'https://orcid.org/0000-0002-3760-548X' },
+        { label: 'Scopus Author ID 37162213600' },
+        { label: 'Web of Science AAN-4175-2021' },
+      ],
+    },
+  ],
 };
