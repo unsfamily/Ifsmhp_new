@@ -177,15 +177,17 @@ export default function SecondInternationalAwardsPage() {
                   alt={`${organisingSecretary.name}, ${organisingSecretary.role}, in NCC uniform`}
                   className="h-64 w-full object-cover object-top sm:h-full sm:min-h-[16rem]"
                 />
-                <div className="flex flex-col justify-center p-6 sm:p-8">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{organisingSecretary.role}</p>
-                  <h2 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{organisingSecretary.name}</h2>
-                  {organisingSecretary.tagline && <p className="mt-2 text-sm font-medium text-forum-900">{organisingSecretary.tagline}</p>}
-                  {organisingSecretary.affiliation && <p className="mt-3 text-sm leading-relaxed text-ink-muted">{organisingSecretary.affiliation}</p>}
-                  <div className="mt-5">
-                    <Button as="link" to={CEREMONY_INFORMATION_PATH} variant="outline">
-                      Organising committee profile
-                    </Button>
+                <div className="flex flex-col px-6 pb-6 pt-6 sm:px-8 sm:pb-8 sm:pt-8">
+                  <div className="mt-auto">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{organisingSecretary.role}</p>
+                    <h2 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{organisingSecretary.name}</h2>
+                    {organisingSecretary.tagline && <p className="mt-2 text-sm font-medium text-forum-900">{organisingSecretary.tagline}</p>}
+                    {organisingSecretary.affiliation && <p className="mt-3 text-sm leading-relaxed text-ink-muted">{organisingSecretary.affiliation}</p>}
+                    <div className="mt-5">
+                      <Button as="link" to={CEREMONY_INFORMATION_PATH} variant="outline">
+                        Organising committee profile
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </article>
