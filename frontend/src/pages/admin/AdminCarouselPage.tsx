@@ -10,20 +10,14 @@ import { useAuth } from '../../context/AuthContext';
 import ceremonyConclave01 from '../../assets/images/carousel/laureates-conclave-01.jpg';
 import ceremonyConclave02 from '../../assets/images/carousel/laureates-conclave-02.jpg';
 import ceremonyConclave03 from '../../assets/images/carousel/laureates-conclave-03.jpg';
-import ceremonyConclave04 from '../../assets/images/carousel/laureates-conclave-04.jpg';
-import ceremonyConclave05 from '../../assets/images/carousel/laureates-conclave-05.jpg';
-import ceremonyConclave06 from '../../assets/images/carousel/laureates-conclave-06.jpg';
 
 const MAX_SLIDES = 12;
 const MAX_BYTES = 15 * 1024 * 1024;
 const PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const BUILTIN = [
-  { src: ceremonyConclave01, label: 'Conclave stage' },
-  { src: ceremonyConclave02, label: 'Awardees close-up' },
-  { src: ceremonyConclave03, label: 'Plaque presentation' },
-  { src: ceremonyConclave04, label: 'Ceremonial sparks' },
-  { src: ceremonyConclave05, label: 'Certificate presentation' },
-  { src: ceremonyConclave06, label: 'Group photograph' },
+  { src: ceremonyConclave01, label: 'Awardees close-up' },
+  { src: ceremonyConclave02, label: 'Plaque presentation' },
+  { src: ceremonyConclave03, label: 'Conclave stage with sparks' },
 ];
 
 function SlidePreview({ src, alt }: { src: string; alt: string }) {

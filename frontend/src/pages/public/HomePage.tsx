@@ -27,9 +27,6 @@ import { homeCarouselImageUrl, publicApi } from '../../api/public';
 import ceremonyConclave01 from '../../assets/images/carousel/laureates-conclave-01.jpg';
 import ceremonyConclave02 from '../../assets/images/carousel/laureates-conclave-02.jpg';
 import ceremonyConclave03 from '../../assets/images/carousel/laureates-conclave-03.jpg';
-import ceremonyConclave04 from '../../assets/images/carousel/laureates-conclave-04.jpg';
-import ceremonyConclave05 from '../../assets/images/carousel/laureates-conclave-05.jpg';
-import ceremonyConclave06 from '../../assets/images/carousel/laureates-conclave-06.jpg';
 import logoImg from '../../assets/images/logo.webp';
 
 const stats = [
@@ -187,37 +184,19 @@ const BUILTIN_CAROUSEL: CarouselPhoto[] = [
   {
     id: 'laureates-conclave-01',
     src: ceremonyConclave01,
-    alt: 'Laureates on stage at the International Laureates Recognition Conclave 2025 with ceremonial sparks',
-    focusPosition: '50% 42%',
+    alt: 'Awardees holding plaques at the International Laureates Recognition Conclave 2025',
+    focusPosition: '50% 36%',
   },
   {
     id: 'laureates-conclave-02',
     src: ceremonyConclave02,
-    alt: 'Awardees holding plaques at the International Laureates Recognition Conclave 2025',
-    focusPosition: '50% 34%',
+    alt: 'Certificate and plaque presentation at the Impact Bharath conclave',
+    focusPosition: '50% 36%',
   },
   {
     id: 'laureates-conclave-03',
     src: ceremonyConclave03,
-    alt: 'Certificate and plaque presentation at the Impact Bharath conclave',
-    focusPosition: '50% 34%',
-  },
-  {
-    id: 'laureates-conclave-04',
-    src: ceremonyConclave04,
-    alt: 'International Laureates Recognition Conclave 2025 stage group with ceremonial sparks',
-    focusPosition: '50% 42%',
-  },
-  {
-    id: 'laureates-conclave-05',
-    src: ceremonyConclave05,
-    alt: 'Honorees seated and standing with certificates at the Impact Bharath ceremony',
-    focusPosition: '50% 42%',
-  },
-  {
-    id: 'laureates-conclave-06',
-    src: ceremonyConclave06,
-    alt: 'Full stage group photograph at the International Laureates Recognition Conclave 2025',
+    alt: 'Laureates on stage at the International Laureates Recognition Conclave 2025 with ceremonial sparks',
     focusPosition: '50% 42%',
   },
 ];
@@ -318,8 +297,8 @@ export default function HomePage() {
                   <img
                     src={slide.bgImage}
                     alt={slide.alt}
-                    width={2048}
-                    height={1364}
+                    width={2560}
+                    height={1440}
                     style={{ objectPosition: slide.focusPosition }}
                     className="absolute inset-0 h-full w-full select-none object-cover"
                     decoding="async"
