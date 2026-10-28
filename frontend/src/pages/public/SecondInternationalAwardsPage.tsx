@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { Award, CalendarClock, Presentation, UserRound, Users } from 'lucide-react';
+import { ArrowRight, Award, CalendarDays, ExternalLink, MapPin, Presentation, UserRound, Users } from 'lucide-react';
 import Button from '../../components/common/Button';
 import CeremonyRegistrationDialog from '../../components/awards/CeremonyRegistrationDialog';
 import CeremonyRegistrationQr from '../../components/awards/CeremonyRegistrationQr';
@@ -25,15 +25,24 @@ const participation = [
   },
 ];
 
-const SECTION_INNER = 'mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-14';
-// Twice the section padding, so the page edges and the gap inside the banner match the gap between sections.
-const SECTION_GAP = 'mt-24 sm:mt-28';
-const PAGE_TOP = 'pt-24 sm:pt-28';
-const PAGE_BOTTOM = 'pb-24 sm:pb-28';
+const SECTION_INNER = 'mx-auto max-w-6xl px-4 pb-5 sm:px-6';
+const SECTION_GAP = 'mt-5';
+const [eventDay, ...eventMonthYear] = CEREMONY_EVENT_DATE.split(' ');
+const directionsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(CEREMONY_ADDRESS)}`;
 
-function EvenSection({ id, className = '', children }: { id?: string; className?: string; children: ReactNode }) {
+function EvenSection({
+  id,
+  bg = 'paper',
+  className = '',
+  children,
+}: {
+  id?: string;
+  bg?: 'paper' | 'raised';
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <section id={id} className="bg-paper">
+    <section id={id} className={bg === 'raised' ? 'bg-paper-raised' : 'bg-paper'}>
       <div className={`${SECTION_INNER} ${className}`}>{children}</div>
     </section>
   );
@@ -77,7 +86,7 @@ export default function SecondInternationalAwardsPage() {
         <div aria-hidden="true" className="about-shape about-shape-ring hidden md:block" style={{ top: '60px', right: '22%' }} />
         <div aria-hidden="true" className="about-shape about-shape-ring-gold hidden lg:block" style={{ bottom: '70px', right: '8%' }} />
         <div aria-hidden="true" className="about-shape about-shape-dot" style={{ top: '28%', left: '6%' }} />
-        <div className={`relative z-10 ${SECTION_INNER} ${PAGE_TOP}`}>
+        <div className={`relative z-10 ${SECTION_INNER} pt-5`}>
           <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:gap-16">
             <div>
               <div className="flex items-center gap-3">
@@ -101,29 +110,63 @@ export default function SecondInternationalAwardsPage() {
               <p className="mt-7 max-w-2xl text-base leading-relaxed text-forum-900/80 sm:text-lg sm:leading-[1.75]">
                 The second international IFSMHP awards ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune. Nomination is separate from membership and does not guarantee selection.
               </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Button type="button" size="lg" onClick={openRegistration}>
+                  Register your interest
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button as="link" to={CEREMONY_INFORMATION_PATH} variant="outline" size="lg">
+                  Award information
+                </Button>
+              </div>
             </div>
 
-            <div className="rounded-2xl border border-paper-border bg-paper-raised p-6 shadow-sm sm:p-8">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-forum-600 text-white">
-                <CalendarClock className="h-6 w-6" aria-hidden="true" />
+            <aside className="overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm" aria-labelledby="ceremony-date-heading">
+              <div className="relative overflow-hidden bg-forum-900 px-6 py-7 text-white sm:px-8">
+                <div aria-hidden="true" className="absolute -right-10 -top-10 h-36 w-36 rounded-full border border-brass-400/25" />
+                <div aria-hidden="true" className="absolute -right-2 top-10 h-20 w-20 rounded-full border border-brass-400/20" />
+                <h2 id="ceremony-date-heading" className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-400">
+                  <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                  Date and venue
+                </h2>
+                <p className="relative mt-4 flex items-end gap-4">
+                  <span className="font-display text-6xl font-semibold leading-none text-brass-400">{eventDay}</span>
+                  <span className="pb-1 text-lg font-medium leading-tight">
+                    {eventMonthYear[0]}
+                    <span className="block text-forum-100">{eventMonthYear.slice(1).join(' ')}</span>
+                  </span>
+                </p>
               </div>
-              <h2 className="mt-5 font-display text-2xl font-semibold text-forum-900">Date and venue</h2>
-              <p className="mt-3 text-sm leading-relaxed text-ink-muted">{CEREMONY_ADDRESS}</p>
-              <dl className="mt-6 divide-y divide-paper-border text-sm">
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <dt className="text-ink-muted">Date</dt>
-                  <dd className="text-right font-medium text-forum-900">{CEREMONY_EVENT_DATE}</dd>
+              <dl className="divide-y divide-paper-border px-6 sm:px-8">
+                <div className="flex gap-4 py-5">
+                  <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-brass-600" aria-hidden="true" />
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">Venue</dt>
+                    <dd className="mt-1 font-medium text-forum-900">{CEREMONY_VENUE}</dd>
+                    <dd className="mt-1 text-sm leading-relaxed text-ink-muted">{CEREMONY_ADDRESS}</dd>
+                  </div>
                 </div>
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <dt className="text-ink-muted">Venue</dt>
-                  <dd className="text-right font-medium text-forum-900">{CEREMONY_VENUE}</dd>
-                </div>
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <dt className="text-ink-muted">Nomination</dt>
-                  <dd className="text-right font-medium text-forum-900">Separate from membership</dd>
+                <div className="flex gap-4 py-5">
+                  <Award className="mt-0.5 h-5 w-5 shrink-0 text-brass-600" aria-hidden="true" />
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">Nomination</dt>
+                    <dd className="mt-1 font-medium text-forum-900">Separate from membership</dd>
+                  </div>
                 </div>
               </dl>
-            </div>
+              <div className="px-6 pb-6 sm:px-8">
+                <a
+                  href={directionsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-forum-700 hover:text-forum-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-600 focus-visible:ring-offset-2"
+                >
+                  Get directions
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="sr-only">(opens in a new tab)</span>
+                </a>
+              </div>
+            </aside>
           </div>
           <div className={SECTION_GAP}>
             <PreviousAwardPhotos />
@@ -151,7 +194,7 @@ export default function SecondInternationalAwardsPage() {
         </div>
       </EvenSection>
 
-      <EvenSection>
+      <EvenSection bg="raised">
         <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
           <article className="rounded-2xl border border-paper-border bg-paper p-6 shadow-sm sm:p-8">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-forum-600 text-white">
@@ -196,7 +239,7 @@ export default function SecondInternationalAwardsPage() {
         </div>
       </EvenSection>
 
-      <EvenSection id="ceremony-cta" className={PAGE_BOTTOM}>
+      <EvenSection id="ceremony-cta">
         <div className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-50 to-paper-raised p-8 text-center shadow-sm sm:p-12">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-forum-600 text-white">
             <Award className="h-7 w-7" aria-hidden="true" />
