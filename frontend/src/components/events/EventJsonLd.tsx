@@ -4,12 +4,17 @@ import { awardsCeremonySchemaOrg, toSchemaOrgEvent } from '../../domain/publicEv
 
 type EventLike = PublicEvent | PublicEventDetail;
 
+/** JSON.stringify + escape `<` so event text cannot break out of the script tag. */
+function safeJsonLd(value: unknown) {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
 /** Injects Schema.org Event JSON-LD for crawlers (Google, Bing, Apple). */
 export function EventJsonLd({ events }: { events: EventLike[] }) {
   const json = useMemo(() => {
     if (!events.length) return null;
     const payload = events.length === 1 ? toSchemaOrgEvent(events[0]) : events.map((event) => toSchemaOrgEvent(event));
-    return JSON.stringify(payload);
+    return safeJsonLd(payload);
   }, [events]);
 
   if (!json) return null;
@@ -18,6 +23,6 @@ export function EventJsonLd({ events }: { events: EventLike[] }) {
 
 /** Canonical awards ceremony Event markup for the landing page. */
 export function AwardsCeremonyJsonLd() {
-  const json = useMemo(() => JSON.stringify(awardsCeremonySchemaOrg()), []);
+  const json = useMemo(() => safeJsonLd(awardsCeremonySchemaOrg()), []);
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: json }} />;
 }
