@@ -171,13 +171,13 @@ export default function SecondInternationalAwardsPage() {
           </div>
           {organisingSecretary && (
             <div className={SECTION_GAP}>
-              <article className="grid overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
+              <article className="grid overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm sm:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
                 <img
                   src={yaseenShaikhPortrait}
                   alt={`${organisingSecretary.name}, ${organisingSecretary.role}, in NCC uniform`}
-                  className="h-56 w-full object-cover object-top sm:h-full"
+                  className="h-64 w-full object-cover object-top sm:h-full sm:min-h-[16rem]"
                 />
-                <div className="p-6 sm:p-8">
+                <div className="flex flex-col justify-center p-6 sm:p-8">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{organisingSecretary.role}</p>
                   <h2 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{organisingSecretary.name}</h2>
                   {organisingSecretary.tagline && <p className="mt-2 text-sm font-medium text-forum-900">{organisingSecretary.tagline}</p>}
