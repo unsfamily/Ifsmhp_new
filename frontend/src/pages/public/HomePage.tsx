@@ -114,7 +114,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
       { label: 'Across', value: '14 countries' },
       { label: '1,000 target', value: 'by 2027' },
     ],
-    gradientOverlay: 'from-forum-950/75 via-forum-950/30 to-transparent',
+    gradientOverlay: 'from-forum-950/50 via-forum-950/12 to-transparent',
     ctas: [
       { to: '/register', label: 'Become a Member', variant: 'primary', icon: ArrowRight },
       { to: '/research', label: 'View Published Research', variant: 'outline', icon: FileText },
@@ -131,7 +131,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
       { label: 'Venue', value: 'India' },
       { label: '3 tracks', value: '9 keynotes' },
     ],
-    gradientOverlay: 'from-forum-950/75 via-forum-900/28 to-transparent',
+    gradientOverlay: 'from-forum-950/48 via-forum-900/10 to-transparent',
     ctas: [
       { to: '/events', label: 'View Event Programme', variant: 'primary', icon: ArrowRight },
       { to: '/#gallery-section', label: 'Browse Event Gallery', variant: 'outline', icon: Sparkles },
@@ -148,7 +148,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
       { label: 'Categories', value: '4 prizes' },
       { label: 'Portraits', value: '11 curated' },
     ],
-    gradientOverlay: 'from-forum-950/70 via-brass-950/25 to-transparent',
+    gradientOverlay: 'from-forum-950/46 via-brass-950/10 to-transparent',
     ctas: [
       { to: '/product-reviews', label: 'Read Awardee Citations', variant: 'primary', icon: ArrowRight },
       { to: '/#gallery-section', label: 'View Awards Gallery', variant: 'outline', icon: Sparkles },
@@ -165,7 +165,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
       { label: 'This quarter', value: '15 new reviews' },
       { label: 'Disclosures', value: '100% declared' },
     ],
-    gradientOverlay: 'from-forum-950/75 via-slateteal-950/25 to-transparent',
+    gradientOverlay: 'from-forum-950/48 via-slateteal-950/10 to-transparent',
     ctas: [
       { to: '/product-reviews', label: 'Browse Expert Reviews', variant: 'primary', icon: ArrowRight },
       { to: '/membership', label: 'Become a Reviewer', variant: 'outline', icon: BookOpen },
@@ -370,7 +370,7 @@ export default function HomePage() {
                     </div>
                   </div> */}
                   <div className="relative max-w-xl pr-[104px] sm:pr-0">
-                    <h1 className='mt-5 text-xl font-semibold leading-[1.2] text-white drop-shadow-sm sm:mt-6 sm:max-w-4xl sm:text-5xl lg:text-xl"'>International Forum for Scientists and Mental Health Professionals</h1>
+                    <h1 className="mt-5 text-xl font-semibold leading-[1.2] text-white drop-shadow-[0_2px_16px_rgba(1,20,40,0.85)] sm:mt-6 sm:max-w-4xl sm:text-5xl lg:text-4xl">International Forum for Scientists and Mental Health Professionals</h1>
                   </div>
                   <BannerGlobe chips={slide.chips} active={active} />
                 </div>
