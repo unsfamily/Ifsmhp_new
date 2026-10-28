@@ -1398,6 +1398,63 @@ dialog.ceremony-dialog::backdrop {
   background: rgb(15 23 42 / 0.55);
 }
 
+.award-photo-stage {
+  position: relative;
+}
+
+.award-photo-stage::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  z-index: 0;
+  border-radius: 2.25rem;
+  background: linear-gradient(
+    135deg,
+    rgb(1 37 89 / 0.42) 0%,
+    rgb(195 157 73 / 0.38) 48%,
+    rgb(1 37 89 / 0.28) 100%
+  );
+  filter: blur(22px);
+  pointer-events: none;
+}
+
+.award-photo-frame {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: #001738;
+  box-shadow:
+    0 1px 0 rgb(195 157 73 / 0.45),
+    0 18px 40px -16px rgb(1 37 89 / 0.55),
+    0 10px 28px -12px rgb(195 157 73 / 0.35);
+}
+
+.award-photo-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgb(1 37 89 / 0.08) 0%,
+    transparent 38%,
+    rgb(1 23 56 / 0.55) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgb(195 157 73 / 0.18);
+}
+
+.award-photo-tile:hover::after,
+.award-photo-tile:focus-visible::after {
+  background: linear-gradient(
+    180deg,
+    rgb(195 157 73 / 0.12) 0%,
+    transparent 42%,
+    rgb(1 23 56 / 0.45) 100%
+  );
+  box-shadow: inset 0 0 0 2px rgb(195 157 73 / 0.45);
+}
+
 dialog.award-photo-dialog {
   width: min(72rem, calc(100% - 1.5rem));
   max-height: calc(100dvh - 1.5rem);

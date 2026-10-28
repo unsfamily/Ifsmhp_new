@@ -181,11 +181,15 @@ export default function SecondInternationalAwardsPage() {
         </div>
         <div className="mt-8 grid gap-6 md:grid-cols-3">
           {participation.map((item) => (
-            <article key={item.title} className="flex h-full flex-col rounded-xl border border-paper-border bg-paper-raised p-6 shadow-sm">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-forum-50 text-forum-700">
+            <article
+              key={item.title}
+              className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-paper-border bg-gradient-to-br from-white via-paper to-forum-50 p-6 shadow-[0_12px_28px_-16px_rgba(1,37,89,0.35)]"
+            >
+              <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-forum-700 via-brass-500 to-brass-400" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-forum-700 to-forum-900 text-brass-400 shadow-md shadow-forum-900/20">
                 <item.icon className="h-5 w-5" aria-hidden="true" />
               </div>
-              <h3 className="mt-4 font-display text-xl font-semibold text-forum-900">{item.title}</h3>
+              <h3 className="mt-5 font-display text-xl font-semibold text-forum-900">{item.title}</h3>
               <p className="mt-3 flex-1 text-sm leading-relaxed text-ink-muted">{item.text}</p>
             </article>
           ))}
@@ -194,8 +198,8 @@ export default function SecondInternationalAwardsPage() {
 
       <EvenSection bg="raised">
         <div className="grid items-stretch gap-6 lg:grid-cols-2 lg:gap-8">
-          <article className="rounded-2xl border border-paper-border bg-paper p-6 shadow-sm sm:p-8">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-forum-600 text-white">
+          <article className="rounded-2xl border border-paper-border bg-gradient-to-br from-white to-forum-50 p-6 shadow-[0_14px_32px_-18px_rgba(1,37,89,0.38)] sm:p-8">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-forum-600 to-forum-900 text-white shadow-md shadow-forum-900/25">
               <UserRound className="h-5 w-5" aria-hidden="true" />
             </div>
             <h2 className="mt-5 font-display text-3xl font-semibold text-forum-900">What registration means</h2>
@@ -206,18 +210,18 @@ export default function SecondInternationalAwardsPage() {
               {' '}remains on its own page.
             </p>
           </article>
-          <article className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-50 to-paper p-6 shadow-sm sm:p-8">
+          <article className="rounded-2xl border border-brass-500/20 bg-gradient-to-br from-brass-50 via-white to-forum-50 p-6 shadow-[0_14px_32px_-18px_rgba(195,157,73,0.35)] sm:p-8">
             <h2 className="font-display text-2xl font-semibold text-forum-900">Included in your registration</h2>
             <ul className="mt-5 space-y-3 text-sm leading-relaxed text-ink">
-              <li className="flex gap-3 rounded-lg bg-white/80 px-4 py-3 ring-1 ring-paper-border">
+              <li className="flex gap-3 rounded-lg bg-white/90 px-4 py-3 shadow-sm ring-1 ring-paper-border">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success-600" aria-hidden="true" />
                 <span>Your interest in attending is recorded.</span>
               </li>
-              <li className="flex gap-3 rounded-lg bg-white/80 px-4 py-3 ring-1 ring-paper-border">
+              <li className="flex gap-3 rounded-lg bg-white/90 px-4 py-3 shadow-sm ring-1 ring-paper-border">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success-600" aria-hidden="true" />
                 <span>You can be contacted about this ceremony after you give consent.</span>
               </li>
-              <li className="flex gap-3 rounded-lg bg-brass-50 px-4 py-3 ring-1 ring-inset ring-brass-500/20">
+              <li className="flex gap-3 rounded-lg bg-gradient-to-r from-brass-50 to-white px-4 py-3 ring-1 ring-inset ring-brass-500/25">
                 <Info className="mt-0.5 h-5 w-5 shrink-0 text-brass-700" aria-hidden="true" />
                 <span>An award, a poster, and admission are not confirmed by this form.</span>
               </li>
@@ -227,7 +231,7 @@ export default function SecondInternationalAwardsPage() {
       </EvenSection>
 
       <EvenSection>
-        <div className="grid items-center gap-8 rounded-2xl border border-paper-border bg-paper-raised p-6 shadow-sm sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-12">
+        <div className="grid items-center gap-8 overflow-hidden rounded-2xl border border-paper-border bg-gradient-to-br from-forum-50 via-white to-brass-50 p-6 shadow-[0_16px_40px_-20px_rgba(1,37,89,0.4)] sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-12">
           <div>
             <h2 className="font-display text-3xl font-semibold text-forum-900">Open the nomination form with a QR code</h2>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-ink-muted">
@@ -242,23 +246,30 @@ export default function SecondInternationalAwardsPage() {
               </Button>
             </div>
           </div>
-          <CeremonyRegistrationQr />
+          <div className="rounded-2xl bg-white p-4 shadow-[0_12px_30px_-12px_rgba(1,37,89,0.35)] ring-1 ring-brass-500/20">
+            <CeremonyRegistrationQr />
+          </div>
         </div>
       </EvenSection>
 
       <EvenSection id="ceremony-cta">
-        <div className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-50 to-paper-raised p-8 text-center shadow-sm sm:p-10">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-forum-600 text-white">
-            <Award className="h-7 w-7" aria-hidden="true" />
-          </div>
-          <h2 className="mt-5 font-display text-3xl font-semibold text-forum-900 sm:text-4xl">Register your interest</h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-ink-muted">
-            Tell us you would like to attend on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}. This records interest and does not reserve admission.
-          </p>
-          <div className="mt-8 flex justify-center">
-            <Button id="ceremony-register-cta" type="button" size="lg" onClick={openRegistration}>
-              Register for the Ceremony
-            </Button>
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-forum-900 via-forum-800 to-forum-950 p-8 text-center text-white shadow-[0_20px_48px_-18px_rgba(1,37,89,0.55),0_8px_20px_-10px_rgba(195,157,73,0.35)] sm:p-10">
+          <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-tr from-brass-500/10 via-transparent to-brass-400/15" />
+          <div aria-hidden="true" className="absolute -left-16 -top-16 h-48 w-48 rounded-full border border-brass-400/20" />
+          <div aria-hidden="true" className="absolute -bottom-20 -right-10 h-56 w-56 rounded-full border border-brass-400/15" />
+          <div className="relative">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brass-500/15 text-brass-400 ring-1 ring-inset ring-brass-400/30">
+              <Award className="h-7 w-7" aria-hidden="true" />
+            </div>
+            <h2 className="mt-5 font-display text-3xl font-semibold text-white sm:text-4xl">Register your interest</h2>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-forum-100">
+              Tell us you would like to attend on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}. This records interest and does not reserve admission.
+            </p>
+            <div className="mt-8 flex justify-center">
+              <Button id="ceremony-register-cta" type="button" size="lg" variant="secondary" onClick={openRegistration}>
+                Register for the Ceremony
+              </Button>
+            </div>
           </div>
         </div>
       </EvenSection>

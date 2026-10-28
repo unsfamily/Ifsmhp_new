@@ -42,8 +42,9 @@ export default function PreviousAwardPhotos() {
   const current = active === null ? null : photos[active];
 
   return (
-    <figure className="overflow-hidden rounded-3xl bg-forum-950 text-white shadow-xl ring-1 ring-brass-500/30">
-      <figcaption className="flex flex-wrap items-end justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+    <div className="award-photo-stage">
+    <figure className="award-photo-frame text-white">
+      <figcaption className="relative flex flex-wrap items-end justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-forum-950 via-forum-900 to-forum-950 px-5 py-4 sm:px-6">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-400">2025 award function</p>
           <p className="mt-1 font-display text-xl font-semibold sm:text-2xl">International Laureates Recognition Conclave</p>
@@ -56,7 +57,7 @@ export default function PreviousAwardPhotos() {
             key={photo.caption}
             type="button"
             onClick={() => show(index)}
-            className={`group relative overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass-400 focus-visible:ring-offset-2 focus-visible:ring-offset-forum-950 ${
+            className={`award-photo-tile group relative overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass-400 focus-visible:ring-offset-2 focus-visible:ring-offset-forum-950 ${
               index === 0 ? 'sm:col-span-3 sm:row-span-2' : 'sm:col-span-2'
             }`}
           >
@@ -67,7 +68,7 @@ export default function PreviousAwardPhotos() {
                 index === 0 ? 'aspect-[16/10] sm:aspect-auto sm:h-full sm:min-h-[28rem]' : 'aspect-[16/9] sm:aspect-auto sm:h-full sm:min-h-[13.75rem]'
               }`}
             />
-            <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-forum-950/85 via-forum-950/25 to-transparent px-4 pb-3 pt-10 text-sm font-medium text-white">
+            <span className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 pb-3 pt-10 text-sm font-medium text-white">
               {photo.caption}
             </span>
           </button>
@@ -113,5 +114,6 @@ export default function PreviousAwardPhotos() {
         )}
       </dialog>
     </figure>
+    </div>
   );
 }
