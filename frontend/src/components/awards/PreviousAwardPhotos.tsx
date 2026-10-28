@@ -51,21 +51,21 @@ export default function PreviousAwardPhotos() {
           </div>
           <p className="text-sm text-white/70">Impact Bharath</p>
         </figcaption>
-        <div className="grid grid-cols-2 gap-2.5 p-2.5" role="group" aria-label="Photographs from the 2025 award function">
+        <div className="grid gap-1.5 p-1.5 sm:grid-cols-5 sm:grid-rows-2" role="group" aria-label="Photographs from the 2025 award function">
           {photos.map((photo, index) => (
             <button
               key={photo.caption}
               type="button"
               onClick={() => show(index)}
-              className={`award-photo-tile group relative overflow-hidden rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass-400 focus-visible:ring-offset-2 focus-visible:ring-offset-forum-950 ${
-                index === 0 ? 'col-span-2' : 'col-span-1'
+              className={`award-photo-tile group relative overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass-400 focus-visible:ring-offset-2 focus-visible:ring-offset-forum-950 ${
+                index === 0 ? 'sm:col-span-3 sm:row-span-2' : 'sm:col-span-2'
               }`}
             >
               <img
                 src={photo.src}
                 alt={photo.alt}
                 className={`w-full object-cover transition duration-500 group-hover:scale-[1.03] ${
-                  index === 0 ? 'aspect-[21/9] sm:aspect-[2.4/1] sm:min-h-[18rem]' : 'aspect-[16/10] sm:min-h-[14rem]'
+                  index === 0 ? 'aspect-[16/10] sm:aspect-auto sm:h-full sm:min-h-[28rem]' : 'aspect-[16/9] sm:aspect-auto sm:h-full sm:min-h-[13.75rem]'
                 }`}
               />
               <span className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 pb-3 pt-10 text-sm font-medium text-white">
