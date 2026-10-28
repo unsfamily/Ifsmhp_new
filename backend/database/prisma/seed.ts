@@ -351,6 +351,42 @@ async function main(): Promise<void> {
     },
   });
 
+  const awardsStartsAt = new Date('2026-12-26T03:30:00.000Z'); // 09:00 Asia/Kolkata
+  const awardsEndsAt = new Date('2026-12-26T12:30:00.000Z'); // 18:00 Asia/Kolkata
+  await prisma.event.create({
+    data: {
+      creatorId: admin.id,
+      title: '2nd International IFSMHP Awards 2026',
+      slug: 'second-international-ifsmhp-awards-2026',
+      shortDescription: 'The Second International IFSMHP Awards Ceremony recognises 75 recipients across scientific, literary, and social disciplines at Azam Campus, Pune.',
+      longDescription: 'The Second International IFSMHP Awards Ceremony will be held on 26 December 2026 at A.R. Shaikh Assembly Hall (Azam Campus), Pune.\n\nTwenty-five commemorative award categories are presented under three recognition divisions (Senior, Mid-career, and Young), for a total of 75 recipients.\n\nNomination is separate from IFSMHP membership. Register interest or open the nomination form from the awards ceremony page.',
+      date: new Date('2026-12-26T00:00:00Z'),
+      startsAt: awardsStartsAt,
+      endsAt: awardsEndsAt,
+      timeStart: '09:00',
+      timeEnd: '18:00',
+      timezone: 'Asia/Kolkata',
+      location: 'A.R. Shaikh Assembly Hall (Azam Campus), Azam Campus, 2390 K.B. Hidayatullah Road, New Modikhana, Camp, Pune, Maharashtra 411001',
+      format: 'In-Person',
+      audience: 'Public',
+      organizer: 'IFSMHP',
+      organizerEmail: 'admin@ifsmhp.org',
+      status: 'PUBLISHED',
+      featured: true,
+      registrationRequired: true,
+      waitlistEnabled: false,
+      sendReminder: false,
+      externalUrl: 'https://www.ifsmhp.com/awards/second-international',
+      speakers: {
+        create: [
+          { name: 'Dr. Hemachandran Ravikumar — Chief Advisor', sort: 1 },
+          { name: 'Lt. Dr. Yaseen Ismail Shaikh — Organising Committee Secretary', sort: 2 },
+        ],
+      },
+      tags: { create: [{ name: 'Symposium' }] },
+    },
+  });
+
   await prisma.conversation.create({
     data: {
       subject: 'Publication review question',
