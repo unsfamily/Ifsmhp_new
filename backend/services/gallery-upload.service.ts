@@ -60,7 +60,7 @@ export async function inspectImage(file?: Express.Multer.File) {
 export async function inspectMedia(file?: Express.Multer.File) {
   const unsupported = (message = 'Choose a valid JPEG, PNG, WebP, MP4, or WebM file.') =>
     ApiError.unprocessable(message, [{ field: 'file', message }]);
-  if (!file || !file.size) throw unsupported('Choose a photograph or video to upload.');
+  if (!file || !file.size) throw unsupported('Choose one or more photographs or videos to upload.');
   const extension = path.extname(file.originalname).slice(1).toLowerCase();
   const expected = formats[extension];
   if (!expected) throw unsupported('Use a JPG, JPEG, PNG, WebP, MP4, or WebM file.');

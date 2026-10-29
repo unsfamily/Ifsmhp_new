@@ -54,7 +54,15 @@ export const awardEventMediaApi = {
   upload: async (file: File) => {
     const body = new FormData();
     body.append('file', file);
-    return (await apiClient.post<Envelope<AwardEventMediaItem>>('/admin/award-event-media', body)).data.data;
+    return (await apiClient.post<Envelope<AwardEventMediaItem>>('/admin/award-event-media', body, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120_000,
+    })).data.data;
+  },
+  uploadMany: async (files: File[]) => {
+    const items: AwardEventMediaItem[] = [];
+    for (const file of files) items.push(await awardEventMediaApi.upload(file));
+    return items;
   },
   update: async (id: string, patch: { published: boolean }) =>
     (await apiClient.patch<Envelope<AwardEventMediaItem>>(`/admin/award-event-media/${id}`, patch)).data.data,

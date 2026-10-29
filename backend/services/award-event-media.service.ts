@@ -34,6 +34,9 @@ export const awardEventMediaUpload: RequestHandler = (req, res, next) => {
       cleanup();
       return next(ApiError.unprocessable('Attach one JPG, PNG, WebP, MP4, or WebM file.', [{ field: 'file', message: 'Choose a supported image or video.' }]));
     }
+    if (!req.file) {
+      return next(ApiError.unprocessable('Choose one or more photographs or videos to upload.', [{ field: 'file', message: 'Choose one or more photographs or videos to upload.' }]));
+    }
     next();
   });
 };

@@ -199,7 +199,7 @@ export default function AdminAwardEventMediaPage() {
       return;
     }
     void run(async () => {
-      for (const file of files) await awardEventMediaApi.upload(file);
+      await awardEventMediaApi.uploadMany(files);
       if (type === 'video') setVideos(await awardEventMediaApi.list('video'));
       else setImages(await awardEventMediaApi.list('image'));
       setNotice({
