@@ -222,7 +222,39 @@ export const ceremonyProgramme: CeremonyProgramme = {
       name: 'Dr. Hemachandran Ravikumar',
       role: 'Chief Advisor',
       organisation: 'International Forum for Scientists and Mental Health Professionals (IFSMHP)',
+      affiliation: 'Founder & Director, N&H Research Park, Chennai · Ambassador, Royal Society of Biology (UK)',
+      tagline: 'Scientist | Research Leader | Author | MRSB (UK) | RSci (UK)',
       photoKey: 'hemachandran-ravikumar',
+      summary: [
+        'Dr. Hemachandran Ravikumar is an interdisciplinary scientist working across biology, space science, healthcare innovation, and sound-based wellness research. He is Founder and Director of N&H Research Park in Chennai, and serves as an Ambassador of the Royal Society of Biology (UK) and a Registered Scientist (RSci) with the UK Science Council.',
+        'His public record includes the Best Poster (Scientist) Award at the Indian Science Congress (2018), authorship of Secrets of Society (recognised for fastest book writing), the Excellency of Research Award (2021), and the Karmaveer Chakra Medal (2023) in association with ICONGO / UNDP-linked recognition. He also leads the International Youth Research Foundation as President.',
+        'He has published widely on topics including sound-frequency and meditative wellness, nutraceuticals, healthcare models, and space logical analytics, and continues to mentor early-career researchers through national and international collaborations.',
+      ],
+      highlights: [
+        { label: 'Research articles & books', value: '40+' },
+        { label: 'RSB Ambassador since', value: '2023' },
+        { label: 'Registered Scientist (UK)', value: 'RSci' },
+        { label: 'IYRF President since', value: '2018' },
+      ],
+      milestones: [
+        {
+          title: 'Royal Society of Biology Ambassador — UK',
+          detail: 'Serving as RSB Ambassador and continuing as MRSB (UK), with Registered Scientist (RSci) recognition from the UK Science Council since 2023.',
+        },
+        {
+          title: 'Karmaveer Chakra Medal — 2023',
+          detail: 'Recognised for public-service and leadership contributions through the Karmaveer Chakra / Rex Karmaveer Global Fellowship pathway associated with ICONGO.',
+        },
+        {
+          title: 'Indian Science Congress Best Poster — 2018',
+          detail: 'Awarded Best Poster (Scientist) by the Government of India during the Indian Science Congress for work in Earth System Sciences.',
+        },
+      ],
+      identifiers: [
+        { label: 'ORCID 0000-0003-3548-4327', href: 'https://orcid.org/0000-0003-3548-4327' },
+        { label: 'Scopus Author ID 60141271600' },
+        { label: 'LinkedIn', href: 'https://www.linkedin.com/in/hemachandran-ravikumar-mrsb-rsci-uk-a03891413' },
+      ],
     },
     {
       name: 'Lt. Dr. Yaseen Ismail Shaikh',

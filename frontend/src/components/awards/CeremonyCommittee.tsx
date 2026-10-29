@@ -66,7 +66,9 @@ function ProfileBody({ member }: { member: CeremonyCommitteeMember }) {
       ))}
       {member.milestones && member.milestones.length > 0 && (
         <div className="mt-8">
-          <h4 className="font-display text-xl font-semibold text-forum-900">NCC milestones</h4>
+          <h4 className="font-display text-xl font-semibold text-forum-900">
+            {member.photoKey === 'yaseen-shaikh' ? 'NCC milestones' : 'Selected milestones'}
+          </h4>
           <ul className="mt-3 grid gap-3 sm:grid-cols-3">
             {member.milestones.map((item) => (
               <li key={item.title} className="rounded-xl border border-paper-border bg-paper-raised px-4 py-3">
