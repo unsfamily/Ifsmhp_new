@@ -30,7 +30,7 @@ import {
   CEREMONY_VENUE,
   ceremonyProgramme,
 } from '../../domain/ceremonyProgramme';
-import { CEREMONY_INFORMATION_PATH, CEREMONY_NOMINATE_PATH, CEREMONY_PAGE_PATH } from '../../domain/ceremonyRegistration';
+import { CEREMONY_GALLERY_PATH, CEREMONY_INFORMATION_PATH, CEREMONY_NOMINATE_PATH, CEREMONY_PAGE_PATH } from '../../domain/ceremonyRegistration';
 
 import ceremonyConclave01 from '../../assets/images/carousel/laureates-conclave-01.jpg';
 import ceremonyConclave02 from '../../assets/images/carousel/laureates-conclave-02.jpg';
@@ -159,7 +159,7 @@ const HOME_BANNERS: HomeBannerSlide[] = [
     gradientOverlay: 'from-forum-950/50 via-forum-950/12 to-transparent',
     ctas: [
       { to: CEREMONY_PAGE_PATH, label: 'Register interest', variant: 'primary', icon: ArrowRight },
-      { to: CEREMONY_INFORMATION_PATH, label: 'Previous event gallery', variant: 'outline', icon: Sparkles },
+      { to: CEREMONY_GALLERY_PATH, label: 'Previous event gallery', variant: 'outline', icon: Sparkles },
     ],
   },
 ];

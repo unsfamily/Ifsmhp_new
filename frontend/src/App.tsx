@@ -17,6 +17,7 @@ import EventsPage from './pages/public/EventsPage';
 import SecondInternationalAwardsPage from './pages/public/SecondInternationalAwardsPage';
 import CeremonyRegistrationPage from './pages/public/CeremonyRegistrationPage';
 import AwardInformationPage from './pages/public/AwardInformationPage';
+import AwardEventGalleryPage from './pages/public/AwardEventGalleryPage';
 import AwardNominationPage from './pages/public/AwardNominationPage';
 import ContactPage from './pages/public/ContactPage';
 import ProductReviewsPage from './pages/public/ProductReviewsPage';
@@ -127,6 +128,7 @@ export default function App() {
           <Route path="awards/second-international" element={<SecondInternationalAwardsPage />} />
           <Route path="awards/second-international/register" element={<CeremonyRegistrationPage />} />
           <Route path="awards/second-international/information" element={<AwardInformationPage />} />
+          <Route path="awards/second-international/gallery" element={<AwardEventGalleryPage />} />
           <Route path="awards/second-international/nominate" element={<AwardNominationPage />} />
           <Route path="contact" element={<ContactPage />} />
           <Route path="privacy-policy" element={<PolicyPage />} />

@@ -140,7 +140,7 @@ export default function AwardInformationPage() {
             Photographs and videos from the 2025 International Laureates Recognition Conclave.
           </p>
           <div className="mt-8">
-            <AwardEventMediaGrid />
+            <AwardEventMediaGrid mode="preview" />
           </div>
         </div>
       </section>
