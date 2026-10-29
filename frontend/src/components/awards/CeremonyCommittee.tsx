@@ -1,21 +1,26 @@
 import type { CeremonyCommitteeMember } from '../../domain/ceremonyProgramme';
+import hemachandranRavikumarPortrait from '../../assets/images/awards/hemachandran-ravikumar.webp';
 import yaseenShaikhPortrait from '../../assets/images/awards/yaseen-ismail-shaikh.jpg';
 
 const portraits: Record<NonNullable<CeremonyCommitteeMember['photoKey']>, string> = {
+  'hemachandran-ravikumar': hemachandranRavikumarPortrait,
   'yaseen-shaikh': yaseenShaikhPortrait,
+};
+
+const portraitAlt: Partial<Record<NonNullable<CeremonyCommitteeMember['photoKey']>, string>> = {
+  'yaseen-shaikh': 'Organising Committee Secretary, in NCC uniform',
 };
 
 function MemberCard({ member, featured = false }: { member: CeremonyCommitteeMember; featured?: boolean }) {
   const photo = member.photoKey ? portraits[member.photoKey] : undefined;
+  const photoDetail = member.photoKey ? portraitAlt[member.photoKey] : undefined;
   return (
     <article className={`overflow-hidden rounded-2xl border border-paper-border bg-paper shadow-sm ${featured ? 'lg:grid lg:grid-cols-[minmax(0,0.42fr)_minmax(0,1fr)]' : 'p-5'}`}>
       {photo && (
         <figure className={featured ? 'relative min-h-[18rem] overflow-hidden bg-forum-950 lg:min-h-full' : 'mb-4 overflow-hidden rounded-xl'}>
           <img
             src={photo}
-            alt={member.photoKey === 'yaseen-shaikh'
-              ? `${member.name}, Organising Committee Secretary, in NCC uniform`
-              : member.name}
+            alt={photoDetail ? `${member.name}, ${photoDetail}` : `${member.name}, ${member.role}`}
             className={featured ? 'absolute inset-0 h-full w-full object-cover object-top' : 'aspect-square w-full object-cover object-top'}
           />
         </figure>

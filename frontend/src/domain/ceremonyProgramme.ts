@@ -51,7 +51,7 @@ export type CeremonyCommitteeMember = {
   organisation: string;
   affiliation?: string;
   tagline?: string;
-  photoKey?: 'yaseen-shaikh';
+  photoKey?: 'yaseen-shaikh' | 'hemachandran-ravikumar';
   summary?: string[];
   highlights?: { label: string; value: string }[];
   milestones?: { title: string; detail: string }[];
@@ -222,6 +222,7 @@ export const ceremonyProgramme: CeremonyProgramme = {
       name: 'Dr. Hemachandran Ravikumar',
       role: 'Chief Advisor',
       organisation: 'International Forum for Scientists and Mental Health Professionals (IFSMHP)',
+      photoKey: 'hemachandran-ravikumar',
     },
     {
       name: 'Lt. Dr. Yaseen Ismail Shaikh',
