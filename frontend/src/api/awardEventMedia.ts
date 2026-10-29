@@ -16,6 +16,10 @@ export interface AwardEventMediaItem {
   mediaUrl: string;
   /** Cached WebP preview for image tiles; null for videos. */
   thumbUrl?: string | null;
+  /** Responsive WebP candidates when the asset is on CloudFront. */
+  srcSet?: string | null;
+  /** Optional poster frame for videos. */
+  posterUrl?: string | null;
   published?: boolean;
   name?: string;
   mimeType?: string;
@@ -44,11 +48,27 @@ export function awardEventMediaAlt(
   return `${kind} from the ${eventLabel}`;
 }
 
+function resolveMaybeUrl(value: string | null | undefined) {
+  if (!value) return value ?? null;
+  return awardEventMediaUrl(value);
+}
+
 function withResolvedUrls(items: AwardEventMediaItem[]) {
   return items.map(item => ({
     ...item,
     mediaUrl: awardEventMediaUrl(item.mediaUrl),
-    thumbUrl: item.thumbUrl ? awardEventMediaUrl(item.thumbUrl) : item.thumbUrl ?? null,
+    thumbUrl: resolveMaybeUrl(item.thumbUrl),
+    srcSet: item.srcSet
+      ? item.srcSet
+          .split(',')
+          .map(part => {
+            const [url, descriptor] = part.trim().split(/\s+/);
+            if (!url) return part.trim();
+            return descriptor ? `${awardEventMediaUrl(url)} ${descriptor}` : awardEventMediaUrl(url);
+          })
+          .join(', ')
+      : item.srcSet ?? null,
+    posterUrl: resolveMaybeUrl(item.posterUrl),
   }));
 }
 

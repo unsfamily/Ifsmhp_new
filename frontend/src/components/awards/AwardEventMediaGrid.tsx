@@ -8,6 +8,7 @@ import {
 } from '../../api/awardEventMedia';
 import { normalizeError } from '../../api/client';
 import { CEREMONY_GALLERY_PATH } from '../../domain/ceremonyRegistration';
+import { CdnImage } from '../media';
 import AwardEventLightbox from './AwardEventLightbox';
 
 export const AWARD_EVENT_GALLERY_TITLE = 'International Laureates Recognition Conclave';
@@ -112,16 +113,17 @@ function MediaTile({
                 <span className="sr-only">{label}</span>
               </>
             ) : showImage ? (
-              <img
+              <CdnImage
                 src={previewSrc}
                 alt={label}
+                srcSet={item.srcSet}
                 width={item.width ?? 480}
                 height={item.height ?? 300}
                 sizes={dense ? '(max-width:640px) 100vw, (max-width:1024px) 50vw, (max-width:1400px) 33vw, 25vw' : '(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw'}
-                loading={eager ? 'eager' : 'lazy'}
-                decoding="async"
+                eager={eager}
                 fetchPriority={eager ? 'high' : 'low'}
-                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                aspectRatio="16 / 10"
+                className="h-full w-full transition duration-300 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
               />
             ) : (
               <span className="absolute inset-0 bg-forum-100" aria-hidden="true" />
