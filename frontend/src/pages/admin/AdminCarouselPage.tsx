@@ -7,9 +7,9 @@ import { TextInput } from '../../components/common/Input';
 import { apiClient, normalizeError } from '../../api/client';
 import { homeCarouselApi, type HomeCarouselSlide } from '../../api/homeCarousel';
 import { useAuth } from '../../context/AuthContext';
-import ceremonyConclave01 from '../../assets/images/carousel/laureates-conclave-01.jpg';
-import ceremonyConclave02 from '../../assets/images/carousel/laureates-conclave-02.jpg';
-import ceremonyConclave03 from '../../assets/images/carousel/laureates-conclave-03.jpg';
+import ceremonyConclave01 from '../../assets/images/carousel/laureates-conclave-01.webp';
+import ceremonyConclave02 from '../../assets/images/carousel/laureates-conclave-02.webp';
+import ceremonyConclave03 from '../../assets/images/carousel/laureates-conclave-03.webp';
 
 const MAX_SLIDES = 12;
 const MAX_BYTES = 15 * 1024 * 1024;

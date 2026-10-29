@@ -23,10 +23,21 @@ import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
 import GallerySection from '../../components/gallery/GallerySection';
 import { homeCarouselImageUrl, publicApi } from '../../api/public';
+import {
+  CEREMONY_EVENT_DATE,
+  CEREMONY_PAGE_TITLE,
+  CEREMONY_VENUE,
+  ceremonyProgramme,
+} from '../../domain/ceremonyProgramme';
+import {
+  CEREMONY_INFORMATION_PATH,
+  CEREMONY_NOMINATE_PATH,
+  CEREMONY_PAGE_PATH,
+} from '../../domain/ceremonyRegistration';
 
-import ceremonyConclave01 from '../../assets/images/carousel/laureates-conclave-01.jpg';
-import ceremonyConclave02 from '../../assets/images/carousel/laureates-conclave-02.jpg';
-import ceremonyConclave03 from '../../assets/images/carousel/laureates-conclave-03.jpg';
+import ceremonyConclave01 from '../../assets/images/carousel/laureates-conclave-01.webp';
+import ceremonyConclave02 from '../../assets/images/carousel/laureates-conclave-02.webp';
+import ceremonyConclave03 from '../../assets/images/carousel/laureates-conclave-03.webp';
 import logoImg from '../../assets/images/logo.webp';
 
 const stats = [
@@ -104,71 +115,54 @@ interface HomeBannerSlide {
 
 const HOME_BANNERS: HomeBannerSlide[] = [
   {
-    id: 'home-banner-community',
-    eyebrow: { icon: Globe2, label: 'Global Community' },
-    title: 'Advancing Global Research & Mental Health Through Collaborative Excellence',
-    highlightWord: 'Collaborative Excellence',
-    lead: 'Join 277 leading Scientists and Mental Health Professionals worldwide in shaping the future of evidence-based research and practice.',
+    id: 'home-banner-ceremony',
+    eyebrow: { icon: Award, label: CEREMONY_PAGE_TITLE },
+    title: 'Second International IFSMHP Awards Ceremony — Honouring excellence across science and society',
+    highlightWord: 'IFSMHP Awards Ceremony',
+    lead: `${ceremonyProgramme.totalLabel}. The ceremony is on ${CEREMONY_EVENT_DATE} at ${CEREMONY_VENUE}, Pune.`,
     chips: [
-      { label: '277+ members' },
-      { label: 'Across', value: '14 countries' },
-      { label: '1,000 target', value: 'by 2027' },
+      { label: 'Ceremony', value: CEREMONY_EVENT_DATE },
+      { label: 'Venue', value: 'Pune · Azam Campus' },
+      { label: 'Recipients', value: '75 honours' },
     ],
     gradientOverlay: 'from-forum-950/50 via-forum-950/12 to-transparent',
     ctas: [
-      { to: '/register', label: 'Become a Member', variant: 'primary', icon: ArrowRight },
-      { to: '/research', label: 'View Published Research', variant: 'outline', icon: FileText },
+      { to: CEREMONY_PAGE_PATH, label: 'Ceremony details', variant: 'primary', icon: ArrowRight },
+      { to: CEREMONY_INFORMATION_PATH, label: 'Award information', variant: 'outline', icon: FileText },
     ],
   },
   {
-    id: 'home-banner-symposium',
-    eyebrow: { icon: Calendar, label: 'Spring Symposium 2026 · Save the date' },
-    title: 'The IFSMHP Spring Symposium — Call for Abstracts Now Open',
-    highlightWord: 'Call for Abstracts Now Open',
-    lead: 'Submit your methodological, clinical or policy-focused work by 15 October 2026. Three tracks, 9 keynote plenaries, and a riverside networking reception hosted at the India Forum Hall.',
+    id: 'home-banner-programme',
+    eyebrow: { icon: Sparkles, label: 'Award programme · 25 categories × 3 levels' },
+    title: 'Distinguished Fellows, Excellence, and Rising Achievers across 25 disciplinary awards',
+    highlightWord: '25 disciplinary awards',
+    lead: ceremonyProgramme.divisionNote,
     chips: [
-      { label: 'Dates', value: '12–14 Mar 2026' },
-      { label: 'Venue', value: 'India' },
-      { label: '3 tracks', value: '9 keynotes' },
+      { label: 'Senior', value: '25 lifetime' },
+      { label: 'Mid-career', value: '25 established' },
+      { label: 'Young', value: '25 emerging' },
     ],
     gradientOverlay: 'from-forum-950/48 via-forum-900/10 to-transparent',
     ctas: [
-      { to: '/events', label: 'View Event Programme', variant: 'primary', icon: ArrowRight },
-      { to: '/#gallery-section', label: 'Browse Event Gallery', variant: 'outline', icon: Sparkles },
+      { to: CEREMONY_INFORMATION_PATH, label: 'View full programme', variant: 'primary', icon: ArrowRight },
+      { to: CEREMONY_PAGE_PATH, label: 'Ceremony overview', variant: 'outline', icon: Calendar },
     ],
   },
   {
-    id: 'home-banner-awards',
-    eyebrow: { icon: Award, label: 'CRO Awards Night 2025 · Hall of Fame' },
-    title: 'Honouring Nine Distinguished Contributors to Global Mental Health Science',
-    highlightWord: 'Hall of Fame',
-    lead: 'The 2025 CRO Lifetime Contribution, Distinguished Service and Early-Career Citations were awarded on 22 November at the IFSMHP Awards Dinner. Read citations, view portraits and download commemorative publications.',
+    id: 'home-banner-nominate',
+    eyebrow: { icon: Calendar, label: 'Nominations open · Awards 2026' },
+    title: 'Nominate outstanding contributors for the Second International IFSMHP Awards',
+    highlightWord: 'Nominate outstanding contributors',
+    lead: ceremonyProgramme.eligibilityIntro ?? 'Nominations are open to individuals from India and other countries.',
     chips: [
-      { label: 'Awardees', value: '9 honoured' },
-      { label: 'Categories', value: '4 prizes' },
-      { label: 'Portraits', value: '11 curated' },
+      { label: 'Categories', value: '25 awards' },
+      { label: 'Levels', value: 'Senior · Mid · Young' },
+      { label: 'Submit', value: 'Online nomination' },
     ],
     gradientOverlay: 'from-forum-950/46 via-brass-950/10 to-transparent',
     ctas: [
-      { to: '/product-reviews', label: 'Read Awardee Citations', variant: 'primary', icon: ArrowRight },
-      { to: '/#gallery-section', label: 'View Awards Gallery', variant: 'outline', icon: Sparkles },
-    ],
-  },
-  {
-    id: 'home-banner-reviews',
-    eyebrow: { icon: Sparkles, label: 'Expert Reviews · Updated weekly' },
-    title: 'Independent, Methodologically Grounded Perspectives on Products, Services & Policies',
-    highlightWord: 'Expert Perspectives',
-    lead: 'Fifteen new member reviews published this quarter across five review pillars — from digital therapeutics and teletherapy networks to EU mental health strategy and AI-assisted triage safety.',
-    chips: [
-      { label: 'Pillars', value: '5 categories' },
-      { label: 'This quarter', value: '15 new reviews' },
-      { label: 'Disclosures', value: '100% declared' },
-    ],
-    gradientOverlay: 'from-forum-950/48 via-slateteal-950/10 to-transparent',
-    ctas: [
-      { to: '/product-reviews', label: 'Browse Expert Reviews', variant: 'primary', icon: ArrowRight },
-      { to: '/membership', label: 'Become a Reviewer', variant: 'outline', icon: BookOpen },
+      { to: CEREMONY_NOMINATE_PATH, label: 'Submit a nomination', variant: 'primary', icon: ArrowRight },
+      { to: CEREMONY_INFORMATION_PATH, label: 'Eligibility & criteria', variant: 'outline', icon: FileText },
     ],
   },
 ];
@@ -231,7 +225,7 @@ export default function HomePage() {
   }), [photos]);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [bannerHover, setBannerHover] = useState(false);
-  const [loadedSlides, setLoadedSlides] = useState<number[]>(() => [0, 1]);
+  const [loadedSlides, setLoadedSlides] = useState<number[]>(() => [0]);
 
   useEffect(() => {
     setBannerIndex(index => index % slides.length);
@@ -297,11 +291,12 @@ export default function HomePage() {
                   <img
                     src={slide.bgImage}
                     alt={slide.alt}
-                    width={2560}
-                    height={1440}
+                    width={1920}
+                    height={1080}
                     style={{ objectPosition: slide.focusPosition }}
                     className="absolute inset-0 h-full w-full select-none object-cover"
                     decoding="async"
+                    loading={i === 0 ? 'eager' : 'lazy'}
                     fetchPriority={i === bannerIndex ? 'high' : 'low'}
                   />
                 ) : null}
