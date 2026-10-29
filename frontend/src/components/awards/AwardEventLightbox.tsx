@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { awardEventMediaAlt, type AwardEventMediaItem } from '../../api/awardEventMedia';
+import { CdnVideo } from '../media';
 
 export default function AwardEventLightbox({
   items,
@@ -79,12 +80,15 @@ export default function AwardEventLightbox({
           )}
           <figure className="flex max-h-full max-w-full flex-col items-center">
             {current.mediaType === 'video' ? (
-              <video
+              <CdnVideo
                 key={current.id}
                 src={current.mediaUrl}
-                aria-label={awardEventMediaAlt(current, { index, total, eventLabel: title })}
+                label={awardEventMediaAlt(current, { index, total, eventLabel: title })}
+                poster={current.posterUrl}
                 controls
-                playsInline
+                muted={false}
+                preload="metadata"
+                aspectRatio="auto"
                 className="max-h-[min(78vh,920px)] w-auto max-w-full bg-black shadow-[0_24px_80px_rgba(0,0,0,.45)]"
               />
             ) : (
@@ -92,6 +96,8 @@ export default function AwardEventLightbox({
                 src={current.mediaUrl}
                 alt={awardEventMediaAlt(current, { index, total, eventLabel: title })}
                 className="max-h-[min(78vh,920px)] w-auto max-w-full object-contain shadow-[0_24px_80px_rgba(0,0,0,.45)]"
+                decoding="async"
+                fetchPriority="high"
               />
             )}
           </figure>

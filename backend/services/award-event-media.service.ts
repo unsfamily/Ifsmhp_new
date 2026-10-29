@@ -10,13 +10,21 @@ import type { AuthenticatedUser } from '../middleware/auth';
 import { prisma } from '../config/database';
 import { writeAudit } from './audit.service';
 import { galleryPolicy, inspectMedia } from './gallery-upload.service';
+import {
+  buildObjectKey,
+  deleteObjects,
+  isS3Configured,
+  isTrustedCdnUrl,
+  uploadBuffer,
+  uploadFile,
+} from './s3-storage.service';
 import { ApiError } from '../utils/ApiError';
 import { logger } from '../utils/logger';
 import { assertSafePath, uploadRoot } from '../utils/fileStorage';
 
-/** Allowed grid/lightbox preview widths. Full media is served without `w`. */
-export const THUMB_WIDTHS = [320, 480, 640, 960] as const;
-const DEFAULT_THUMB_WIDTH = 480;
+/** Allowed grid/lightbox preview widths. Keep this short — each width is an S3 object. */
+export const THUMB_WIDTHS = [320, 640, 960] as const;
+const DEFAULT_THUMB_WIDTH = 640;
 
 const mediaTypes = ['image', 'video'] as const;
 type MediaType = (typeof mediaTypes)[number];
@@ -61,9 +69,32 @@ const reorderBody = z.object({
 
 type MediaRecord = Prisma.AwardEventMediaGetPayload<{ include: { file: true } }>;
 
+function isS3Object(file: { cdnUrl: string | null }) {
+  return Boolean(file.cdnUrl);
+}
+
+/** CloudFront variant URL convention: `{cdnUrl}.w{width}.webp`. */
+export function awardMediaVariantUrl(cdnUrl: string, width: number) {
+  return `${cdnUrl}.w${width}.webp`;
+}
+
 function dto(item: MediaRecord, admin: boolean) {
   const base = admin ? '/admin' : '/public';
-  const mediaUrl = `${base}/award-event-media/${item.id}/media`;
+  const streamUrl = `${base}/award-event-media/${item.id}/media`;
+  // Only emit absolute CDN URLs for published items. Unpublished drafts stay on
+  // the authenticated/admin stream path so we do not advertise a public link.
+  // Note: objects already on CloudFront remain fetchable by anyone who already
+  // has the URL until they are deleted — treat CDN keys as sensitive.
+  const cdn = item.published && item.file.cdnUrl && isTrustedCdnUrl(item.file.cdnUrl)
+    ? item.file.cdnUrl
+    : null;
+  const mediaUrl = cdn || streamUrl;
+  const thumbUrl = item.mediaType === 'image'
+    ? (cdn ? awardMediaVariantUrl(cdn, DEFAULT_THUMB_WIDTH) : `${streamUrl}?w=${DEFAULT_THUMB_WIDTH}`)
+    : null;
+  const srcSet = item.mediaType === 'image' && cdn
+    ? THUMB_WIDTHS.map(width => `${awardMediaVariantUrl(cdn, width)} ${width}w`).join(', ')
+    : null;
   return {
     id: item.id,
     mediaType: item.mediaType as MediaType,
@@ -72,8 +103,9 @@ function dto(item: MediaRecord, admin: boolean) {
     displayOrder: item.displayOrder,
     ...(admin ? { published: item.published, name: item.file.originalName, mimeType: item.file.mimeType, sizeBytes: item.file.sizeBytes } : {}),
     mediaUrl,
-    // Grid tiles use a cached WebP thumb; lightbox keeps the full file.
-    thumbUrl: item.mediaType === 'image' ? `${mediaUrl}?w=${DEFAULT_THUMB_WIDTH}` : null,
+    thumbUrl,
+    srcSet,
+    posterUrl: null as string | null,
   };
 }
 
@@ -82,9 +114,12 @@ function thumbStorageKey(storageKey: string, width: number) {
 }
 
 export async function resolveMediaPath(
-  file: { storageKey: string; mimeType: string; originalName: string; sizeBytes: number },
+  file: { storageKey: string; mimeType: string; originalName: string; sizeBytes: number; cdnUrl?: string | null },
   widthParam: unknown,
 ) {
+  if (file.cdnUrl) {
+    throw ApiError.badRequest('CDN-backed media is served from CloudFront.');
+  }
   const absolute = assertSafePath(file.storageKey);
   const width = typeof widthParam === 'string' && widthParam.trim()
     ? Number.parseInt(widthParam, 10)
@@ -114,10 +149,85 @@ export async function resolveMediaPath(
   };
 }
 
-async function removeThumbs(storageKey: string) {
+/** Public redirect target for CDN objects (full asset or WebP variant). */
+export function resolveCdnRedirect(
+  file: { cdnUrl: string | null; mimeType: string },
+  widthParam: unknown,
+): string | null {
+  if (!file.cdnUrl || !isTrustedCdnUrl(file.cdnUrl)) return null;
+  const width = typeof widthParam === 'string' && widthParam.trim()
+    ? Number.parseInt(widthParam, 10)
+    : null;
+  if (
+    width !== null
+    && Number.isFinite(width)
+    && (THUMB_WIDTHS as readonly number[]).includes(width)
+    && file.mimeType.startsWith('image/')
+  ) {
+    const variant = awardMediaVariantUrl(file.cdnUrl, width);
+    return isTrustedCdnUrl(variant) ? variant : null;
+  }
+  return file.cdnUrl;
+}
+
+async function removeLocalThumbs(storageKey: string) {
   await Promise.all(THUMB_WIDTHS.map(width =>
     fsp.unlink(assertSafePath(thumbStorageKey(storageKey, width))).catch(() => undefined),
   ));
+}
+
+async function removeStoredFile(file: { storageKey: string; cdnUrl: string | null; mimeType: string }) {
+  if (isS3Object(file) && file.cdnUrl) {
+    const keys = [file.storageKey];
+    if (file.mimeType.startsWith('image/')) {
+      for (const width of THUMB_WIDTHS) keys.push(`${file.storageKey}.w${width}.webp`);
+    }
+    await deleteObjects(keys);
+    return;
+  }
+  await removeLocalThumbs(file.storageKey);
+  await fsp.unlink(assertSafePath(file.storageKey)).catch(error => {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.error('Award event media cleanup pending', { storageKey: file.storageKey, error: String(error) });
+    }
+  });
+}
+
+/**
+ * Persists the multer temp file to S3 (when configured) or keeps it on local disk.
+ * Image uploads also push WebP width variants for responsive `srcSet`.
+ */
+async function persistUpload(file: Express.Multer.File, mediaType: MediaType) {
+  if (!isS3Configured()) {
+    return { storageKey: file.filename, cdnUrl: null as string | null };
+  }
+
+  const objectKey = buildObjectKey(['award-event-media', file.filename], file.originalname);
+  const writtenKeys: string[] = [];
+  try {
+    const uploaded = await uploadFile(file.path, objectKey, file.mimetype, {
+      metadata: { mediaType, originalName: file.originalname.slice(0, 100) },
+    });
+    writtenKeys.push(uploaded.key);
+
+    if (mediaType === 'image') {
+      for (const width of THUMB_WIDTHS) {
+        const body = await sharp(file.path, { failOn: 'error' })
+          .rotate()
+          .resize({ width, withoutEnlargement: true })
+          .webp({ quality: 72 })
+          .toBuffer();
+        const variant = await uploadBuffer(body, `${objectKey}.w${width}.webp`, 'image/webp');
+        writtenKeys.push(variant.key);
+      }
+    }
+
+    await fsp.unlink(file.path).catch(() => undefined);
+    return { storageKey: uploaded.key, cdnUrl: uploaded.cdnUrl };
+  } catch (error) {
+    if (writtenKeys.length) await deleteObjects(writtenKeys);
+    throw error;
+  }
 }
 
 const orderBy = [{ displayOrder: 'asc' as const }, { id: 'asc' as const }];
@@ -159,18 +269,20 @@ async function normalize(db: Prisma.TransactionClient, mediaType: string) {
 
 export async function uploadMedia(actor: AuthenticatedUser, file?: Express.Multer.File) {
   const metadata = await inspectMedia(file);
+  const persisted = await persistUpload(file!, metadata.type);
   try {
     return await prisma.$transaction(async db => {
       const count = await db.awardEventMedia.count({ where: { mediaType: metadata.type } });
       const stored = await db.fileObject.create({
         data: {
           uploaderId: actor.id,
-          storageKey: file!.filename,
+          storageKey: persisted.storageKey,
           originalName: file!.originalname.slice(0, 191),
           mimeType: file!.mimetype,
           sizeBytes: file!.size,
           checksum: metadata.checksum,
-          visibility: 'PRIVATE',
+          cdnUrl: persisted.cdnUrl,
+          visibility: persisted.cdnUrl ? 'PUBLIC' : 'PRIVATE',
           awardMediaManaged: true,
         },
       });
@@ -192,12 +304,16 @@ export async function uploadMedia(actor: AuthenticatedUser, file?: Express.Multe
         entity: `AwardEventMedia ${created.id}`,
         entityType: 'AwardEventMedia',
         entityId: created.id,
-        metadata: { fileId: stored.id, mediaType: metadata.type },
+        metadata: { fileId: stored.id, mediaType: metadata.type, storage: persisted.cdnUrl ? 's3' : 'local' },
       }, db);
       return dto(await db.awardEventMedia.findUniqueOrThrow({ where: { id: created.id }, include: { file: true } }), true);
     });
   } catch (error) {
-    await fsp.unlink(assertSafePath(file!.filename)).catch(() => undefined);
+    if (persisted.cdnUrl) {
+      await removeStoredFile({ storageKey: persisted.storageKey, cdnUrl: persisted.cdnUrl, mimeType: file!.mimetype });
+    } else {
+      await fsp.unlink(assertSafePath(file!.filename)).catch(() => undefined);
+    }
     throw error;
   }
 }
@@ -264,10 +380,7 @@ export async function removeMedia(actor: AuthenticatedUser, id: string) {
       metadata: { fileId: current.fileId, mediaType: current.mediaType },
     }, db);
   });
-  await removeThumbs(current.file.storageKey);
-  await fsp.unlink(assertSafePath(current.file.storageKey)).catch(error => {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') logger.error('Award event media cleanup pending', { fileId: current.fileId, error: String(error) });
-  });
+  await removeStoredFile(current.file);
   return { removed: true };
 }
 
@@ -276,5 +389,6 @@ export function uploadPolicy() {
     maxBytes: galleryPolicy.maxBytes,
     mimeTypes: galleryPolicy.mimeTypes,
     extensions: galleryPolicy.extensions,
+    storage: isS3Configured() ? 's3' : 'local',
   };
 }

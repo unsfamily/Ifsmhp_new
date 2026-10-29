@@ -97,16 +97,16 @@ describe('Award event media', () => {
     const created = await upload(large, 'stage.jpg');
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     const id = created.body.data.id as string;
-    expect(created.body.data.thumbUrl).toBe(`/admin/award-event-media/${id}/media?w=480`);
+    expect(created.body.data.thumbUrl).toBe(`/admin/award-event-media/${id}/media?w=640`);
 
     const original = await request(app).get(`/api/v1/public/award-event-media/${id}/media`);
-    const thumb = await request(app).get(`/api/v1/public/award-event-media/${id}/media?w=480`);
+    const thumb = await request(app).get(`/api/v1/public/award-event-media/${id}/media?w=640`);
     expect(thumb.status).toBe(200);
     expect(thumb.headers['content-type']).toBe('image/webp');
     expect(Number(thumb.headers['content-length'])).toBeLessThan(Number(original.headers['content-length']));
 
     const meta = await sharp(thumb.body).metadata();
-    expect(meta.width).toBeLessThanOrEqual(480);
+    expect(meta.width).toBeLessThanOrEqual(640);
     expect(meta.format).toBe('webp');
   });
 

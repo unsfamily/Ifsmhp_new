@@ -27,6 +27,9 @@ if (envPath) dotenv.config({ path: envPath });
  * Secrets are NOT given defaults — a missing secret must crash the process at
  * boot rather than silently fall back to a guessable value.
  */
+const emptyToUndefined = (value: unknown) =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
@@ -71,7 +74,50 @@ const envSchema = z.object({
   OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(60),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   OTP_MAX_RESENDS: z.coerce.number().int().positive().default(5),
+
+  // --- AWS S3 / CloudFront media (optional; local disk remains the default) ---
+  AWS_REGION: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  AWS_ACCESS_KEY_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  AWS_SECRET_ACCESS_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  AWS_S3_BUCKET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  /** Public CloudFront origin, e.g. https://d111111abcdef8.cloudfront.net */
+  AWS_CLOUDFRONT_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  /** Key prefix inside the bucket (no leading/trailing slash). */
+  AWS_S3_KEY_PREFIX: z.preprocess(emptyToUndefined, z.string().min(1).optional()).default('ifsmhp'),
+  /** Files at or above this size use multipart upload. */
+  AWS_S3_MULTIPART_THRESHOLD_MB: z.coerce.number().int().positive().max(512).default(16),
 }).superRefine((data, ctx) => {
+  const s3Bits = [data.AWS_REGION, data.AWS_S3_BUCKET, data.AWS_CLOUDFRONT_URL];
+  const s3Any = s3Bits.some(Boolean);
+  const s3All = s3Bits.every(Boolean);
+  if (s3Any && !s3All) {
+    if (!data.AWS_REGION) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AWS_REGION'], message: 'AWS_REGION is required when S3 media storage is enabled.' });
+    if (!data.AWS_S3_BUCKET) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AWS_S3_BUCKET'], message: 'AWS_S3_BUCKET is required when S3 media storage is enabled.' });
+    if (!data.AWS_CLOUDFRONT_URL) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AWS_CLOUDFRONT_URL'], message: 'AWS_CLOUDFRONT_URL is required when S3 media storage is enabled.' });
+  }
+  const hasAccess = Boolean(data.AWS_ACCESS_KEY_ID);
+  const hasSecret = Boolean(data.AWS_SECRET_ACCESS_KEY);
+  if (hasAccess !== hasSecret) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [hasAccess ? 'AWS_SECRET_ACCESS_KEY' : 'AWS_ACCESS_KEY_ID'],
+      message: 'AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set together (or both omitted to use the instance role).',
+    });
+  }
+  if (data.AWS_CLOUDFRONT_URL) {
+    try {
+      const cdn = new URL(data.AWS_CLOUDFRONT_URL);
+      if (data.NODE_ENV === 'production' && cdn.protocol !== 'https:') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AWS_CLOUDFRONT_URL'], message: 'AWS_CLOUDFRONT_URL must use https in production.' });
+      }
+    } catch {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AWS_CLOUDFRONT_URL'], message: 'AWS_CLOUDFRONT_URL must be a valid URL.' });
+    }
+  }
+  if (data.AWS_S3_KEY_PREFIX?.includes('..')) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AWS_S3_KEY_PREFIX'], message: 'AWS_S3_KEY_PREFIX must not contain "..".' });
+  }
+
   let remote = false;
   try {
     const target = parseDatabaseUrl(data.DATABASE_URL);
@@ -122,6 +168,8 @@ export const env = {
   allowedOrigins: raw.CLIENT_URL.split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
+  /** S3 + CloudFront are ready for public media delivery. */
+  s3Configured: Boolean(raw.AWS_REGION && raw.AWS_S3_BUCKET && raw.AWS_CLOUDFRONT_URL),
 } as const;
 
 export type Env = typeof env;

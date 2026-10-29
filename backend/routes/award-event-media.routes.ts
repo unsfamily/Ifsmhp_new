@@ -14,6 +14,12 @@ awardEventMediaAdminRoutes.use(requireAuth, requireRole('ADMIN'));
 
 const streamMedia = (admin: boolean): RequestHandler => asyncHandler(async (req, res) => {
   const file = await awardMedia.mediaFile(req.params.id!, admin);
+  const cdnTarget = awardMedia.resolveCdnRedirect(file, req.query.w);
+  if (cdnTarget) {
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.redirect(302, cdnTarget);
+    return;
+  }
   const resolved = await awardMedia.resolveMediaPath(file, req.query.w);
   const stat = await fsp.stat(resolved.absolute).catch(() => { throw ApiError.notFound('Award media not found'); });
   if (!stat.isFile()) throw ApiError.notFound('Award media not found');

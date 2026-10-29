@@ -357,6 +357,8 @@ model FileObject {
   mimeType           String
   sizeBytes          Int
   checksum           String?
+  /// Absolute CloudFront URL when the object lives in S3; null for local disk.
+  cdnUrl             String?                    @db.VarChar(2048)
   visibility         FileVisibility             @default(PRIVATE)
   createdAt          DateTime                   @default(now())
   deletedAt          DateTime?
