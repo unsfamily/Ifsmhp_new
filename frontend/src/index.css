@@ -1470,6 +1470,16 @@ dialog.award-photo-dialog::backdrop {
   background: rgb(1 23 56 / 0.78);
 }
 
+.award-gallery-page-frame {
+  position: relative;
+  background-image:
+    linear-gradient(#fff, #fff),
+    linear-gradient(135deg, rgb(1 37 89 / 0.55), rgb(195 157 73 / 0.75), rgb(1 37 89 / 0.4));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  border: 1px solid transparent;
+}
+
 .support-nav-link {
   display: inline-flex;
   align-items: center;

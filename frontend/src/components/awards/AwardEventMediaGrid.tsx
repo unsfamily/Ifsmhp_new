@@ -9,6 +9,18 @@ import AwardEventLightbox from './AwardEventLightbox';
 export const AWARD_EVENT_GALLERY_TITLE = 'International Laureates Recognition Conclave';
 const PREVIEW_PER_TYPE = 3;
 
+/** Cycling brand gradients for full-gallery photo frames. */
+const GALLERY_FRAME_GRADIENTS = [
+  'bg-gradient-to-br from-forum-800 via-forum-500 to-brass-400',
+  'bg-gradient-to-tr from-brass-500 via-brass-400 to-forum-700',
+  'bg-gradient-to-bl from-forum-950 via-forum-600 to-brass-500',
+  'bg-gradient-to-r from-brass-600 via-forum-500 to-forum-900',
+  'bg-gradient-to-tl from-forum-500 via-brass-400 to-forum-900',
+  'bg-gradient-to-b from-brass-400 via-forum-700 to-forum-950',
+  'bg-gradient-to-br from-forum-700 via-brass-500 to-brass-300',
+  'bg-gradient-to-tr from-forum-900 via-brass-600 to-forum-400',
+] as const;
+
 function useNearViewport(enabled: boolean) {
   const ref = useRef<HTMLSpanElement | null>(null);
   const [visible, setVisible] = useState(!enabled);
@@ -55,6 +67,10 @@ function MediaTile({
   const deferMedia = !eager;
   const { ref, visible } = useNearViewport(deferMedia);
 
+  const frameClass = dense
+    ? GALLERY_FRAME_GRADIENTS[index % GALLERY_FRAME_GRADIENTS.length]
+    : null;
+
   return (
     <li className="min-w-0 [content-visibility:auto] [contain-intrinsic-size:240px]">
       <button
@@ -64,47 +80,55 @@ function MediaTile({
         className="group block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-forum-700 focus-visible:ring-offset-2"
       >
         <span
-          ref={ref as RefObject<HTMLSpanElement>}
-          className="relative block aspect-[16/10] overflow-hidden bg-forum-100"
+          className={
+            frameClass
+              ? `block rounded-lg p-[2.5px] shadow-[0_8px_22px_-10px_rgb(1_37_89_/_0.45)] transition duration-300 group-hover:shadow-[0_14px_28px_-12px_rgb(195_157_73_/_0.55)] motion-reduce:transition-none ${frameClass}`
+              : 'block'
+          }
         >
-          {item.mediaType === 'video' ? (
-            <>
-              {visible ? (
-                <video
-                  src={item.mediaUrl}
-                  aria-label={label}
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
-                  muted
-                  playsInline
-                  preload="none"
-                />
-              ) : (
-                <span className="absolute inset-0 bg-forum-200" aria-hidden="true" />
-              )}
-              <span className="pointer-events-none absolute left-2 top-2 rounded bg-forum-950/75 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                Video
-              </span>
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-forum-950/20">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-forum-900 shadow-sm">
-                  <Film className="h-5 w-5" aria-hidden="true" />
+          <span
+            ref={ref as RefObject<HTMLSpanElement>}
+            className={`relative block aspect-[16/10] overflow-hidden bg-forum-100 ${dense ? 'rounded-[calc(0.5rem-1px)]' : ''}`}
+          >
+            {item.mediaType === 'video' ? (
+              <>
+                {visible ? (
+                  <video
+                    src={item.mediaUrl}
+                    aria-label={label}
+                    className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                    muted
+                    playsInline
+                    preload="none"
+                  />
+                ) : (
+                  <span className="absolute inset-0 bg-forum-200" aria-hidden="true" />
+                )}
+                <span className="pointer-events-none absolute left-2 top-2 rounded bg-forum-950/75 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  Video
                 </span>
-              </span>
-            </>
-          ) : visible ? (
-            <img
-              src={item.mediaUrl}
-              alt={label}
-              width={item.width ?? 960}
-              height={item.height ?? 600}
-              sizes={dense ? '(max-width:640px) 100vw, (max-width:1024px) 50vw, (max-width:1400px) 33vw, 25vw' : '(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw'}
-              loading={eager ? 'eager' : 'lazy'}
-              decoding="async"
-              fetchPriority={eager ? 'high' : 'low'}
-              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
-            />
-          ) : (
-            <span className="absolute inset-0 bg-forum-100" aria-hidden="true" />
-          )}
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-forum-950/20">
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-forum-900 shadow-sm">
+                    <Film className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                </span>
+              </>
+            ) : visible ? (
+              <img
+                src={item.mediaUrl}
+                alt={label}
+                width={item.width ?? 960}
+                height={item.height ?? 600}
+                sizes={dense ? '(max-width:640px) 100vw, (max-width:1024px) 50vw, (max-width:1400px) 33vw, 25vw' : '(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw'}
+                loading={eager ? 'eager' : 'lazy'}
+                decoding="async"
+                fetchPriority={eager ? 'high' : 'low'}
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+              />
+            ) : (
+              <span className="absolute inset-0 bg-forum-100" aria-hidden="true" />
+            )}
+          </span>
         </span>
       </button>
     </li>
@@ -135,7 +159,7 @@ function MediaRow({
       <ul
         className={
           dense
-            ? 'grid list-none grid-cols-1 gap-2 p-0 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 lg:gap-2.5'
+            ? 'grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 lg:gap-3.5'
             : 'grid list-none grid-cols-1 gap-x-8 gap-y-10 p-0 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-10 lg:gap-y-12'
         }
       >
