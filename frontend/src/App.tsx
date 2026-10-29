@@ -65,6 +65,7 @@ import AdminProfilePage from './pages/admin/AdminProfilePage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import AdminGalleryPage from './pages/admin/AdminGalleryPage';
 import AdminCarouselPage from './pages/admin/AdminCarouselPage';
+import AdminAwardEventMediaPage from './pages/admin/AdminAwardEventMediaPage';
 import AdminCommunityDashboard from './pages/admin/community/AdminCommunityDashboard';
 import AdminCommunitiesPage from './pages/admin/community/AdminCommunitiesPage';
 import AdminCommunityMembersPage from './pages/admin/community/AdminCommunityMembersPage';
@@ -175,6 +176,7 @@ export default function App() {
           <Route path="publications/:id" element={<AdminPublicationDetailPage />} />
           <Route path="gallery" element={<AdminGalleryPage />} />
           <Route path="carousel" element={<AdminCarouselPage />} />
+          <Route path="award-event-media" element={<AdminAwardEventMediaPage />} />
           <Route path="community/communities" element={<AdminCommunitiesPage />} />
 
           <Route path="support" element={<AdminSupportPage />} />

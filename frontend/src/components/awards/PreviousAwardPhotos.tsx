@@ -1,124 +1,114 @@
-import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import stagePhoto from '../../assets/images/conclave-2025-stage.jpg';
-import laureatesPhoto from '../../assets/images/conclave-2025-laureates.jpg';
-import presentationPhoto from '../../assets/images/conclave-2025-presentation.jpg';
+import { useEffect, useMemo, useState } from 'react';
+import { Film } from 'lucide-react';
+import { awardEventMediaApi, type AwardEventMediaItem } from '../../api/awardEventMedia';
+import { normalizeError } from '../../api/client';
+import AwardEventCollageBanner from './AwardEventCollageBanner';
+import AwardEventEssayStrip from './AwardEventEssayStrip';
+import AwardEventLightbox from './AwardEventLightbox';
 
-const photos = [
-  {
-    src: stagePhoto,
-    alt: 'Laureates and guests gathered on stage at the International Laureates Recognition Conclave 2025, holding certificates beneath the Impact Bharath banner.',
-    caption: 'The full stage',
-  },
-  {
-    src: laureatesPhoto,
-    alt: 'Laureates holding certificates on stage at the International Laureates Recognition Conclave 2025.',
-    caption: 'Laureates with certificates',
-  },
-  {
-    src: presentationPhoto,
-    alt: 'A group of laureates presenting certificates on stage at the International Laureates Recognition Conclave 2025.',
-    caption: 'Certificate presentation',
-  },
-];
+const TITLE = 'International Laureates Recognition Conclave';
+const YEAR_LABEL = '2025 award function';
 
 export default function PreviousAwardPhotos() {
+  const [items, setItems] = useState<AwardEventMediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<number | null>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (active === null) {
-      if (dialog.open) dialog.close();
-      return;
-    }
-    if (!dialog.open) dialog.showModal();
-    closeRef.current?.focus();
-  }, [active]);
+    let cancelled = false;
+    setLoading(true);
+    awardEventMediaApi.listPublic()
+      .then(next => {
+        if (!cancelled) {
+          setItems(next);
+          setError(null);
+        }
+      })
+      .catch(err => {
+        if (!cancelled) setError(normalizeError(err).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
-  const show = (index: number) => setActive((index + photos.length) % photos.length);
-  const current = active === null ? null : photos[active];
+  const photos = useMemo(() => items.filter(item => item.mediaType === 'image'), [items]);
+  const videos = useMemo(() => items.filter(item => item.mediaType === 'video'), [items]);
+  const lightboxItems = useMemo(() => [...photos, ...videos], [photos, videos]);
+
+  const openLightbox = (index: number, source: 'photo' | 'video') => {
+    if (source === 'photo') setActive(index);
+    else setActive(photos.length + index);
+  };
+
+  if (loading) {
+    return <p role="status" className="text-sm text-ink-muted">Loading previous event media…</p>;
+  }
+
+  if (error) {
+    return <p role="alert" className="text-sm text-danger-700">{error}</p>;
+  }
+
+  if (lightboxItems.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-paper-border bg-paper-raised px-6 py-10 text-center">
+        <p className="font-display text-xl font-semibold text-forum-900">{TITLE}</p>
+        <p className="mt-2 text-sm text-ink-muted">Award photographs and videos will appear here once they are published.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="award-photo-stage">
-      <figure className="award-photo-frame text-white">
-        <figcaption className="relative flex flex-wrap items-end justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-forum-950 via-forum-900 to-forum-950 px-5 py-4 sm:px-6">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-400">2025 award function</p>
-            <p className="mt-1 font-display text-xl font-semibold sm:text-2xl">International Laureates Recognition Conclave</p>
-          </div>
-          <p className="text-sm text-white/70">Impact Bharath</p>
-        </figcaption>
-        <div className="grid gap-1.5 p-1.5 sm:grid-cols-5 sm:grid-rows-2" role="group" aria-label="Photographs from the 2025 award function">
-          {photos.map((photo, index) => (
-            <button
-              key={photo.caption}
-              type="button"
-              onClick={() => show(index)}
-              className={`award-photo-tile group relative overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass-400 focus-visible:ring-offset-2 focus-visible:ring-offset-forum-950 ${
-                index === 0 ? 'sm:col-span-3 sm:row-span-2' : 'sm:col-span-2'
-              }`}
-            >
-              <img
-                src={photo.src}
-                alt={photo.alt}
-                width={1024}
-                height={682}
-                loading={index === 0 ? 'eager' : 'lazy'}
-                decoding="async"
-                fetchPriority={index === 0 ? 'high' : 'low'}
-                className={`w-full object-cover transition duration-500 group-hover:scale-[1.03] ${
-                  index === 0 ? 'aspect-[16/10] sm:aspect-auto sm:h-full sm:min-h-[28rem]' : 'aspect-[16/9] sm:aspect-auto sm:h-full sm:min-h-[13.75rem]'
-                }`}
-              />
-              <span className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 pb-3 pt-10 text-sm font-medium text-white">
-                {photo.caption}
-              </span>
-            </button>
-          ))}
-        </div>
+    <div className="space-y-8">
+      {photos.length > 0 && (
+        <>
+          <AwardEventCollageBanner photos={photos} onOpen={index => openLightbox(index, 'photo')}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brass-400">{YEAR_LABEL}</p>
+            <p className="mt-2 font-display text-3xl font-semibold sm:text-4xl">{TITLE}</p>
+            <p className="mt-3 text-sm text-white/75">Impact Bharath · {photos.length} photograph{photos.length === 1 ? '' : 's'}</p>
+          </AwardEventCollageBanner>
+          <AwardEventEssayStrip photos={photos} onOpen={index => openLightbox(index, 'photo')} />
+        </>
+      )}
 
-        <dialog
-          ref={dialogRef}
-          className="award-photo-dialog"
-          aria-label="2025 award function photograph"
+      {videos.length > 0 && (
+        <section aria-labelledby="award-event-videos-heading" className="space-y-4">
+          <div>
+            <h3 id="award-event-videos-heading" className="font-display text-2xl font-semibold text-forum-900">Event videos</h3>
+            <p className="mt-1 text-sm text-ink-muted">{videos.length} video{videos.length === 1 ? '' : 's'} from the ceremony.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {videos.map((video, index) => (
+              <button
+                key={video.id}
+                type="button"
+                onClick={() => openLightbox(index, 'video')}
+                className="group relative aspect-video overflow-hidden rounded-2xl bg-forum-950 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-forum-700"
+                aria-label={`Open video ${index + 1} of ${videos.length}`}
+              >
+                <video src={video.mediaUrl} className="h-full w-full object-cover opacity-90 transition group-hover:scale-[1.03]" muted playsInline preload="metadata" />
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-forum-950/25">
+                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-forum-900 shadow-sm">
+                    <Film className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {active !== null && (
+        <AwardEventLightbox
+          items={lightboxItems}
+          index={active}
+          title={TITLE}
           onClose={() => setActive(null)}
-          onClick={(event) => {
-            if (event.target === dialogRef.current) setActive(null);
-          }}
-        >
-          {current && active !== null && (
-            <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
-              <div className="flex items-center justify-between gap-3 px-4 py-3 text-white">
-                <p className="font-display text-lg font-semibold">{current.caption}</p>
-                <button
-                  ref={closeRef}
-                  type="button"
-                  onClick={() => setActive(null)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white hover:bg-white/10"
-                  aria-label="Close photograph"
-                >
-                  <X className="h-5 w-5" aria-hidden="true" />
-                </button>
-              </div>
-              <img src={current.src} alt={current.alt} width={1024} height={682} decoding="async" className="max-h-[calc(100dvh-8.5rem)] w-full object-contain" />
-              <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-white/80">
-                <button type="button" onClick={() => show(active - 1)} className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 hover:bg-white/10" aria-label="Previous photograph">
-                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                  Previous
-                </button>
-                <span>{active + 1} of {photos.length}</span>
-                <button type="button" onClick={() => show(active + 1)} className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 hover:bg-white/10" aria-label="Next photograph">
-                  Next
-                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-          )}
-        </dialog>
-      </figure>
+          onChange={setActive}
+        />
+      )}
     </div>
   );
 }

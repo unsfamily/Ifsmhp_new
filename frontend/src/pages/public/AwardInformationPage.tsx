@@ -146,9 +146,9 @@ export default function AwardInformationPage() {
 
       <section className="bg-paper" aria-labelledby="previous-photographs-heading">
         <div className="mx-auto max-w-6xl px-4 pb-16 pt-4 sm:px-6 lg:pb-20 lg:pt-6">
-          <h2 id="previous-photographs-heading" className="font-display text-3xl font-semibold text-forum-900">Previous event photographs</h2>
+          <h2 id="previous-photographs-heading" className="font-display text-3xl font-semibold text-forum-900">Previous event gallery</h2>
           <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-ink-muted">
-            Photographs from the 2025 International Laureates Recognition Conclave.
+            Photographs and videos from the 2025 International Laureates Recognition Conclave.
           </p>
           <div className="mt-8">
             <PreviousAwardPhotos />

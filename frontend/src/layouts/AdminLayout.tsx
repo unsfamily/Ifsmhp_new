@@ -23,6 +23,7 @@ import {
   Clock,
   Images,
   GalleryHorizontal,
+  Film,
   ChevronDown,
   Globe2,
   MessagesSquare,
@@ -97,6 +98,7 @@ const navSections: NavSection[] = [
       { to: '/admin/publications', label: 'Publications', icon: FileText, badgeKey: 'publicationsQueue' },
       { to: '/admin/gallery', label: 'Media Gallery', icon: Images },
       { to: '/admin/carousel', label: 'Home carousel', icon: GalleryHorizontal },
+      { to: '/admin/award-event-media', label: 'Award event media', icon: Film },
     ],
   },
   {
