@@ -1,5 +1,5 @@
 import type { CeremonyCommitteeMember } from '../../domain/ceremonyProgramme';
-import hemachandranRavikumarPortrait from '../../assets/images/awards/hemachandran-ravikumar.webp';
+import hemachandranRavikumarPortrait from '../../assets/images/awards/hemachandran-ravikumar-portrait.webp';
 import yaseenShaikhPortrait from '../../assets/images/awards/yaseen-ismail-shaikh.jpg';
 
 const portraits: Record<NonNullable<CeremonyCommitteeMember['photoKey']>, string> = {
@@ -14,18 +14,26 @@ const portraitAlt: Partial<Record<NonNullable<CeremonyCommitteeMember['photoKey'
 function MemberCard({ member, featured = false }: { member: CeremonyCommitteeMember; featured?: boolean }) {
   const photo = member.photoKey ? portraits[member.photoKey] : undefined;
   const photoDetail = member.photoKey ? portraitAlt[member.photoKey] : undefined;
+  const shortFeatured = featured && !(member.summary && member.summary.length);
   return (
-    <article className={`overflow-hidden rounded-2xl border border-paper-border bg-paper shadow-sm ${featured ? 'lg:grid lg:grid-cols-[minmax(0,0.42fr)_minmax(0,1fr)]' : 'p-5'}`}>
+    <article className={`overflow-hidden rounded-2xl border border-paper-border bg-paper shadow-sm ${featured ? (shortFeatured ? 'lg:grid lg:grid-cols-[minmax(17rem,22rem)_minmax(0,1fr)]' : 'lg:grid lg:grid-cols-[minmax(0,0.42fr)_minmax(0,1fr)]') : 'p-5'}`}>
       {photo && (
-        <figure className={featured ? 'relative min-h-[18rem] overflow-hidden bg-forum-950 lg:min-h-full' : 'mb-4 overflow-hidden rounded-xl'}>
+        <figure className={featured
+          ? `relative overflow-hidden bg-forum-950 ${shortFeatured ? 'aspect-[3/4] min-h-[24rem] sm:min-h-[28rem] lg:min-h-0 lg:aspect-auto lg:h-full' : 'min-h-[18rem] lg:min-h-full'}`
+          : 'mb-4 overflow-hidden rounded-xl'}
+        >
           <img
             src={photo}
             alt={photoDetail ? `${member.name}, ${photoDetail}` : `${member.name}, ${member.role}`}
-            className={featured ? 'absolute inset-0 h-full w-full object-cover object-top' : 'aspect-square w-full object-cover object-top'}
+            className={featured
+              ? (shortFeatured
+                ? 'absolute inset-0 h-full w-full object-cover object-[center_12%]'
+                : 'absolute inset-0 h-full w-full object-cover object-top')
+              : 'aspect-square w-full object-cover object-top'}
           />
         </figure>
       )}
-      <div className={featured ? 'p-5 sm:p-6' : ''}>
+      <div className={featured ? (shortFeatured ? 'flex min-h-[24rem] flex-col justify-center p-5 sm:min-h-[28rem] sm:p-7' : 'p-5 sm:p-6') : ''}>
         <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-brass-700">{member.role}</p>
         <h3 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{member.name}</h3>
         {member.tagline && <p className="mt-2 text-[15px] font-medium text-forum-900">{member.tagline}</p>}
