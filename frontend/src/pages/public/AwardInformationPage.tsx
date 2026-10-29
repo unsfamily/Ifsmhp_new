@@ -31,9 +31,9 @@ export default function AwardInformationPage() {
                   <span className="ml-[0.2em] mt-[0.6em] text-[0.40em] font-semibold leading-none">nd</span>
                 </span>
                 <span className="sr-only">Second</span>
-                {' '}International IFSMHP
+                {' '}International
               </span>
-              <span className="mt-[0.08em] block">Awards 2026</span>
+              <span className="mt-[0.08em] block">IFSMHP Awards 2026</span>
             </h1>
             <p className="mt-4 max-w-3xl text-[17px] leading-relaxed text-ink-muted sm:text-[19px]">
               {ceremonyProgramme.totalLabel}. The ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune.
