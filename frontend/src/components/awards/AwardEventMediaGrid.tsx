@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Film } from 'lucide-react';
 import { awardEventMediaAlt, awardEventMediaApi, type AwardEventMediaItem } from '../../api/awardEventMedia';
@@ -9,51 +9,101 @@ import AwardEventLightbox from './AwardEventLightbox';
 export const AWARD_EVENT_GALLERY_TITLE = 'International Laureates Recognition Conclave';
 const PREVIEW_PER_TYPE = 3;
 
+function useNearViewport(enabled: boolean) {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  const [visible, setVisible] = useState(!enabled);
+
+  useEffect(() => {
+    if (!enabled || visible) return;
+    const node = ref.current;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '240px 0px', threshold: 0.01 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [enabled, visible]);
+
+  return { ref, visible };
+}
+
 function MediaTile({
   item,
   index,
   total,
   onOpen,
+  dense = false,
+  eager = false,
 }: {
   item: AwardEventMediaItem;
   index: number;
   total: number;
   onOpen: () => void;
+  dense?: boolean;
+  eager?: boolean;
 }) {
   const label = awardEventMediaAlt(item, { index, total, eventLabel: AWARD_EVENT_GALLERY_TITLE });
+  const deferMedia = !eager;
+  const { ref, visible } = useNearViewport(deferMedia);
+
   return (
-    <li className="min-w-0">
+    <li className="min-w-0 [content-visibility:auto] [contain-intrinsic-size:240px]">
       <button
         type="button"
         onClick={onOpen}
         aria-label={`Open ${item.mediaType === 'video' ? 'video' : 'photograph'} ${index + 1} of ${total}`}
         className="group block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-forum-700 focus-visible:ring-offset-2"
       >
-        <span className="relative block aspect-[16/10] overflow-hidden bg-forum-100">
+        <span
+          ref={ref as RefObject<HTMLSpanElement>}
+          className="relative block aspect-[16/10] overflow-hidden bg-forum-100"
+        >
           {item.mediaType === 'video' ? (
             <>
-              <video
-                src={item.mediaUrl}
-                aria-label={label}
-                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
-                muted
-                playsInline
-                preload="metadata"
-              />
+              {visible ? (
+                <video
+                  src={item.mediaUrl}
+                  aria-label={label}
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                  muted
+                  playsInline
+                  preload="none"
+                />
+              ) : (
+                <span className="absolute inset-0 bg-forum-200" aria-hidden="true" />
+              )}
+              <span className="pointer-events-none absolute left-2 top-2 rounded bg-forum-950/75 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                Video
+              </span>
               <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-forum-950/20">
                 <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-forum-900 shadow-sm">
                   <Film className="h-5 w-5" aria-hidden="true" />
                 </span>
               </span>
             </>
-          ) : (
+          ) : visible ? (
             <img
               src={item.mediaUrl}
               alt={label}
-              loading={index < 6 ? 'eager' : 'lazy'}
+              width={item.width ?? 960}
+              height={item.height ?? 600}
+              sizes={dense ? '(max-width:640px) 100vw, (max-width:1024px) 50vw, (max-width:1400px) 33vw, 25vw' : '(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw'}
+              loading={eager ? 'eager' : 'lazy'}
               decoding="async"
+              fetchPriority={eager ? 'high' : 'low'}
               className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
             />
+          ) : (
+            <span className="absolute inset-0 bg-forum-100" aria-hidden="true" />
           )}
         </span>
       </button>
@@ -66,18 +116,30 @@ function MediaRow({
   items,
   lightboxItems,
   onOpen,
+  dense = false,
+  eagerCount = 0,
 }: {
   heading: string;
   items: AwardEventMediaItem[];
   lightboxItems: AwardEventMediaItem[];
   onOpen: (item: AwardEventMediaItem) => void;
+  dense?: boolean;
+  eagerCount?: number;
 }) {
   if (!items.length) return null;
   return (
-    <div className="space-y-4">
-      <h3 className="font-display text-2xl font-semibold text-forum-900">{heading}</h3>
-      <ul className="grid list-none grid-cols-1 gap-x-8 gap-y-10 p-0 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-10 lg:gap-y-12">
-        {items.map((item) => {
+    <div className={dense ? 'space-y-3' : 'space-y-4'}>
+      <h3 className={`font-display font-semibold text-forum-900 ${dense ? 'px-4 text-xl sm:px-6 lg:px-8' : 'text-2xl'}`}>
+        {heading}
+      </h3>
+      <ul
+        className={
+          dense
+            ? 'grid list-none grid-cols-1 gap-2 p-0 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 lg:gap-2.5'
+            : 'grid list-none grid-cols-1 gap-x-8 gap-y-10 p-0 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-10 lg:gap-y-12'
+        }
+      >
+        {items.map((item, rowIndex) => {
           const index = lightboxItems.findIndex(row => row.id === item.id);
           return (
             <MediaTile
@@ -86,6 +148,8 @@ function MediaRow({
               index={index}
               total={lightboxItems.length}
               onOpen={() => onOpen(item)}
+              dense={dense}
+              eager={rowIndex < eagerCount}
             />
           );
         })}
@@ -103,6 +167,7 @@ export default function AwardEventMediaGrid({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<number | null>(null);
+  const dense = mode === 'full';
 
   useEffect(() => {
     let cancelled = false;
@@ -138,16 +203,16 @@ export default function AwardEventMediaGrid({
   };
 
   if (loading) {
-    return <p role="status" className="text-sm text-ink-muted">Loading previous event media…</p>;
+    return <p role="status" className={`text-sm text-ink-muted ${dense ? 'px-4 sm:px-6 lg:px-8' : ''}`}>Loading previous event media…</p>;
   }
 
   if (error) {
-    return <p role="alert" className="text-sm text-danger-700">{error}</p>;
+    return <p role="alert" className={`text-sm text-danger-700 ${dense ? 'px-4 sm:px-6 lg:px-8' : ''}`}>{error}</p>;
   }
 
   if (lightboxItems.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-paper-border bg-paper-raised px-6 py-10 text-center">
+      <div className={`rounded-2xl border border-dashed border-paper-border bg-paper-raised px-6 py-10 text-center ${dense ? 'mx-4 sm:mx-6 lg:mx-8' : ''}`}>
         <p className="font-display text-xl font-semibold text-forum-900">{AWARD_EVENT_GALLERY_TITLE}</p>
         <p className="mt-2 text-sm text-ink-muted">Award photographs and videos will appear here once they are published.</p>
       </div>
@@ -155,9 +220,23 @@ export default function AwardEventMediaGrid({
   }
 
   return (
-    <div className="space-y-10">
-      <MediaRow heading="Photographs" items={visiblePhotos} lightboxItems={lightboxItems} onOpen={openItem} />
-      <MediaRow heading="Videos" items={visibleVideos} lightboxItems={lightboxItems} onOpen={openItem} />
+    <div className={dense ? 'space-y-8' : 'space-y-10'}>
+      <MediaRow
+        heading="Photographs"
+        items={visiblePhotos}
+        lightboxItems={lightboxItems}
+        onOpen={openItem}
+        dense={dense}
+        eagerCount={dense ? 4 : 3}
+      />
+      <MediaRow
+        heading="Videos"
+        items={visibleVideos}
+        lightboxItems={lightboxItems}
+        onOpen={openItem}
+        dense={dense}
+        eagerCount={0}
+      />
 
       {showSeeMore && (
         <div className="flex justify-center pt-2">
