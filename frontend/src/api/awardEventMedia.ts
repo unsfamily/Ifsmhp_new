@@ -20,9 +20,20 @@ export interface AwardEventMediaItem {
   sizeBytes?: number;
 }
 
+/** API returns path-only media URLs; resolve them against VITE_API_BASE_URL for <img>/<video>. */
+export function awardEventMediaUrl(path: string) {
+  if (!path || path.startsWith('http') || path.startsWith('blob:') || path.startsWith('data:')) return path;
+  const base = apiClient.defaults.baseURL ?? '';
+  return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function withResolvedUrls(items: AwardEventMediaItem[]) {
+  return items.map(item => ({ ...item, mediaUrl: awardEventMediaUrl(item.mediaUrl) }));
+}
+
 export const awardEventMediaApi = {
   listPublic: async (type?: AwardMediaType) =>
-    (await apiClient.get<Envelope<{ items: AwardEventMediaItem[] }>>('/public/award-event-media', { params: type ? { type } : undefined })).data.data.items,
+    withResolvedUrls((await apiClient.get<Envelope<{ items: AwardEventMediaItem[] }>>('/public/award-event-media', { params: type ? { type } : undefined })).data.data.items),
   list: async (type?: AwardMediaType) =>
     (await apiClient.get<Envelope<{ items: AwardEventMediaItem[] }>>('/admin/award-event-media', { params: type ? { type } : undefined })).data.data.items,
   upload: async (file: File) => {
