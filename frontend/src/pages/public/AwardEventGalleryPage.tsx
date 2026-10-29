@@ -25,28 +25,26 @@ export default function AwardEventGalleryPage() {
         aria-hidden="true"
       />
 
-      <div className="relative w-full px-3 py-6 sm:px-4 sm:py-8 lg:px-5 lg:py-10">
-        <div className="award-gallery-page-frame rounded-2xl p-4 shadow-[0_1px_0_rgb(195_157_73_/_0.35),0_18px_40px_-18px_rgb(1_37_89_/_0.35),0_8px_24px_-12px_rgb(195_157_73_/_0.25)] sm:p-5 lg:p-6">
-          <Link
-            to={CEREMONY_INFORMATION_PATH}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-forum-700 hover:text-forum-900"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            Award information
-          </Link>
-          <h1
-            id="award-event-gallery-heading"
-            className="mt-1 text-xl font-semibold tracking-tight text-forum-900 sm:text-2xl"
-          >
-            Previous event gallery
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-muted">
-            Photographs and videos from the 2025 {AWARD_EVENT_GALLERY_TITLE}.
-          </p>
+      <div className="relative w-full px-3 pb-12 pt-6 sm:px-4 sm:pt-8 lg:px-5 lg:pb-16">
+        <Link
+          to={CEREMONY_INFORMATION_PATH}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-forum-700 hover:text-forum-900"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+          Award information
+        </Link>
+        <h1
+          id="award-event-gallery-heading"
+          className="mt-1 text-xl font-semibold tracking-tight text-forum-900 sm:text-2xl"
+        >
+          Previous event gallery
+        </h1>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-muted">
+          Photographs and videos from the 2025 {AWARD_EVENT_GALLERY_TITLE}.
+        </p>
 
-          <div className="mt-5">
-            <AwardEventMediaGrid mode="full" />
-          </div>
+        <div className="mt-5">
+          <AwardEventMediaGrid mode="full" />
         </div>
       </div>
     </section>
