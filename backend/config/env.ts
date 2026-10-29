@@ -104,6 +104,19 @@ const envSchema = z.object({
       message: 'AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set together (or both omitted to use the instance role).',
     });
   }
+  if (data.AWS_CLOUDFRONT_URL) {
+    try {
+      const cdn = new URL(data.AWS_CLOUDFRONT_URL);
+      if (data.NODE_ENV === 'production' && cdn.protocol !== 'https:') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AWS_CLOUDFRONT_URL'], message: 'AWS_CLOUDFRONT_URL must use https in production.' });
+      }
+    } catch {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AWS_CLOUDFRONT_URL'], message: 'AWS_CLOUDFRONT_URL must be a valid URL.' });
+    }
+  }
+  if (data.AWS_S3_KEY_PREFIX?.includes('..')) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AWS_S3_KEY_PREFIX'], message: 'AWS_S3_KEY_PREFIX must not contain "..".' });
+  }
 
   let remote = false;
   try {

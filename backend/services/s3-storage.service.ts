@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import {
   DeleteObjectCommand,
@@ -94,9 +94,22 @@ function normalizeKey(key: string): string {
 }
 
 function prefixKey(key: string): string {
-  const prefix = (env.AWS_S3_KEY_PREFIX || '').replace(/^\/+|\/+$/g, '');
+  const prefix = normalizeKey((env.AWS_S3_KEY_PREFIX || 'ifsmhp').replace(/^\/+|\/+$/g, ''));
   const body = normalizeKey(key);
-  return prefix ? `${prefix}/${body}` : body;
+  return `${prefix}/${body}`;
+}
+
+/** True when a stored absolute URL is under the configured CloudFront origin. */
+export function isTrustedCdnUrl(url: string): boolean {
+  if (!env.s3Configured || !env.AWS_CLOUDFRONT_URL) return false;
+  try {
+    const allowed = new URL(env.AWS_CLOUDFRONT_URL);
+    const candidate = new URL(url);
+    if (candidate.protocol !== 'https:') return false;
+    return candidate.origin === allowed.origin;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -125,20 +138,31 @@ export async function uploadObject(input: S3UploadInput): Promise<S3UploadResult
     body = createReadStream(input.source.filePath);
   }
 
-  const useMultipart = (sizeBytes ?? 0) >= MULTIPART_THRESHOLD_BYTES || input.source.kind === 'path';
+  // Multipart only above the threshold. Small disk files are buffered for a
+  // single PutObject to avoid CreateMultipartUpload request charges.
+  const useMultipart = (sizeBytes ?? 0) >= MULTIPART_THRESHOLD_BYTES;
+  if (!useMultipart && input.source.kind === 'path') {
+    body = await readFile(input.source.filePath);
+    sizeBytes = body.byteLength;
+  }
+
+  const common = {
+    Bucket: bucket,
+    Key: key,
+    ContentType: input.contentType,
+    CacheControl: cacheControl,
+    Metadata: input.metadata,
+    ServerSideEncryption: 'AES256' as const,
+    ...(input.acl ? { ACL: input.acl } : {}),
+  };
 
   try {
     if (useMultipart) {
       const upload = new Upload({
         client: s3,
         params: {
-          Bucket: bucket,
-          Key: key,
+          ...common,
           Body: body,
-          ContentType: input.contentType,
-          CacheControl: cacheControl,
-          Metadata: input.metadata,
-          ...(input.acl ? { ACL: input.acl } : {}),
         },
         queueSize: QUEUE_SIZE,
         partSize: PART_SIZE_BYTES,
@@ -168,13 +192,8 @@ export async function uploadObject(input: S3UploadInput): Promise<S3UploadResult
     }
 
     const result = await s3.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
+      ...common,
       Body: body as Buffer,
-      ContentType: input.contentType,
-      CacheControl: cacheControl,
-      Metadata: input.metadata,
-      ...(input.acl ? { ACL: input.acl } : {}),
     }));
     logger.info('S3 upload complete', { key, bucket, contentType: input.contentType, sizeBytes });
     return {
@@ -247,11 +266,18 @@ export async function deleteObjects(keys: string[]): Promise<void> {
   if (!env.s3Configured || keys.length === 0) return;
   const Objects = [...new Set(keys.map(key => normalizeKey(key)))].map(Key => ({ Key }));
   try {
-    await getClient().send(new DeleteObjectsCommand({
+    const result = await getClient().send(new DeleteObjectsCommand({
       Bucket: env.AWS_S3_BUCKET!,
-      Delete: { Objects, Quiet: true },
+      Delete: { Objects, Quiet: false },
     }));
-    logger.info('S3 objects deleted', { count: Objects.length });
+    if (result.Errors?.length) {
+      logger.error('S3 batch delete reported object errors', {
+        count: Objects.length,
+        errors: result.Errors.map(item => ({ key: item.Key, code: item.Code, message: item.Message })),
+      });
+    } else {
+      logger.info('S3 objects deleted', { count: Objects.length });
+    }
   } catch (error) {
     logger.error('S3 batch delete failed', {
       count: Objects.length,

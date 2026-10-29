@@ -14,6 +14,7 @@ import {
   buildObjectKey,
   deleteObjects,
   isS3Configured,
+  isTrustedCdnUrl,
   uploadBuffer,
   uploadFile,
 } from './s3-storage.service';
@@ -21,9 +22,9 @@ import { ApiError } from '../utils/ApiError';
 import { logger } from '../utils/logger';
 import { assertSafePath, uploadRoot } from '../utils/fileStorage';
 
-/** Allowed grid/lightbox preview widths. Full media is served without `w`. */
-export const THUMB_WIDTHS = [320, 480, 640, 960] as const;
-const DEFAULT_THUMB_WIDTH = 480;
+/** Allowed grid/lightbox preview widths. Keep this short — each width is an S3 object. */
+export const THUMB_WIDTHS = [320, 640, 960] as const;
+const DEFAULT_THUMB_WIDTH = 640;
 
 const mediaTypes = ['image', 'video'] as const;
 type MediaType = (typeof mediaTypes)[number];
@@ -80,7 +81,13 @@ export function awardMediaVariantUrl(cdnUrl: string, width: number) {
 function dto(item: MediaRecord, admin: boolean) {
   const base = admin ? '/admin' : '/public';
   const streamUrl = `${base}/award-event-media/${item.id}/media`;
-  const cdn = item.file.cdnUrl;
+  // Only emit absolute CDN URLs for published items. Unpublished drafts stay on
+  // the authenticated/admin stream path so we do not advertise a public link.
+  // Note: objects already on CloudFront remain fetchable by anyone who already
+  // has the URL until they are deleted — treat CDN keys as sensitive.
+  const cdn = item.published && item.file.cdnUrl && isTrustedCdnUrl(item.file.cdnUrl)
+    ? item.file.cdnUrl
+    : null;
   const mediaUrl = cdn || streamUrl;
   const thumbUrl = item.mediaType === 'image'
     ? (cdn ? awardMediaVariantUrl(cdn, DEFAULT_THUMB_WIDTH) : `${streamUrl}?w=${DEFAULT_THUMB_WIDTH}`)
@@ -147,7 +154,7 @@ export function resolveCdnRedirect(
   file: { cdnUrl: string | null; mimeType: string },
   widthParam: unknown,
 ): string | null {
-  if (!file.cdnUrl) return null;
+  if (!file.cdnUrl || !isTrustedCdnUrl(file.cdnUrl)) return null;
   const width = typeof widthParam === 'string' && widthParam.trim()
     ? Number.parseInt(widthParam, 10)
     : null;
@@ -157,7 +164,8 @@ export function resolveCdnRedirect(
     && (THUMB_WIDTHS as readonly number[]).includes(width)
     && file.mimeType.startsWith('image/')
   ) {
-    return awardMediaVariantUrl(file.cdnUrl, width);
+    const variant = awardMediaVariantUrl(file.cdnUrl, width);
+    return isTrustedCdnUrl(variant) ? variant : null;
   }
   return file.cdnUrl;
 }
@@ -195,23 +203,31 @@ async function persistUpload(file: Express.Multer.File, mediaType: MediaType) {
   }
 
   const objectKey = buildObjectKey(['award-event-media', file.filename], file.originalname);
-  const uploaded = await uploadFile(file.path, objectKey, file.mimetype, {
-    metadata: { mediaType, originalName: file.originalname.slice(0, 100) },
-  });
+  const writtenKeys: string[] = [];
+  try {
+    const uploaded = await uploadFile(file.path, objectKey, file.mimetype, {
+      metadata: { mediaType, originalName: file.originalname.slice(0, 100) },
+    });
+    writtenKeys.push(uploaded.key);
 
-  if (mediaType === 'image') {
-    await Promise.all(THUMB_WIDTHS.map(async width => {
-      const body = await sharp(file.path, { failOn: 'error' })
-        .rotate()
-        .resize({ width, withoutEnlargement: true })
-        .webp({ quality: 72 })
-        .toBuffer();
-      await uploadBuffer(body, `${objectKey}.w${width}.webp`, 'image/webp');
-    }));
+    if (mediaType === 'image') {
+      for (const width of THUMB_WIDTHS) {
+        const body = await sharp(file.path, { failOn: 'error' })
+          .rotate()
+          .resize({ width, withoutEnlargement: true })
+          .webp({ quality: 72 })
+          .toBuffer();
+        const variant = await uploadBuffer(body, `${objectKey}.w${width}.webp`, 'image/webp');
+        writtenKeys.push(variant.key);
+      }
+    }
+
+    await fsp.unlink(file.path).catch(() => undefined);
+    return { storageKey: uploaded.key, cdnUrl: uploaded.cdnUrl };
+  } catch (error) {
+    if (writtenKeys.length) await deleteObjects(writtenKeys);
+    throw error;
   }
-
-  await fsp.unlink(file.path).catch(() => undefined);
-  return { storageKey: uploaded.key, cdnUrl: uploaded.cdnUrl };
 }
 
 const orderBy = [{ displayOrder: 'asc' as const }, { id: 'asc' as const }];
