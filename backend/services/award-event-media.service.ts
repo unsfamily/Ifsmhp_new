@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
+import path from 'node:path';
 import { promises as fsp } from 'node:fs';
 import multer from 'multer';
+import sharp from 'sharp';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import type { RequestHandler } from 'express';
@@ -11,6 +13,10 @@ import { galleryPolicy, inspectMedia } from './gallery-upload.service';
 import { ApiError } from '../utils/ApiError';
 import { logger } from '../utils/logger';
 import { assertSafePath, uploadRoot } from '../utils/fileStorage';
+
+/** Allowed grid/lightbox preview widths. Full media is served without `w`. */
+export const THUMB_WIDTHS = [320, 480, 640, 960] as const;
+const DEFAULT_THUMB_WIDTH = 480;
 
 const mediaTypes = ['image', 'video'] as const;
 type MediaType = (typeof mediaTypes)[number];
@@ -57,6 +63,7 @@ type MediaRecord = Prisma.AwardEventMediaGetPayload<{ include: { file: true } }>
 
 function dto(item: MediaRecord, admin: boolean) {
   const base = admin ? '/admin' : '/public';
+  const mediaUrl = `${base}/award-event-media/${item.id}/media`;
   return {
     id: item.id,
     mediaType: item.mediaType as MediaType,
@@ -64,8 +71,53 @@ function dto(item: MediaRecord, admin: boolean) {
     height: item.height,
     displayOrder: item.displayOrder,
     ...(admin ? { published: item.published, name: item.file.originalName, mimeType: item.file.mimeType, sizeBytes: item.file.sizeBytes } : {}),
-    mediaUrl: `${base}/award-event-media/${item.id}/media`,
+    mediaUrl,
+    // Grid tiles use a cached WebP thumb; lightbox keeps the full file.
+    thumbUrl: item.mediaType === 'image' ? `${mediaUrl}?w=${DEFAULT_THUMB_WIDTH}` : null,
   };
+}
+
+function thumbStorageKey(storageKey: string, width: number) {
+  return path.posix.join('thumbs', `${storageKey}.w${width}.webp`);
+}
+
+export async function resolveMediaPath(
+  file: { storageKey: string; mimeType: string; originalName: string; sizeBytes: number },
+  widthParam: unknown,
+) {
+  const absolute = assertSafePath(file.storageKey);
+  const width = typeof widthParam === 'string' && widthParam.trim()
+    ? Number.parseInt(widthParam, 10)
+    : null;
+  const wantsThumb = width !== null && Number.isFinite(width) && (THUMB_WIDTHS as readonly number[]).includes(width);
+  if (!wantsThumb || !file.mimeType.startsWith('image/')) {
+    return { absolute, mimeType: file.mimeType, originalName: file.originalName, cacheable: true };
+  }
+
+  const thumbKey = thumbStorageKey(file.storageKey, width!);
+  const thumbAbsolute = assertSafePath(thumbKey);
+  try {
+    await fsp.access(thumbAbsolute);
+  } catch {
+    await fsp.mkdir(path.dirname(thumbAbsolute), { recursive: true });
+    await sharp(absolute, { failOn: 'error' })
+      .rotate()
+      .resize({ width: width!, withoutEnlargement: true })
+      .webp({ quality: 72 })
+      .toFile(thumbAbsolute);
+  }
+  return {
+    absolute: thumbAbsolute,
+    mimeType: 'image/webp',
+    originalName: file.originalName.replace(/\.[^.]+$/, '') + `.w${width}.webp`,
+    cacheable: true,
+  };
+}
+
+async function removeThumbs(storageKey: string) {
+  await Promise.all(THUMB_WIDTHS.map(width =>
+    fsp.unlink(assertSafePath(thumbStorageKey(storageKey, width))).catch(() => undefined),
+  ));
 }
 
 const orderBy = [{ displayOrder: 'asc' as const }, { id: 'asc' as const }];
@@ -212,6 +264,7 @@ export async function removeMedia(actor: AuthenticatedUser, id: string) {
       metadata: { fileId: current.fileId, mediaType: current.mediaType },
     }, db);
   });
+  await removeThumbs(current.file.storageKey);
   await fsp.unlink(assertSafePath(current.file.storageKey)).catch(error => {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') logger.error('Award event media cleanup pending', { fileId: current.fileId, error: String(error) });
   });

@@ -90,6 +90,26 @@ describe('Award event media', () => {
     expect(remaining).toContain(secondId);
   });
 
+  it('serves a cached WebP thumbnail smaller than the original photograph', async () => {
+    const large = await sharp({
+      create: { width: 1600, height: 900, channels: 3, background: '#012559' },
+    }).jpeg({ quality: 90 }).toBuffer();
+    const created = await upload(large, 'stage.jpg');
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const id = created.body.data.id as string;
+    expect(created.body.data.thumbUrl).toBe(`/admin/award-event-media/${id}/media?w=480`);
+
+    const original = await request(app).get(`/api/v1/public/award-event-media/${id}/media`);
+    const thumb = await request(app).get(`/api/v1/public/award-event-media/${id}/media?w=480`);
+    expect(thumb.status).toBe(200);
+    expect(thumb.headers['content-type']).toBe('image/webp');
+    expect(Number(thumb.headers['content-length'])).toBeLessThan(Number(original.headers['content-length']));
+
+    const meta = await sharp(thumb.body).metadata();
+    expect(meta.width).toBeLessThanOrEqual(480);
+    expect(meta.format).toBe('webp');
+  });
+
   it('accepts Windows-style JPEG MIME aliases and .jfif photographs', async () => {
     const aliased = await as('post', base).attach('file', jpeg, { filename: 'phone.jpg', contentType: 'image/jpg' });
     expect(aliased.status, JSON.stringify(aliased.body)).toBe(201);

@@ -14,6 +14,8 @@ export interface AwardEventMediaItem {
   height: number | null;
   displayOrder: number;
   mediaUrl: string;
+  /** Cached WebP preview for image tiles; null for videos. */
+  thumbUrl?: string | null;
   published?: boolean;
   name?: string;
   mimeType?: string;
@@ -43,7 +45,11 @@ export function awardEventMediaAlt(
 }
 
 function withResolvedUrls(items: AwardEventMediaItem[]) {
-  return items.map(item => ({ ...item, mediaUrl: awardEventMediaUrl(item.mediaUrl) }));
+  return items.map(item => ({
+    ...item,
+    mediaUrl: awardEventMediaUrl(item.mediaUrl),
+    thumbUrl: item.thumbUrl ? awardEventMediaUrl(item.thumbUrl) : item.thumbUrl ?? null,
+  }));
 }
 
 export const awardEventMediaApi = {

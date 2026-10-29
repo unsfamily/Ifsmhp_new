@@ -213,7 +213,7 @@ function useCarouselPhotos() {
       if (awardImages.length) {
         setPhotos(awardImages.slice(0, 8).map((item, index) => ({
           id: item.id,
-          src: item.mediaUrl,
+          src: item.thumbUrl || item.mediaUrl,
           alt: awardEventMediaAlt(item, { index, total: awardImages.length }),
           focusPosition: '50% 40%',
         })));
