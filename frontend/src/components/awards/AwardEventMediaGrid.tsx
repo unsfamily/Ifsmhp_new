@@ -129,7 +129,7 @@ function MediaRow({
   if (!items.length) return null;
   return (
     <div className={dense ? 'space-y-3' : 'space-y-4'}>
-      <h3 className={`font-display font-semibold text-forum-900 ${dense ? 'px-4 text-xl sm:px-6 lg:px-8' : 'text-2xl'}`}>
+      <h3 className={`font-semibold text-forum-900 ${dense ? 'text-base sm:text-lg' : 'font-display text-2xl'}`}>
         {heading}
       </h3>
       <ul
@@ -203,16 +203,16 @@ export default function AwardEventMediaGrid({
   };
 
   if (loading) {
-    return <p role="status" className={`text-sm text-ink-muted ${dense ? 'px-4 sm:px-6 lg:px-8' : ''}`}>Loading previous event media…</p>;
+    return <p role="status" className="text-sm text-ink-muted">Loading previous event media…</p>;
   }
 
   if (error) {
-    return <p role="alert" className={`text-sm text-danger-700 ${dense ? 'px-4 sm:px-6 lg:px-8' : ''}`}>{error}</p>;
+    return <p role="alert" className="text-sm text-danger-700">{error}</p>;
   }
 
   if (lightboxItems.length === 0) {
     return (
-      <div className={`rounded-2xl border border-dashed border-paper-border bg-paper-raised px-6 py-10 text-center ${dense ? 'mx-4 sm:mx-6 lg:mx-8' : ''}`}>
+      <div className="rounded-2xl border border-dashed border-paper-border bg-paper-raised px-6 py-10 text-center">
         <p className="font-display text-xl font-semibold text-forum-900">{AWARD_EVENT_GALLERY_TITLE}</p>
         <p className="mt-2 text-sm text-ink-muted">Award photographs and videos will appear here once they are published.</p>
       </div>
