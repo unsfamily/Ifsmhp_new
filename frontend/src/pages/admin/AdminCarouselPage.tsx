@@ -15,9 +15,9 @@ const MAX_SLIDES = 12;
 const MAX_BYTES = 15 * 1024 * 1024;
 const PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const BUILTIN = [
-  { src: ceremonyConclave01, label: 'Laureates with plaques' },
-  { src: ceremonyConclave02, label: 'Certificate presentation' },
-  { src: ceremonyConclave03, label: 'Full stage' },
+  { src: ceremonyConclave01, label: 'Laureates with plaques · prior award ceremony' },
+  { src: ceremonyConclave02, label: 'Certificate presentation · prior award ceremony' },
+  { src: ceremonyConclave03, label: 'Full stage · prior award ceremony' },
 ];
 
 function SlidePreview({ src, alt }: { src: string; alt: string }) {
@@ -114,7 +114,7 @@ export default function AdminCarouselPage() {
           </Link>
           <h1 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">Home carousel</h1>
           <p className="mt-1.5 text-sm text-ink-muted">
-            Upload the photographs for the front-page carousel. Each photograph keeps the existing title, globe, and caption treatment.
+            Upload front-page carousel photographs. If none are uploaded, the site uses published Award event media, then the built-in Second International Awards ceremony set.
           </p>
         </div>
         <div>

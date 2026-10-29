@@ -22,7 +22,15 @@ import {
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
 import GallerySection from '../../components/gallery/GallerySection';
+import { awardEventMediaAlt, awardEventMediaApi } from '../../api/awardEventMedia';
 import { homeCarouselImageUrl, publicApi } from '../../api/public';
+import {
+  CEREMONY_EVENT_DATE,
+  CEREMONY_PAGE_TITLE,
+  CEREMONY_VENUE,
+  ceremonyProgramme,
+} from '../../domain/ceremonyProgramme';
+import { CEREMONY_GALLERY_PATH, CEREMONY_INFORMATION_PATH, CEREMONY_NOMINATE_PATH, CEREMONY_PAGE_PATH } from '../../domain/ceremonyRegistration';
 
 import ceremonyConclave01 from '../../assets/images/carousel/laureates-conclave-01.jpg';
 import ceremonyConclave02 from '../../assets/images/carousel/laureates-conclave-02.jpg';
@@ -104,71 +112,54 @@ interface HomeBannerSlide {
 
 const HOME_BANNERS: HomeBannerSlide[] = [
   {
-    id: 'home-banner-community',
-    eyebrow: { icon: Globe2, label: 'Global Community' },
-    title: 'Advancing Global Research & Mental Health Through Collaborative Excellence',
-    highlightWord: 'Collaborative Excellence',
-    lead: 'Join 277 leading Scientists and Mental Health Professionals worldwide in shaping the future of evidence-based research and practice.',
+    id: 'home-banner-awards-2026',
+    eyebrow: { icon: Award, label: CEREMONY_PAGE_TITLE },
+    title: 'Second International IFSMHP Awards Ceremony 2026',
+    highlightWord: 'IFSMHP Awards',
+    lead: `${ceremonyProgramme.totalLabel}. The ceremony is on ${CEREMONY_EVENT_DATE} at ${CEREMONY_VENUE}, Pune.`,
     chips: [
-      { label: '277+ members' },
-      { label: 'Across', value: '14 countries' },
-      { label: '1,000 target', value: 'by 2027' },
-    ],
-    gradientOverlay: 'from-forum-950/50 via-forum-950/12 to-transparent',
-    ctas: [
-      { to: '/register', label: 'Become a Member', variant: 'primary', icon: ArrowRight },
-      { to: '/research', label: 'View Published Research', variant: 'outline', icon: FileText },
-    ],
-  },
-  {
-    id: 'home-banner-symposium',
-    eyebrow: { icon: Calendar, label: 'Spring Symposium 2026 · Save the date' },
-    title: 'The IFSMHP Spring Symposium — Call for Abstracts Now Open',
-    highlightWord: 'Call for Abstracts Now Open',
-    lead: 'Submit your methodological, clinical or policy-focused work by 15 October 2026. Three tracks, 9 keynote plenaries, and a riverside networking reception hosted at the India Forum Hall.',
-    chips: [
-      { label: 'Dates', value: '12–14 Mar 2026' },
-      { label: 'Venue', value: 'India' },
-      { label: '3 tracks', value: '9 keynotes' },
-    ],
-    gradientOverlay: 'from-forum-950/48 via-forum-900/10 to-transparent',
-    ctas: [
-      { to: '/events', label: 'View Event Programme', variant: 'primary', icon: ArrowRight },
-      { to: '/#gallery-section', label: 'Browse Event Gallery', variant: 'outline', icon: Sparkles },
-    ],
-  },
-  {
-    id: 'home-banner-awards',
-    eyebrow: { icon: Award, label: 'CRO Awards Night 2025 · Hall of Fame' },
-    title: 'Honouring Nine Distinguished Contributors to Global Mental Health Science',
-    highlightWord: 'Hall of Fame',
-    lead: 'The 2025 CRO Lifetime Contribution, Distinguished Service and Early-Career Citations were awarded on 22 November at the IFSMHP Awards Dinner. Read citations, view portraits and download commemorative publications.',
-    chips: [
-      { label: 'Awardees', value: '9 honoured' },
-      { label: 'Categories', value: '4 prizes' },
-      { label: 'Portraits', value: '11 curated' },
+      { label: 'Date', value: CEREMONY_EVENT_DATE },
+      { label: 'Venue', value: 'Pune' },
+      { label: 'Recipients', value: '75 awards' },
     ],
     gradientOverlay: 'from-forum-950/46 via-brass-950/10 to-transparent',
     ctas: [
-      { to: '/product-reviews', label: 'Read Awardee Citations', variant: 'primary', icon: ArrowRight },
-      { to: '/#gallery-section', label: 'View Awards Gallery', variant: 'outline', icon: Sparkles },
+      { to: CEREMONY_PAGE_PATH, label: 'Ceremony details', variant: 'primary', icon: ArrowRight },
+      { to: CEREMONY_INFORMATION_PATH, label: 'Award information', variant: 'outline', icon: Sparkles },
     ],
   },
   {
-    id: 'home-banner-reviews',
-    eyebrow: { icon: Sparkles, label: 'Expert Reviews · Updated weekly' },
-    title: 'Independent, Methodologically Grounded Perspectives on Products, Services & Policies',
-    highlightWord: 'Expert Perspectives',
-    lead: 'Fifteen new member reviews published this quarter across five review pillars — from digital therapeutics and teletherapy networks to EU mental health strategy and AI-assisted triage safety.',
+    id: 'home-banner-award-categories',
+    eyebrow: { icon: Calendar, label: 'Nominations open' },
+    title: '25 commemorative categories across Senior, Mid-career, and Young divisions',
+    highlightWord: '25 commemorative categories',
+    lead: 'Nominate distinguished contributors across scientific, medical, economic, literary, and social-impact fields for independent review.',
     chips: [
-      { label: 'Pillars', value: '5 categories' },
-      { label: 'This quarter', value: '15 new reviews' },
-      { label: 'Disclosures', value: '100% declared' },
+      { label: 'Categories', value: '25 disciplines' },
+      { label: 'Divisions', value: '3 levels' },
+      { label: 'Total', value: '75 recipients' },
     ],
-    gradientOverlay: 'from-forum-950/48 via-slateteal-950/10 to-transparent',
+    gradientOverlay: 'from-forum-950/48 via-forum-900/10 to-transparent',
     ctas: [
-      { to: '/product-reviews', label: 'Browse Expert Reviews', variant: 'primary', icon: ArrowRight },
-      { to: '/membership', label: 'Become a Reviewer', variant: 'outline', icon: BookOpen },
+      { to: CEREMONY_NOMINATE_PATH, label: 'Submit a nomination', variant: 'primary', icon: ArrowRight },
+      { to: CEREMONY_INFORMATION_PATH, label: 'Eligibility & evaluation', variant: 'outline', icon: FileText },
+    ],
+  },
+  {
+    id: 'home-banner-award-venue',
+    eyebrow: { icon: Globe2, label: 'Pune ceremony' },
+    title: `${CEREMONY_VENUE} · ${CEREMONY_EVENT_DATE}`,
+    highlightWord: CEREMONY_VENUE,
+    lead: 'Join delegates, student poster presenters, and nominators at Azam Campus for the Second International IFSMHP Awards Ceremony.',
+    chips: [
+      { label: 'Hall', value: 'Azam Campus' },
+      { label: 'City', value: 'Pune' },
+      { label: 'Year', value: '2026' },
+    ],
+    gradientOverlay: 'from-forum-950/50 via-forum-950/12 to-transparent',
+    ctas: [
+      { to: CEREMONY_PAGE_PATH, label: 'Register interest', variant: 'primary', icon: ArrowRight },
+      { to: CEREMONY_GALLERY_PATH, label: 'Previous event gallery', variant: 'outline', icon: Sparkles },
     ],
   },
 ];
@@ -184,19 +175,19 @@ const BUILTIN_CAROUSEL: CarouselPhoto[] = [
   {
     id: 'laureates-conclave-01',
     src: ceremonyConclave01,
-    alt: 'Laureates holding plaques on stage at the International Laureates Recognition Conclave 2025',
+    alt: 'Laureates holding plaques on stage at the International Laureates Recognition Conclave',
     focusPosition: '50% 42%',
   },
   {
     id: 'laureates-conclave-02',
     src: ceremonyConclave02,
-    alt: 'Certificate presentation at the International Laureates Recognition Conclave 2025',
+    alt: 'Certificate presentation at the International Laureates Recognition Conclave',
     focusPosition: '50% 40%',
   },
   {
     id: 'laureates-conclave-03',
     src: ceremonyConclave03,
-    alt: 'Laureates and guests on the full stage at the International Laureates Recognition Conclave 2025',
+    alt: 'Laureates and guests on the full stage at the International Laureates Recognition Conclave',
     focusPosition: '50% 48%',
   },
 ];
@@ -205,15 +196,30 @@ function useCarouselPhotos() {
   const [photos, setPhotos] = useState<CarouselPhoto[] | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    publicApi.homeCarousel(controller.signal).then(items => {
+    Promise.all([
+      publicApi.homeCarousel(controller.signal).catch(() => []),
+      awardEventMediaApi.listPublic('image').catch(() => []),
+    ]).then(([carousel, awardImages]) => {
       if (controller.signal.aborted) return;
-      setPhotos(items.map(item => ({
-        id: item.id,
-        src: homeCarouselImageUrl(item.imageUrl),
-        alt: item.altText || 'IFSMHP event photograph',
-      })));
-    }).catch(() => {
-      if (!controller.signal.aborted) setPhotos([]);
+      if (carousel.length) {
+        setPhotos(carousel.map(item => ({
+          id: item.id,
+          src: homeCarouselImageUrl(item.imageUrl),
+          alt: item.altText || 'IFSMHP award ceremony photograph',
+          focusPosition: '50% 40%',
+        })));
+        return;
+      }
+      if (awardImages.length) {
+        setPhotos(awardImages.slice(0, 8).map((item, index) => ({
+          id: item.id,
+          src: item.thumbUrl || item.mediaUrl,
+          alt: awardEventMediaAlt(item, { index, total: awardImages.length }),
+          focusPosition: '50% 40%',
+        })));
+        return;
+      }
+      setPhotos([]);
     });
     return () => controller.abort();
   }, []);
@@ -231,13 +237,14 @@ export default function HomePage() {
   }), [photos]);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [bannerHover, setBannerHover] = useState(false);
-  const [loadedSlides, setLoadedSlides] = useState<number[]>(() => [0, 1]);
+  const [loadedSlides, setLoadedSlides] = useState<number[]>(() => [0]);
 
   useEffect(() => {
-    setBannerIndex(index => index % slides.length);
+    setBannerIndex(index => (slides.length ? index % slides.length : 0));
   }, [slides.length]);
 
   useEffect(() => {
+    if (!slides.length) return;
     const upcoming = (bannerIndex + 1) % slides.length;
     setLoadedSlides((current) => {
       if (current.includes(bannerIndex) && current.includes(upcoming)) return current;
@@ -249,7 +256,7 @@ export default function HomePage() {
     if (bannerHover || slides.length < 2) return;
     const t = window.setInterval(() => {
       setBannerIndex((i) => (i + 1) % slides.length);
-    }, 6200);
+    }, 7000);
     return () => window.clearInterval(t);
   }, [bannerHover, slides.length]);
 
@@ -297,11 +304,13 @@ export default function HomePage() {
                   <img
                     src={slide.bgImage}
                     alt={slide.alt}
-                    width={2560}
-                    height={1440}
+                    width={1920}
+                    height={1080}
+                    sizes="100vw"
                     style={{ objectPosition: slide.focusPosition }}
                     className="absolute inset-0 h-full w-full select-none object-cover"
                     decoding="async"
+                    loading={i === 0 ? 'eager' : 'lazy'}
                     fetchPriority={i === bannerIndex ? 'high' : 'low'}
                   />
                 ) : null}

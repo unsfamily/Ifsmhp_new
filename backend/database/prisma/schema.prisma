@@ -371,6 +371,7 @@ model FileObject {
   memberAvatars       MemberProfile[]
   galleryManaged     Boolean @default(false)
   carouselManaged    Boolean @default(false)
+  awardMediaManaged  Boolean @default(false)
   purgedAt           DateTime?
   communityManaged   Boolean @default(false)
   communityImages    Community[] @relation("CommunityImage")
@@ -380,6 +381,7 @@ model FileObject {
   eventCovers        Event[]                    @relation("EventCover")
   galleryItems       GalleryItem[]
   homeCarouselSlides HomeCarouselSlide[]
+  awardEventMedia    AwardEventMedia[]
   inquiryAttachments ContactInquiryAttachment[]
 
   @@index([uploaderId])
@@ -992,6 +994,23 @@ model HomeCarouselSlide {
   file         FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
   @@index([published, displayOrder])
+}
+
+/// Photographs and videos for previous IFSMHP award ceremonies (admin-managed, media-only).
+model AwardEventMedia {
+  id           String     @id @default(cuid())
+  fileId       String     @unique
+  mediaType    String
+  width        Int?
+  height       Int?
+  displayOrder Int        @default(0)
+  published    Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  file         FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([published, mediaType, displayOrder])
+  @@index([mediaType, displayOrder])
 }
 
 model InterestGroup {

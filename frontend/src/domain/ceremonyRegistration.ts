@@ -4,6 +4,7 @@ export const CEREMONY_SLUG = 'second-international';
 export const CEREMONY_PAGE_PATH = '/awards/second-international';
 export const CEREMONY_REGISTER_PATH = '/awards/second-international/register';
 export const CEREMONY_INFORMATION_PATH = '/awards/second-international/information';
+export const CEREMONY_GALLERY_PATH = '/awards/second-international/gallery';
 export const CEREMONY_NOMINATE_PATH = '/awards/second-international/nominate';
 export const CEREMONY_PUBLIC_ORIGIN = 'https://www.ifsmhp.com';
 export const CEREMONY_NOMINATE_URL = `${CEREMONY_PUBLIC_ORIGIN}${CEREMONY_NOMINATE_PATH}`;

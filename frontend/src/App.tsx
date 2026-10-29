@@ -17,6 +17,7 @@ import EventsPage from './pages/public/EventsPage';
 import SecondInternationalAwardsPage from './pages/public/SecondInternationalAwardsPage';
 import CeremonyRegistrationPage from './pages/public/CeremonyRegistrationPage';
 import AwardInformationPage from './pages/public/AwardInformationPage';
+import AwardEventGalleryPage from './pages/public/AwardEventGalleryPage';
 import AwardNominationPage from './pages/public/AwardNominationPage';
 import ContactPage from './pages/public/ContactPage';
 import ProductReviewsPage from './pages/public/ProductReviewsPage';
@@ -65,6 +66,7 @@ import AdminProfilePage from './pages/admin/AdminProfilePage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import AdminGalleryPage from './pages/admin/AdminGalleryPage';
 import AdminCarouselPage from './pages/admin/AdminCarouselPage';
+import AdminAwardEventMediaPage from './pages/admin/AdminAwardEventMediaPage';
 import AdminCommunityDashboard from './pages/admin/community/AdminCommunityDashboard';
 import AdminCommunitiesPage from './pages/admin/community/AdminCommunitiesPage';
 import AdminCommunityMembersPage from './pages/admin/community/AdminCommunityMembersPage';
@@ -126,6 +128,7 @@ export default function App() {
           <Route path="awards/second-international" element={<SecondInternationalAwardsPage />} />
           <Route path="awards/second-international/register" element={<CeremonyRegistrationPage />} />
           <Route path="awards/second-international/information" element={<AwardInformationPage />} />
+          <Route path="awards/second-international/gallery" element={<AwardEventGalleryPage />} />
           <Route path="awards/second-international/nominate" element={<AwardNominationPage />} />
           <Route path="contact" element={<ContactPage />} />
           <Route path="privacy-policy" element={<PolicyPage />} />
@@ -175,6 +178,7 @@ export default function App() {
           <Route path="publications/:id" element={<AdminPublicationDetailPage />} />
           <Route path="gallery" element={<AdminGalleryPage />} />
           <Route path="carousel" element={<AdminCarouselPage />} />
+          <Route path="award-event-media" element={<AdminAwardEventMediaPage />} />
           <Route path="community/communities" element={<AdminCommunitiesPage />} />
 
           <Route path="support" element={<AdminSupportPage />} />
