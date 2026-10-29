@@ -7,9 +7,26 @@ import { apiClient, normalizeError } from '../../api/client';
 import { awardEventMediaApi, type AwardEventMediaItem, type AwardMediaType } from '../../api/awardEventMedia';
 import { useAuth } from '../../context/AuthContext';
 
-const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const VIDEO_TYPES = new Set(['video/mp4', 'video/webm']);
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp', '']);
+const VIDEO_TYPES = new Set(['video/mp4', 'video/webm', '']);
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'jfif', 'png', 'webp']);
+const VIDEO_EXTENSIONS = new Set(['mp4', 'webm']);
 const MAX_BYTES = 100 * 1024 * 1024;
+
+function fileExtension(name: string) {
+  const dot = name.lastIndexOf('.');
+  return dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
+}
+
+function isAllowedUpload(file: File, type: AwardMediaType) {
+  const extension = fileExtension(file.name);
+  const allowedExt = type === 'video' ? VIDEO_EXTENSIONS : IMAGE_EXTENSIONS;
+  const allowedMime = type === 'video' ? VIDEO_TYPES : IMAGE_TYPES;
+  if (!allowedExt.has(extension)) return false;
+  // Windows browsers sometimes leave File.type empty; the API sniffs contents.
+  if (!file.type) return true;
+  return allowedMime.has(file.type);
+}
 
 function MediaPreview({ item }: { item: AwardEventMediaItem }) {
   const { user } = useAuth();
@@ -164,11 +181,10 @@ export default function AdminAwardEventMediaPage() {
   const uploadFiles = (list: FileList | null, type: AwardMediaType) => {
     const files = [...(list ?? [])];
     if (!files.length) return;
-    const allowed = type === 'video' ? VIDEO_TYPES : IMAGE_TYPES;
-    const invalid = files.find(file => !allowed.has(file.type) || file.size > MAX_BYTES);
+    const invalid = files.find(file => !isAllowedUpload(file, type) || file.size > MAX_BYTES);
     if (invalid) {
       setNotice({
-        message: !allowed.has(invalid.type)
+        message: !isAllowedUpload(invalid, type)
           ? (type === 'video' ? 'Videos must be MP4 or WebM.' : 'Photographs must be JPG, PNG, or WebP.')
           : 'Each file must be 100 MB or smaller.',
         error: true,
@@ -208,7 +224,7 @@ export default function AdminAwardEventMediaPage() {
             title="Photographs"
             description={`${images.length} uploaded. Published photographs appear in the previous-event gallery.`}
             type="image"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.jfif,.png,.webp"
             items={images}
             busy={busy}
             onUpload={uploadFiles}

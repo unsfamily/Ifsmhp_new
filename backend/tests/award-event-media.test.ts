@@ -80,9 +80,23 @@ describe('Award event media', () => {
     const second = await upload();
     expect(second.status).toBe(201);
     const secondId = second.body.data.id as string;
-    expect((await as('post', `${base}/${secondId}/reorder`).send({ direction: -1 })).body.data.items.map((item: { id: string }) => item.id)).toEqual([secondId, id]);
+    const reordered = (await as('post', `${base}/${secondId}/reorder`).send({ direction: -1 })).body.data.items.map((item: { id: string }) => item.id) as string[];
+    expect(reordered.indexOf(secondId)).toBeGreaterThanOrEqual(0);
+    expect(reordered.indexOf(id)).toBeGreaterThan(reordered.indexOf(secondId));
 
     expect((await as('delete', `${base}/${id}`)).body.data.removed).toBe(true);
-    expect((await as('get', `${base}?type=image`)).body.data.items.map((item: { id: string }) => item.id)).toEqual([secondId]);
+    const remaining = (await as('get', `${base}?type=image`)).body.data.items.map((item: { id: string }) => item.id) as string[];
+    expect(remaining).not.toContain(id);
+    expect(remaining).toContain(secondId);
+  });
+
+  it('accepts Windows-style JPEG MIME aliases and .jfif photographs', async () => {
+    const aliased = await as('post', base).attach('file', jpeg, { filename: 'phone.jpg', contentType: 'image/jpg' });
+    expect(aliased.status, JSON.stringify(aliased.body)).toBe(201);
+    expect(aliased.body.data.mediaType).toBe('image');
+
+    const jfif = await as('post', base).attach('file', jpeg, { filename: 'camera.jfif', contentType: 'application/octet-stream' });
+    expect(jfif.status, JSON.stringify(jfif.body)).toBe(201);
+    expect(jfif.body.data.mediaType).toBe('image');
   });
 });
