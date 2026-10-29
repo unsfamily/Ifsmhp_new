@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronDown, ChevronUp, Film, ImagePlus, Trash2 } from 'luci
 import Button from '../../components/common/Button';
 import { Card, CardContent, CardHeader } from '../../components/common/Card';
 import { apiClient, normalizeError } from '../../api/client';
-import { awardEventMediaApi, type AwardEventMediaItem, type AwardMediaType } from '../../api/awardEventMedia';
+import { awardEventMediaAlt, awardEventMediaApi, type AwardEventMediaItem, type AwardMediaType } from '../../api/awardEventMedia';
 import { useAuth } from '../../context/AuthContext';
 
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp', '']);
@@ -48,11 +48,18 @@ function MediaPreview({ item }: { item: AwardEventMediaItem }) {
     };
   }, [item.mediaUrl, user?.id, user?.role]);
 
-  if (!url) return <div className="h-24 w-40 shrink-0 rounded-md bg-forum-50" />;
-  if (item.mediaType === 'video') {
-    return <video src={url} className="h-24 w-40 shrink-0 rounded-md object-cover" muted playsInline preload="metadata" />;
+  const alt = awardEventMediaAlt(item);
+  if (!url) {
+    return (
+      <div className="flex h-24 w-40 shrink-0 items-center justify-center rounded-md bg-forum-50 px-2 text-center text-[11px] leading-snug text-ink-subtle" role="img" aria-label={alt}>
+        {alt}
+      </div>
+    );
   }
-  return <img src={url} alt="" className="h-24 w-40 shrink-0 rounded-md object-cover" />;
+  if (item.mediaType === 'video') {
+    return <video src={url} aria-label={alt} className="h-24 w-40 shrink-0 rounded-md object-cover" muted playsInline preload="metadata" />;
+  }
+  return <img src={url} alt={alt} className="h-24 w-40 shrink-0 rounded-md object-cover" />;
 }
 
 function MediaSection({

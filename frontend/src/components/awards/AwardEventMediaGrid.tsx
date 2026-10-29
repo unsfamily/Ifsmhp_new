@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Film } from 'lucide-react';
-import { awardEventMediaApi, type AwardEventMediaItem } from '../../api/awardEventMedia';
+import { awardEventMediaAlt, awardEventMediaApi, type AwardEventMediaItem } from '../../api/awardEventMedia';
 import { normalizeError } from '../../api/client';
 import AwardEventLightbox from './AwardEventLightbox';
 
@@ -64,6 +64,7 @@ export default function AwardEventMediaGrid() {
                   <>
                     <video
                       src={item.mediaUrl}
+                      aria-label={awardEventMediaAlt(item, { index, total: items.length, eventLabel: TITLE })}
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                       muted
                       playsInline
@@ -78,7 +79,7 @@ export default function AwardEventMediaGrid() {
                 ) : (
                   <img
                     src={item.mediaUrl}
-                    alt=""
+                    alt={awardEventMediaAlt(item, { index, total: items.length, eventLabel: TITLE })}
                     loading={index < 6 ? 'eager' : 'lazy'}
                     decoding="async"
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"

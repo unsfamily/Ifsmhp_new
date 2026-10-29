@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import type { AwardEventMediaItem } from '../../api/awardEventMedia';
+import { awardEventMediaAlt, type AwardEventMediaItem } from '../../api/awardEventMedia';
 
 export default function AwardEventLightbox({
   items,
@@ -82,6 +82,7 @@ export default function AwardEventLightbox({
               <video
                 key={current.id}
                 src={current.mediaUrl}
+                aria-label={awardEventMediaAlt(current, { index, total, eventLabel: title })}
                 controls
                 playsInline
                 className="max-h-[min(78vh,920px)] w-auto max-w-full bg-black shadow-[0_24px_80px_rgba(0,0,0,.45)]"
@@ -89,7 +90,7 @@ export default function AwardEventLightbox({
             ) : (
               <img
                 src={current.mediaUrl}
-                alt=""
+                alt={awardEventMediaAlt(current, { index, total, eventLabel: title })}
                 className="max-h-[min(78vh,920px)] w-auto max-w-full object-contain shadow-[0_24px_80px_rgba(0,0,0,.45)]"
               />
             )}
@@ -120,9 +121,20 @@ export default function AwardEventLightbox({
                   className={`h-[72px] w-[72px] shrink-0 overflow-hidden rounded-xl border-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${active ? 'border-white' : 'border-transparent opacity-70 hover:opacity-100'}`}
                 >
                   {item.mediaType === 'video' ? (
-                    <video src={item.mediaUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+                    <video
+                      src={item.mediaUrl}
+                      aria-label={awardEventMediaAlt(item, { index: itemIndex, total, eventLabel: title })}
+                      className="h-full w-full object-cover"
+                      muted
+                      playsInline
+                      preload="metadata"
+                    />
                   ) : (
-                    <img src={item.mediaUrl} alt="" className="h-full w-full object-cover" />
+                    <img
+                      src={item.mediaUrl}
+                      alt={awardEventMediaAlt(item, { index: itemIndex, total, eventLabel: title })}
+                      className="h-full w-full object-cover"
+                    />
                   )}
                 </button>
               );

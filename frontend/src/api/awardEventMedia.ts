@@ -27,6 +27,21 @@ export function awardEventMediaUrl(path: string) {
   return `${base}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+const DEFAULT_EVENT_LABEL = 'International Laureates Recognition Conclave';
+
+/** Fallback alt text when uploads have no captions. */
+export function awardEventMediaAlt(
+  item: Pick<AwardEventMediaItem, 'mediaType'>,
+  options?: { index?: number; total?: number; eventLabel?: string },
+) {
+  const eventLabel = options?.eventLabel?.trim() || DEFAULT_EVENT_LABEL;
+  const kind = item.mediaType === 'video' ? 'Video' : 'Photograph';
+  if (typeof options?.index === 'number' && typeof options.total === 'number' && options.total > 0) {
+    return `${kind} ${options.index + 1} of ${options.total} from the ${eventLabel}`;
+  }
+  return `${kind} from the ${eventLabel}`;
+}
+
 function withResolvedUrls(items: AwardEventMediaItem[]) {
   return items.map(item => ({ ...item, mediaUrl: awardEventMediaUrl(item.mediaUrl) }));
 }
