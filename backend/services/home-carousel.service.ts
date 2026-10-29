@@ -12,7 +12,7 @@ import { ApiError } from '../utils/ApiError';
 import { logger } from '../utils/logger';
 import { assertSafePath, uploadRoot } from '../utils/fileStorage';
 
-export const HOME_CAROUSEL_LIMIT = 12;
+export const HOME_CAROUSEL_LIMIT = 3;
 const maxBytes = 15 * 1024 * 1024;
 
 const parser = multer({
@@ -64,6 +64,7 @@ export async function listSlides(admin: boolean) {
     where: admin ? {} : { published: true, file: { deletedAt: null } },
     include: { file: true },
     orderBy,
+    ...(admin ? {} : { take: HOME_CAROUSEL_LIMIT }),
   });
   return { items: slides.filter(slide => slide.file && !slide.file.deletedAt).map(slide => dto(slide, admin)) };
 }

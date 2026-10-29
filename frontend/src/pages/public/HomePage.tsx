@@ -22,7 +22,6 @@ import {
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
 import GallerySection from '../../components/gallery/GallerySection';
-import { awardEventMediaAlt, awardEventMediaApi } from '../../api/awardEventMedia';
 import { homeCarouselImageUrl, publicApi } from '../../api/public';
 import {
   CEREMONY_EVENT_DATE,
@@ -192,35 +191,29 @@ const BUILTIN_CAROUSEL: CarouselPhoto[] = [
   },
 ];
 
+/** Home hero always shows at most three photographs with the award banners. */
+const HOME_CAROUSEL_LIMIT = 3;
+
 function useCarouselPhotos() {
   const [photos, setPhotos] = useState<CarouselPhoto[] | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      publicApi.homeCarousel(controller.signal).catch(() => []),
-      awardEventMediaApi.listPublic('image').catch(() => []),
-    ]).then(([carousel, awardImages]) => {
-      if (controller.signal.aborted) return;
-      if (carousel.length) {
-        setPhotos(carousel.map(item => ({
+    publicApi.homeCarousel(controller.signal)
+      .then(carousel => {
+        if (controller.signal.aborted) return;
+        const curated = carousel.slice(0, HOME_CAROUSEL_LIMIT).map(item => ({
           id: item.id,
           src: homeCarouselImageUrl(item.imageUrl),
           alt: item.altText || 'IFSMHP award ceremony photograph',
-          focusPosition: '50% 40%',
-        })));
-        return;
-      }
-      if (awardImages.length) {
-        setPhotos(awardImages.slice(0, 8).map((item, index) => ({
-          id: item.id,
-          src: item.thumbUrl || item.mediaUrl,
-          alt: awardEventMediaAlt(item, { index, total: awardImages.length }),
-          focusPosition: '50% 40%',
-        })));
-        return;
-      }
-      setPhotos([]);
-    });
+          focusPosition: '50% 40%' as const,
+        }));
+        // Prefer the three built-in award ceremony photos when admins have not
+        // curated a home carousel. Do not pull the full award-event gallery here.
+        setPhotos(curated.length ? curated : []);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPhotos([]);
+      });
     return () => controller.abort();
   }, []);
   return photos && photos.length ? photos : BUILTIN_CAROUSEL;

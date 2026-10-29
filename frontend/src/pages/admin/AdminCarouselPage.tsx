@@ -11,7 +11,7 @@ import ceremonyConclave01 from '../../assets/images/carousel/laureates-conclave-
 import ceremonyConclave02 from '../../assets/images/carousel/laureates-conclave-02.jpg';
 import ceremonyConclave03 from '../../assets/images/carousel/laureates-conclave-03.jpg';
 
-const MAX_SLIDES = 12;
+const MAX_SLIDES = 3;
 const MAX_BYTES = 15 * 1024 * 1024;
 const PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const BUILTIN = [
@@ -114,7 +114,7 @@ export default function AdminCarouselPage() {
           </Link>
           <h1 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">Home carousel</h1>
           <p className="mt-1.5 text-sm text-ink-muted">
-            Upload front-page carousel photographs. If none are uploaded, the site uses published Award event media, then the built-in Second International Awards ceremony set.
+            Upload up to three front-page carousel photographs. If none are uploaded, the site uses the built-in Second International Awards ceremony photos with the award event details.
           </p>
         </div>
         <div>
