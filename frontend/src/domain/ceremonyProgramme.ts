@@ -238,10 +238,10 @@ export const ceremonyProgramme: CeremonyProgramme = {
         'His scholarly record includes research publications, intellectual-property contributions, and the academic book Determination Potentiometric of Stability Constant Nicotinamide and Penicillamine (2024). Through teaching, research mentoring and NCC leadership, he works to connect scientific progress with education, sustainability and society.',
       ],
       highlights: [
-        { label: 'Chemistry papers', value: '48' },
-        { label: 'Papers beyond chemistry', value: '4' },
+        { label: 'Chemistry papers', value: '52' },
+        { label: 'Papers beyond chemistry', value: '10' },
         { label: 'Intellectual-property contributions', value: '4' },
-        { label: 'Conference abstracts', value: '37' },
+        { label: 'Conference abstracts', value: '51' },
       ],
       milestones: [
         {

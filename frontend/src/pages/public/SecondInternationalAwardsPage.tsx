@@ -175,23 +175,23 @@ export default function SecondInternationalAwardsPage() {
           </div>
           {organisingSecretary && (
             <div className={SECTION_GAP}>
-              <article className="grid overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm sm:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
-                <img
-                  src={yaseenShaikhPortrait}
-                  alt={`${organisingSecretary.name}, ${organisingSecretary.role}, in NCC uniform`}
-                  className="h-64 w-full object-cover object-top sm:h-full sm:min-h-[16rem]"
-                />
-                <div className="flex flex-col px-6 pb-6 pt-6 sm:px-8 sm:pb-8 sm:pt-8">
-                  <div className="mt-auto">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{organisingSecretary.role}</p>
-                    <h2 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{organisingSecretary.name}</h2>
-                    {organisingSecretary.tagline && <p className="mt-2 text-sm font-medium text-forum-900">{organisingSecretary.tagline}</p>}
-                    {organisingSecretary.affiliation && <p className="mt-3 text-sm leading-relaxed text-ink-muted">{organisingSecretary.affiliation}</p>}
-                    <div className="mt-5">
-                      <Button as="link" to={CEREMONY_INFORMATION_PATH} variant="outline">
-                        Organising committee profile
-                      </Button>
-                    </div>
+              <article className="grid overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm sm:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
+                <div className="relative aspect-[3/4] bg-forum-950 sm:aspect-auto sm:min-h-[22rem]">
+                  <img
+                    src={yaseenShaikhPortrait}
+                    alt={`${organisingSecretary.name}, ${organisingSecretary.role}, in NCC uniform`}
+                    className="absolute inset-0 h-full w-full object-cover object-[center_12%]"
+                  />
+                </div>
+                <div className="flex flex-col justify-center px-6 py-6 sm:min-h-[22rem] sm:px-8 sm:py-8">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{organisingSecretary.role}</p>
+                  <h2 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{organisingSecretary.name}</h2>
+                  {organisingSecretary.tagline && <p className="mt-2 text-sm font-medium text-forum-900">{organisingSecretary.tagline}</p>}
+                  {organisingSecretary.affiliation && <p className="mt-3 text-sm leading-relaxed text-ink-muted">{organisingSecretary.affiliation}</p>}
+                  <div className="mt-5">
+                    <Button as="link" to={CEREMONY_INFORMATION_PATH} variant="outline">
+                      Organising committee profile
+                    </Button>
                   </div>
                 </div>
               </article>
