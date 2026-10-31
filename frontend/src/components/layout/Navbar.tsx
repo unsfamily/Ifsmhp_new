@@ -90,9 +90,9 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-paper-border bg-white/95 backdrop-blur-sm shadow-sm">
-      <div className="mx-auto w-full max-w-[96rem] px-1 sm:px-2 lg:px-3">
-        <div className="flex h-22 flex-nowrap items-center gap-1.5 xl:gap-2">
-          <Link to="/" title={settings?.fullName || undefined} aria-label={settings?.shortName || 'Home'} className="-ml-0.5 flex shrink-0 items-center gap-2 sm:-ml-1 lg:-ml-1.5">
+      <div className="mx-auto w-full max-w-7xl px-3 sm:px-4 lg:px-5">
+        <div className="flex h-22 flex-nowrap items-center justify-between gap-3 xl:gap-4">
+          <Link to="/" title={settings?.fullName || undefined} aria-label={settings?.shortName || 'Home'} className="flex shrink-0 items-center gap-2">
             <img
               src={logoImg}
               alt={`${settings?.shortName || 'IFSMHP'} Logo`}
@@ -103,7 +103,7 @@ export default function Navbar() {
             </div>
           </Link>
 
-          <nav className="hidden min-w-0 flex-1 flex-nowrap items-center justify-center gap-1.5 xl:gap-2 lg:flex">
+          <nav className="hidden flex-nowrap items-center gap-1.5 xl:gap-2 lg:flex">
             {navLinks.map((link) => {
               if (link.anchor) {
                 return (
@@ -153,7 +153,7 @@ export default function Navbar() {
             })}
           </nav>
 
-          <div className="-mr-0.5 hidden shrink-0 items-center gap-2 sm:-mr-1 lg:-mr-1.5 lg:flex xl:gap-2.5">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex xl:gap-2.5">
             <Link
               to="/login"
               className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium text-ink-muted hover:bg-forum-900 hover:text-white transition-colors xl:px-3"
