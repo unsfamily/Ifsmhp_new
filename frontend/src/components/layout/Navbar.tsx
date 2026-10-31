@@ -18,7 +18,7 @@ const navLinks = [
 ];
 
 const navItemClass = (isActive: boolean) =>
-  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+  `rounded-md px-3.5 py-2 text-sm font-medium transition-colors ${
     isActive
       ? 'bg-forum-900 text-white'
       : 'text-ink-muted hover:bg-forum-900 hover:text-white'
@@ -103,7 +103,7 @@ export default function Navbar() {
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-1 lg:flex">
+          <nav className="hidden items-center gap-2.5 lg:flex">
             {navLinks.map((link) => {
               if (link.anchor) {
                 return (
@@ -153,10 +153,10 @@ export default function Navbar() {
             })}
           </nav>
 
-          <div className="hidden items-center gap-2 lg:flex">
+          <div className="hidden items-center gap-3 lg:flex">
             <Link
               to="/login"
-              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-ink-muted hover:bg-forum-900 hover:text-white transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium text-ink-muted hover:bg-forum-900 hover:text-white transition-colors"
             >
               <LogIn className="h-4 w-4" />
               Login
@@ -182,7 +182,7 @@ export default function Navbar() {
 
         {mobileOpen && (
           <div className="border-t border-paper-border pb-4 lg:hidden">
-            <nav className="mt-3 flex flex-col gap-1">
+            <nav className="mt-3 flex flex-col gap-2">
               {navLinks.map((link) => {
                 if (link.anchor) {
                   return (
