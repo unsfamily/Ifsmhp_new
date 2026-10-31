@@ -121,10 +121,22 @@ export default function Navbar() {
                     key={link.to}
                     to={link.to}
                     aria-label={link.label}
-                    className="support-nav-link px-3.5 py-1.5 text-sm"
+                    className={({ isActive }) =>
+                      isActive
+                        ? navItemClass(true)
+                        : 'support-nav-link px-3.5 py-1.5 text-sm'
+                    }
                   >
-                    <SupportGlowDot />
-                    <SupportNavLabel>{link.label}</SupportNavLabel>
+                    {({ isActive }) =>
+                      isActive ? (
+                        link.label
+                      ) : (
+                        <>
+                          <SupportGlowDot />
+                          <SupportNavLabel>{link.label}</SupportNavLabel>
+                        </>
+                      )
+                    }
                   </NavLink>
                 );
               }
@@ -151,7 +163,7 @@ export default function Navbar() {
             </Link>
             <Link
               to="/register"
-              className="inline-flex items-center gap-1.5 rounded-md bg-forum-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-forum-800 transition-colors ring-1 ring-forum-900/10"
+              className="inline-flex items-center gap-1.5 rounded-md bg-forum-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-forum-700 transition-colors ring-1 ring-forum-600/10"
             >
               <UserPlus className="h-4 w-4" />
               Become a Member
@@ -198,10 +210,20 @@ export default function Navbar() {
                       aria-label={link.label}
                       aria-current={isActive ? 'page' : undefined}
                       onClick={() => setMobileOpen(false)}
-                      className="support-nav-link self-start px-3.5 py-1.5 text-sm"
+                      className={
+                        isActive
+                          ? `self-start ${navItemClass(true)}`
+                          : 'support-nav-link self-start px-3.5 py-1.5 text-sm'
+                      }
                     >
-                      <SupportGlowDot />
-                      <SupportNavLabel>{link.label}</SupportNavLabel>
+                      {isActive ? (
+                        link.label
+                      ) : (
+                        <>
+                          <SupportGlowDot />
+                          <SupportNavLabel>{link.label}</SupportNavLabel>
+                        </>
+                      )}
                     </Link>
                   );
                 }
@@ -229,7 +251,7 @@ export default function Navbar() {
               <Link
                 to="/register"
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-md bg-forum-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-forum-800 transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 rounded-md bg-forum-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-forum-700 transition-colors"
               >
                 <UserPlus className="h-4 w-4" />
                 Become a Member
