@@ -1,17 +1,15 @@
 import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import Button from '../../components/common/Button';
 import CeremonyAwardProgramme from '../../components/awards/CeremonyAwardProgramme';
 import CeremonyCommittee from '../../components/awards/CeremonyCommittee';
 import AwardEventMediaGrid from '../../components/awards/AwardEventMediaGrid';
 import { CEREMONY_EVENT_DATE, CEREMONY_VENUE, ceremonyProgramme } from '../../domain/ceremonyProgramme';
-import { CEREMONY_NOMINATE_PATH, CEREMONY_PAGE_PATH } from '../../domain/ceremonyRegistration';
+import { CEREMONY_NOMINATE_PATH } from '../../domain/ceremonyRegistration';
 
 export default function AwardInformationPage() {
   useEffect(() => {
     const previous = document.title;
-    document.title = 'Award information · IFSMHP Awards 2026';
+    document.title = 'Committe · IFSMHP Awards 2026';
     return () => { document.title = previous; };
   }, []);
 
@@ -20,11 +18,7 @@ export default function AwardInformationPage() {
       <section className="border-b border-paper-border bg-paper" aria-labelledby="award-information-heading">
         <div className="mx-auto grid max-w-6xl items-start gap-8 px-4 pb-10 pt-12 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)] lg:gap-12 lg:pb-12 lg:pt-14">
           <div>
-            <Link to={CEREMONY_PAGE_PATH} className="inline-flex items-center gap-1.5 text-[15px] font-medium text-forum-700 hover:text-forum-900">
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Second International Awards Ceremony
-            </Link>
-            <h1 id="award-information-heading" className="mt-5 max-w-3xl font-display text-4xl font-semibold leading-[0.98] tracking-tight text-forum-900 sm:text-5xl">
+            <h1 id="award-information-heading" className="max-w-3xl font-display text-4xl font-semibold leading-[0.98] tracking-tight text-forum-900 sm:text-5xl">
               <span className="block">
                 <span className="mr-[0.16em] inline-flex items-start align-baseline text-[1.32em] leading-none text-brass-600" aria-hidden="true">
                   <span>2</span>

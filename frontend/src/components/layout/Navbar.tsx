@@ -3,17 +3,26 @@ import { useState, type CSSProperties } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Menu, X, UserPlus, LogIn, Images } from 'lucide-react';
 import logoImg from '../../assets/images/logo.webp';
+import { CEREMONY_INFORMATION_PATH, CEREMONY_PAGE_PATH } from '../../domain/ceremonyRegistration';
 
 const navLinks = [
   { to: '/', label: 'Home' },
   { to: '/about', label: 'About Us' },
   { to: '/membership', label: 'Membership' },
   { to: '/gallery', label: 'Gallery', anchor: true },
-  { to: '/support-services', label: 'Support', featured: true },
   { to: '/events', label: 'Events' },
-  { to: '/awards/second-international', label: 'Awards' },
+  { to: CEREMONY_PAGE_PATH, label: 'Awards' },
+  { to: CEREMONY_INFORMATION_PATH, label: 'Committe' },
   { to: '/contact', label: 'Contact' },
+  { to: '/support-services', label: 'Support', featured: true },
 ];
+
+const navItemClass = (isActive: boolean) =>
+  `whitespace-nowrap rounded-md px-2.5 py-[6px] text-sm font-medium transition-colors xl:px-3 ${
+    isActive
+      ? 'bg-forum-900 text-white'
+      : 'text-ink-muted hover:bg-forum-900 hover:text-white'
+  }`;
 
 function textParts(value: string) {
   if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
@@ -77,40 +86,31 @@ export default function Navbar() {
   const settings = usePublicSettings();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const navCls = ({ isActive }: { isActive: boolean }) =>
-    `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-      isActive
-        ? 'bg-forum-50 text-forum-900'
-        : 'text-ink-muted hover:bg-forum-50 hover:text-forum-900'
-    }`;
+  const navCls = ({ isActive }: { isActive: boolean }) => navItemClass(isActive);
 
   return (
     <header className="sticky top-0 z-40 border-b border-paper-border bg-white/95 backdrop-blur-sm shadow-sm">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="flex h-22 items-center justify-between">
-          <Link to="/" title={settings?.fullName || undefined} aria-label={settings?.shortName || 'Home'} className="flex items-center gap-2.5">
+      <div className="mx-auto w-full max-w-7xl px-3 sm:px-4 lg:px-5">
+        <div className="flex h-22 flex-nowrap items-center justify-between gap-3 xl:gap-4">
+          <Link to="/" title={settings?.fullName || undefined} aria-label={settings?.shortName || 'Home'} className="flex shrink-0 items-center gap-2">
             <img
               src={logoImg}
               alt={`${settings?.shortName || 'IFSMHP'} Logo`}
-              className="h-20 w-20 rounded-md object-contain"
+              className="h-16 w-16 rounded-md object-contain lg:h-[4.5rem] lg:w-[4.5rem]"
             />
             <div className="leading-tight">
               <span className="hidden text-[10px] uppercase tracking-wider text-ink-subtle sm:block"></span>
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-1 lg:flex">
+          <nav className="hidden flex-nowrap items-center gap-1.5 xl:gap-2 lg:flex">
             {navLinks.map((link) => {
               if (link.anchor) {
                 return (
                   <GalleryNavLink
                     key={link.to}
                     className={(isActive) =>
-                      `rounded-md px-3 py-2 text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
-                        isActive
-                          ? 'bg-forum-50 text-forum-900'
-                          : 'text-ink-muted hover:bg-forum-50 hover:text-forum-900'
-                      }`
+                      `inline-flex items-center gap-1.5 ${navItemClass(isActive)}`
                     }
                   />
                 );
@@ -121,7 +121,9 @@ export default function Navbar() {
                     key={link.to}
                     to={link.to}
                     aria-label={link.label}
-                    className="support-nav-link px-3.5 py-1.5 text-sm"
+                    className={({ isActive }) =>
+                      `support-nav-link whitespace-nowrap px-2.5 py-[6px] text-sm xl:px-3${isActive ? ' is-active' : ''}`
+                    }
                   >
                     <SupportGlowDot />
                     <SupportNavLabel>{link.label}</SupportNavLabel>
@@ -133,7 +135,7 @@ export default function Navbar() {
                   key={link.to}
                   to={link.to}
                   className={navCls}
-                  end={link.to === '/'}
+                  end={link.to === '/' || link.to === CEREMONY_PAGE_PATH}
                 >
                   {link.label}
                 </NavLink>
@@ -141,17 +143,17 @@ export default function Navbar() {
             })}
           </nav>
 
-          <div className="hidden items-center gap-2 lg:flex">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex xl:gap-2.5">
             <Link
               to="/login"
-              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-ink-muted hover:bg-forum-50 hover:text-forum-900 transition-colors"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium text-ink-muted hover:bg-forum-900 hover:text-white transition-colors xl:px-3"
             >
               <LogIn className="h-4 w-4" />
               Login
             </Link>
             <Link
               to="/register"
-              className="inline-flex items-center gap-1.5 rounded-md bg-forum-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-forum-800 transition-colors ring-1 ring-forum-900/10"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-forum-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-forum-700 transition-colors ring-1 ring-forum-600/10 xl:px-4"
             >
               <UserPlus className="h-4 w-4" />
               Become a Member
@@ -170,7 +172,7 @@ export default function Navbar() {
 
         {mobileOpen && (
           <div className="border-t border-paper-border pb-4 lg:hidden">
-            <nav className="mt-3 flex flex-col gap-1">
+            <nav className="mt-3 flex flex-col gap-2">
               {navLinks.map((link) => {
                 if (link.anchor) {
                   return (
@@ -178,7 +180,7 @@ export default function Navbar() {
                       key={link.to}
                       to="/#gallery-section"
                       onClick={() => setMobileOpen(false)}
-                      className="rounded-md px-3 py-2 text-sm font-medium transition-colors text-ink-muted hover:bg-forum-50 hover:text-forum-900 inline-flex items-center gap-1.5"
+                      className={`inline-flex items-center gap-1.5 ${navItemClass(false)}`}
                     >
                       <Images className="h-4 w-4 text-brass-600" />
                       Gallery
@@ -187,7 +189,9 @@ export default function Navbar() {
                 }
                 const isActive = link.to === '/'
                   ? location.pathname === '/'
-                  : location.pathname === link.to || location.pathname.startsWith(`${link.to}/`);
+                  : link.to === CEREMONY_PAGE_PATH
+                    ? location.pathname === CEREMONY_PAGE_PATH
+                    : location.pathname === link.to || location.pathname.startsWith(`${link.to}/`);
                 if (link.featured) {
                   return (
                     <Link
@@ -196,7 +200,7 @@ export default function Navbar() {
                       aria-label={link.label}
                       aria-current={isActive ? 'page' : undefined}
                       onClick={() => setMobileOpen(false)}
-                      className="support-nav-link self-start px-3.5 py-1.5 text-sm"
+                      className={`support-nav-link self-start px-2.5 py-[6px] text-sm${isActive ? ' is-active' : ''}`}
                     >
                       <SupportGlowDot />
                       <SupportNavLabel>{link.label}</SupportNavLabel>
@@ -208,11 +212,7 @@ export default function Navbar() {
                     key={link.to}
                     to={link.to}
                     onClick={() => setMobileOpen(false)}
-                    className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-forum-50 text-forum-900'
-                        : 'text-ink-muted hover:bg-forum-50 hover:text-forum-900'
-                    }`}
+                    className={navItemClass(isActive)}
                   >
                     {link.label}
                   </Link>
@@ -223,7 +223,7 @@ export default function Navbar() {
               <Link
                 to="/login"
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-paper-border px-4 py-2 text-sm font-medium text-ink-muted hover:bg-forum-50 hover:text-forum-900 transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-paper-border px-4 py-2 text-sm font-medium text-ink-muted hover:bg-forum-900 hover:text-white transition-colors"
               >
                 <LogIn className="h-4 w-4" />
                 Member Login
@@ -231,7 +231,7 @@ export default function Navbar() {
               <Link
                 to="/register"
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-md bg-forum-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-forum-800 transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 rounded-md bg-forum-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-forum-700 transition-colors"
               >
                 <UserPlus className="h-4 w-4" />
                 Become a Member

@@ -23,6 +23,7 @@ import ContactPage from './pages/public/ContactPage';
 import ProductReviewsPage from './pages/public/ProductReviewsPage';
 import PolicyPage from './pages/public/PolicyPage';
 import NotFoundPage from './pages/NotFoundPage';
+import { CEREMONY_INFORMATION_PATH } from './domain/ceremonyRegistration';
 
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
@@ -127,7 +128,8 @@ export default function App() {
           <Route path="events" element={<EventsPage />} />
           <Route path="awards/second-international" element={<SecondInternationalAwardsPage />} />
           <Route path="awards/second-international/register" element={<CeremonyRegistrationPage />} />
-          <Route path="awards/second-international/information" element={<AwardInformationPage />} />
+          <Route path="awards/second-international/committe" element={<AwardInformationPage />} />
+          <Route path="awards/second-international/information" element={<Navigate to={CEREMONY_INFORMATION_PATH} replace />} />
           <Route path="awards/second-international/gallery" element={<AwardEventGalleryPage />} />
           <Route path="awards/second-international/nominate" element={<AwardNominationPage />} />
           <Route path="contact" element={<ContactPage />} />

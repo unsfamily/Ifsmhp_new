@@ -1470,26 +1470,34 @@ dialog.award-photo-dialog::backdrop {
   background: rgb(1 23 56 / 0.78);
 }
 
+/* Featured Support pill. Idle uses compact height; selected matches other menus. */
 .support-nav-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  margin-left: 0.25rem;
   border-radius: 10px;
   color: #fff;
   font-weight: 600;
   line-height: 1;
-  --tw-bg-opacity: 1;
-  background-color: rgb(1 37 89 / var(--tw-bg-opacity, 1));
+  background-color: #1e3e88;
 }
 
 .support-nav-link:hover {
-  background: linear-gradient(
-    135deg,
-    rgb(1, 37, 89) 0%,
-    rgb(20, 61, 115) 55%,
-    rgb(45, 82, 130) 100%
-  );
+  background-color: #103070;
   color: #fff;
+}
+
+.support-nav-link[aria-current='page'],
+.support-nav-link.is-active {
+  border-radius: 0.375rem;
+  line-height: 1.25rem;
+  background-color: #012559;
+}
+
+.support-nav-link[aria-current='page']:hover,
+.support-nav-link.is-active:hover {
+  background-color: #001738;
 }
 
 .support-nav-dot {

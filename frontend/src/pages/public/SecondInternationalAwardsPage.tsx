@@ -4,12 +4,9 @@ import Button from '../../components/common/Button';
 import CeremonyRegistrationDialog from '../../components/awards/CeremonyRegistrationDialog';
 import CeremonyRegistrationQr from '../../components/awards/CeremonyRegistrationQr';
 import PreviousAwardPhotos from '../../components/awards/PreviousAwardPhotos';
-import yaseenShaikhPortrait from '../../assets/images/awards/yaseen-ismail-shaikh.jpg';
 import { AwardsCeremonyJsonLd } from '../../components/events/EventJsonLd';
-import { CEREMONY_ADDRESS, CEREMONY_DATE_ISO, CEREMONY_EVENT_DATE, CEREMONY_VENUE, ceremonyProgramme } from '../../domain/ceremonyProgramme';
+import { CEREMONY_ADDRESS, CEREMONY_DATE_ISO, CEREMONY_EVENT_DATE, CEREMONY_VENUE } from '../../domain/ceremonyProgramme';
 import { CEREMONY_INFORMATION_PATH, CEREMONY_INTEREST_NOTICE, CEREMONY_NOMINATE_PATH } from '../../domain/ceremonyRegistration';
-
-const organisingSecretary = ceremonyProgramme.committee?.find((member) => member.role === 'Organising Committee Secretary');
 
 const participation = [
   {
@@ -173,30 +170,6 @@ export default function SecondInternationalAwardsPage() {
               </div>
             </aside>
           </div>
-          {organisingSecretary && (
-            <div className={SECTION_GAP}>
-              <article className="grid overflow-hidden rounded-2xl border border-paper-border bg-paper-raised shadow-sm sm:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
-                <div className="relative aspect-[3/4] bg-forum-950 sm:aspect-auto sm:min-h-[22rem]">
-                  <img
-                    src={yaseenShaikhPortrait}
-                    alt={`${organisingSecretary.name}, ${organisingSecretary.role}, in NCC uniform`}
-                    className="absolute inset-0 h-full w-full object-cover object-[center_12%]"
-                  />
-                </div>
-                <div className="flex flex-col justify-center px-6 py-6 sm:min-h-[22rem] sm:px-8 sm:py-8">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brass-700">{organisingSecretary.role}</p>
-                  <h2 className="mt-2 font-display text-2xl font-semibold text-forum-900 sm:text-3xl">{organisingSecretary.name}</h2>
-                  {organisingSecretary.tagline && <p className="mt-2 text-sm font-medium text-forum-900">{organisingSecretary.tagline}</p>}
-                  {organisingSecretary.affiliation && <p className="mt-3 text-sm leading-relaxed text-ink-muted">{organisingSecretary.affiliation}</p>}
-                  <div className="mt-5">
-                    <Button as="link" to={CEREMONY_INFORMATION_PATH} variant="outline">
-                      Organising committee profile
-                    </Button>
-                  </div>
-                </div>
-              </article>
-            </div>
-          )}
           <div className={SECTION_GAP}>
             <PreviousAwardPhotos />
           </div>
