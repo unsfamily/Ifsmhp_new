@@ -18,7 +18,7 @@ const navLinks = [
 ];
 
 const navItemClass = (isActive: boolean) =>
-  `whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium transition-colors xl:px-3 ${
+  `whitespace-nowrap rounded-md px-2.5 py-[7px] text-sm font-medium transition-colors xl:px-3 ${
     isActive
       ? 'bg-forum-900 text-white'
       : 'text-ink-muted hover:bg-forum-900 hover:text-white'
@@ -122,7 +122,7 @@ export default function Navbar() {
                     to={link.to}
                     aria-label={link.label}
                     className={({ isActive }) =>
-                      `support-nav-link whitespace-nowrap px-2.5 py-2 text-sm xl:px-3${isActive ? ' is-active' : ''}`
+                      `support-nav-link whitespace-nowrap px-2.5 py-[7px] text-sm xl:px-3${isActive ? ' is-active' : ''}`
                     }
                   >
                     <SupportGlowDot />
@@ -200,7 +200,7 @@ export default function Navbar() {
                       aria-label={link.label}
                       aria-current={isActive ? 'page' : undefined}
                       onClick={() => setMobileOpen(false)}
-                      className={`support-nav-link self-start px-2.5 py-2 text-sm${isActive ? ' is-active' : ''}`}
+                      className={`support-nav-link self-start px-2.5 py-[7px] text-sm${isActive ? ' is-active' : ''}`}
                     >
                       <SupportGlowDot />
                       <SupportNavLabel>{link.label}</SupportNavLabel>
