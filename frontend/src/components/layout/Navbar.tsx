@@ -1,54 +1,28 @@
 import { usePublicSettings } from '../../context/SettingsContext';
-import { useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Menu, X, UserPlus, LogIn, Images } from 'lucide-react';
 import logoImg from '../../assets/images/logo.webp';
+import { CEREMONY_INFORMATION_PATH, CEREMONY_PAGE_PATH } from '../../domain/ceremonyRegistration';
 
 const navLinks = [
   { to: '/', label: 'Home' },
   { to: '/about', label: 'About Us' },
   { to: '/membership', label: 'Membership' },
   { to: '/gallery', label: 'Gallery', anchor: true },
-  { to: '/support-services', label: 'Support', featured: true },
   { to: '/events', label: 'Events' },
-  { to: '/awards/second-international', label: 'Awards' },
+  { to: CEREMONY_PAGE_PATH, label: 'Awards' },
+  { to: CEREMONY_INFORMATION_PATH, label: 'Committe' },
   { to: '/contact', label: 'Contact' },
+  { to: '/support-services', label: 'Support' },
 ];
 
-function textParts(value: string) {
-  if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
-    return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(value)].map((part) => part.segment);
-  }
-  return Array.from(value);
-}
-
-function SupportGlowDot() {
-  return <span className="support-nav-dot" aria-hidden="true" />;
-}
-
-function SupportNavLabel({ children }: { children: string }) {
-  let letter = 0;
-  return (
-    <span className="support-nav-label" aria-hidden="true">
-      {textParts(children).map((part, index) => {
-        if (part.trim() === '') {
-          return (
-            <span key={`space-${index}`} className="support-nav-space">
-              {part}
-            </span>
-          );
-        }
-        const order = letter;
-        letter += 1;
-        return (
-          <span key={`${part}-${index}`} className="support-nav-letter" style={{ '--support-letter': order } as CSSProperties}>
-            {part}
-          </span>
-        );
-      })}
-    </span>
-  );
-}
+const navItemClass = (isActive: boolean) =>
+  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+    isActive
+      ? 'bg-forum-900 text-white'
+      : 'text-ink-muted hover:bg-forum-900 hover:text-white'
+  }`;
 
 function GalleryNavLink({
   className,
@@ -77,12 +51,7 @@ export default function Navbar() {
   const settings = usePublicSettings();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const navCls = ({ isActive }: { isActive: boolean }) =>
-    `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-      isActive
-        ? 'bg-forum-50 text-forum-900'
-        : 'text-ink-muted hover:bg-forum-50 hover:text-forum-900'
-    }`;
+  const navCls = ({ isActive }: { isActive: boolean }) => navItemClass(isActive);
 
   return (
     <header className="sticky top-0 z-40 border-b border-paper-border bg-white/95 backdrop-blur-sm shadow-sm">
@@ -106,26 +75,9 @@ export default function Navbar() {
                   <GalleryNavLink
                     key={link.to}
                     className={(isActive) =>
-                      `rounded-md px-3 py-2 text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
-                        isActive
-                          ? 'bg-forum-50 text-forum-900'
-                          : 'text-ink-muted hover:bg-forum-50 hover:text-forum-900'
-                      }`
+                      `inline-flex items-center gap-1.5 ${navItemClass(isActive)}`
                     }
                   />
-                );
-              }
-              if (link.featured) {
-                return (
-                  <NavLink
-                    key={link.to}
-                    to={link.to}
-                    aria-label={link.label}
-                    className="support-nav-link px-3.5 py-1.5 text-sm"
-                  >
-                    <SupportGlowDot />
-                    <SupportNavLabel>{link.label}</SupportNavLabel>
-                  </NavLink>
                 );
               }
               return (
@@ -133,7 +85,7 @@ export default function Navbar() {
                   key={link.to}
                   to={link.to}
                   className={navCls}
-                  end={link.to === '/'}
+                  end={link.to === '/' || link.to === CEREMONY_PAGE_PATH}
                 >
                   {link.label}
                 </NavLink>
@@ -144,7 +96,7 @@ export default function Navbar() {
           <div className="hidden items-center gap-2 lg:flex">
             <Link
               to="/login"
-              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-ink-muted hover:bg-forum-50 hover:text-forum-900 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-ink-muted hover:bg-forum-900 hover:text-white transition-colors"
             >
               <LogIn className="h-4 w-4" />
               Login
@@ -178,7 +130,7 @@ export default function Navbar() {
                       key={link.to}
                       to="/#gallery-section"
                       onClick={() => setMobileOpen(false)}
-                      className="rounded-md px-3 py-2 text-sm font-medium transition-colors text-ink-muted hover:bg-forum-50 hover:text-forum-900 inline-flex items-center gap-1.5"
+                      className={`inline-flex items-center gap-1.5 ${navItemClass(false)}`}
                     >
                       <Images className="h-4 w-4 text-brass-600" />
                       Gallery
@@ -187,32 +139,15 @@ export default function Navbar() {
                 }
                 const isActive = link.to === '/'
                   ? location.pathname === '/'
-                  : location.pathname === link.to || location.pathname.startsWith(`${link.to}/`);
-                if (link.featured) {
-                  return (
-                    <Link
-                      key={link.to}
-                      to={link.to}
-                      aria-label={link.label}
-                      aria-current={isActive ? 'page' : undefined}
-                      onClick={() => setMobileOpen(false)}
-                      className="support-nav-link self-start px-3.5 py-1.5 text-sm"
-                    >
-                      <SupportGlowDot />
-                      <SupportNavLabel>{link.label}</SupportNavLabel>
-                    </Link>
-                  );
-                }
+                  : link.to === CEREMONY_PAGE_PATH
+                    ? location.pathname === CEREMONY_PAGE_PATH
+                    : location.pathname === link.to || location.pathname.startsWith(`${link.to}/`);
                 return (
                   <Link
                     key={link.to}
                     to={link.to}
                     onClick={() => setMobileOpen(false)}
-                    className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-forum-50 text-forum-900'
-                        : 'text-ink-muted hover:bg-forum-50 hover:text-forum-900'
-                    }`}
+                    className={navItemClass(isActive)}
                   >
                     {link.label}
                   </Link>
@@ -223,7 +158,7 @@ export default function Navbar() {
               <Link
                 to="/login"
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-paper-border px-4 py-2 text-sm font-medium text-ink-muted hover:bg-forum-50 hover:text-forum-900 transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-paper-border px-4 py-2 text-sm font-medium text-ink-muted hover:bg-forum-900 hover:text-white transition-colors"
               >
                 <LogIn className="h-4 w-4" />
                 Member Login
