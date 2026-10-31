@@ -1470,11 +1470,12 @@ dialog.award-photo-dialog::backdrop {
   background: rgb(1 23 56 / 0.78);
 }
 
-/* Matches primary Button (bg-forum-600 / #1E3E88) */
+/* Featured Support pill; selected state uses menu dark blue (#012559) */
 .support-nav-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  margin-left: 0.25rem;
   border-radius: 10px;
   color: #fff;
   font-weight: 600;
@@ -1485,6 +1486,16 @@ dialog.award-photo-dialog::backdrop {
 .support-nav-link:hover {
   background-color: #103070;
   color: #fff;
+}
+
+.support-nav-link[aria-current='page'],
+.support-nav-link.is-active {
+  background-color: #012559;
+}
+
+.support-nav-link[aria-current='page']:hover,
+.support-nav-link.is-active:hover {
+  background-color: #001738;
 }
 
 .support-nav-dot {

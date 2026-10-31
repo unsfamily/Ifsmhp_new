@@ -122,21 +122,11 @@ export default function Navbar() {
                     to={link.to}
                     aria-label={link.label}
                     className={({ isActive }) =>
-                      isActive
-                        ? navItemClass(true)
-                        : 'support-nav-link whitespace-nowrap px-3 py-1.5 text-sm xl:px-3.5'
+                      `support-nav-link whitespace-nowrap px-2.5 py-2 text-sm xl:px-3${isActive ? ' is-active' : ''}`
                     }
                   >
-                    {({ isActive }) =>
-                      isActive ? (
-                        link.label
-                      ) : (
-                        <>
-                          <SupportGlowDot />
-                          <SupportNavLabel>{link.label}</SupportNavLabel>
-                        </>
-                      )
-                    }
+                    <SupportGlowDot />
+                    <SupportNavLabel>{link.label}</SupportNavLabel>
                   </NavLink>
                 );
               }
@@ -210,20 +200,10 @@ export default function Navbar() {
                       aria-label={link.label}
                       aria-current={isActive ? 'page' : undefined}
                       onClick={() => setMobileOpen(false)}
-                      className={
-                        isActive
-                          ? `self-start ${navItemClass(true)}`
-                          : 'support-nav-link self-start px-3.5 py-1.5 text-sm'
-                      }
+                      className={`support-nav-link self-start px-2.5 py-2 text-sm${isActive ? ' is-active' : ''}`}
                     >
-                      {isActive ? (
-                        link.label
-                      ) : (
-                        <>
-                          <SupportGlowDot />
-                          <SupportNavLabel>{link.label}</SupportNavLabel>
-                        </>
-                      )}
+                      <SupportGlowDot />
+                      <SupportNavLabel>{link.label}</SupportNavLabel>
                     </Link>
                   );
                 }
