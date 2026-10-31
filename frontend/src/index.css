@@ -1470,16 +1470,17 @@ dialog.award-photo-dialog::backdrop {
   background: rgb(1 23 56 / 0.78);
 }
 
-/* Featured Support pill; selected state uses menu dark blue (#012559) */
+/* Featured Support pill; selected state uses menu dark blue (#012559).
+   Line-height matches text-sm menu items so selected height stays even. */
 .support-nav-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin-left: 0.25rem;
-  border-radius: 10px;
+  border-radius: 0.375rem;
   color: #fff;
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.25rem;
   background-color: #1e3e88;
 }
 
