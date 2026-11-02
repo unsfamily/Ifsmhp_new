@@ -12,7 +12,7 @@ const navLinks = [
   { to: '/gallery', label: 'Gallery', anchor: true },
   { to: '/events', label: 'Events' },
   { to: CEREMONY_PAGE_PATH, label: 'Awards' },
-  { to: CEREMONY_INFORMATION_PATH, label: 'Committe' },
+  { to: CEREMONY_INFORMATION_PATH, label: 'Committee' },
   { to: '/contact', label: 'Contact' },
   { to: '/support-services', label: 'Support', featured: true },
 ];

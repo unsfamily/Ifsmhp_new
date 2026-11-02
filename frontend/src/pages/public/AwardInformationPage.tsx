@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import Button from '../../components/common/Button';
 import CeremonyAwardProgramme from '../../components/awards/CeremonyAwardProgramme';
 import CeremonyCommittee from '../../components/awards/CeremonyCommittee';
+import CommitteeMemberDirectory from '../../components/awards/CommitteeMemberDirectory';
+import MaharashtraOrgTree from '../../components/awards/MaharashtraOrgTree';
 import AwardEventMediaGrid from '../../components/awards/AwardEventMediaGrid';
 import { CEREMONY_EVENT_DATE, CEREMONY_VENUE, ceremonyProgramme } from '../../domain/ceremonyProgramme';
 import { CEREMONY_NOMINATE_PATH } from '../../domain/ceremonyRegistration';
@@ -9,7 +11,7 @@ import { CEREMONY_NOMINATE_PATH } from '../../domain/ceremonyRegistration';
 export default function AwardInformationPage() {
   useEffect(() => {
     const previous = document.title;
-    document.title = 'Committe · IFSMHP Awards 2026';
+    document.title = 'Committee · IFSMHP Awards 2026';
     return () => { document.title = previous; };
   }, []);
 
@@ -54,6 +56,10 @@ export default function AwardInformationPage() {
       {ceremonyProgramme.committee && ceremonyProgramme.committee.length > 0 && (
         <CeremonyCommittee members={ceremonyProgramme.committee} />
       )}
+
+      <MaharashtraOrgTree />
+
+      <CommitteeMemberDirectory organisingCommittee={ceremonyProgramme.committee} />
 
       <CeremonyAwardProgramme programme={ceremonyProgramme} />
 
