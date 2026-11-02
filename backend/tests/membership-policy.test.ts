@@ -38,18 +38,19 @@ async function upload() {
   const r = await request(app).post(api + '/files/registration').attach('file', pdf, { filename: `${prefix}${randomUUID()}.pdf`, contentType: 'application/pdf' });
   expect(r.status).toBe(201); return { fileId: r.body.data.id as string, claimToken: r.body.data.claimToken as string };
 }
-function input(documents: { kind: 'CV' | 'CREDENTIAL'; fileId: string; claimToken: string }[] = []) {
-  return { fullName: 'Policy Applicant', firstName: 'Policy', lastName: 'Applicant', email: `${prefix}${randomUUID()}@example.test`, professionalType: 'Researcher', institution: 'Test Institute', credentials: 'Professional research credentials', education: 'Doctoral degree in research', researchInterests: 'Community mental health research', documents, agreeTerms: true as const };
+function input(documents: { kind: 'CV' | 'CREDENTIAL'; fileId: string; claimToken: string }[] = [], professionalType = 'Researcher') {
+  return { fullName: 'Policy Applicant', firstName: 'Policy', lastName: 'Applicant', email: `${prefix}${randomUUID()}@example.test`, professionalType, institution: 'Test Institute', credentials: 'Professional research credentials', education: 'Doctoral degree in research', researchInterests: 'Community mental health research', documents, agreeTerms: true as const };
 }
 async function policy(values: Partial<MembershipPolicy>) {
   const current = await currentMembershipPolicy();
   await updateSettings(adminId, 'membership', current.revision, values);
   return currentMembershipPolicy();
 }
-async function applicant(values: Partial<MembershipPolicy> = {}, legacy = false) {
-  const snap = { revision: 1, values: { ...legacyMembershipPolicy, requireProfile: false, requireCredential: false, ...values } };
+async function applicant(values: Partial<MembershipPolicy> = {}, legacy = false, professionalType = 'Researcher') {
+  // Keep fees off in the fixture unless a test opts in, so approval-path tests stay focused.
+  const snap = { revision: 1, values: { ...legacyMembershipPolicy, requireProfile: false, requireCredential: false, applicationFeeEnabled: false, paymentInstructions: '', ...values } };
   const documents = legacy ? [{ kind: 'CV' as const, ...await upload() }, { kind: 'CREDENTIAL' as const, ...await upload() }] : [];
-  const payload = input(documents);
+  const payload = input(documents, professionalType);
   const registered = await registerApplicant({ ...payload, ...(!legacy ? { membershipPolicy: snap } : {}) }, { get: () => undefined } as unknown as Request);
   const application = await prisma.membershipApplication.findUniqueOrThrow({ where: { userId: registered.user.id } });
   return { ...application, token: await session(registered.user.id, 'APPLICANT') };
@@ -77,7 +78,7 @@ describe('Membership settings, registration and review', () => {
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { actorId: adminId, action: 'PlatformSettingsUpdated' }, orderBy: { createdAt: 'desc' } });
     expect(audit.metadata).toHaveProperty('changedFields'); expect(JSON.stringify(audit)).not.toContain(values.paymentInstructions);
   });
-  it.each([{ idPrefix: 'bad prefix' }, { idPadding: 3 }, { idPadding: 11 }, { applicationFee: '-1' }, { applicationFee: '1.999' }, { annualDues: 10 }, { currency: 'XXX' }, { referralCount: 6 }, { referralCount: -1 }, { referenceLetterCount: 6 }, { archiveAfterDays: 0 }, { archiveAfterDays: 3651 }, { applicationFeeEnabled: true }, { applicationFeeEnabled: true, applicationFee: '20' }])('rejects malformed settings %j', async values => {
+  it.each([{ idPrefix: 'bad prefix' }, { idPadding: 3 }, { idPadding: 11 }, { applicationFee: '-1' }, { applicationFee: '1.999' }, { annualDues: 10 }, { currency: 'XXX' }, { referralCount: 6 }, { referralCount: -1 }, { referenceLetterCount: 6 }, { archiveAfterDays: 0 }, { archiveAfterDays: 3651 }, { applicationFeeEnabled: true, applicationFee: '0.00' }, { applicationFeeEnabled: true, applicationFee: '20', paymentInstructions: '' }])('rejects malformed settings %j', async values => {
     const response = await request(app).patch(api + '/admin/settings/membership').set('Authorization', `Bearer ${token}`).send({ expectedRevision: 0, values }); expect(response.status).toBe(422); expect((await currentMembershipPolicy()).revision).toBe(0);
   });
   it('snapshots policy through upload, OTP resend, verification, review and approval', async () => {
@@ -140,6 +141,30 @@ describe('Membership settings, registration and review', () => {
   });
 });
 describe('Charges, waivers, archive jobs and authorization', () => {
+  it('skips the application fee for Student applicants and allows approval without payment', async () => {
+    const student = await applicant({ applicationFeeEnabled: true, applicationFee: '100.00', paymentInstructions: 'Pay INR 100 to IFSMHP' }, false, 'Student');
+    const charged = await applicant({ applicationFeeEnabled: true, applicationFee: '100.00', paymentInstructions: 'Pay INR 100 to IFSMHP' }, false, 'Psychologist');
+    const studentDetail = await detail(student.id); const chargedDetail = await detail(charged.id);
+    expect(studentDetail.body.data.applicationFeeExempt).toBe(true);
+    expect(studentDetail.body.data.charges.filter((c: { kind: string }) => c.kind === 'APPLICATION')).toEqual([]);
+    expect(chargedDetail.body.data.applicationFeeExempt).toBe(false);
+    expect(chargedDetail.body.data.charges[0]).toMatchObject({ kind: 'APPLICATION', amount: '100.00', status: 'UNPAID' });
+    expect((await approve(student.id)).status).toBe(200);
+    expect((await approve(charged.id)).status).toBe(422);
+  });
+  it('lets applicants claim a UTR without settling, then admin records payment before approval', async () => {
+    const a = await applicant({ applicationFeeEnabled: true, applicationFee: '100.00', paymentInstructions: 'Pay INR 100 to IFSMHP' });
+    const c = (await detail(a.id)).body.data.charges[0];
+    const claimBody = { requestId: randomUUID(), reference: 'UPI1234567890' };
+    const claimed = await request(app).post(`${api}/membership/charges/${c.id}/payment-claims`).set('Authorization', `Bearer ${a.token}`).send(claimBody);
+    expect(claimed.status).toBe(200);
+    expect(claimed.body.data.charges[0]).toMatchObject({ status: 'UNPAID', claimedReference: 'UPI1234567890' });
+    expect((await request(app).post(`${api}/membership/charges/${c.id}/payment-claims`).set('Authorization', `Bearer ${a.token}`).send(claimBody)).status).toBe(200);
+    expect((await approve(a.id)).status).toBe(422);
+    expect((await post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'UPI1234567890' })).status).toBe(200);
+    expect((await detail(a.id)).body.data.charges[0].status).toBe('PAID');
+    expect((await approve(a.id)).status).toBe(200);
+  });
   it('records payment once, preserves full history, and gates approval after correction', async () => {
     const a = await applicant({ applicationFeeEnabled: true, applicationFee: '125.50', paymentInstructions: 'Bank transfer' });
     const c = (await detail(a.id)).body.data.charges[0]; const body = { requestId: randomUUID(), reference: 'bank-transaction-123' };
@@ -152,7 +177,7 @@ describe('Charges, waivers, archive jobs and authorization', () => {
   });
   it('serializes duplicate payments and approval racing with settlement', async () => {
     const a = await applicant({ applicationFeeEnabled: true, applicationFee: '10' }); const c = (await detail(a.id)).body.data.charges[0];
-    const responses = await Promise.all([post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'one' }), post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'two' }), approve(a.id)]);
+    const responses = await Promise.all([post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'UTR-ONE-001' }), post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'UTR-TWO-002' }), approve(a.id)]);
     expect(responses.slice(0, 2).map(r => r.status).sort()).toEqual([200, 409]); expect([200, 422]).toContain(responses[2]!.status);
     expect(await prisma.membershipPayment.count({ where: { chargeId: c.id } })).toBe(1);
   });

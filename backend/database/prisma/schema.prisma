@@ -1588,6 +1588,10 @@ model MembershipCharge {
   currency String @db.VarChar(3)
   dueAt DateTime
   createdAt DateTime @default(now())
+  /// Applicant-submitted UTR/UPI note for admin matching. Does not settle the charge.
+  claimedReference String? @db.VarChar(191)
+  claimedAt DateTime?
+  claimedRequestId String? @unique
   application MembershipApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   payments MembershipPayment[]
   waivers MembershipWaiver[]

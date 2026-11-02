@@ -306,7 +306,7 @@ export default function AdminMemberDetailPage() {
 
   const isPendOrReview = status === 'PENDING' || status === 'UNDER_REVIEW';
   const canStartReview = status === 'PENDING';
-  const canApprove = isPendOrReview;
+  const canApprove = isPendOrReview && !membership?.approvalProblems?.length;
   const canReject = isPendOrReview;
 
   const refresh = () => setReloadKey((k) => k + 1);
