@@ -1,7 +1,6 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { ArrowRight, Award, CalendarDays, CheckCircle2, ExternalLink, Info, MapPin, Presentation, UserRound, Users } from 'lucide-react';
 import Button from '../../components/common/Button';
-import CeremonyRegistrationDialog from '../../components/awards/CeremonyRegistrationDialog';
 import CeremonyRegistrationQr from '../../components/awards/CeremonyRegistrationQr';
 import PreviousAwardPhotos from '../../components/awards/PreviousAwardPhotos';
 import { AwardsCeremonyJsonLd } from '../../components/events/EventJsonLd';
@@ -49,7 +48,6 @@ function EvenSection({
 
 export default function SecondInternationalAwardsPage() {
   const bannerRef = useRef<HTMLElement | null>(null);
-  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const previous = document.title;
@@ -74,8 +72,6 @@ export default function SecondInternationalAwardsPage() {
     }
     return () => observer?.disconnect();
   }, []);
-
-  const openRegistration = () => setOpen(true);
 
   return (
     <>
@@ -113,7 +109,7 @@ export default function SecondInternationalAwardsPage() {
                 {' '}at {CEREMONY_VENUE}, Pune. Nomination is separate from membership and does not guarantee selection.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Button type="button" size="lg" onClick={openRegistration}>
+                <Button as="link" to="/register" size="lg">
                   Register your interest
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
@@ -270,19 +266,13 @@ export default function SecondInternationalAwardsPage() {
               Tell us you would like to attend on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}. This records interest and does not reserve admission.
             </p>
             <div className="mt-4 flex justify-center">
-              <Button id="ceremony-register-cta" type="button" size="lg" variant="primary" onClick={openRegistration}>
+              <Button id="ceremony-register-cta" as="link" to="/register" size="lg" variant="primary">
                 Register for the Ceremony
               </Button>
             </div>
           </div>
         </div>
       </EvenSection>
-
-      <CeremonyRegistrationDialog
-        open={open}
-        onClose={() => setOpen(false)}
-        returnFocusId="ceremony-register-cta"
-      />
     </>
   );
 }

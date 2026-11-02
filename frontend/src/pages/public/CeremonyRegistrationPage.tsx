@@ -43,7 +43,7 @@ export default function CeremonyRegistrationPage() {
           {registration.submitted ? (
             <CeremonyRegistrationSuccess />
           ) : (
-            <form noValidate onSubmit={(event) => { void registration.submit(event); }}>
+            <form id="ceremony-registration-form" noValidate onSubmit={(event) => { void registration.submit(event); }}>
               <CeremonyRegistrationNotices />
               {registration.formError && (
                 <p role="alert" className="mt-4 rounded-lg border border-danger-600/20 bg-danger-100 px-4 py-3 text-sm text-danger-600">
