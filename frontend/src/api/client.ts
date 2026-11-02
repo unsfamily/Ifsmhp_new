@@ -452,6 +452,10 @@ apiClient.interceptors.request.use((config) => {
   request._sessionGeneration = sessionGeneration;
   if (accessToken) config.headers.set('Authorization', `Bearer ${accessToken}`);
   else config.headers.delete('Authorization');
+  // Default JSON Content-Type breaks multipart uploads; the browser must set the boundary.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    config.headers.delete('Content-Type');
+  }
   return config;
 });
 

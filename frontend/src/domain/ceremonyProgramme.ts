@@ -231,7 +231,7 @@ export const ceremonyProgramme: CeremonyProgramme = {
         'He has published widely on topics including sound-frequency and meditative wellness, nutraceuticals, healthcare models, and space logical analytics, and continues to mentor early-career researchers through national and international collaborations.',
       ],
       highlights: [
-        { label: 'Research articles & books', value: '40+' },
+        { label: 'Research articles & books', value: '51' },
         { label: 'RSB Ambassador since', value: '2023' },
         { label: 'Registered Scientist (UK)', value: 'RSci' },
         { label: 'IYRF President since', value: '2018' },

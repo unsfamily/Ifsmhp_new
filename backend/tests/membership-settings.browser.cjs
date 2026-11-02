@@ -50,7 +50,7 @@ async function run() {
   await page.getByLabel('Reference letters (1 required)', { exact: true }).setInputFiles({ name: prefix + '-reference.pdf', mimeType: 'application/pdf', buffer: pdf });
   await page.getByLabel('Application fee waiver reason (optional)').fill('Requesting support during financial hardship.');
   for (const [label, value] of Object.entries({ 'First Name': 'Member', 'Last Name': 'Applicant', Email: email, 'Phone Number': '0123456789', 'Type of Professional Organization / Independent Professionals': 'Independent Researcher', 'Communication Address': '10 Research Road Chennai', 'Permanent Address': '20 Home Street Chennai', 'Professional Credentials': 'Licensed professional research credentials', Education: 'Doctoral degree in clinical psychology', 'Research Interests': 'Community mental health research' })) await page.getByLabel(label === 'Email' ? /^Email\*?$/ : label, { exact: false }).fill(value);
-  await page.getByLabel('Professional Type').selectOption('Lecturer'); await page.getByRole('checkbox').check();
+  await page.getByLabel('Professional Type').selectOption('Professor'); await page.getByRole('checkbox').check();
   const current = await api('/admin/settings'); await api('/admin/settings/membership', 'PATCH', { expectedRevision: current.sections.membership.revision, values: { applicationFee: '110.50' } });
   const conflict = page.waitForResponse(r => r.url() === base + '/auth/otp/request'); await page.getByRole('button', { name: 'Submit Application', exact: true }).click(); assert.equal((await conflict).status(), 409);
   await page.getByText('Membership requirements changed. Refresh the requirements and review your application.', { exact: false }).waitFor();

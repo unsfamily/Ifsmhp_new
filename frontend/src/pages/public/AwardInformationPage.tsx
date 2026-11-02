@@ -4,14 +4,16 @@ import { ArrowLeft } from 'lucide-react';
 import Button from '../../components/common/Button';
 import CeremonyAwardProgramme from '../../components/awards/CeremonyAwardProgramme';
 import CeremonyCommittee from '../../components/awards/CeremonyCommittee';
-import PreviousAwardPhotos from '../../components/awards/PreviousAwardPhotos';
+import CommitteeMemberDirectory from '../../components/awards/CommitteeMemberDirectory';
+import MaharashtraOrgTree from '../../components/awards/MaharashtraOrgTree';
+import AwardEventMediaGrid from '../../components/awards/AwardEventMediaGrid';
 import { CEREMONY_EVENT_DATE, CEREMONY_VENUE, ceremonyProgramme } from '../../domain/ceremonyProgramme';
 import { CEREMONY_NOMINATE_PATH, CEREMONY_PAGE_PATH } from '../../domain/ceremonyRegistration';
 
 export default function AwardInformationPage() {
   useEffect(() => {
     const previous = document.title;
-    document.title = 'Award information · IFSMHP Awards 2026';
+    document.title = 'Committee · IFSMHP Awards 2026';
     return () => { document.title = previous; };
   }, []);
 
@@ -60,6 +62,10 @@ export default function AwardInformationPage() {
       {ceremonyProgramme.committee && ceremonyProgramme.committee.length > 0 && (
         <CeremonyCommittee members={ceremonyProgramme.committee} />
       )}
+
+      <MaharashtraOrgTree />
+
+      <CommitteeMemberDirectory organisingCommittee={ceremonyProgramme.committee} />
 
       <CeremonyAwardProgramme programme={ceremonyProgramme} />
 
@@ -135,12 +141,12 @@ export default function AwardInformationPage() {
 
       <section className="bg-paper" aria-labelledby="previous-photographs-heading">
         <div className="mx-auto max-w-6xl px-4 pb-16 pt-4 sm:px-6 lg:pb-20 lg:pt-6">
-          <h2 id="previous-photographs-heading" className="font-display text-3xl font-semibold text-forum-900">Previous event photographs</h2>
+          <h2 id="previous-photographs-heading" className="font-display text-3xl font-semibold text-forum-900">Previous event gallery</h2>
           <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-ink-muted">
-            Photographs from the 2025 International Laureates Recognition Conclave.
+            Photographs and videos from the 2025 International Laureates Recognition Conclave.
           </p>
           <div className="mt-8">
-            <PreviousAwardPhotos />
+            <AwardEventMediaGrid mode="preview" />
           </div>
         </div>
       </section>

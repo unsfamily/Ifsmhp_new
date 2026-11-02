@@ -68,4 +68,12 @@ export class ApiError extends Error {
   static internal(message = 'An unexpected error occurred'): ApiError {
     return new ApiError(500, message);
   }
+
+  static badGateway(message = 'Upstream service failed'): ApiError {
+    return new ApiError(502, message);
+  }
+
+  static serviceUnavailable(message = 'Service temporarily unavailable'): ApiError {
+    return new ApiError(503, message);
+  }
 }

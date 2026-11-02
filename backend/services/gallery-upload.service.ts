@@ -12,8 +12,28 @@ import { uploadRoot } from '../utils/fileStorage';
 import { ApiError } from '../utils/ApiError';
 import { logger } from '../utils/logger';
 
-const formats: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', mp4: 'video/mp4', webm: 'video/webm' };
+const formats: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  jfif: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+};
+const mimeAliases: Record<string, string> = {
+  'image/jpg': 'image/jpeg',
+  'image/pjpeg': 'image/jpeg',
+  'image/x-png': 'image/png',
+  'audio/webm': 'video/webm',
+};
 export const galleryPolicy = { maxBytes: env.GALLERY_MAX_UPLOAD_MB * 1024 * 1024, mimeTypes: [...new Set(Object.values(formats))], extensions: Object.keys(formats) };
+
+function normalizeMime(value: string | undefined) {
+  const raw = (value ?? '').trim().toLowerCase();
+  if (!raw || raw === 'application/octet-stream') return '';
+  return mimeAliases[raw] ?? raw;
+}
 const parser = multer({
   storage: multer.diskStorage({ destination: uploadRoot, filename: (_req, _file, cb) => cb(null, crypto.randomUUID()) }),
   limits: { fileSize: galleryPolicy.maxBytes, files: 1, fields: 8, fieldSize: 40000 },
@@ -33,30 +53,48 @@ export const galleryUpload: RequestHandler = (req, res, next) => {
 };
 // Avatar uploads share the image validator and must remain image-only.
 export async function inspectImage(file?: Express.Multer.File) {
-  if (!file?.mimetype.startsWith('image/')) throw ApiError.unprocessable('Choose a valid JPEG, PNG, or WebP image.', [{ field: 'file', message: 'Choose a supported image.' }]);
-  return inspectMedia(file);
+  const metadata = await inspectMedia(file);
+  if (metadata.type !== 'image') throw ApiError.unprocessable('Choose a valid JPEG, PNG, or WebP image.', [{ field: 'file', message: 'Choose a supported image.' }]);
+  return metadata;
 }
 export async function inspectMedia(file?: Express.Multer.File) {
-  const fail = () => ApiError.unprocessable('Choose a valid JPEG, PNG, WebP, MP4, or WebM file.', [{ field: 'file', message: 'File contents, extension, and MIME type must match.' }]);
-  if (!file || !file.size) throw fail();
+  const unsupported = (message = 'Choose a valid JPEG, PNG, WebP, MP4, or WebM file.') =>
+    ApiError.unprocessable(message, [{ field: 'file', message }]);
+  if (!file || !file.size) throw unsupported('Choose one or more photographs or videos to upload.');
   const extension = path.extname(file.originalname).slice(1).toLowerCase();
   const expected = formats[extension];
-  if (!expected || expected !== file.mimetype) throw fail();
+  if (!expected) throw unsupported('Use a JPG, JPEG, PNG, WebP, MP4, or WebM file.');
+
+  const declared = normalizeMime(file.mimetype);
+  // Browsers on Windows often send an empty type or image/jpg; trust the sniffed bytes.
+  if (declared && declared !== expected) throw unsupported('The file extension does not match the file type.');
+
   const { fileTypeFromFile } = await import('file-type');
-  if ((await fileTypeFromFile(file.path))?.mime !== expected) throw fail();
+  const detected = await fileTypeFromFile(file.path);
+  if (!detected?.mime || detected.mime !== expected) {
+    throw unsupported('This file is damaged or is not a supported photograph or video.');
+  }
+  file.mimetype = expected;
+
   let width: number, height: number;
   const type = expected.startsWith('video/') ? 'video' as const : 'image' as const;
   if (type === 'video') {
     ({ width, height } = await inspectVideo(file));
   } else {
     try {
-      const decoder = sharp(file.path, { failOn: 'warning' });
+      // failOn: 'error' keeps common EXIF/ICC warnings from rejecting phone photographs.
+      const decoder = sharp(file.path, { failOn: 'error' });
       const metadata = await decoder.metadata();
-      if (!metadata.width || !metadata.height || (metadata.pages ?? 1) > 1) throw fail();
+      if (!metadata.width || !metadata.height) throw unsupported('This photograph could not be read.');
+      if ((metadata.pages ?? 1) > 1) throw unsupported('Animated images are not supported. Upload a still photograph.');
       await decoder.stats(); // Decode pixels too: headers alone do not prove an image is valid.
       width = metadata.width; height = metadata.height;
       if (metadata.orientation && metadata.orientation >= 5) [width, height] = [height, width];
-    } catch { throw fail(); }
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      logger.warn('Award/gallery image decode failed', { name: file.originalname, detail: String(error).slice(0, 300) });
+      throw unsupported('This photograph could not be read. Try exporting it as JPG or PNG.');
+    }
   }
   const hash = crypto.createHash('sha256');
   for await (const chunk of fs.createReadStream(file.path)) hash.update(chunk);

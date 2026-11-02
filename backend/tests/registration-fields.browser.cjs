@@ -37,7 +37,7 @@ async function run() {
   page.on('response', async response => { if (response.url() === base + '/files/registration' && response.status() === 201) files.push((await response.json()).data.id); });
   await page.goto(site + '/register');
   for (const [label, value] of Object.entries({ 'First Name': 'Jane', 'Last Name': 'O’Connor', Email: email, 'Phone Number': '0123456789', 'Type of Professional Organization / Independent Professionals': 'Independent Researcher', 'Communication Address': '10 Research Road\nChennai 600001', 'Permanent Address': '20 Home Street\nMadurai 625001', 'Professional Credentials': 'Licensed clinical research professional', Education: 'PhD Clinical Psychology, Test University', 'Research Interests': 'Community mental health and wellbeing' })) await page.getByLabel(label, { exact: false }).fill(value);
-  await page.getByLabel('Professional Type').selectOption('Lecturer');
+  await page.getByLabel('Professional Type').selectOption('Professor');
   for (let index = 0; index < 2; index++) await page.locator('input[type=file]').nth(index).setInputFiles({ name: `${prefix}-${index}.pdf`, mimeType: 'application/pdf', buffer: pdf });
   await page.getByRole('checkbox').check();
   await page.route('**/auth/otp/request', route => route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ success: false, message: 'Check your address', errors: [{ field: 'communicationAddress', message: 'Address could not be saved. Try again.' }] }) }));
