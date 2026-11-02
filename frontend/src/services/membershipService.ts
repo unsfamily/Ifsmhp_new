@@ -4,11 +4,13 @@ export type RegistrationPolicy = Pick<MembershipPolicy, 'requireProfile' | 'requ
 export interface MembershipDetail {
   applicationId: string; applicationCode: string; status: string; memberId: string | null;
   archivedAt: string | null; archiveSuppressed: boolean; evidenceReviewedAt: string | null;
+  applicationFeeExempt?: boolean;
   policy: Partial<MembershipPolicy> & Pick<MembershipPolicy, 'paymentInstructions' | 'waiversEnabled'>;
   approvalProblems?: string[];
   referrals?: { id: string; name: string; email: string; organization: string }[];
   letters?: { id: string; fileId: string; name: string }[];
   charges: { id: string; kind: string; periodYear: number; amount: string; currency: string; dueAt: string; status: string; overdue: boolean;
+    claimedReference: string | null; claimedAt: string | null;
     payments: { id: string; reference: string; createdAt: string; reversedAt: string | null; correctionReason: string | null }[];
     waivers: { id: string; status: string; reason: string; decisionReason: string | null; createdAt: string }[];
   }[];

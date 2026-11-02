@@ -39,8 +39,8 @@ const groups: Record<SettingsSection, Group[]> = {
     { title: 'Application & Credential Review SLA', fields: [{ key: 'pendingDays', label: 'Pending → start review (calendar days)', type: 'number' }, { key: 'reviewDays', label: 'Under review → decision (calendar days)', type: 'number' }] },
     { title: 'Fees & Financial Hardship', fields: [
       { key: 'currency', label: 'Membership currency', options: ['INR', 'USD', 'GBP'] },
-      { key: 'applicationFeeEnabled', label: 'Enable application fee', type: 'checkbox', hint: 'Payment or an approved waiver is required before approval.' },
-      { key: 'applicationFee', label: 'Application fee amount', hint: 'Up to two decimal places.' },
+      { key: 'applicationFeeEnabled', label: 'Enable application fee', type: 'checkbox', hint: 'Default on: applicants pay offline, submit a UTR, admin records payment, then reviews and approves separately. Students are not charged.' },
+      { key: 'applicationFee', label: 'Application fee amount', hint: 'Up to two decimal places. Default is INR 100.00 for non-student applicants.' },
       { key: 'annualDuesEnabled', label: 'Enable annual dues', type: 'checkbox', hint: 'Charged at approval and each anniversary. Due within 30 days; overdue dues do not suspend access.' },
       { key: 'annualDues', label: 'Annual dues amount' },
       { key: 'paymentInstructions', label: 'Payment instructions', type: 'textarea', hint: 'Explain how to pay outside the app. Administrators record received payments.' },

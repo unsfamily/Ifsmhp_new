@@ -3,7 +3,7 @@ import { prisma } from '../config/database';
 import { effectiveSettings } from './settings.service';
 import { writeAudit } from './audit.service';
 import { ApiError } from '../utils/ApiError';
-import { legacyMembershipPolicy, membershipSettings, manualMemberId, type MembershipPolicy, type MembershipPolicySnapshot } from '../domain/membership';
+import { legacyMembershipPolicy, membershipSettings, manualMemberId, isApplicationFeeExempt, type MembershipPolicy, type MembershipPolicySnapshot } from '../domain/membership';
 import { resolveRegistrationDocuments, type RegistrationDocumentClaim } from './registration-documents.service';
 type DB = Prisma.TransactionClient;
 export const policyFor = (value: unknown): MembershipPolicy => value == null ? { ...legacyMembershipPolicy } : membershipSettings.parse(value);
@@ -20,6 +20,7 @@ export interface RegistrationEvidence {
   referrals?: { name: string; email: string; organization: string }[];
   referenceLetters?: { fileId: string; claimToken: string }[];
   waiverReason?: string;
+  professionalType?: string;
 }
 export async function validateMembershipEvidence(input: RegistrationEvidence, p: MembershipPolicy, db: DB = prisma) {
   const documents = await resolveRegistrationDocuments(input.documents, db, requiredKinds(p));
@@ -33,6 +34,9 @@ export async function validateMembershipEvidence(input: RegistrationEvidence, p:
   for (const claim of claims) {
     const [resolved] = await resolveRegistrationDocuments([{ ...claim, kind: 'CREDENTIAL' }], db, []);
     letters.push(resolved!);
+  }
+  if (input.waiverReason && input.professionalType && isApplicationFeeExempt(input.professionalType)) {
+    throw ApiError.unprocessable('Students are not charged an application fee.', [{ field: 'waiverReason', message: 'Remove this waiver request.' }]);
   }
   if (input.waiverReason && (!p.waiversEnabled || !p.applicationFeeEnabled)) throw ApiError.unprocessable('Application-fee waivers are not enabled.', [{ field: 'waiverReason', message: 'Remove this waiver request.' }]);
   return { documents, letters, referrals };
@@ -55,7 +59,9 @@ export function approvalProblems(app: Application) {
     for (const kind of requiredKinds(p)) if (!app.profile.credentials.some(c => c.credentialType === (kind === 'CV' ? 'CV' : 'Credential') && c.file && !c.file.deletedAt)) problems.push(`Required ${kind === 'CV' ? 'Profile' : 'Credentials'} document is missing.`);
     if (app.referrals.length < p.referralCount || app.referenceLetters.filter(l => !l.file.deletedAt).length < p.referenceLetterCount) problems.push('Required referral evidence is missing.');
     if ((requiredKinds(p).length || p.referralCount || p.referenceLetterCount) && !app.evidenceReviewedAt) problems.push('Confirm that the required documents and references have been reviewed.');
-    if (p.applicationFeeEnabled && !app.charges.some(c => c.kind === 'APPLICATION' && chargeStatus(c) !== 'UNPAID')) problems.push('Record the application fee payment or approve a waiver.');
+    if (p.applicationFeeEnabled && !isApplicationFeeExempt(app.profile.professionalType) && !app.charges.some(c => c.kind === 'APPLICATION' && chargeStatus(c) !== 'UNPAID')) {
+      problems.push('Record the application fee payment or approve a waiver.');
+    }
   }
   return problems;
 }
@@ -94,16 +100,19 @@ export async function membershipDetail(id: string, ownUserId?: string) {
     const app = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }], ...(ownUserId ? { userId: ownUserId } : {}) }, include: { user: true, profile: { include: { credentials: { include: { file: true } } } }, referrals: true, referenceLetters: { include: { file: true } }, charges: { include: { payments: true, waivers: true }, orderBy: { createdAt: 'desc' } } } });
     if (!app && ownUserId) {
       const historical = await tx.user.findUnique({ where: { id: ownUserId }, select: { role: true, status: true, memberProfile: { select: { memberId: true } } } });
-      if (historical?.role === 'MEMBER') return { applicationId: '', applicationCode: '', status: historical.status, memberId: historical.memberProfile?.memberId ?? null, archivedAt: null, archiveSuppressed: false, evidenceReviewedAt: null, policy: { paymentInstructions: '', waiversEnabled: false }, charges: [] };
+      if (historical?.role === 'MEMBER') return { applicationId: '', applicationCode: '', status: historical.status, memberId: historical.memberProfile?.memberId ?? null, archivedAt: null, archiveSuppressed: false, evidenceReviewedAt: null, applicationFeeExempt: false, policy: { paymentInstructions: '', waiversEnabled: false }, charges: [] };
     }
     if (!app) throw ApiError.notFound('Membership application not found');
     const p = policyFor(app.policySnapshot);
+    const applicationFeeExempt = isApplicationFeeExempt(app.profile.professionalType);
+    const hasUnpaid = app.charges.some(c => chargeStatus(c) === 'UNPAID');
     return { applicationId: app.id, applicationCode: app.applicationCode, status: app.status, memberId: app.profile.memberId, archivedAt: app.archivedAt, archiveSuppressed: app.archiveSuppressed,
-      policy: ownUserId ? { paymentInstructions: p.paymentInstructions, waiversEnabled: p.waiversEnabled } : p,
+      applicationFeeExempt,
+      policy: ownUserId ? { paymentInstructions: hasUnpaid ? p.paymentInstructions : '', waiversEnabled: p.waiversEnabled } : p,
       evidenceReviewedAt: app.evidenceReviewedAt, approvalProblems: ownUserId ? undefined : approvalProblems(app),
       referrals: ownUserId ? undefined : app.referrals.map(r => ({ id: r.id, name: r.name, email: r.email, organization: r.organization })),
       letters: ownUserId ? undefined : app.referenceLetters.map(l => ({ id: l.id, fileId: l.fileId, name: l.file.originalName })),
-      charges: app.charges.map(c => ({ id: c.id, kind: c.kind, periodYear: c.periodYear, amount: c.amount.toFixed(2), currency: c.currency, dueAt: c.dueAt, status: chargeStatus(c), overdue: chargeStatus(c) === 'UNPAID' && c.dueAt < new Date(), payments: c.payments.map(x => ({ id: x.id, reference: x.reference, createdAt: x.createdAt, reversedAt: x.reversedAt, correctionReason: x.correctionReason })), waivers: c.waivers.map(w => ({ id: w.id, status: w.status, reason: w.reason, decisionReason: w.decisionReason, createdAt: w.createdAt })) })) };
+      charges: app.charges.map(c => ({ id: c.id, kind: c.kind, periodYear: c.periodYear, amount: c.amount.toFixed(2), currency: c.currency, dueAt: c.dueAt, status: chargeStatus(c), overdue: chargeStatus(c) === 'UNPAID' && c.dueAt < new Date(), claimedReference: c.claimedReference, claimedAt: c.claimedAt, payments: c.payments.map(x => ({ id: x.id, reference: x.reference, createdAt: x.createdAt, reversedAt: x.reversedAt, correctionReason: x.correctionReason })), waivers: c.waivers.map(w => ({ id: w.id, status: w.status, reason: w.reason, decisionReason: w.decisionReason, createdAt: w.createdAt })) })) };
   });
 }
 export async function reviewEvidence(id: string, actorId: string) {
@@ -119,13 +128,26 @@ export async function reviewEvidence(id: string, actorId: string) {
   });
   return membershipDetail(id);
 }
-export async function changeCharge(id: string, chargeId: string, actorId: string, action: 'PAY' | 'REVERSE' | 'REQUEST_WAIVER' | 'DECIDE_WAIVER', input: { requestId?: string; reference?: string; reason?: string; recordId?: string; status?: 'APPROVED' | 'REJECTED' | 'REVOKED' }, own = false) {
+export async function changeCharge(id: string, chargeId: string, actorId: string, action: 'CLAIM' | 'PAY' | 'REVERSE' | 'REQUEST_WAIVER' | 'DECIDE_WAIVER', input: { requestId?: string; reference?: string; reason?: string; recordId?: string; status?: 'APPROVED' | 'REJECTED' | 'REVOKED' }, own = false) {
   await prisma.$transaction(async tx => {
     const app = await lockApplication(tx, id);
     if (own && app.userId !== actorId) throw ApiError.notFound('Membership charge not found');
+    // Own-session callers may claim a UTR or request a waiver only — never settle, reverse, or decide.
+    if (own && action !== 'CLAIM' && action !== 'REQUEST_WAIVER') throw ApiError.forbidden('Only an administrator can settle or decide membership charges.');
     const charge = app.charges.find(c => c.id === chargeId);
     if (!charge) throw ApiError.notFound('Membership charge not found');
-    if (action === 'PAY') {
+    if (action === 'CLAIM') {
+      // Applicant/admin can submit a UTR for matching. This never settles the charge or approves membership.
+      if (app.status === 'REJECTED') throw ApiError.conflict('This application was rejected.');
+      if (chargeStatus(charge) !== 'UNPAID') throw ApiError.conflict('This charge is already settled.');
+      if (charge.claimedRequestId === input.requestId!) {
+        if (charge.claimedReference !== input.reference) throw ApiError.conflict('This request ID was already used.');
+        return;
+      }
+      const reused = await tx.membershipCharge.findUnique({ where: { claimedRequestId: input.requestId! } });
+      if (reused && reused.id !== charge.id) throw ApiError.conflict('This request ID was already used.');
+      await tx.membershipCharge.update({ where: { id: charge.id }, data: { claimedReference: input.reference!, claimedAt: new Date(), claimedRequestId: input.requestId! } });
+    } else if (action === 'PAY') {
       const previous = await tx.membershipPayment.findUnique({ where: { requestId: input.requestId! } });
       if (previous) { if (previous.chargeId !== charge.id || previous.reference !== input.reference) throw ApiError.conflict('This request ID was already used.'); return; }
       if (chargeStatus(charge) !== 'UNPAID') throw ApiError.conflict('This charge is already settled.');
@@ -150,7 +172,7 @@ export async function changeCharge(id: string, chargeId: string, actorId: string
       if (input.status === 'APPROVED' && chargeStatus(charge) !== 'UNPAID') throw ApiError.conflict('This charge is already settled.');
       await tx.membershipWaiver.update({ where: { id: waiver.id }, data: { status: input.status, decidedAt: new Date(), decidedBy: actorId, decisionReason: input.reason! } });
     }
-    await audit(tx, actorId, { PAY: 'MembershipPaymentRecorded', REVERSE: 'MembershipPaymentCorrected', REQUEST_WAIVER: 'MembershipWaiverRequested', DECIDE_WAIVER: 'MembershipWaiverDecided' }[action], app.id);
+    await audit(tx, actorId, { CLAIM: 'MembershipPaymentClaimed', PAY: 'MembershipPaymentRecorded', REVERSE: 'MembershipPaymentCorrected', REQUEST_WAIVER: 'MembershipWaiverRequested', DECIDE_WAIVER: 'MembershipWaiverDecided' }[action], app.id);
   }).catch(error => { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ApiError(409, 'This request identifier was already used.', [{ field: 'requestId', message: 'Use a new request identifier for a different operation.' }]); throw error; });
   return membershipDetail(id, own ? actorId : undefined);
 }

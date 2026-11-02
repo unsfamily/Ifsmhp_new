@@ -1,4 +1,5 @@
 import { currentMembershipPolicy, policyFor, validateMembershipEvidence, createCharge } from './membership-policy.service';
+import { isApplicationFeeExempt } from '../domain/membership';
 import type { MembershipPolicySnapshot } from '../domain/membership';
 import { notifyAdmins } from './admin-notifications.service';
 import { newAdminPassword } from '../domain/admin-profile';
@@ -258,7 +259,7 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
       const claimed = await tx.fileObject.updateMany({ where: { id: letter.fileId, uploaderId: null, deletedAt: null }, data: { uploaderId: user.id } });
       if (!claimed.count) throw ApiError.conflict('A reference letter was already claimed. Upload it again.');
     }
-    if (policy.applicationFeeEnabled) {
+    if (policy.applicationFeeEnabled && !isApplicationFeeExempt(input.professionalType)) {
       const charge = await createCharge(tx, application.id, 'APPLICATION', policy, new Date(), user.id);
       if (input.waiverReason) {
         await tx.membershipWaiver.create({ data: { chargeId: charge.id, requestId: `registration:${application.id}`, reason: input.waiverReason, requestedBy: user.id } });

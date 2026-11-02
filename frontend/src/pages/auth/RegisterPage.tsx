@@ -1,4 +1,5 @@
 import RegistrationRequirements, { type ReferralInput } from '../../components/membership/RegistrationRequirements';
+import RegistrationFeeNotice from '../../components/membership/RegistrationFeeNotice';
 import { membershipService, type RegistrationPolicy } from '../../services/membershipService';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -22,6 +23,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { isApplicationFeeExempt } from '../../domain/membershipFee';
 import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput, Checkbox } from '../../components/common/Input';
 import OtpCodeStep from '../../components/auth/OtpCodeStep';
@@ -162,10 +164,12 @@ export default function RegisterPage() {
     register,
     handleSubmit,
     setError,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
+  const professionalType = watch('professionalType') ?? '';
 
   useEffect(() => {
     documentUploadsRef.current = documentUploads;
@@ -319,7 +323,7 @@ export default function RegisterPage() {
     policyRevision: policy?.revision,
     referrals: referrals.filter(r => r.name || r.email || r.organization),
     referenceLetters: letters.map(l => ({ fileId: l.id, claimToken: l.claimToken })),
-    ...(policy?.applicationFeeEnabled && policy.waiversEnabled && waiver.trim() ? { waiverReason: waiver.trim() } : {}),
+    ...(policy?.applicationFeeEnabled && policy.waiversEnabled && !isApplicationFeeExempt(data.professionalType) && waiver.trim() ? { waiverReason: waiver.trim() } : {}),
     agreeTerms: data.agreeTerms,
   });
 
@@ -505,7 +509,6 @@ export default function RegisterPage() {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 {policyError && <div role="alert">{policyError}<Button type="button" onClick={() => setPolicyReload(n => n + 1)}>Retry membership requirements</Button></div>}
                 {!policy && !policyError && <p role="status">Loading membership requirements…</p>}
-                {policy && <RegistrationRequirements policy={policy} referrals={referrals} setReferrals={setReferrals} letters={letters} setLetters={setLetters} waiver={waiver} setWaiver={setWaiver} setUploading={setLettersBusy} />}
                 <div>
                   <h2 className="font-display text-xl font-semibold text-forum-900 flex items-center gap-2">
                     <User className="h-5 w-5 text-forum-700" />
@@ -533,7 +536,11 @@ export default function RegisterPage() {
                         label="Professional Type"
                         required
                         error={errors.professionalType?.message}
-                        {...register('professionalType')}
+                        {...register('professionalType', {
+                          onChange: (event) => {
+                            if (isApplicationFeeExempt(event.target.value)) setWaiver('');
+                          },
+                        })}
                       >
                         <option value="">Select your role...</option>
                         {professionalTypes.map((t) => (
@@ -542,6 +549,7 @@ export default function RegisterPage() {
                           </option>
                         ))}
                       </SelectInput>
+                      {policy && <RegistrationFeeNotice policy={policy} professionalType={professionalType} />}
                     </div>
                     <TextInput
                       label="Email"
@@ -592,6 +600,8 @@ export default function RegisterPage() {
                     </div>
                   </div>
                 </div>
+
+                {policy && <RegistrationRequirements policy={policy} professionalType={professionalType} referrals={referrals} setReferrals={setReferrals} letters={letters} setLetters={setLetters} waiver={waiver} setWaiver={setWaiver} setUploading={setLettersBusy} />}
 
                 <div className="pt-2">
                   <h2 className="font-display text-xl font-semibold text-forum-900 flex items-center gap-2">
