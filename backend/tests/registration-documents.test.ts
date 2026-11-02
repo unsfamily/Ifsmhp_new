@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { promises as fsp } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -241,6 +242,14 @@ describe('registration document persistence and retrieval', () => {
     const applicationId = verified.body.data.applicationId as string;
     expect((await request(app).post(`/api/v1/admin/members/${applicationId}/review`).auth(adminToken, { type: 'bearer' }).send({})).status).toBe(200);
     expect((await request(app).post(`/api/v1/admin/membership/${applicationId}/evidence-review`).auth(adminToken, { type: 'bearer' }).send({})).status).toBe(200);
+    const membership = await request(app).get(`/api/v1/admin/membership/${applicationId}`).auth(adminToken, { type: 'bearer' });
+    expect(membership.status).toBe(200);
+    const applicationCharge = (membership.body.data.charges as { id: string; kind: string; status: string }[]).find((c) => c.kind === 'APPLICATION');
+    if (applicationCharge) {
+      expect(applicationCharge.status).toBe('UNPAID');
+      expect((await request(app).post(`/api/v1/admin/members/${applicationId}/approve`).auth(adminToken, { type: 'bearer' }).send({ reviewNotes: 'Private review note' })).status).toBe(422);
+      expect((await request(app).post(`/api/v1/admin/membership/${applicationId}/charges/${applicationCharge.id}/payments`).auth(adminToken, { type: 'bearer' }).send({ requestId: randomUUID(), reference: 'TEST-UTR-REG-001' })).status).toBe(200);
+    }
     const approval = await request(app).post(`/api/v1/admin/members/${applicationId}/approve`).auth(adminToken, { type: 'bearer' }).send({ reviewNotes: 'Private review note' });
     expect(approval.status).toBe(200);
     const email = `${PREFIX}.workflow@example.test`;
