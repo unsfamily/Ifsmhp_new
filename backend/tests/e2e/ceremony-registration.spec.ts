@@ -5,94 +5,61 @@ test.describe.configure({ mode: 'serial' });
 const email = `ceremony-e2e-${Date.now()}@example.test`;
 
 async function openRegistration(page: Page) {
-  await page.goto('/awards/second-international');
-  await page.locator('#ceremony-register-cta').click();
-  const dialog = page.getByRole('dialog', { name: 'Register for the Ceremony' });
-  await expect(dialog).toBeVisible();
-  await expect(page).toHaveURL(/\/awards\/second-international$/);
-  return dialog;
+  await page.goto('/awards/second-international/register');
+  await expect(page.getByRole('heading', { level: 1, name: 'Register for the Ceremony' })).toBeVisible();
+  await expect(page).toHaveURL(/\/awards\/second-international\/register$/);
 }
 
 async function fillRegistration(page: Page, name = 'Ada Ceremony') {
-  const dialog = page.getByRole('dialog', { name: 'Register for the Ceremony' });
-  await dialog.getByLabel('Full name').fill(name);
-  await dialog.getByLabel('Email address').fill(email);
-  await dialog.getByLabel('Phone number, including country code').fill('+44 7700 900123');
-  await dialog.getByLabel('Institution / organisation').fill('Example Institute');
-  await dialog.getByLabel('Delegate').check();
-  await dialog.getByRole('checkbox', { name: /privacy policy/ }).check();
+  await page.getByLabel('Full name').fill(name);
+  await page.getByLabel('Email address').fill(email);
+  await page.getByLabel('Phone number, including country code').fill('+44 7700 900123');
+  await page.getByLabel('Institution / organisation').fill('Example Institute');
+  await page.getByLabel('Delegate').check();
+  await page.getByRole('checkbox', { name: /privacy policy/ }).check();
 }
 
-test('opens and closes the ceremony registration dialog', async ({ page }) => {
-  const dialog = await openRegistration(page);
-  await expect(page.getByRole('checkbox', { name: /privacy policy/ })).not.toBeChecked();
-  await expect(dialog.getByText('The ceremony is on 26 December 2026 at A.R. Shaikh Assembly Hall (Azam Campus), Pune. Registering your interest does not reserve admission.')).toBeVisible();
-  const focusedInside = () => page.evaluate(() => {
-    const node = document.querySelector('dialog[open]');
-    return Boolean(node && (node === document.activeElement || node.contains(document.activeElement)));
-  });
-  expect(await focusedInside()).toBe(true);
-  for (let step = 0; step < 15; step += 1) await page.keyboard.press('Tab');
-  expect(await focusedInside()).toBe(true);
-  for (let step = 0; step < 15; step += 1) await page.keyboard.press('Shift+Tab');
-  expect(await focusedInside()).toBe(true);
-  await page.keyboard.press('Escape');
-  await expect(dialog).toBeHidden();
-  await expect(page.locator('#ceremony-register-cta')).toBeFocused();
-  await expect(page).toHaveURL(/\/awards\/second-international$/);
-
-  await page.locator('#ceremony-register-cta').click();
-  await expect(dialog).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.locator('#ceremony-register-cta')).toBeFocused();
-  await expect(page.getByRole('link', { name: 'Membership registration' })).toHaveAttribute('href', '/register');
-});
-
-test('uses a nearly full-screen dialog on a phone and keeps the page from scrolling', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test('award interest CTAs go to membership registration', async ({ page }) => {
   await page.goto('/awards/second-international');
-  await page.evaluate(() => { document.body.style.minHeight = '4000px'; window.scrollTo(0, 240); });
+  await page.getByRole('link', { name: 'Register your interest' }).click();
+  await expect(page).toHaveURL(/\/register$/);
+  await expect(page.getByRole('heading', { name: 'Apply for IFSMHP Membership' })).toBeVisible();
+
+  await page.goto('/awards/second-international');
   await page.locator('#ceremony-register-cta').click();
-  const box = await page.getByRole('dialog').boundingBox();
-  expect(box?.width ?? 0).toBeGreaterThan(390 * 0.9);
-  expect(box?.height ?? 0).toBeGreaterThan(844 * 0.85);
-  const before = await page.evaluate(() => window.scrollY);
-  await page.mouse.wheel(0, 600);
-  expect(await page.evaluate(() => window.scrollY)).toBe(before);
-  await page.getByRole('button', { name: 'Close' }).click();
-  await expect(page.locator('#ceremony-register-cta')).toBeFocused();
+  await expect(page).toHaveURL(/\/register$/);
 });
 
 test('keeps entered values after validation and a server error, then saves once', async ({ page }) => {
-  const dialog = await openRegistration(page);
-  await dialog.getByRole('button', { name: 'Submit registration' }).click();
-  await expect(dialog.getByText('Enter your full name.')).toBeVisible();
-  await expect(dialog.getByRole('checkbox', { name: /privacy policy/ })).not.toBeChecked();
+  await openRegistration(page);
+  await page.getByRole('button', { name: 'Submit registration' }).click();
+  await expect(page.getByText('Enter your full name.')).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /privacy policy/ })).not.toBeChecked();
   await fillRegistration(page, 'Ada Ceremony');
-  await dialog.getByLabel('Full name').fill('');
-  await dialog.getByRole('button', { name: 'Submit registration' }).click();
-  await expect(dialog.getByLabel('Email address')).toHaveValue(email);
-  await expect(dialog.getByLabel('Phone number, including country code')).toHaveValue('+44 7700 900123');
+  await page.getByLabel('Full name').fill('');
+  await page.getByRole('button', { name: 'Submit registration' }).click();
+  await expect(page.getByLabel('Email address')).toHaveValue(email);
+  await expect(page.getByLabel('Phone number, including country code')).toHaveValue('+44 7700 900123');
 
   await page.route('**/public/awards/second-international/registrations', (route) => route.fulfill({
     status: 500,
     contentType: 'application/json',
     body: JSON.stringify({ success: false, message: 'Could not save your registration. Please try again.', errors: [] }),
   }));
-  await dialog.getByLabel('Full name').fill('Ada Ceremony');
-  await dialog.getByRole('button', { name: 'Submit registration' }).click();
-  await expect(dialog.getByText('Could not save your registration. Please try again.')).toBeVisible();
-  await expect(dialog.getByText('Your registration of interest has been received.')).toHaveCount(0);
-  await expect(dialog.getByLabel('Full name')).toHaveValue('Ada Ceremony');
+  await page.getByLabel('Full name').fill('Ada Ceremony');
+  await page.getByRole('button', { name: 'Submit registration' }).click();
+  await expect(page.getByText('Could not save your registration. Please try again.')).toBeVisible();
+  await expect(page.getByText('Your registration of interest has been received.')).toHaveCount(0);
+  await expect(page.getByLabel('Full name')).toHaveValue('Ada Ceremony');
   await page.unroute('**/public/awards/second-international/registrations');
 
-  await dialog.getByRole('button', { name: 'Submit registration' }).click();
-  await expect(dialog.getByRole('status')).toHaveText('Your registration of interest has been received.');
-  await expect(dialog.getByText(/sent you an email|email has been sent|confirmation email/i)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Submit registration' }).click();
+  await expect(page.getByRole('status')).toHaveText('Your registration of interest has been received.');
+  await expect(page.getByText(/sent you an email|email has been sent|confirmation email/i)).toHaveCount(0);
 });
 
 test('does not send a second registration while the first request is pending', async ({ page }) => {
-  const dialog = await openRegistration(page);
+  await openRegistration(page);
   await fillRegistration(page, 'Ada Ceremony Pending');
   let posts = 0;
   await page.route('**/public/awards/second-international/registrations', async (route) => {
@@ -116,7 +83,7 @@ test('does not send a second registration while the first request is pending', a
       form.requestSubmit();
     }
   });
-  await expect(dialog.getByRole('status')).toHaveText('Your registration of interest has been received.');
+  await expect(page.getByRole('status')).toHaveText('Your registration of interest has been received.');
   expect(posts).toBe(1);
 });
 
@@ -148,10 +115,10 @@ test('shows the awards link in the phone menu', async ({ page }) => {
 
 test('treats a repeated ceremony email as the same registration', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  const dialog = await openRegistration(page);
+  await openRegistration(page);
   await fillRegistration(page, 'Ada Ceremony Updated');
-  await dialog.getByRole('button', { name: 'Submit registration' }).click();
-  await expect(dialog.getByRole('status')).toHaveText('Your registration of interest has been received.');
+  await page.getByRole('button', { name: 'Submit registration' }).click();
+  await expect(page.getByRole('status')).toHaveText('Your registration of interest has been received.');
 
   await page.goto('/login');
   await page.getByRole('button', { name: 'Use password sign-in' }).click();
