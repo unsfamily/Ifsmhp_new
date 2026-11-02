@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import Button from '../../components/common/Button';
 import CeremonyAwardProgramme from '../../components/awards/CeremonyAwardProgramme';
 import CeremonyCommittee from '../../components/awards/CeremonyCommittee';
@@ -6,7 +8,7 @@ import CommitteeMemberDirectory from '../../components/awards/CommitteeMemberDir
 import MaharashtraOrgTree from '../../components/awards/MaharashtraOrgTree';
 import AwardEventMediaGrid from '../../components/awards/AwardEventMediaGrid';
 import { CEREMONY_EVENT_DATE, CEREMONY_VENUE, ceremonyProgramme } from '../../domain/ceremonyProgramme';
-import { CEREMONY_NOMINATE_PATH } from '../../domain/ceremonyRegistration';
+import { CEREMONY_NOMINATE_PATH, CEREMONY_PAGE_PATH } from '../../domain/ceremonyRegistration';
 
 export default function AwardInformationPage() {
   useEffect(() => {
@@ -20,16 +22,20 @@ export default function AwardInformationPage() {
       <section className="border-b border-paper-border bg-paper" aria-labelledby="award-information-heading">
         <div className="mx-auto grid max-w-6xl items-start gap-8 px-4 pb-10 pt-12 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)] lg:gap-12 lg:pb-12 lg:pt-14">
           <div>
-            <h1 id="award-information-heading" className="max-w-3xl font-display text-4xl font-semibold leading-[0.98] tracking-tight text-forum-900 sm:text-5xl">
+            <Link to={CEREMONY_PAGE_PATH} className="inline-flex items-center gap-1.5 text-[15px] font-medium text-forum-700 hover:text-forum-900">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Second International Awards Ceremony
+            </Link>
+            <h1 id="award-information-heading" className="mt-5 max-w-3xl font-display text-4xl font-semibold leading-[0.98] tracking-tight text-forum-900 sm:text-5xl">
               <span className="block">
                 <span className="mr-[0.16em] inline-flex items-start align-baseline text-[1.32em] leading-none text-brass-600" aria-hidden="true">
                   <span>2</span>
                   <span className="ml-[0.2em] mt-[0.6em] text-[0.40em] font-semibold leading-none">nd</span>
                 </span>
                 <span className="sr-only">Second</span>
-                {' '}International IFSMHP
+                {' '}International
               </span>
-              <span className="mt-[0.08em] block">Awards 2026</span>
+              <span className="mt-[0.08em] block">IFSMHP Awards 2026</span>
             </h1>
             <p className="mt-4 max-w-3xl text-[17px] leading-relaxed text-ink-muted sm:text-[19px]">
               {ceremonyProgramme.totalLabel}. The ceremony is on {CEREMONY_EVENT_DATE} at {CEREMONY_VENUE}, Pune.
