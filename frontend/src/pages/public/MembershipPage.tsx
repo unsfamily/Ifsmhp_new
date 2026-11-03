@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Section from '../../components/common/Section';
 import Button from '../../components/common/Button';
+import MemberListingLookup from '../../components/membership/MemberListingLookup';
 
 const whoCanJoin = [
   { icon: GraduationCap, title: 'Research Scholars & Scientists', desc: 'Across all disciplines contributing to mental health and scientific knowledge.' },
@@ -146,6 +147,9 @@ export default function MembershipPage() {
                 <Button as="link" to="/contact" size="lg" variant="outline">
                   Ask a Question
                 </Button>
+                <Button as="link" to="/membership#member-directory" size="lg" variant="outline">
+                  Check a member
+                </Button>
               </div>
             </div>
 
@@ -197,6 +201,8 @@ export default function MembershipPage() {
           </div>
         </div>
       </section>
+
+      <MemberListingLookup />
 
       <Section bg="paper">
         <div className="text-center max-w-2xl mx-auto">

@@ -1,9 +1,10 @@
 import { Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { prisma } from '../config/database';
 import { effectiveSettings } from './settings.service';
 import { writeAudit } from './audit.service';
 import { ApiError } from '../utils/ApiError';
-import { legacyMembershipPolicy, membershipSettings, manualMemberId, isApplicationFeeExempt, normalizePaymentReference, type MembershipPolicy, type MembershipPolicySnapshot } from '../domain/membership';
+import { legacyMembershipPolicy, membershipSettings, manualMemberId, isApplicationFeeExempt, normalizePaymentReference, paymentReference, type MembershipPolicy, type MembershipPolicySnapshot } from '../domain/membership';
 import { resolveRegistrationDocuments, verifyRegistrationClaimToken, type RegistrationDocumentClaim } from './registration-documents.service';
 type DB = Prisma.TransactionClient;
 export const policyFor = (value: unknown): MembershipPolicy => value == null ? { ...legacyMembershipPolicy } : membershipSettings.parse(value);
@@ -21,6 +22,8 @@ export interface RegistrationEvidence {
   referenceLetters?: { fileId: string; claimToken: string }[];
   waiverReason?: string;
   professionalType?: string;
+  paymentReference?: string;
+  paymentScreenshot?: { fileId: string; claimToken: string };
 }
 export async function validateMembershipEvidence(input: RegistrationEvidence, p: MembershipPolicy, db: DB = prisma) {
   const documents = await resolveRegistrationDocuments(input.documents, db, requiredKinds(p));
@@ -28,7 +31,7 @@ export async function validateMembershipEvidence(input: RegistrationEvidence, p:
   if (referrals.length < p.referralCount) throw ApiError.unprocessable('Referrals are required.', [{ field: 'referrals', message: `Provide at least ${p.referralCount} referrals.` }]);
   if (new Set(referrals.map(r => r.email.toLowerCase())).size !== referrals.length) throw ApiError.unprocessable('Duplicate referrers.', [{ field: 'referrals', message: 'Use a different email for each referrer.' }]);
   if (claims.length < p.referenceLetterCount) throw ApiError.unprocessable('Reference letters are required.', [{ field: 'referenceLetters', message: `Upload at least ${p.referenceLetterCount} reference letters.` }]);
-  const ids = [...input.documents.map(d => d.fileId), ...claims.map(d => d.fileId)];
+  const ids = [...input.documents.map(d => d.fileId), ...claims.map(d => d.fileId), ...(input.paymentScreenshot ? [input.paymentScreenshot.fileId] : [])];
   if (new Set(ids).size !== ids.length) throw ApiError.unprocessable('Each document and letter must use a different file.');
   const letters = [];
   for (const claim of claims) {
@@ -139,18 +142,37 @@ export async function reviewEvidence(id: string, actorId: string) {
   return membershipDetail(id);
 }
 const screenshotMimes = new Set(['image/jpeg', 'image/png']);
-async function attachPaymentScreenshot(tx: DB, actorId: string, input: { fileId?: string; claimToken?: string }) {
-  if (!input.fileId || !input.claimToken) throw ApiError.unprocessable('Upload a payment screenshot.', [{ field: 'file', message: 'A JPEG or PNG screenshot of the payment is required.' }]);
+async function loadPaymentScreenshot(tx: DB, input?: { fileId?: string; claimToken?: string }) {
+  if (!input?.fileId || !input.claimToken) throw ApiError.unprocessable('Upload a payment screenshot.', [{ field: 'paymentScreenshot', message: 'A JPEG or PNG screenshot of the payment is required.' }]);
   const file = await tx.fileObject.findUnique({ where: { id: input.fileId } });
-  if (!file || file.deletedAt) throw ApiError.unprocessable('Uploaded screenshot is no longer available.', [{ field: 'file', message: 'Remove it and upload the screenshot again.' }]);
-  if (!screenshotMimes.has(file.mimeType) || file.sizeBytes > 10 * 1024 * 1024) throw ApiError.unprocessable('Payment screenshot must be a JPEG or PNG under 10 MB.', [{ field: 'file', message: 'Upload a JPEG or PNG screenshot.' }]);
-  if (!verifyRegistrationClaimToken(file, input.claimToken)) throw ApiError.unprocessable('Uploaded screenshot could not be verified.', [{ field: 'file', message: 'Remove it and upload the screenshot again.' }]);
+  if (!file || file.deletedAt) throw ApiError.unprocessable('Uploaded screenshot is no longer available.', [{ field: 'paymentScreenshot', message: 'Remove it and upload the screenshot again.' }]);
+  if (!screenshotMimes.has(file.mimeType) || file.sizeBytes > 10 * 1024 * 1024) throw ApiError.unprocessable('Payment screenshot must be a JPEG or PNG under 10 MB.', [{ field: 'paymentScreenshot', message: 'Upload a JPEG or PNG screenshot.' }]);
+  if (!verifyRegistrationClaimToken(file, input.claimToken)) throw ApiError.unprocessable('Uploaded screenshot could not be verified.', [{ field: 'paymentScreenshot', message: 'Remove it and upload the screenshot again.' }]);
+  return file;
+}
+/** Non-students owe the fee on the registration form: a UTR and a JPEG or PNG screenshot. Students and fee-free policies must not send either. */
+export async function assertRegistrationPayment(input: { professionalType?: string; paymentReference?: string; paymentScreenshot?: { fileId: string; claimToken: string } }, p: MembershipPolicy, db: DB = prisma) {
+  const charged = p.applicationFeeEnabled && !isApplicationFeeExempt(input.professionalType ?? '');
+  if (!charged) {
+    if (input.paymentReference || input.paymentScreenshot) throw ApiError.unprocessable('No application fee is due.', [{ field: 'paymentReference', message: 'Remove the payment details.' }]);
+    return;
+  }
+  const reference = paymentReference.safeParse(input.paymentReference ?? '');
+  if (!reference.success) throw ApiError.unprocessable('Enter the UTR or UPI payment reference.', [{ field: 'paymentReference', message: reference.error.issues[0]?.message ?? 'Enter the UTR or UPI reference.' }]);
+  await loadPaymentScreenshot(db, input.paymentScreenshot);
+}
+async function attachPaymentScreenshot(tx: DB, actorId: string, input: { fileId?: string; claimToken?: string }) {
+  const file = await loadPaymentScreenshot(tx, input);
   if (file.uploaderId && file.uploaderId !== actorId) throw ApiError.conflict('This screenshot was already claimed. Upload it again.');
   if (!file.uploaderId) {
     const claimed = await tx.fileObject.updateMany({ where: { id: file.id, uploaderId: null, deletedAt: null }, data: { uploaderId: actorId } });
     if (!claimed.count) throw ApiError.conflict('This screenshot was already claimed. Upload it again.');
   }
   return file.id;
+}
+export async function recordRegistrationPayment(tx: DB, actorId: string, chargeId: string, input: { paymentReference?: string; paymentScreenshot?: { fileId: string; claimToken: string } }) {
+  const screenshotFileId = await attachPaymentScreenshot(tx, actorId, input.paymentScreenshot ?? {});
+  await tx.membershipCharge.update({ where: { id: chargeId }, data: { claimedReference: input.paymentReference!, claimedAt: new Date(), claimedRequestId: randomUUID(), claimedScreenshotFileId: screenshotFileId } });
 }
 export async function changeCharge(id: string, chargeId: string, actorId: string, action: 'CLAIM' | 'PAY' | 'REVERSE' | 'REQUEST_WAIVER' | 'DECIDE_WAIVER', input: { requestId?: string; reference?: string; reason?: string; recordId?: string; status?: 'APPROVED' | 'REJECTED' | 'REVOKED'; fileId?: string; claimToken?: string }, own = false) {
   await prisma.$transaction(async tx => {

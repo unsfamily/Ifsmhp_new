@@ -19,7 +19,7 @@ IFSC: HDFC0000111
 Bank: HDFC Bank
 
 In the payment remark / UPI note, enter: IFSMHP-<your application ID>
-After paying, submit your UTR / UPI reference on the application status page. An administrator will verify the payment against the bank statement, then review your documents and approve membership separately. Recording payment does not approve membership.
+After paying, enter the UTR / UPI reference and upload a JPEG or PNG screenshot on the registration form. An administrator will verify the payment against the bank statement, then review your documents and approve membership separately. Recording payment does not approve membership.
 
 Students: no application fee.`;
 export const legacyMembershipPolicy: MembershipPolicy = {

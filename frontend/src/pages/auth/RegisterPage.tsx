@@ -141,6 +141,7 @@ export default function RegisterPage() {
   const { refreshUser } = useAuth();
   const [policy, setPolicy] = useState<RegistrationPolicy | null>(null), [policyError, setPolicyError] = useState(''), [policyReload, setPolicyReload] = useState(0);
   const [referrals, setReferrals] = useState<ReferralInput[]>([]), [letters, setLetters] = useState<RegistrationDocumentUpload[]>([]), [waiver, setWaiver] = useState(''), [lettersBusy, setLettersBusy] = useState(false);
+  const [paymentReference, setPaymentReference] = useState(''), [paymentProof, setPaymentProof] = useState<RegistrationDocumentUpload | null>(null), [paymentBusy, setPaymentBusy] = useState(false), [paymentError, setPaymentError] = useState('');
   useEffect(() => { const controller = new AbortController(); setPolicyError(''); membershipService.policy(controller.signal).then(p => { if (!controller.signal.aborted) setPolicy(p); }).catch(e => { if (!controller.signal.aborted) setPolicyError(normalizeError(e).message); }); return () => controller.abort(); }, [policyReload]);
   const isRequired = (kind: RegistrationDocumentKind) => kind === 'CV' ? policy?.requireProfile ?? true : policy?.requireCredential ?? true;
   const [submitted, setSubmitted] = useState(false);
@@ -170,6 +171,7 @@ export default function RegisterPage() {
     resolver: zodResolver(schema),
   });
   const professionalType = watch('professionalType') ?? '';
+  const paymentRequired = Boolean(policy?.applicationFeeEnabled && professionalType && !isApplicationFeeExempt(professionalType));
 
   useEffect(() => {
     documentUploadsRef.current = documentUploads;
@@ -324,8 +326,26 @@ export default function RegisterPage() {
     referrals: referrals.filter(r => r.name || r.email || r.organization),
     referenceLetters: letters.map(l => ({ fileId: l.id, claimToken: l.claimToken })),
     ...(policy?.applicationFeeEnabled && policy.waiversEnabled && !isApplicationFeeExempt(data.professionalType) && waiver.trim() ? { waiverReason: waiver.trim() } : {}),
+    ...(paymentRequired && paymentProof ? { paymentReference: paymentReference.trim(), paymentScreenshot: { fileId: paymentProof.id, claimToken: paymentProof.claimToken } } : {}),
     agreeTerms: data.agreeTerms,
   });
+
+  const onPaymentProof = async (file: File | null) => {
+    if (!file) return;
+    const extension = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+    if (!['.jpg', '.jpeg', '.png'].includes(extension) || (file.type && !['image/jpeg', 'image/png'].includes(file.type))) {
+      setPaymentProof(null);
+      setPaymentError('Upload a JPEG or PNG screenshot of the payment.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) { setPaymentError('Upload a JPEG or PNG screenshot under 10 MB.'); return; }
+    setPaymentBusy(true); setPaymentError('');
+    try {
+      const uploaded = await uploadRegistrationDocument(file);
+      setPaymentProof(uploaded);
+    } catch (error) { setPaymentError(normalizeError(error).message); }
+    finally { setPaymentBusy(false); }
+  };
 
   const onSubmit = async (data: FormData) => {
     setErrorMsg(null);
@@ -338,6 +358,11 @@ export default function RegisterPage() {
           ? current.CREDENTIAL
           : { ...current.CREDENTIAL, error: 'Upload your Credentials / Certifications / ID Card.' },
       }));
+      return;
+    }
+    if (paymentRequired && (paymentReference.trim().length < 4 || !paymentProof)) {
+      setErrorMsg('Enter the UTR / UPI reference and upload a JPEG or PNG payment screenshot.');
+      if (!paymentProof) setPaymentError('Upload a JPEG or PNG screenshot of the payment.');
       return;
     }
     try {
@@ -538,7 +563,12 @@ export default function RegisterPage() {
                         error={errors.professionalType?.message}
                         {...register('professionalType', {
                           onChange: (event) => {
-                            if (isApplicationFeeExempt(event.target.value)) setWaiver('');
+                            if (isApplicationFeeExempt(event.target.value)) {
+                              setWaiver('');
+                              setPaymentReference('');
+                              setPaymentProof(null);
+                              setPaymentError('');
+                            }
                           },
                         })}
                       >
@@ -550,6 +580,17 @@ export default function RegisterPage() {
                         ))}
                       </SelectInput>
                       {policy && <RegistrationFeeNotice policy={policy} professionalType={professionalType} />}
+                      {paymentRequired && (
+                        <div className="mt-3 space-y-3">
+                          <TextInput label="Payment reference (UTR / UPI)" required maxLength={191} value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} />
+                          <label className="block text-sm font-medium text-ink">
+                            Payment screenshot <span className="text-danger-600">*</span>
+                            <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="mt-1.5 block w-full text-sm" disabled={paymentBusy} onChange={(event) => { void onPaymentProof(event.target.files?.[0] ?? null); event.target.value = ''; }} />
+                          </label>
+                          {paymentProof ? <p className="text-xs text-success-700">{paymentProof.name}</p> : <p className="text-xs text-ink-muted">JPEG or PNG, required before you submit.</p>}
+                          {paymentError && <p role="alert" className="text-xs text-danger-600">{paymentError}</p>}
+                        </div>
+                      )}
                     </div>
                     <TextInput
                       label="Email"
@@ -641,8 +682,8 @@ export default function RegisterPage() {
                     <FileCheck2 className="h-5 w-5 text-forum-700" />
                     Document Upload
                   </h2>
-                  <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    {documentSlots.map((slot) => {
+                  <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 sm:grid-rows-[auto_minmax(0,1fr)] sm:gap-x-5 sm:gap-y-1.5">
+                    {documentSlots.map((slot, index) => {
                       const state = documentUploads[slot.kind];
                       const uploaded = state.uploaded;
                       const statusText =
@@ -665,13 +706,13 @@ export default function RegisterPage() {
                               : 'bg-warning-100 text-warning-600';
 
                       return (
-                        <div key={slot.kind}>
-                          <div className="mb-1.5 flex items-center justify-between gap-3">
-                            <label className="block text-sm font-medium text-ink">
+                        <div key={slot.kind} className={`flex flex-col gap-1.5 sm:row-start-1 sm:row-span-2 sm:grid sm:grid-rows-subgrid ${index === 0 ? 'sm:col-start-1' : 'sm:col-start-2'}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <label className="min-w-0 text-sm font-medium leading-5 text-ink">
                               {slot.label}
                               {isRequired(slot.kind) ? <span className="ml-1 text-danger-600">*</span> : <span className="ml-1 text-ink-subtle">(optional)</span>}
                             </label>
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass}`}>
+                            <span className={`mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass}`}>
                               {['uploading', 'removing'].includes(state.status) && <RefreshCw className="h-3 w-3 animate-spin" />}
                               {state.status === 'failed' && <AlertCircle className="h-3 w-3" />}
                               {state.status === 'uploaded' && <CheckCircle2 className="h-3 w-3" />}
@@ -680,7 +721,7 @@ export default function RegisterPage() {
                           </div>
 
                           <div
-                            className={`rounded-lg border ${
+                            className={`flex h-full flex-col justify-center rounded-lg border ${
                               state.error
                                 ? 'border-danger-600/40 bg-danger-100/20'
                                 : uploaded
@@ -815,7 +856,7 @@ export default function RegisterPage() {
                     type="submit"
                     size="lg"
                     className="w-full sm:w-auto"
-                    disabled={isSubmitting || documentsBusy || documentsFailed || !documentsReady || lettersBusy || !policy || !!policyError}
+                    disabled={isSubmitting || documentsBusy || documentsFailed || !documentsReady || lettersBusy || paymentBusy || !policy || !!policyError || (paymentRequired && (paymentReference.trim().length < 4 || !paymentProof))}
                   >
                     <Send className="h-4.5 w-4.5" />
                     {isSubmitting

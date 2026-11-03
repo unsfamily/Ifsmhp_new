@@ -198,6 +198,7 @@ describe('soft-deleted accounts', () => {
     };
     const cv = await upload(`${PREFIX}-cv.pdf`, pdf, 'application/pdf');
     const credential = await upload(`${PREFIX}-cred.png`, png, 'image/png');
+    const payment = await upload(`${PREFIX}-payment.png`, png, 'image/png');
 
     const payload = {
       purpose: 'REGISTER' as const,
@@ -213,6 +214,8 @@ describe('soft-deleted accounts', () => {
         { kind: 'CREDENTIAL' as const, fileId: credential.id, claimToken: credential.claimToken },
       ],
       agreeTerms: true as const,
+      paymentReference: 'UPI1234567890',
+      paymentScreenshot: { fileId: payment.id, claimToken: payment.claimToken },
     };
 
     // The soft-deleted row must not read as a live conflict.

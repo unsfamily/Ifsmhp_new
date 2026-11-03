@@ -289,6 +289,20 @@ const patch = async (url: string, payload?: unknown) => (await apiClient.patch<E
 export const adminApi = {
   stats: () => get('/admin/stats'),
   members: (params?: Record<string, unknown>) => get('/admin/members', params) as Promise<AdminMembersResult>,
+  exportMembers: async (params?: Record<string, unknown>) => {
+    const response = await apiClient.get('/admin/members/export', { params, responseType: 'blob' });
+    const disposition = String(response.headers['content-disposition'] ?? '');
+    const match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+    const filename = match?.[1] ? decodeURIComponent(match[1]) : 'ifsmhp-registered-members.xls';
+    const url = URL.createObjectURL(response.data as Blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
   member: (id: string) => get(`/admin/members/${id}`) as Promise<AdminMemberDetail>,
   reviewMember: (id: string, reviewNotes?: string) => post(`/admin/members/${id}/review`, { reviewNotes }),
   approveMember: (id: string, reviewNotes?: string, memberId?: string) =>

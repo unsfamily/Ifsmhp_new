@@ -491,7 +491,7 @@ apiClient.interceptors.response.use(
     }
 
     // Real authentication and Community requests must never become demo data.
-    const noMock = /\/auth(?:\/|$)|\/(?:admin\/)?community(?:\/|$)|\/admin\/(?:audit-log|profile|settings|ceremony-registrations|award-nominations)|\/public\/(?:settings|membership-policy|awards\/)|\/(?:admin\/)?membership(?:\/|$)/.test(original?.url ?? '');
+    const noMock = /\/auth(?:\/|$)|\/(?:admin\/)?community(?:\/|$)|\/admin\/(?:audit-log|profile|settings|ceremony-registrations|award-nominations|members\/export)|\/public\/(?:settings|membership-policy|members|awards\/)|\/(?:admin\/)?membership(?:\/|$)/.test(original?.url ?? '');
     const mockResp = noMock ? null : tryMockFallback(error);
     if (mockResp) return mockResp;
     throw error;

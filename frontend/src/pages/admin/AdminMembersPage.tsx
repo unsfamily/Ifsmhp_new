@@ -25,6 +25,7 @@ import {
   Globe2,
   Loader2,
   X,
+  Download,
   SlidersHorizontal,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -33,6 +34,7 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { SelectInput, TextInput } from '../../components/common/Input';
 import { adminApi, type AdminMembersResult, type AccountStatusLabel } from '../../api/admin';
+import { normalizeError } from '../../api/client';
 import { useApiData } from '../../hooks/useApiData';
 
 const statusBadgeMap: Record<AccountStatusLabel, 'success' | 'warning' | 'info' | 'brass' | 'danger' | 'default'> = {
@@ -69,6 +71,8 @@ export default function AdminMembersPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [actionMenuOpenId, setActionMenuOpenId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
 
   // Debounced so typing does not fire a request per keystroke.
   const [debounced, setDebounced] = useState({ search: '', memberIdSearch: '', emailSearch: '', institutionSearch: '', countrySearch: '' });
@@ -114,6 +118,28 @@ export default function AdminMembersPage() {
   }, [debounced, typeFilter, archiveFilter, statusFilter, regFrom, regTo, pageSize]);
 
   const refresh = () => setReloadKey((k) => k + 1);
+  const exportMembers = async () => {
+    setExporting(true);
+    setExportError('');
+    try {
+      await adminApi.exportMembers({
+        q: debounced.search,
+        memberId: debounced.memberIdSearch,
+        email: debounced.emailSearch,
+        institution: debounced.institutionSearch,
+        country: debounced.countrySearch,
+        professionalType: typeFilter,
+        status: statusFilter,
+        archive: archiveFilter,
+        registeredFrom: regFrom,
+        registeredTo: regTo,
+      });
+    } catch (error) {
+      setExportError(normalizeError(error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
   const safePage = page;
   const startIdx = (safePage - 1) * pageSize;
 
@@ -333,8 +359,13 @@ export default function AdminMembersPage() {
                 <> · <span className="text-brass-700 font-medium">filters applied</span></>
               )}
             </p>
+            {exportError && <p role="alert" className="mt-1 text-xs text-danger-600">{exportError}</p>}
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => { void exportMembers(); }} disabled={exporting || loading}>
+              <Download className="h-3.5 w-3.5" />
+              {exporting ? 'Exporting…' : 'Export Excel'}
+            </Button>
             <label className="text-xs text-ink-muted">Rows per page</label>
             <SelectInput
               value={pageSize.toString()}

@@ -1,4 +1,4 @@
-import { currentMembershipPolicy, policyFor, validateMembershipEvidence, createCharge } from './membership-policy.service';
+import { currentMembershipPolicy, policyFor, validateMembershipEvidence, createCharge, assertRegistrationPayment, recordRegistrationPayment } from './membership-policy.service';
 import { isApplicationFeeExempt } from '../domain/membership';
 import type { MembershipPolicySnapshot } from '../domain/membership';
 import { notifyAdmins } from './admin-notifications.service';
@@ -47,6 +47,8 @@ export interface RegisterInput {
   referrals?: { name: string; email: string; organization: string }[];
   referenceLetters?: { fileId: string; claimToken: string }[];
   waiverReason?: string;
+  paymentReference?: string;
+  paymentScreenshot?: { fileId: string; claimToken: string };
 }
 
 export interface LoginInput {
@@ -210,6 +212,7 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
 
     const policy = policyFor(input.membershipPolicy?.values);
     const { documents, letters, referrals } = await validateMembershipEvidence(input, policy, tx);
+    if (input.membershipPolicy) await assertRegistrationPayment(input, policy, tx);
     const user = await tx.user.create({
       data: {
         email,
@@ -261,6 +264,7 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
     }
     if (policy.applicationFeeEnabled && !isApplicationFeeExempt(input.professionalType)) {
       const charge = await createCharge(tx, application.id, 'APPLICATION', policy, new Date(), user.id);
+      if (input.membershipPolicy) await recordRegistrationPayment(tx, user.id, charge.id, input);
       if (input.waiverReason) {
         await tx.membershipWaiver.create({ data: { chargeId: charge.id, requestId: `registration:${application.id}`, reason: input.waiverReason, requestedBy: user.id } });
         await writeAudit({ actorId: user.id, action: 'MembershipWaiverRequested', entity: `MembershipApplication ${application.id}`, entityId: application.id }, tx);
@@ -356,6 +360,7 @@ export async function requestRegistrationOtp(input: RegisterInput, req: Request)
   const snapshot = await currentMembershipPolicy();
   if (input.policyRevision !== undefined && input.policyRevision !== snapshot.revision) throw ApiError.conflict('Membership requirements changed. Refresh the requirements and review your application.');
   await validateMembershipEvidence(input, snapshot.values);
+  await assertRegistrationPayment(input, snapshot.values);
 
   const { expiresAt, resendAfterSeconds, resendAfterAt } = await otpService.requestOtp(
     email,

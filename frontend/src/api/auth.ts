@@ -40,6 +40,8 @@ export interface RegisterPayload {
   referrals?: { name: string; email: string; organization: string }[];
   referenceLetters?: { fileId: string; claimToken: string }[];
   waiverReason?: string;
+  paymentReference?: string;
+  paymentScreenshot?: { fileId: string; claimToken: string };
   agreeTerms: true;
 }
 
