@@ -35,7 +35,7 @@ The Prisma schema is normalized around the actual frontend surfaces:
 | Community | `InterestGroup`, `InterestGroupMember`, `DiscussionThread`, `DiscussionReply`, `MemberConnection` |
 | Admin operations | `ContactInquiry`, `InquiryNote`, `InquiryReply`, `InquiryStatusHistory`, `Announcement`, `AnnouncementDelivery`, `Notification`, `PlatformSetting`, `ReportDefinition`, `ReportRun`, `AuditLog` |
 
-Member IDs are issued transactionally with `MemberIdSequence` using `IFSMHP-YYYY-NNNNNN`. `AuditLog` is append-only by convention and admin/member state transitions write status-history rows.
+Member IDs are issued transactionally with `MemberIdSequence` using `IFSMHP-NNNNNN`. `AuditLog` is append-only by convention and admin/member state transitions write status-history rows.
 
 ### A.3 The core value loop
 
@@ -590,7 +590,7 @@ Only `PUBLISHED` is publicly readable. `APPROVED` is an internal green light, de
 **These require decisions from you. Nothing here has been invented; each item is either unspecified or internally inconsistent in the requirements.**
 
 ### J.1 Blocking (needed before Milestone 3 — database design)
-1. **Member ID year semantics.** Is `YYYY` the year of *approval* or of *application*? Does the sequence reset each January (`IFSMHP-2027-000001`) or continue globally? This is baked into a permanent, immutable, human-facing identifier — expensive to change later. *(Proposed: approval year, per-year reset.)*
+1. **Member ID format.** Resolved: automatic IDs are `IFSMHP-NNNNNN`. The sequence does not include a year and does not reset.
 2. **Existing membership.** The site claims 277 existing members. Are these to be imported (and if so, do they get IDs `000001…000277` in registration order?), or does the system start empty? Import format and source needed if the former.
 3. **Homepage statistics vs. reality.** The hero copy states 277 members / 123 scholars / 154 professionals, but §5 asks for live database statistics and §67 forbids fabricated data. Until data exists these conflict. *(Proposed: config-driven "announced figures" clearly separate from live counts, or hide tiles — your call.)*
 4. **Member directory visibility.** Members can "view other members' public published work" (§4) and there is a *Community* nav item, but no directory page is specified. Is there a public directory, a members-only directory, or only author pages reachable from publications? Which fields are public (institution? country? email?) and can members opt out?

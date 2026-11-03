@@ -207,7 +207,7 @@ describe('admin decisions', () => {
     const { user, application } = await makeApplicant({ key: 'e', professionalType: 'Psychiatrist' });
 
     const result = await approveMember(application.id, adminId, 'Credentials verified');
-    expect(result.memberId).toMatch(/^IFSMHP-\d{4}-\d{6}$/);
+    expect(result.memberId).toMatch(/^IFSMHP-\d{6}$/);
 
     const after = await prisma.user.findUniqueOrThrow({
       where: { id: user.id },
@@ -267,7 +267,7 @@ describe('admin decisions', () => {
 
     // The approval itself must survive a mail outage.
     expect(result.issued).toBe(true);
-    expect(result.memberId).toMatch(/^IFSMHP-\d{4}-\d{6}$/);
+    expect(result.memberId).toMatch(/^IFSMHP-\d{6}$/);
     expect(result.emailSent).toBe(false);
     expect(result.emailError).toContain('smtp is down');
 

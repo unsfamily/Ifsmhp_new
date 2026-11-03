@@ -72,7 +72,7 @@ export default function MembershipPanel({ id, onChange }: { id?: string; onChang
         <li>Approve membership separately to issue the member ID — only after payment (unless Student / waived).</li>
       </ol>}
       {id && <>
-        <p>Member ID issuance: {data.policy.idIssuance}. {data.policy.idIssuance === 'AUTOMATIC' && `Format: ${data.policy.idPrefix}-YYYY-${'N'.repeat(data.policy.idPadding ?? 6)}`}</p>
+        <p>Member ID issuance: {data.policy.idIssuance}. {data.policy.idIssuance === 'AUTOMATIC' && `Format: ${data.policy.idPrefix}-${'N'.repeat(data.policy.idPadding ?? 6)}`}</p>
         {!!data.approvalProblems?.length && pending && <ul className="list-disc pl-5 text-sm">{data.approvalProblems.map(problem => <li key={problem}>{problem}</li>)}</ul>}
         {!!data.referrals?.length && <div><h3 className="font-semibold">Referrals</h3>{data.referrals.map(r => <p key={r.id} className="break-words">{r.name} · {r.email} · {r.organization}</p>)}</div>}
         {!!data.letters?.length && <div><h3 className="font-semibold">Reference letters</h3>{data.letters.map(l => <Button key={l.id} variant="outline" onClick={() => void download(l.fileId, l.name)}>{l.name}</Button>)}</div>}

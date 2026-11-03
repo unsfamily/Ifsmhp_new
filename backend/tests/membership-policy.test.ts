@@ -101,7 +101,7 @@ describe('Membership settings, registration and review', () => {
     expect((await post(id, 'evidence-review')).status).toBe(200);
     const charge = own.body.data.charges[0]; expect((await post(id, `charges/${charge.id}/waiver-decision`, { recordId: charge.waivers[0].id, status: 'APPROVED', reason: 'Hardship evidence reviewed and accepted.' })).status).toBe(200);
     expect((await approve(id)).status).toBe(200);
-    const saved = await prisma.membershipApplication.findUniqueOrThrow({ where: { id }, include: { referenceLetters: true, referrals: true, profile: true } }); expect(saved.policyRevision).toBe(snap.revision); expect(saved.referrals).toHaveLength(1); expect(saved.referenceLetters).toHaveLength(1); expect(saved.profile.memberId).toMatch(/^IFSMHP-\d{4}-\d{6}$/);
+    const saved = await prisma.membershipApplication.findUniqueOrThrow({ where: { id }, include: { referenceLetters: true, referrals: true, profile: true } }); expect(saved.policyRevision).toBe(snap.revision); expect(saved.referrals).toHaveLength(1); expect(saved.referenceLetters).toHaveLength(1); expect(saved.profile.memberId).toMatch(/^IFSMHP-\d{6}$/);
     expect((await detail(id)).body.data.charges.find((c: { kind: string }) => c.kind === 'ANNUAL').amount).toBe('500.00');
     const memberView = await request(app).get(api + '/members/me/profile').set('Authorization', `Bearer ${verified.body.data.accessToken}`); expect(memberView.status).toBe(200);
     const auditRows = await prisma.auditLog.findMany({ where: { entityId: id } }); expect(JSON.stringify(auditRows)).not.toContain(payload.waiverReason); expect(JSON.stringify(auditRows)).not.toContain('referrer@example.test');
@@ -145,7 +145,7 @@ describe('Membership settings, registration and review', () => {
   it('allocates different automatic IDs during simultaneous approvals', async () => {
     const a = await applicant({ idPrefix: 'TEST', idPadding: 8 }), b = await applicant({ idPrefix: 'TEST', idPadding: 8 });
     const responses = await Promise.all([approve(a.id), approve(b.id)]); expect(responses.map(r => r.status)).toEqual([200, 200]);
-    const ids = responses.map(r => r.body.data.memberId); expect(new Set(ids).size).toBe(2); expect(ids[0]).toMatch(/^TEST-\d{4}-\d{8}$/);
+    const ids = responses.map(r => r.body.data.memberId); expect(new Set(ids).size).toBe(2); expect(ids[0]).toMatch(/^TEST-\d{8}$/);
     expect((await request(app).post(`${api}/admin/members/${a.id}/reject`).set('Authorization', `Bearer ${token}`).send({ reason: 'No longer valid rejection' })).status).toBe(409);
   });
 });
@@ -259,8 +259,8 @@ describe('Charges, waivers, archive jobs and authorization', () => {
   });
   it('automatic issuance skips a manually reserved sequence value', async () => {
     const a = await applicant({ idIssuance: 'MANUAL' }), b = await applicant();
-    const year = new Date().getUTCFullYear(), next = (await prisma.memberIdSequence.findUnique({ where: { year } }))?.nextNumber ?? 1;
-    const reserved = `IFSMHP-${year}-${String(next).padStart(6, '0')}`;
+    const next = (await prisma.memberIdSequence.findUnique({ where: { year: 0 } }))?.nextNumber ?? 1;
+    const reserved = `IFSMHP-${String(next).padStart(6, '0')}`;
     expect((await approve(a.id, reserved)).status).toBe(200); const response = await approve(b.id); expect(response.status).toBe(200); expect(response.body.data.memberId).not.toBe(reserved);
   });
   it('rolls back approval, ID allocation and annual charge when auditing fails', async () => {

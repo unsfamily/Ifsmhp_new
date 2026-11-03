@@ -31,8 +31,8 @@ const groups: Record<SettingsSection, Group[]> = {
   membership: [
     { title: 'Member Identity & Credentials', fields: [
       { key: 'idIssuance', label: 'Member ID issuance', options: ['AUTOMATIC', 'MANUAL'], hint: 'Manual mode requires an administrator to enter a unique ID during approval.' },
-      { key: 'idPrefix', label: 'Member ID prefix', hint: 'Automatic format: PREFIX-YYYY-SEQUENCE. Existing IDs are preserved.' },
-      { key: 'idPadding', label: 'Sequence digits', type: 'number', hint: '4–10 digits; the year is always included.' },
+      { key: 'idPrefix', label: 'Member ID prefix', hint: 'Automatic format: PREFIX-SEQUENCE. Changing the prefix does not rewrite IDs already issued.' },
+      { key: 'idPadding', label: 'Sequence digits', type: 'number', hint: '4–10 digits. The year is not included.' },
       { key: 'requireProfile', label: 'Require Profile document', type: 'checkbox' },
       { key: 'requireCredential', label: 'Require Credentials / Certifications / ID Card', type: 'checkbox' },
     ] },

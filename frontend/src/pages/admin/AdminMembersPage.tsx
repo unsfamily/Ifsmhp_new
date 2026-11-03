@@ -280,7 +280,7 @@ export default function AdminMembersPage() {
               <TextInput
                 label="Member ID"
                 icon={<IdCard className="h-4 w-4 text-ink-subtle" />}
-                placeholder="IFSMHP-YYYY-NNNNNN"
+                placeholder="IFSMHP-000003"
                 value={memberIdSearch}
                 onChange={(e) => setMemberIdSearch(e.target.value)}
               />

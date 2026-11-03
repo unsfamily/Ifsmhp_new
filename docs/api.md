@@ -90,7 +90,7 @@ All admin routes require an active `ADMIN` session.
 | `GET` | `/admin/stats` | CRO dashboard counters |
 | `GET` | `/admin/members` | Members/applications queue |
 | `GET` | `/admin/members/:id` | Application detail |
-| `POST` | `/admin/members/:id/approve` | Transactionally approve application and issue `IFSMHP-YYYY-NNNNNN` |
+| `POST` | `/admin/members/:id/approve` | Transactionally approve application and issue `IFSMHP-NNNNNN` |
 | `POST` | `/admin/members/:id/reject` | Reject application with reason |
 | `GET` | `/admin/projects` | Project review queue |
 | `GET` | `/admin/projects/:id` | Project detail |

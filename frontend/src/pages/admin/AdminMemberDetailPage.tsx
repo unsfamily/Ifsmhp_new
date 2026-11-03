@@ -943,12 +943,12 @@ export default function AdminMemberDetailPage() {
               ) : (
                 <div className="rounded-xl bg-gradient-to-br from-slateteal-100 to-forum-50 border border-slateteal-500/20 p-5 text-center">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slateteal-700">Issued on approval</p>
-                  <p className="mt-2 font-mono text-2xl font-bold text-forum-900 tracking-tight">{membership?.policy.idIssuance === 'MANUAL' ? 'Manual ID at approval' : `${membership?.policy.idPrefix ?? 'IFSMHP'}-${new Date().getUTCFullYear()}-${'#'.repeat(membership?.policy.idPadding ?? 6)}`}</p>
+                  <p className="mt-2 font-mono text-2xl font-bold text-forum-900 tracking-tight">{membership?.policy.idIssuance === 'MANUAL' ? 'Manual ID at approval' : `${membership?.policy.idPrefix ?? 'IFSMHP'}-${'#'.repeat(membership?.policy.idPadding ?? 6)}`}</p>
                   <p className="mt-2 text-xs text-ink-subtle">The applicable policy is shown in Membership requirements & payments.</p>
                 </div>
               )}
               <div className="mt-4 space-y-2 text-xs text-ink-muted">
-                <div className="flex justify-between"><span>Format:</span><code className="font-mono bg-paper px-1.5 py-0.5 rounded border border-paper-border">{membership?.policy.idIssuance === 'MANUAL' ? 'Manual' : `${membership?.policy.idPrefix ?? 'IFSMHP'}-YYYY-${'N'.repeat(membership?.policy.idPadding ?? 6)}`}</code></div>
+                <div className="flex justify-between"><span>Format:</span><code className="font-mono bg-paper px-1.5 py-0.5 rounded border border-paper-border">{membership?.policy.idIssuance === 'MANUAL' ? 'Manual' : `${membership?.policy.idPrefix ?? 'IFSMHP'}-${'N'.repeat(membership?.policy.idPadding ?? 6)}`}</code></div>
                 <div className="flex justify-between"><span>Issuance:</span><span className="font-medium text-ink">Transactional server-side (row lock)</span></div>
                 <div className="flex justify-between"><span>Immutability:</span><span className="font-medium text-success-600">Guaranteed</span></div>
                 <div className="flex justify-between"><span>Storage path:</span><span className="font-medium text-danger-600">Never exposed to client</span></div>
