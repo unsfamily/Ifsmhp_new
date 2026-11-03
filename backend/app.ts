@@ -47,7 +47,7 @@ export function createApp(): Express {
       credentials: true, // required for the refresh-token cookie
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
-      exposedHeaders: ['X-Request-Id'],
+      exposedHeaders: ['X-Request-Id', 'Content-Disposition'],
     }),
   );
 

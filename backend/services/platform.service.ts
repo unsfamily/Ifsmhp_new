@@ -1853,7 +1853,7 @@ export async function exportAdminMembers(req: Request) {
     user.memberProfile?.permanentAddress ?? '',
   ]));
   const day = new Date().toISOString().slice(0, 10);
-  return { filename: `ifsmhp-registered-members-${day}.xls`, body: sheet, rows: rows.length };
+  return { filename: `ifsmhp-registered-members-${day}.xlsx`, body: sheet, rows: rows.length };
 }
 
 const PUBLIC_LOOKUP_LIMIT = 20;
