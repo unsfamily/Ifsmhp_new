@@ -3,8 +3,8 @@ import { prisma } from '../config/database';
 import { effectiveSettings } from './settings.service';
 import { writeAudit } from './audit.service';
 import { ApiError } from '../utils/ApiError';
-import { legacyMembershipPolicy, membershipSettings, manualMemberId, isApplicationFeeExempt, type MembershipPolicy, type MembershipPolicySnapshot } from '../domain/membership';
-import { resolveRegistrationDocuments, type RegistrationDocumentClaim } from './registration-documents.service';
+import { legacyMembershipPolicy, membershipSettings, manualMemberId, isApplicationFeeExempt, normalizePaymentReference, type MembershipPolicy, type MembershipPolicySnapshot } from '../domain/membership';
+import { resolveRegistrationDocuments, verifyRegistrationClaimToken, type RegistrationDocumentClaim } from './registration-documents.service';
 type DB = Prisma.TransactionClient;
 export const policyFor = (value: unknown): MembershipPolicy => value == null ? { ...legacyMembershipPolicy } : membershipSettings.parse(value);
 export const requiredKinds = (p: MembershipPolicy): RegistrationDocumentClaim['kind'][] => [...(p.requireProfile ? ['CV' as const] : []), ...(p.requireCredential ? ['CREDENTIAL' as const] : [])];
@@ -47,10 +47,20 @@ export async function lockApplication(tx: DB, id: string) {
   const candidates = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM MembershipApplication WHERE id = ${id} OR userId = ${id} FOR UPDATE`;
   const candidate = candidates[0];
   if (!candidate) throw ApiError.notFound('Membership application not found');
-  return tx.membershipApplication.findUniqueOrThrow({ where: { id: candidate.id }, include: { user: true, profile: { include: { credentials: { include: { file: true } } } }, referrals: true, referenceLetters: { include: { file: true } }, charges: { include: { payments: true, waivers: true } } } });
+  return tx.membershipApplication.findUniqueOrThrow({ where: { id: candidate.id }, include: { user: true, profile: { include: { credentials: { include: { file: true } } } }, referrals: true, referenceLetters: { include: { file: true } }, charges: { include: { payments: true, waivers: true, claimedScreenshot: true } } } });
 }
 type Application = Awaited<ReturnType<typeof lockApplication>>;
 export const chargeStatus = (c: { payments: { reversedAt: Date | null }[]; waivers: { status: string }[] }) => c.payments.some(p => !p.reversedAt) ? 'PAID' : c.waivers.some(w => w.status === 'APPROVED') ? 'WAIVED' : 'UNPAID';
+/** True when a non-student application still needs a paid/waived APPLICATION charge before membership approval. */
+export function applicationFeeOutstanding(
+  app: { policySnapshot: unknown; charges?: { kind: string; payments: { reversedAt: Date | null }[]; waivers: { status: string }[] }[] } | null | undefined,
+  professionalType: string | null | undefined,
+) {
+  if (!app?.policySnapshot) return false;
+  const p = policyFor(app.policySnapshot);
+  if (!p.applicationFeeEnabled || isApplicationFeeExempt(professionalType ?? '')) return false;
+  return !(app.charges ?? []).some(c => c.kind === 'APPLICATION' && chargeStatus(c) !== 'UNPAID');
+}
 export function approvalProblems(app: Application) {
   const problems: string[] = [], p = policyFor(app.policySnapshot);
   if (app.archivedAt) problems.push('Restore the archived application first.');
@@ -59,7 +69,7 @@ export function approvalProblems(app: Application) {
     for (const kind of requiredKinds(p)) if (!app.profile.credentials.some(c => c.credentialType === (kind === 'CV' ? 'CV' : 'Credential') && c.file && !c.file.deletedAt)) problems.push(`Required ${kind === 'CV' ? 'Profile' : 'Credentials'} document is missing.`);
     if (app.referrals.length < p.referralCount || app.referenceLetters.filter(l => !l.file.deletedAt).length < p.referenceLetterCount) problems.push('Required referral evidence is missing.');
     if ((requiredKinds(p).length || p.referralCount || p.referenceLetterCount) && !app.evidenceReviewedAt) problems.push('Confirm that the required documents and references have been reviewed.');
-    if (p.applicationFeeEnabled && !isApplicationFeeExempt(app.profile.professionalType) && !app.charges.some(c => c.kind === 'APPLICATION' && chargeStatus(c) !== 'UNPAID')) {
+    if (applicationFeeOutstanding(app, app.profile.professionalType)) {
       problems.push('Record the application fee payment or approve a waiver.');
     }
   }
@@ -97,7 +107,7 @@ export async function createCharge(tx: DB, appId: string, kind: 'APPLICATION' | 
 export async function membershipDetail(id: string, ownUserId?: string) {
   return prisma.$transaction(async tx => {
     // Read-only transaction; do not take mutation locks for viewing.
-    const app = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }], ...(ownUserId ? { userId: ownUserId } : {}) }, include: { user: true, profile: { include: { credentials: { include: { file: true } } } }, referrals: true, referenceLetters: { include: { file: true } }, charges: { include: { payments: true, waivers: true }, orderBy: { createdAt: 'desc' } } } });
+    const app = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }], ...(ownUserId ? { userId: ownUserId } : {}) }, include: { user: true, profile: { include: { credentials: { include: { file: true } } } }, referrals: true, referenceLetters: { include: { file: true } }, charges: { include: { payments: true, waivers: true, claimedScreenshot: true }, orderBy: { createdAt: 'desc' } } } });
     if (!app && ownUserId) {
       const historical = await tx.user.findUnique({ where: { id: ownUserId }, select: { role: true, status: true, memberProfile: { select: { memberId: true } } } });
       if (historical?.role === 'MEMBER') return { applicationId: '', applicationCode: '', status: historical.status, memberId: historical.memberProfile?.memberId ?? null, archivedAt: null, archiveSuppressed: false, evidenceReviewedAt: null, applicationFeeExempt: false, policy: { paymentInstructions: '', waiversEnabled: false }, charges: [] };
@@ -112,7 +122,7 @@ export async function membershipDetail(id: string, ownUserId?: string) {
       evidenceReviewedAt: app.evidenceReviewedAt, approvalProblems: ownUserId ? undefined : approvalProblems(app),
       referrals: ownUserId ? undefined : app.referrals.map(r => ({ id: r.id, name: r.name, email: r.email, organization: r.organization })),
       letters: ownUserId ? undefined : app.referenceLetters.map(l => ({ id: l.id, fileId: l.fileId, name: l.file.originalName })),
-      charges: app.charges.map(c => ({ id: c.id, kind: c.kind, periodYear: c.periodYear, amount: c.amount.toFixed(2), currency: c.currency, dueAt: c.dueAt, status: chargeStatus(c), overdue: chargeStatus(c) === 'UNPAID' && c.dueAt < new Date(), claimedReference: c.claimedReference, claimedAt: c.claimedAt, payments: c.payments.map(x => ({ id: x.id, reference: x.reference, createdAt: x.createdAt, reversedAt: x.reversedAt, correctionReason: x.correctionReason })), waivers: c.waivers.map(w => ({ id: w.id, status: w.status, reason: w.reason, decisionReason: w.decisionReason, createdAt: w.createdAt })) })) };
+      charges: app.charges.map(c => ({ id: c.id, kind: c.kind, periodYear: c.periodYear, amount: c.amount.toFixed(2), currency: c.currency, dueAt: c.dueAt, status: chargeStatus(c), overdue: chargeStatus(c) === 'UNPAID' && c.dueAt < new Date(), claimedReference: c.claimedReference, claimedAt: c.claimedAt, claimedScreenshot: c.claimedScreenshot && !c.claimedScreenshot.deletedAt ? { fileId: c.claimedScreenshot.id, name: c.claimedScreenshot.originalName } : null, payments: c.payments.map(x => ({ id: x.id, reference: x.reference, createdAt: x.createdAt, reversedAt: x.reversedAt, correctionReason: x.correctionReason })), waivers: c.waivers.map(w => ({ id: w.id, status: w.status, reason: w.reason, decisionReason: w.decisionReason, createdAt: w.createdAt })) })) };
   });
 }
 export async function reviewEvidence(id: string, actorId: string) {
@@ -128,7 +138,21 @@ export async function reviewEvidence(id: string, actorId: string) {
   });
   return membershipDetail(id);
 }
-export async function changeCharge(id: string, chargeId: string, actorId: string, action: 'CLAIM' | 'PAY' | 'REVERSE' | 'REQUEST_WAIVER' | 'DECIDE_WAIVER', input: { requestId?: string; reference?: string; reason?: string; recordId?: string; status?: 'APPROVED' | 'REJECTED' | 'REVOKED' }, own = false) {
+const screenshotMimes = new Set(['image/jpeg', 'image/png']);
+async function attachPaymentScreenshot(tx: DB, actorId: string, input: { fileId?: string; claimToken?: string }) {
+  if (!input.fileId || !input.claimToken) throw ApiError.unprocessable('Upload a payment screenshot.', [{ field: 'file', message: 'A JPEG or PNG screenshot of the payment is required.' }]);
+  const file = await tx.fileObject.findUnique({ where: { id: input.fileId } });
+  if (!file || file.deletedAt) throw ApiError.unprocessable('Uploaded screenshot is no longer available.', [{ field: 'file', message: 'Remove it and upload the screenshot again.' }]);
+  if (!screenshotMimes.has(file.mimeType) || file.sizeBytes > 10 * 1024 * 1024) throw ApiError.unprocessable('Payment screenshot must be a JPEG or PNG under 10 MB.', [{ field: 'file', message: 'Upload a JPEG or PNG screenshot.' }]);
+  if (!verifyRegistrationClaimToken(file, input.claimToken)) throw ApiError.unprocessable('Uploaded screenshot could not be verified.', [{ field: 'file', message: 'Remove it and upload the screenshot again.' }]);
+  if (file.uploaderId && file.uploaderId !== actorId) throw ApiError.conflict('This screenshot was already claimed. Upload it again.');
+  if (!file.uploaderId) {
+    const claimed = await tx.fileObject.updateMany({ where: { id: file.id, uploaderId: null, deletedAt: null }, data: { uploaderId: actorId } });
+    if (!claimed.count) throw ApiError.conflict('This screenshot was already claimed. Upload it again.');
+  }
+  return file.id;
+}
+export async function changeCharge(id: string, chargeId: string, actorId: string, action: 'CLAIM' | 'PAY' | 'REVERSE' | 'REQUEST_WAIVER' | 'DECIDE_WAIVER', input: { requestId?: string; reference?: string; reason?: string; recordId?: string; status?: 'APPROVED' | 'REJECTED' | 'REVOKED'; fileId?: string; claimToken?: string }, own = false) {
   await prisma.$transaction(async tx => {
     const app = await lockApplication(tx, id);
     if (own && app.userId !== actorId) throw ApiError.notFound('Membership charge not found');
@@ -141,16 +165,22 @@ export async function changeCharge(id: string, chargeId: string, actorId: string
       if (app.status === 'REJECTED') throw ApiError.conflict('This application was rejected.');
       if (chargeStatus(charge) !== 'UNPAID') throw ApiError.conflict('This charge is already settled.');
       if (charge.claimedRequestId === input.requestId!) {
-        if (charge.claimedReference !== input.reference) throw ApiError.conflict('This request ID was already used.');
+        if (charge.claimedReference !== input.reference || charge.claimedScreenshotFileId !== input.fileId) throw ApiError.conflict('This request ID was already used.');
         return;
       }
       const reused = await tx.membershipCharge.findUnique({ where: { claimedRequestId: input.requestId! } });
       if (reused && reused.id !== charge.id) throw ApiError.conflict('This request ID was already used.');
-      await tx.membershipCharge.update({ where: { id: charge.id }, data: { claimedReference: input.reference!, claimedAt: new Date(), claimedRequestId: input.requestId! } });
+      const screenshotFileId = await attachPaymentScreenshot(tx, actorId, input);
+      await tx.membershipCharge.update({ where: { id: charge.id }, data: { claimedReference: input.reference!, claimedAt: new Date(), claimedRequestId: input.requestId!, claimedScreenshotFileId: screenshotFileId } });
     } else if (action === 'PAY') {
       const previous = await tx.membershipPayment.findUnique({ where: { requestId: input.requestId! } });
       if (previous) { if (previous.chargeId !== charge.id || previous.reference !== input.reference) throw ApiError.conflict('This request ID was already used.'); return; }
       if (chargeStatus(charge) !== 'UNPAID') throw ApiError.conflict('This charge is already settled.');
+      // Offline validation: admin confirms the bank credit. When the applicant already
+      // submitted a UTR, the recorded reference must match that claim (update the claim first if needed).
+      if (charge.claimedReference && normalizePaymentReference(charge.claimedReference) !== normalizePaymentReference(input.reference!)) {
+        throw ApiError.unprocessable('Recorded payment reference must match the applicant UTR.', [{ field: 'reference', message: 'Must match the submitted UTR / UPI reference, or update the claim first.' }]);
+      }
       await tx.membershipPayment.create({ data: { chargeId, requestId: input.requestId!, reference: input.reference!, recordedBy: actorId } });
     } else if (action === 'REVERSE') {
       const payment = charge.payments.find(p => p.id === input.recordId);

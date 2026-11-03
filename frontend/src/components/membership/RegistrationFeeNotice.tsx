@@ -25,7 +25,7 @@ export default function RegistrationFeeNotice({ policy, professionalType }: { po
     <div role="status" className="mt-2 space-y-2 rounded-lg border border-brass-500/30 bg-brass-100/40 px-3 py-2 text-sm text-forum-900">
       <p>
         Application registration fee for {selected}: <span className="font-semibold">{amount}</span>.
-        Pay after email verification using the bank / UPI instructions below. An administrator verifies payment before approval.
+        Pay after email verification using the bank / UPI instructions below. Membership is granted only after an administrator verifies that payment in the bank statement (students are free).
       </p>
       {policy.paymentInstructions ? <p className="whitespace-pre-wrap rounded-md bg-paper p-3 text-ink">{policy.paymentInstructions}</p> : null}
     </div>

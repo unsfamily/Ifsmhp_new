@@ -1,5 +1,5 @@
 import { memberAvatarPolicy } from '../domain/member-avatar';
-import { membershipDetail, lockApplication, approvalProblems, issueMembershipId, policyFor, createCharge } from './membership-policy.service';
+import { membershipDetail, lockApplication, approvalProblems, issueMembershipId, policyFor, createCharge, applicationFeeOutstanding } from './membership-policy.service';
 import { effectiveSettings, membershipAge } from './settings.service';
 import { notifyAdmins } from './admin-notifications.service';
 import { randomUUID as adminNoticeId } from 'node:crypto';
@@ -1729,7 +1729,10 @@ export async function adminMembers(req: Request) {
   const [rows, total, pending, underReview, urgent, approvedToday, typeGroups, statusGroups] = await Promise.all([
     prisma.user.findMany({
       where,
-      include: { memberProfile: { include: { credentials: true, education: true } }, membershipApplication: true },
+      include: {
+        memberProfile: { include: { credentials: true, education: true } },
+        membershipApplication: { include: { charges: { include: { payments: true, waivers: true } } } },
+      },
       orderBy: { createdAt: 'desc' },
       ...toSkipTake(pagination),
     }),
@@ -1771,9 +1774,13 @@ export async function adminMembers(req: Request) {
 
 function serializeMember(
   user: Prisma.UserGetPayload<{
-    include: { memberProfile: { include: { credentials: true; education: true } }; membershipApplication: true };
+    include: {
+      memberProfile: { include: { credentials: true; education: true } };
+      membershipApplication: { include: { charges: { include: { payments: true; waivers: true } } } };
+    };
   }>,
 ) {
+  const feeOutstanding = applicationFeeOutstanding(user.membershipApplication, user.memberProfile?.professionalType);
   return {
     id: user.membershipApplication?.id ?? user.id,
     userId: user.id,
@@ -1801,6 +1808,8 @@ function serializeMember(
     /** Days the application has been waiting — drives the queue's ageing column. */
     slaDays: daysSince(user.membershipApplication?.submittedAt ?? null),
     highestDegree: user.memberProfile?.education?.[0]?.degree ?? null,
+    /** Non-student applications cannot be approved until the fee is paid or waived. */
+    applicationFeeOutstanding: feeOutstanding,
   };
 }
 

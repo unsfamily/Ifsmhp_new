@@ -145,7 +145,7 @@ export default function AdminMembersPage() {
     suspend: status === 'Active',
     deactivate: status === 'Active' || status === 'Suspended' || status === 'Pending',
     reactivate: status === 'Suspended' || status === 'Deactivated',
-    approve: status === 'Pending',
+    approve: status === 'Pending', // fee gate applied per-row below via applicationFeeOutstanding
     reject: status === 'Pending',
   });
 
@@ -374,7 +374,10 @@ export default function AdminMembersPage() {
                   <tbody>
                     {pageItems.map((m) => {
                       const StatusIcon = statusIconMap[m.accountStatus];
-                      const actions = availableActions(m.accountStatus);
+                      const actions = {
+                        ...availableActions(m.accountStatus),
+                        approve: availableActions(m.accountStatus).approve && !m.applicationFeeOutstanding,
+                      };
                       const isMenuOpen = actionMenuOpenId === m.id;
                       return (
                         <tr

@@ -16,6 +16,7 @@ import { updateSettings } from '../services/settings.service';
 import type { Request } from 'express';
 const app = createApp(), prefix = 'membership-policy-test-', api = '/api/v1';
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 let adminId: string, token: string, auditFail = false;
 let original: Awaited<ReturnType<typeof prisma.platformSetting.findMany>>, revisions: Awaited<ReturnType<typeof prisma.settingRevision.findMany>>;
 prisma.$use(async (p, next) => { if (auditFail && p.model === 'AuditLog' && p.action === 'create') throw new Error('Injected membership audit failure'); return next(p); });
@@ -34,8 +35,11 @@ async function cleanup() {
   await Promise.all(files.map(f => fs.unlink(path.resolve(env.UPLOAD_STORAGE_PATH, f.storageKey)).catch(() => undefined)));
   await prisma.emailOtp.deleteMany({ where: { email: { startsWith: prefix } } });
 }
-async function upload() {
-  const r = await request(app).post(api + '/files/registration').attach('file', pdf, { filename: `${prefix}${randomUUID()}.pdf`, contentType: 'application/pdf' });
+async function upload(kind: 'pdf' | 'png' = 'pdf') {
+  const file = kind === 'png' ? png : pdf;
+  const filename = `${prefix}${randomUUID()}.${kind === 'png' ? 'png' : 'pdf'}`;
+  const contentType = kind === 'png' ? 'image/png' : 'application/pdf';
+  const r = await request(app).post(api + '/files/registration').attach('file', file, { filename, contentType });
   expect(r.status).toBe(201); return { fileId: r.body.data.id as string, claimToken: r.body.data.claimToken as string };
 }
 function input(documents: { kind: 'CV' | 'CREDENTIAL'; fileId: string; claimToken: string }[] = [], professionalType = 'Researcher') {
@@ -155,13 +159,17 @@ describe('Charges, waivers, archive jobs and authorization', () => {
   it('lets applicants claim a UTR without settling, then admin records payment before approval', async () => {
     const a = await applicant({ applicationFeeEnabled: true, applicationFee: '100.00', paymentInstructions: 'Pay INR 100 to IFSMHP' });
     const c = (await detail(a.id)).body.data.charges[0];
-    const claimBody = { requestId: randomUUID(), reference: 'UPI1234567890' };
+    const proof = await upload('png');
+    expect((await request(app).post(`${api}/membership/charges/${c.id}/payment-claims`).set('Authorization', `Bearer ${a.token}`).send({ requestId: randomUUID(), reference: 'UPI1234567890' })).status).toBe(422);
+    expect((await request(app).post(`${api}/membership/charges/${c.id}/payment-claims`).set('Authorization', `Bearer ${a.token}`).send({ requestId: randomUUID(), reference: 'UPI1234567890', ...(await upload()) })).status).toBe(422);
+    const claimBody = { requestId: randomUUID(), reference: 'UPI1234567890', ...proof };
     const claimed = await request(app).post(`${api}/membership/charges/${c.id}/payment-claims`).set('Authorization', `Bearer ${a.token}`).send(claimBody);
     expect(claimed.status).toBe(200);
-    expect(claimed.body.data.charges[0]).toMatchObject({ status: 'UNPAID', claimedReference: 'UPI1234567890' });
+    expect(claimed.body.data.charges[0]).toMatchObject({ status: 'UNPAID', claimedReference: 'UPI1234567890', claimedScreenshot: { fileId: proof.fileId } });
     expect((await request(app).post(`${api}/membership/charges/${c.id}/payment-claims`).set('Authorization', `Bearer ${a.token}`).send(claimBody)).status).toBe(200);
     expect((await approve(a.id)).status).toBe(422);
-    expect((await post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'UPI1234567890' })).status).toBe(200);
+    expect((await post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'DIFFERENT-UTR-99' })).status).toBe(422);
+    expect((await post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'UPI 1234567890' })).status).toBe(200);
     expect((await detail(a.id)).body.data.charges[0].status).toBe('PAID');
     expect((await approve(a.id)).status).toBe(200);
   });
