@@ -12,6 +12,10 @@ import { listPublicEvents, publicEventDetail, publicEventCalendar, publicEventCo
 
 const router = Router({ mergeParams: true });
 router.get('/membership-policy', asyncHandler(async (_req, res) => { res.setHeader('Cache-Control', 'no-store'); sendSuccess(res, await publicMembershipPolicy()); }));
+router.get('/members', asyncHandler(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  sendSuccess(res, await service.publicMemberLookup(req.query.q), 'Member listing');
+}));
 router.get('/settings', asyncHandler(async (_req, res) => { res.setHeader('Cache-Control', 'no-store'); sendSuccess(res, await publicSettings()); }));
 
 /**

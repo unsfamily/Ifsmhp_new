@@ -18,6 +18,7 @@ import { ApiError } from '../utils/ApiError';
 import { buildPaginatedResult, type PaginationQuery, toSkipTake } from '../utils/pagination';
 import { logger } from '../utils/logger';
 import { writeAudit, changesBetween } from './audit.service';
+import { toExcelSheet } from '../utils/excel-sheet';
 import { sendApprovalEmail } from './mail.service';
 import { isLegacyVideoUrl } from '../domain/document-exchange';
 import { memberPhoneMessage, memberPhoneSchema } from '../domain/member-profile';
@@ -1658,8 +1659,8 @@ export function parseDateBound(value: unknown, endOfDay = false): Date | undefin
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
-export async function adminMembers(req: Request) {
-  const pagination = parsePage(req);
+/** The same filters the admin member directory applies, shared with the Excel export. */
+export function memberDirectoryWhere(req: Request): Prisma.UserWhereInput {
   const status = String(req.query.status ?? 'All');
   const q = String(req.query.q ?? req.query.search ?? '').trim();
 
@@ -1722,6 +1723,12 @@ export async function adminMembers(req: Request) {
         }
       : {}),
   };
+  return where;
+}
+
+export async function adminMembers(req: Request) {
+  const pagination = parsePage(req);
+  const where = memberDirectoryWhere(req);
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -1811,6 +1818,80 @@ function serializeMember(
     /** Non-student applications cannot be approved until the fee is paid or waived. */
     applicationFeeOutstanding: feeOutstanding,
   };
+}
+
+const MEMBER_EXPORT_LIMIT = 10000;
+const memberExportHeaders = ['Full name', 'First name', 'Last name', 'Email', 'Phone', 'Member ID', 'Professional type', 'Professional title', 'Institution', 'Country', 'Account status', 'Application status', 'Application code', 'Registered at', 'Approved at', 'Communication address', 'Permanent address'];
+
+/** Every directory row matching the current admin filters, as an Excel workbook. */
+export async function exportAdminMembers(req: Request) {
+  const where = memberDirectoryWhere(req);
+  const total = await prisma.user.count({ where });
+  if (total > MEMBER_EXPORT_LIMIT) throw ApiError.unprocessable(`Narrow the filters before exporting. ${total} members match, and one workbook holds ${MEMBER_EXPORT_LIMIT}.`);
+  const rows = await prisma.user.findMany({
+    where,
+    include: { memberProfile: true, membershipApplication: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  const sheet = toExcelSheet('Registered members', memberExportHeaders, rows.map((user) => [
+    user.fullName,
+    user.firstName ?? '',
+    user.lastName ?? '',
+    user.email,
+    user.memberProfile?.phone ?? '',
+    user.memberProfile?.memberId ?? '',
+    user.memberProfile?.professionalType ?? '',
+    user.memberProfile?.professionalTitle ?? '',
+    user.memberProfile?.institution ?? '',
+    user.memberProfile?.country ?? '',
+    userStatusLabel[user.status] ?? user.status,
+    applicationStatusLabel[user.membershipApplication?.status ?? (user.status === 'ACTIVE' ? 'APPROVED' : 'PENDING')],
+    user.membershipApplication?.applicationCode ?? '',
+    user.createdAt.toISOString(),
+    user.memberProfile?.approvedAt?.toISOString() ?? '',
+    user.memberProfile?.communicationAddress ?? '',
+    user.memberProfile?.permanentAddress ?? '',
+  ]));
+  const day = new Date().toISOString().slice(0, 10);
+  return { filename: `ifsmhp-registered-members-${day}.xls`, body: sheet, rows: rows.length };
+}
+
+const PUBLIC_LOOKUP_LIMIT = 20;
+
+/** Public confirmation that an approved member is listed. Private contact fields stay off this response. */
+export async function publicMemberLookup(rawQuery: unknown) {
+  const query = String(rawQuery ?? '').trim().replace(/\s+/g, ' ');
+  if (query.length < 2) throw ApiError.unprocessable('Enter at least 2 characters of a name or member ID.', [{ field: 'q', message: 'Enter at least 2 characters.' }]);
+  const rows = await prisma.user.findMany({
+    where: {
+      deletedAt: null,
+      status: 'ACTIVE',
+      role: 'MEMBER',
+      memberProfile: { is: { memberId: { not: null } } },
+      OR: [
+        { fullName: { contains: query } },
+        { memberProfile: { is: { memberId: { contains: query } } } },
+      ],
+    },
+    select: {
+      fullName: true,
+      memberProfile: { select: { memberId: true, professionalType: true, institution: true, country: true } },
+    },
+    orderBy: { fullName: 'asc' },
+    take: PUBLIC_LOOKUP_LIMIT,
+  });
+  const items = rows.flatMap((row) => {
+    const profile = row.memberProfile;
+    if (!profile?.memberId) return [];
+    return [{
+      name: row.fullName,
+      memberId: profile.memberId,
+      professionalType: profile.professionalType,
+      institution: profile.institution,
+      country: profile.country ?? '',
+    }];
+  });
+  return { query, listed: items.length > 0, truncated: items.length === PUBLIC_LOOKUP_LIMIT, items };
 }
 
 export async function adminMemberDetail(id: string) {

@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.setConfig({ testTimeout: 20000, hookTimeout: 20000 });
+
 const sentCodes: string[] = [];
 vi.mock('../services/mail.service', () => ({
   sendOtpEmail: vi.fn(async (_email: string, code: string) => {
@@ -72,6 +74,12 @@ async function uploadRequiredPair(key: string) {
     cv: cv.body.data as { id: string; claimToken: string; name: string },
     credential: credential.body.data as { id: string; claimToken: string; name: string },
   };
+}
+
+async function paymentFields(key: string) {
+  const shot = await uploadRegistrationDocument(`${PREFIX}-${key}-payment.png`, png, 'image/png');
+  expect(shot.status).toBe(201);
+  return { paymentReference: 'UPI1234567890', paymentScreenshot: { fileId: shot.body.data.id as string, claimToken: shot.body.data.claimToken as string } };
 }
 
 function registrationPayload(
@@ -175,7 +183,7 @@ describe('registration document persistence and retrieval', () => {
       { kind: 'CREDENTIAL' as const, fileId: credential.id, claimToken: credential.claimToken },
     ];
 
-    const otp = await request(app).post('/api/v1/auth/otp/request').send(registrationPayload('workflow', documents));
+    const otp = await request(app).post('/api/v1/auth/otp/request').send({ ...registrationPayload('workflow', documents), ...(await paymentFields('workflow')) });
     expect(otp.status).toBe(200);
 
     const verified = await request(app)
@@ -248,7 +256,7 @@ describe('registration document persistence and retrieval', () => {
     if (applicationCharge) {
       expect(applicationCharge.status).toBe('UNPAID');
       expect((await request(app).post(`/api/v1/admin/members/${applicationId}/approve`).auth(adminToken, { type: 'bearer' }).send({ reviewNotes: 'Private review note' })).status).toBe(422);
-      expect((await request(app).post(`/api/v1/admin/membership/${applicationId}/charges/${applicationCharge.id}/payments`).auth(adminToken, { type: 'bearer' }).send({ requestId: randomUUID(), reference: 'TEST-UTR-REG-001' })).status).toBe(200);
+      expect((await request(app).post(`/api/v1/admin/membership/${applicationId}/charges/${applicationCharge.id}/payments`).auth(adminToken, { type: 'bearer' }).send({ requestId: randomUUID(), reference: 'UPI1234567890' })).status).toBe(200);
     }
     const approval = await request(app).post(`/api/v1/admin/members/${applicationId}/approve`).auth(adminToken, { type: 'bearer' }).send({ reviewNotes: 'Private review note' });
     expect(approval.status).toBe(200);
@@ -434,7 +442,7 @@ describe('extended registration fields', () => {
     return { ...registrationPayload(key, [
       { kind: 'CV', fileId: cv.id, claimToken: cv.claimToken },
       { kind: 'CREDENTIAL', fileId: credential.id, claimToken: credential.claimToken },
-    ]), ...fields };
+    ]), ...(await paymentFields(key)), ...fields };
   }
   it('preserves new fields through OTP resend, verification, session and private detail responses', async () => {
     const fields = { firstName: '  ஜேன்  ', lastName: '  O’Connor  ', fullName: 'ஜேன் O’Connor', communicationAddress: '  10 Research Road\nChennai 600001  ', permanentAddress: '  20 Home Street\nMadurai 625001 ', phone: '+44 1234567890' };

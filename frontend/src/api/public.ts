@@ -76,6 +76,19 @@ export function homeCarouselImageUrl(path: string) {
   return path.startsWith('http') ? path : `${baseURL}${path}`;
 }
 
+export interface PublicMemberListing {
+  query: string;
+  listed: boolean;
+  truncated: boolean;
+  items: Array<{
+    name: string;
+    memberId: string;
+    professionalType: string;
+    institution: string;
+    country: string;
+  }>;
+}
+
 /** Resolves a DOI to its canonical landing page. */
 export function doiUrl(doi: string) {
   return `https://doi.org/${doi.replace(/^https?:\/\/doi\.org\//i, '')}`;
@@ -96,6 +109,8 @@ export const publicApi = {
   homeCarousel: async (signal?: AbortSignal) =>
     (await apiClient.get<Envelope<{ items: Array<{ id: string; altText: string; displayOrder: number; imageUrl: string }> }>>('/public/home-carousel', { signal })).data.data.items,
   contact: async (payload: unknown) => (await apiClient.post<Envelope<unknown>>('/contact', payload)).data.data,
+  memberListing: async (q: string) =>
+    (await apiClient.get<Envelope<PublicMemberListing>>('/public/members', { params: { q } })).data.data,
   registerCeremony: async (slug: string, payload: {
     fullName: string; email: string; phone: string; institution: string; designation?: string;
     participationType: 'DELEGATE' | 'STUDENT_POSTER' | 'AWARD_NOMINATION'; message?: string; consent: true;

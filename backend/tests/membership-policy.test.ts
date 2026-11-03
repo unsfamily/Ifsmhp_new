@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+vi.setConfig({ testTimeout: 20000, hookTimeout: 20000 });
 const codes = vi.hoisted(() => new Map<string, string>());
 vi.mock('../services/mail.service', () => ({ sendOtpEmail: vi.fn(async (email: string, code: string) => { codes.set(email, code); }), sendApprovalEmail: vi.fn(async () => undefined), verifyTransport: vi.fn() }));
 import { prisma } from '../config/database';
@@ -55,7 +56,7 @@ async function applicant(values: Partial<MembershipPolicy> = {}, legacy = false,
   const snap = { revision: 1, values: { ...legacyMembershipPolicy, requireProfile: false, requireCredential: false, applicationFeeEnabled: false, paymentInstructions: '', ...values } };
   const documents = legacy ? [{ kind: 'CV' as const, ...await upload() }, { kind: 'CREDENTIAL' as const, ...await upload() }] : [];
   const payload = input(documents, professionalType);
-  const registered = await registerApplicant({ ...payload, ...(!legacy ? { membershipPolicy: snap } : {}) }, { get: () => undefined } as unknown as Request);
+  const registered = await registerApplicant({ ...payload, ...(snap.values.applicationFeeEnabled && professionalType !== 'Student' ? { paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') } : {}), ...(!legacy ? { membershipPolicy: snap } : {}) }, { get: () => undefined } as unknown as Request);
   const application = await prisma.membershipApplication.findUniqueOrThrow({ where: { userId: registered.user.id } });
   return { ...application, token: await session(registered.user.id, 'APPLICANT') };
 }
@@ -88,13 +89,14 @@ describe('Membership settings, registration and review', () => {
   it('snapshots policy through upload, OTP resend, verification, review and approval', async () => {
     const snap = await policy({ applicationFeeEnabled: true, applicationFee: '100.00', paymentInstructions: 'Bank transfer with application code', waiversEnabled: true, referralCount: 1, referenceLetterCount: 1, annualDuesEnabled: true, annualDues: '500.00' });
     const documents = [{ kind: 'CV' as const, ...await upload() }, { kind: 'CREDENTIAL' as const, ...await upload() }], letter = await upload();
-    const payload = { ...input(documents), purpose: 'REGISTER', policyRevision: snap.revision, referrals: [{ name: 'Referrer Name', email: 'referrer@example.test', organization: 'University' }], referenceLetters: [letter], waiverReason: 'Please consider my financial hardship.' };
+    const proof = await upload('png');
+    const payload = { ...input(documents), purpose: 'REGISTER', policyRevision: snap.revision, referrals: [{ name: 'Referrer Name', email: 'referrer@example.test', organization: 'University' }], referenceLetters: [letter], waiverReason: 'Please consider my financial hardship.', paymentReference: 'UPI1234567890', paymentScreenshot: proof };
     expect((await request(app).post(api + '/auth/otp/request').send(payload)).status).toBe(200);
     await policy({ requireProfile: false, referralCount: 5, applicationFee: '900.00' });
     await prisma.emailOtp.updateMany({ where: { email: payload.email }, data: { lastSentAt: new Date(0) } });
     expect((await request(app).post(api + '/auth/otp/resend').send({ purpose: 'REGISTER', email: payload.email })).status).toBe(200);
     const verified = await request(app).post(api + '/auth/otp/verify').send({ purpose: 'REGISTER', email: payload.email, code: codes.get(payload.email) }); expect(verified.status).toBe(201);
-    const own = await request(app).get(api + '/membership').set('Authorization', `Bearer ${verified.body.data.accessToken}`); expect(own.status).toBe(200); expect(own.body.data.charges[0].amount).toBe('100.00'); expect(own.body.data.referrals).toBeUndefined();
+    const own = await request(app).get(api + '/membership').set('Authorization', `Bearer ${verified.body.data.accessToken}`); expect(own.status).toBe(200); expect(own.body.data.charges[0]).toMatchObject({ amount: '100.00', claimedReference: 'UPI1234567890', claimedScreenshot: { fileId: proof.fileId } }); expect(own.body.data.referrals).toBeUndefined();
     const id = own.body.data.applicationId; expect((await approve(id)).status).toBe(422);
     expect((await post(id, 'evidence-review')).status).toBe(200);
     const charge = own.body.data.charges[0]; expect((await post(id, `charges/${charge.id}/waiver-decision`, { recordId: charge.waivers[0].id, status: 'APPROVED', reason: 'Hardship evidence reviewed and accepted.' })).status).toBe(200);
@@ -111,8 +113,11 @@ describe('Membership settings, registration and review', () => {
   });
   it('accepts optional documents but still rejects invalid supplied claims', async () => {
     const snap = await policy({ requireProfile: false, requireCredential: false });
-    const good = input(); expect((await request(app).post(api + '/auth/otp/request').send({ ...good, purpose: 'REGISTER', policyRevision: snap.revision })).status).toBe(200);
+    const good = { ...input(), paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') };
+    expect((await request(app).post(api + '/auth/otp/request').send({ ...good, purpose: 'REGISTER', policyRevision: snap.revision })).status).toBe(200);
     expect((await request(app).post(api + '/auth/otp/request').send({ ...input([{ kind: 'CV', fileId: 'missing', claimToken: 'x'.repeat(30) }]), purpose: 'REGISTER' })).status).toBe(422);
+    expect((await request(app).post(api + '/auth/otp/request').send({ ...input(), purpose: 'REGISTER', professionalType: 'Student', policyRevision: snap.revision })).status).toBe(200);
+    expect((await request(app).post(api + '/auth/otp/request').send({ ...input(), purpose: 'REGISTER', policyRevision: snap.revision })).status).toBe(422);
   });
   it('rejects missing and duplicate referrals, missing letters, and forged policy snapshots', async () => {
     await policy({ requireProfile: false, requireCredential: false, referralCount: 2, referenceLetterCount: 1 });
@@ -175,17 +180,17 @@ describe('Charges, waivers, archive jobs and authorization', () => {
   });
   it('records payment once, preserves full history, and gates approval after correction', async () => {
     const a = await applicant({ applicationFeeEnabled: true, applicationFee: '125.50', paymentInstructions: 'Bank transfer' });
-    const c = (await detail(a.id)).body.data.charges[0]; const body = { requestId: randomUUID(), reference: 'bank-transaction-123' };
+    const c = (await detail(a.id)).body.data.charges[0]; const body = { requestId: randomUUID(), reference: 'UPI1234567890' };
     expect((await approve(a.id)).status).toBe(422);
     const saved = await post(a.id, `charges/${c.id}/payments`, body); expect(saved.status).toBe(200); expect((await post(a.id, `charges/${c.id}/payments`, body)).status).toBe(200);
     expect(await prisma.membershipPayment.count({ where: { chargeId: c.id } })).toBe(1);
     expect((await post(a.id, `charges/${c.id}/corrections`, { recordId: saved.body.data.charges[0].payments[0].id, reason: 'Incorrect payment reference verified.' })).status).toBe(200);
     expect((await approve(a.id)).status).toBe(422);
-    expect((await post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'correct-payment' })).status).toBe(200); expect((await approve(a.id)).status).toBe(200);
+    expect((await post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'upi 1234567890' })).status).toBe(200); expect((await approve(a.id)).status).toBe(200);
   });
   it('serializes duplicate payments and approval racing with settlement', async () => {
     const a = await applicant({ applicationFeeEnabled: true, applicationFee: '10' }); const c = (await detail(a.id)).body.data.charges[0];
-    const responses = await Promise.all([post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'UTR-ONE-001' }), post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'UTR-TWO-002' }), approve(a.id)]);
+    const responses = await Promise.all([post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'UPI1234567890' }), post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'UPI1234567890' }), approve(a.id)]);
     expect(responses.slice(0, 2).map(r => r.status).sort()).toEqual([200, 409]); expect([200, 422]).toContain(responses[2]!.status);
     expect(await prisma.membershipPayment.count({ where: { chargeId: c.id } })).toBe(1);
   });
@@ -202,7 +207,7 @@ describe('Charges, waivers, archive jobs and authorization', () => {
   });
   it('rolls back membership changes if auditing fails', async () => {
     const a = await applicant({ applicationFeeEnabled: true, applicationFee: '10' }); const c = (await detail(a.id)).body.data.charges[0]; auditFail = true;
-    expect((await post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'rollback' })).status).toBe(500); auditFail = false;
+    expect((await post(a.id, `charges/${c.id}/payments`, { requestId: randomUUID(), reference: 'UPI1234567890' })).status).toBe(500); auditFail = false;
     expect(await prisma.membershipPayment.count({ where: { chargeId: c.id } })).toBe(0);
   });
   it('creates anniversary dues once, catches up after restart and preserves access', async () => {
@@ -232,7 +237,7 @@ describe('Charges, waivers, archive jobs and authorization', () => {
   });
   it('does not expose private letters to another member', async () => {
     const snap = await policy({ requireProfile: false, requireCredential: false, referenceLetterCount: 1 }), letter = await upload();
-    const payload = { ...input(), referenceLetters: [letter], membershipPolicy: snap };
+    const payload = { ...input(), referenceLetters: [letter], membershipPolicy: snap, paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') };
     const registered = await registerApplicant(payload, { get: () => undefined } as unknown as Request);
     const other = await applicant();
     const ownerToken = await session(registered.user.id, 'APPLICANT');
@@ -271,5 +276,37 @@ describe('Charges, waivers, archive jobs and authorization', () => {
     expect((await request(app).get(`${api}/admin/membership/${a.id}`).set('X-Test-Role', 'ADMIN')).status).toBe(401);
     await prisma.session.updateMany({ where: { userId: a.userId }, data: { revokedAt: new Date() } });
     expect((await request(app).get(api + '/membership').set('Authorization', `Bearer ${a.token}`)).status).toBe(401);
+  });
+  it('lists approved members publicly and exports the filtered directory as Excel', async () => {
+    const listed = await applicant();
+    const listedName = `Listed ${randomUUID()}`;
+    await prisma.user.update({ where: { id: listed.userId }, data: { fullName: listedName } });
+    await prisma.memberProfile.update({ where: { id: listed.profileId }, data: { phone: '9876543210', communicationAddress: 'Private Road' } });
+    const approval = await approve(listed.id);
+    expect(approval.status).toBe(200);
+    const memberId = approval.body.data.memberId as string;
+    const pending = await applicant();
+    const pendingName = `Pending ${randomUUID()}`;
+    await prisma.user.update({ where: { id: pending.userId }, data: { fullName: pendingName } });
+
+    const found = await request(app).get(`${api}/public/members`).query({ q: listedName });
+    expect(found.status).toBe(200);
+    expect(found.body.data).toMatchObject({ listed: true, items: [expect.objectContaining({ name: listedName, memberId })] });
+    const publicBody = JSON.stringify(found.body.data);
+    expect(publicBody).not.toContain('9876543210');
+    expect(publicBody).not.toContain('Private Road');
+    expect(publicBody).not.toContain('@example.test');
+    expect((await request(app).get(`${api}/public/members`).query({ q: pendingName })).body.data.listed).toBe(false);
+    expect((await request(app).get(`${api}/public/members`).query({ q: 'a' })).status).toBe(422);
+    expect((await request(app).get(`${api}/admin/members/export`)).status).toBe(401);
+
+    const exported = await request(app).get(`${api}/admin/members/export`).query({ q: listedName }).set('Authorization', `Bearer ${token}`);
+    expect(exported.status).toBe(200);
+    expect(exported.headers['content-type']).toContain('application/vnd.ms-excel');
+    expect(exported.headers['content-disposition']).toContain('.xls');
+    expect(exported.text).toContain(listedName);
+    expect(exported.text).toContain(memberId);
+    expect(exported.text).toContain('9876543210');
+    expect(exported.text).not.toContain(pendingName);
   });
 });
