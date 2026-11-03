@@ -151,7 +151,7 @@ const initialInquiries: Inquiry[] = [
   {
     id: 'inq-0145', name: 'Dr. Imani Hussein', email: 'ihussein@example.ke', organization: 'Moi University · Psychiatry Residency', country: 'Kenya',
     topic: 'Publications', subject: 'Public listing request — recent publication on postpartum screening',
-    message: 'Our cross-sectional paper published in BMC Psychiatry should appear in the public publications listing. It was uploaded by my co-author (Dr. Wanjiru, IFSMHP-2024-000089) three weeks ago but is not yet visible.',
+    message: 'Our cross-sectional paper published in BMC Psychiatry should appear in the public publications listing. It was uploaded by my co-author (Dr. Wanjiru, IFSMHP-000089) three weeks ago but is not yet visible.',
     receivedAt: '3 days ago', status: 'Responded', replies: 3, assignee: 'Publications Queue',
     priority: 'Normal', attachmentCount: 0, lastActivity: 'Yesterday',
     internalNotes: [

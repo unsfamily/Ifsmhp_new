@@ -78,7 +78,9 @@ export function approvalProblems(app: Application) {
   }
   return problems;
 }
-export async function issueMembershipId(tx: DB, app: Application, supplied?: string, issuedAt = new Date()) {
+/** Storage key for the single automatic counter. The year is not part of the member ID. */
+const globalMemberSequenceYear = 0;
+export async function issueMembershipId(tx: DB, app: Application, supplied?: string) {
   const p = policyFor(app.policySnapshot);
   if (p.idIssuance === 'MANUAL') {
     const parsed = manualMemberId.safeParse(supplied);
@@ -87,10 +89,9 @@ export async function issueMembershipId(tx: DB, app: Application, supplied?: str
     return parsed.data;
   }
   if (supplied) throw ApiError.unprocessable('This application uses automatic member ID issuance.');
-  const year = issuedAt.getUTCFullYear();
   for (let attempt = 0; attempt < 100; attempt++) {
-    const seq = await tx.memberIdSequence.upsert({ where: { year }, create: { year, nextNumber: 2 }, update: { nextNumber: { increment: 1 } } });
-    const memberId = `${p.idPrefix}-${year}-${String(seq.nextNumber - 1).padStart(p.idPadding, '0')}`;
+    const seq = await tx.memberIdSequence.upsert({ where: { year: globalMemberSequenceYear }, create: { year: globalMemberSequenceYear, nextNumber: 2 }, update: { nextNumber: { increment: 1 } } });
+    const memberId = `${p.idPrefix}-${String(seq.nextNumber - 1).padStart(p.idPadding, '0')}`;
     if (!await tx.memberProfile.findUnique({ where: { memberId } })) return memberId;
   }
   throw ApiError.conflict('Unable to allocate an unused member ID. Change the prefix or retry.');

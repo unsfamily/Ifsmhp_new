@@ -1987,7 +1987,7 @@ export async function approveMember(id: string, actorId: string, note?: string, 
     const problems = approvalProblems(app);
     if (problems.length) throw ApiError.unprocessable('Complete the membership requirements before approval.', problems.map(message => ({ field: 'membership', message })));
     const approvedAt = new Date();
-    const memberId = await issueMembershipId(tx, app, suppliedMemberId, approvedAt);
+    const memberId = await issueMembershipId(tx, app, suppliedMemberId);
     const policy = policyFor(app.policySnapshot);
     if (policy.annualDuesEnabled) await createCharge(tx, app.id, 'ANNUAL', policy, approvedAt, actorId);
     await tx.memberProfile.update({ where: { id: app.profileId }, data: { memberId, approvedAt } });

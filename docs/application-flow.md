@@ -61,7 +61,7 @@ This is the product. Almost every member action waits for the Chief Research Off
 
 1. A visitor opens `/membership` and submits `/register`. The API creates `User` (`PENDING`), `MemberProfile` (no member id yet), `MembershipApplication`, credentials, education, research interests, and uploaded documents in one transaction.
 2. The applicant can see application status. They cannot open the member dashboard.
-3. An administrator reviews `/admin/members/pending`. Approval, in one transaction, reserves the next `IFSMHP-YYYY-NNNNNN` id, sets the user to `MEMBER` / `ACTIVE`, and writes status history, a notification, and an audit row. Rejection records a reason and does not issue an id.
+3. An administrator reviews `/admin/members/pending`. Approval, in one transaction, reserves the next `IFSMHP-NNNNNN` id, sets the user to `MEMBER` / `ACTIVE`, and writes status history, a notification, and an audit row. Rejection records a reason and does not issue an id.
 4. The member works in `/dashboard`: profile, research projects, support requests (`MORAL`, `OFFICIAL`, `FUNDING`), publications, messages with the CRO, document exchange, gallery, community, and notifications.
 5. Projects move `DRAFT → SUBMITTED → UNDER_REVIEW → APPROVED` or `REJECTED`. The member can edit a draft or a rejection. Submitted and in-review projects are locked.
 6. Support requests move `PENDING → UNDER_REVIEW → APPROVED` or `REJECTED`, and an approval can later become `COMPLETED`.

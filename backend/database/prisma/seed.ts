@@ -146,7 +146,7 @@ async function main(): Promise<void> {
       status: 'ACTIVE',
       memberProfile: {
         create: {
-          memberId: 'IFSMHP-2026-000001',
+          memberId: 'IFSMHP-000001',
           professionalTitle: 'Clinical Research Scientist',
           professionalType: 'Research Scholar / Scientist',
           institution: 'Stanford Center for Digital Mental Health',
@@ -209,7 +209,7 @@ async function main(): Promise<void> {
     },
   });
 
-  await prisma.memberIdSequence.create({ data: { year: 2026, nextNumber: 2 } });
+  await prisma.memberIdSequence.create({ data: { year: 0, nextNumber: 2 } });
 
   const project = await prisma.project.create({
     data: {
@@ -400,7 +400,7 @@ async function main(): Promise<void> {
       },
       messages: {
         create: [
-          { senderId: member.id, senderName: 'Dr. Sarah Chen (IFSMHP-2026-000001)', senderRole: 'MEMBER', body: 'Could you confirm the next review step?' },
+          { senderId: member.id, senderName: 'Dr. Sarah Chen (IFSMHP-000001)', senderRole: 'MEMBER', body: 'Could you confirm the next review step?' },
           { senderId: admin.id, senderName: 'CRO Office', senderRole: 'ADMIN', body: 'The manuscript is queued for final editorial review.' },
         ],
       },
@@ -410,7 +410,7 @@ async function main(): Promise<void> {
 
   // A few more threads so both inboxes show unread pills, mixed statuses and
   // enough back-and-forth for the response-time metrics to be meaningful.
-  const memberSender = 'Dr. Sarah Chen (IFSMHP-2026-000001)';
+  const memberSender = 'Dr. Sarah Chen (IFSMHP-000001)';
   const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000);
 
   const extraThreads: {
