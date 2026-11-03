@@ -11,6 +11,7 @@ export interface MembershipDetail {
   letters?: { id: string; fileId: string; name: string }[];
   charges: { id: string; kind: string; periodYear: number; amount: string; currency: string; dueAt: string; status: string; overdue: boolean;
     claimedReference: string | null; claimedAt: string | null;
+    claimedScreenshot: { fileId: string; name: string } | null;
     payments: { id: string; reference: string; createdAt: string; reversedAt: string | null; correctionReason: string | null }[];
     waivers: { id: string; status: string; reason: string; decisionReason: string | null; createdAt: string }[];
   }[];

@@ -49,6 +49,8 @@ export interface AdminMemberRow {
   slaDays: number;
   stageSlaDays: number | null; stageSlaTarget: number; stageSlaBreached: boolean;
   highestDegree: string | null;
+  /** True when membership approval is blocked until the application fee is paid or waived. */
+  applicationFeeOutstanding?: boolean;
 }
 
 export interface ApproveResult {

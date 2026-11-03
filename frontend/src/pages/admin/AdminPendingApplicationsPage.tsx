@@ -511,7 +511,12 @@ export default function AdminPendingApplicationsPage() {
                           </td>
                           <td className="py-3.5 px-2 text-right align-top">
                             <div className="inline-flex items-center gap-1.5 justify-end relative">
-                              {open && (
+                              {open && m.applicationFeeOutstanding && (
+                                <span className="hidden sm:inline text-[10px] font-semibold uppercase tracking-wide text-warning-600" title="Record application fee payment before approval">
+                                  Fee unpaid
+                                </span>
+                              )}
+                              {open && !m.applicationFeeOutstanding && (
                                 <button
                                   type="button"
                                   disabled={busy}
@@ -562,13 +567,17 @@ export default function AdminPendingApplicationsPage() {
                                     {open && (
                                       <>
                                         <div className="my-1 border-t border-paper-border" />
-                                        <button
-                                          type="button"
-                                          onClick={() => { setActionMenuOpenId(null); quickApprove(m.id); }}
-                                          className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs font-medium text-success-600 hover:bg-success-100"
-                                        >
-                                          <UserCheck className="h-3.5 w-3.5" /> Approve &amp; issue ID
-                                        </button>
+                                        {m.applicationFeeOutstanding ? (
+                                          <p className="px-3 py-2 text-xs text-warning-600">Record the application fee before approving.</p>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => { setActionMenuOpenId(null); quickApprove(m.id); }}
+                                            className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs font-medium text-success-600 hover:bg-success-100"
+                                          >
+                                            <UserCheck className="h-3.5 w-3.5" /> Approve &amp; issue ID
+                                          </button>
+                                        )}
                                         {/* Rejection needs a written reason, so it happens on the review screen. */}
                                         <Link
                                           to={`/admin/members/${m.id}?decision=reject`}

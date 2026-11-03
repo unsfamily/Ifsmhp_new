@@ -380,6 +380,7 @@ model FileObject {
   communityBanners   Community[] @relation("CommunityBanner")
   communityAttachments CommunityAttachment[]
   communityEvidence CommunityReportEvidence[]
+  paymentScreenshots MembershipCharge[] @relation("PaymentScreenshot")
   eventCovers        Event[]                    @relation("EventCover")
   galleryItems       GalleryItem[]
   homeCarouselSlides HomeCarouselSlide[]
@@ -1592,7 +1593,9 @@ model MembershipCharge {
   claimedReference String? @db.VarChar(191)
   claimedAt DateTime?
   claimedRequestId String? @unique
+  claimedScreenshotFileId String? @unique
   application MembershipApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  claimedScreenshot FileObject? @relation("PaymentScreenshot", fields: [claimedScreenshotFileId], references: [id], onDelete: Restrict)
   payments MembershipPayment[]
   waivers MembershipWaiver[]
   @@unique([applicationId, kind, periodYear])

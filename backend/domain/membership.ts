@@ -33,6 +33,8 @@ export const fileClaimSchema = z.object({ fileId: z.string().min(1), claimToken:
 export const waiverReason = z.string().trim().min(10, 'Explain the request in at least 10 characters.').max(2000);
 export const paymentReference = z.string().trim().min(4, 'Enter a UTR or UPI reference of at least 4 characters.').max(191)
   .regex(/^[A-Za-z0-9][A-Za-z0-9/_.\- ]{2,189}[A-Za-z0-9]$/, 'Use letters, digits, spaces, or / _ . - only.');
+/** Compare UTRs loosely: trim, drop spaces, case-insensitive. */
+export const normalizePaymentReference = (value: string) => value.trim().replace(/\s+/g, '').toUpperCase();
 export const manualMemberId = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_/-]{2,99}$/, 'Use 3–100 letters, digits, hyphens, underscores or slashes.');
 /** Professional type that skips the application registration fee. Exact register-form value. */
 export const APPLICATION_FEE_EXEMPT_TYPE = 'Student';

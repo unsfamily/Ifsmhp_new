@@ -10,7 +10,7 @@ export const ownMembershipRoutes = Router();
 export const adminMembershipRoutes = Router();
 const requestId = z.string().uuid();
 const waiver = z.object({ requestId, reason: waiverReason }).strict();
-const paymentClaim = z.object({ requestId, reference: paymentReference }).strict();
+const paymentClaim = z.object({ requestId, reference: paymentReference, fileId: z.string().min(1), claimToken: z.string().min(20) }).strict();
 const params = z.object({ id: z.string().min(1), chargeId: z.string().min(1) });
 const noStore: import('express').RequestHandler = (_req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); };
 ownMembershipRoutes.use(requireAuth, requireRole('APPLICANT', 'MEMBER'), requireVerifiedSession, noStore);
