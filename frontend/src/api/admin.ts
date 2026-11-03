@@ -293,7 +293,7 @@ export const adminApi = {
     const response = await apiClient.get('/admin/members/export', { params, responseType: 'blob' });
     const disposition = String(response.headers['content-disposition'] ?? '');
     const match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
-    const filename = match?.[1] ? decodeURIComponent(match[1]) : 'ifsmhp-registered-members.xls';
+    const filename = match?.[1] ? decodeURIComponent(match[1]) : 'ifsmhp-registered-members.xlsx';
     const url = URL.createObjectURL(response.data as Blob);
     const anchor = document.createElement('a');
     anchor.href = url;

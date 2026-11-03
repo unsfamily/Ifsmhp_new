@@ -96,7 +96,7 @@ router.get('/members', asyncHandler(async (req, res) => {
 router.get('/members/export', asyncHandler(async (req, res) => {
   const workbook = await service.exportAdminMembers(req);
   await writeAudit({ actorId: req.user!.id, action: 'MemberDirectoryExported', entity: 'Member directory', outcome: 'ACCESS_GRANTED', metadata: { rows: workbook.rows, searchApplied: Object.keys(req.query).length > 0 } });
-  res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(workbook.filename)}`);
   res.setHeader('Cache-Control', 'private, no-store');
   res.send(workbook.body);

@@ -13,6 +13,7 @@ import { sha256, signAccessToken } from '../utils/security';
 import { registerApplicant } from '../services/auth.service';
 import { legacyMembershipPolicy, type MembershipPolicy } from '../domain/membership';
 import { currentMembershipPolicy, runMembershipJobs, anniversary } from '../services/membership-policy.service';
+import { readXlsxEntries } from '../utils/excel-sheet';
 import { updateSettings } from '../services/settings.service';
 import type { Request } from 'express';
 const app = createApp(), prefix = 'membership-policy-test-', api = '/api/v1';
@@ -300,13 +301,18 @@ describe('Charges, waivers, archive jobs and authorization', () => {
     expect((await request(app).get(`${api}/public/members`).query({ q: 'a' })).status).toBe(422);
     expect((await request(app).get(`${api}/admin/members/export`)).status).toBe(401);
 
-    const exported = await request(app).get(`${api}/admin/members/export`).query({ q: listedName }).set('Authorization', `Bearer ${token}`);
+    const exported = await request(app).get(`${api}/admin/members/export`).query({ q: listedName }).set('Authorization', `Bearer ${token}`).buffer(true).parse((res, done) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => done(null, Buffer.concat(chunks)));
+    });
     expect(exported.status).toBe(200);
-    expect(exported.headers['content-type']).toContain('application/vnd.ms-excel');
-    expect(exported.headers['content-disposition']).toContain('.xls');
-    expect(exported.text).toContain(listedName);
-    expect(exported.text).toContain(memberId);
-    expect(exported.text).toContain('9876543210');
-    expect(exported.text).not.toContain(pendingName);
+    expect(exported.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(exported.headers['content-disposition']).toContain('.xlsx');
+    const worksheet = readXlsxEntries(exported.body as Buffer).get('xl/worksheets/sheet1.xml') ?? '';
+    expect(worksheet).toContain(listedName);
+    expect(worksheet).toContain(memberId);
+    expect(worksheet).toContain('9876543210');
+    expect(worksheet).not.toContain(pendingName);
   });
 });
