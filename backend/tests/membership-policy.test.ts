@@ -84,7 +84,42 @@ describe('Membership settings, registration and review', () => {
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { actorId: adminId, action: 'PlatformSettingsUpdated' }, orderBy: { createdAt: 'desc' } });
     expect(audit.metadata).toHaveProperty('changedFields'); expect(JSON.stringify(audit)).not.toContain(values.paymentInstructions);
   });
-  it.each([{ idPrefix: 'bad prefix' }, { idPadding: 3 }, { idPadding: 11 }, { applicationFee: '-1' }, { applicationFee: '1.999' }, { annualDues: 10 }, { currency: 'XXX' }, { referralCount: 6 }, { referralCount: -1 }, { referenceLetterCount: 6 }, { archiveAfterDays: 0 }, { archiveAfterDays: 3651 }, { applicationFeeEnabled: true, applicationFee: '0.00' }, { applicationFeeEnabled: true, applicationFee: '20', paymentInstructions: '' }])('rejects malformed settings %j', async values => {
+  it('publishes the UPI payment link only while a valid UPI ID is set, and audits who changed it', async () => {
+    const initial = await request(app).get(api + '/public/membership-policy');
+    expect(initial.body.data.upiPayment).toBeNull();
+    await policy({ requireProfile: false, requireCredential: false, upiId: 'ifsmhp.fees@hdfcbank', upiPayeeName: 'IFSMHP Forum' });
+    const shown = await request(app).get(api + '/public/membership-policy');
+    expect(shown.body.data.upiPayment).toEqual({ upiId: 'ifsmhp.fees@hdfcbank', payeeName: 'IFSMHP Forum', amount: '100.00', uri: 'upi://pay?pa=ifsmhp.fees@hdfcbank&pn=IFSMHP%20Forum&am=100.00&cu=INR' });
+    expect(shown.body.data.upiId).toBeUndefined();
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { actorId: adminId, action: 'PlatformSettingsUpdated' }, orderBy: { createdAt: 'desc' } });
+    expect(audit.changes).toMatchObject({ upiId: { before: '', after: 'ifsmhp.fees@hdfcbank' }, upiPayeeName: { before: 'IFSMHP', after: 'IFSMHP Forum' } });
+    const destination = await prisma.auditLog.findMany({ where: { actorId: adminId, action: 'PaymentDestinationChanged' } });
+    expect(destination).toHaveLength(1);
+    expect(destination[0]).toMatchObject({ severity: 'WARNING', module: 'SETTINGS', changes: { upiId: { before: '', after: 'ifsmhp.fees@hdfcbank' }, upiPayeeName: { before: 'IFSMHP', after: 'IFSMHP Forum' } } });
+    await policy({ applicationFee: '250.50' });
+    expect((await request(app).get(api + '/public/membership-policy')).body.data.upiPayment.uri).toContain('&am=250.50&cu=INR');
+    expect(await prisma.auditLog.count({ where: { actorId: adminId, action: 'PaymentDestinationChanged' } })).toBe(1);
+    const registered = await registerApplicant({ ...input([], 'Psychologist'), membershipPolicy: await currentMembershipPolicy(), paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') }, { get: () => undefined } as unknown as Request);
+    const stored = await prisma.membershipApplication.findUniqueOrThrow({ where: { userId: registered.user.id } });
+    expect(stored.policySnapshot).toMatchObject({ applicationFee: '250.50' });
+    expect(stored.policySnapshot).not.toHaveProperty('upiId');
+    expect(stored.policySnapshot).not.toHaveProperty('upiPayeeName');
+    expect((await detail(stored.id)).body.data.charges[0]).toMatchObject({ kind: 'APPLICATION', amount: '250.50', status: 'UNPAID' });
+    await policy({ currency: 'USD' });
+    expect((await request(app).get(api + '/public/membership-policy')).body.data.upiPayment).toBeNull();
+    await policy({ currency: 'INR', upiId: '' });
+    expect((await request(app).get(api + '/public/membership-policy')).body.data.upiPayment).toBeNull();
+  });
+  it('lets only an administrator change the UPI ID', async () => {
+    const a = await applicant();
+    const body = { expectedRevision: 0, values: { upiId: 'attacker@examplebank' } };
+    expect((await request(app).patch(api + '/admin/settings/membership').send(body)).status).toBe(401);
+    expect((await request(app).patch(api + '/admin/settings/membership').set('Authorization', `Bearer ${a.token}`).send(body)).status).toBe(403);
+    expect((await currentMembershipPolicy()).values.upiId).toBe('');
+    expect((await request(app).get(api + '/public/membership-policy')).body.data.upiPayment).toBeNull();
+  });
+  it.each([{ upiId: 'not a upi id' }, { upiId: 'ifsmhp@hdfcbank&am=1' }, { upiId: 'ifsmhp@hdfcbank&pa=attacker@examplebank' }, { upiId: 'upi://pay?pa=attacker@examplebank' }, { upiId: 42 }, { upiPayeeName: 'IFSMHP&am=1' }, { upiId: 'ifsmhp@hdfcbank', upiPayeeName: '' },
+    { idPrefix: 'bad prefix' }, { idPadding: 3 }, { idPadding: 11 }, { applicationFee: '-1' }, { applicationFee: '1.999' }, { annualDues: 10 }, { currency: 'XXX' }, { referralCount: 6 }, { referralCount: -1 }, { referenceLetterCount: 6 }, { archiveAfterDays: 0 }, { archiveAfterDays: 3651 }, { applicationFeeEnabled: true, applicationFee: '0.00' }, { applicationFeeEnabled: true, applicationFee: '20', paymentInstructions: '' }])('rejects malformed settings %j', async values => {
     const response = await request(app).patch(api + '/admin/settings/membership').set('Authorization', `Bearer ${token}`).send({ expectedRevision: 0, values }); expect(response.status).toBe(422); expect((await currentMembershipPolicy()).revision).toBe(0);
   });
   it('snapshots policy through upload, OTP resend, verification, review and approval', async () => {

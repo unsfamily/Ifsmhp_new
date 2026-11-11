@@ -1,6 +1,8 @@
 import { apiClient } from '../api/client';
-import type { MembershipPolicy } from '../../../backend/domain/membership';
-export type RegistrationPolicy = Pick<MembershipPolicy, 'requireProfile' | 'requireCredential' | 'referralCount' | 'referenceLetterCount' | 'applicationFeeEnabled' | 'applicationFee' | 'annualDuesEnabled' | 'annualDues' | 'currency' | 'waiversEnabled' | 'paymentInstructions'> & { revision: number };
+import type { MembershipPolicy, UpiPayment } from '../../../backend/domain/membership';
+export type { UpiPayment };
+/** `upiPayment` is absent from an API that predates the UPI QR code, and null when no UPI ID is configured. */
+export type RegistrationPolicy = Pick<MembershipPolicy, 'requireProfile' | 'requireCredential' | 'referralCount' | 'referenceLetterCount' | 'applicationFeeEnabled' | 'applicationFee' | 'annualDuesEnabled' | 'annualDues' | 'currency' | 'waiversEnabled' | 'paymentInstructions'> & { revision: number; upiPayment?: UpiPayment | null };
 export interface MembershipDetail {
   applicationId: string; applicationCode: string; status: string; memberId: string | null;
   archivedAt: string | null; archiveSuppressed: boolean; evidenceReviewedAt: string | null;

@@ -18,7 +18,7 @@ const groups: Record<string, string[]> = {
   EVENT: ['EventCreated', 'EventUpdated', 'EventPublished', 'EventCancelled', 'EventDeleted', 'EventScheduledPublished', 'EventDeliveryOutcome', 'CeremonyInterestRegistered', 'AwardNominationSubmitted'],
   ANNOUNCEMENT: ['AnnouncementSaved', 'Announcementpreview', 'Announcementretry', 'Announcementsend', 'Announcementschedule', 'Announcementcancel', 'Announcementdelete', 'AnnouncementSignOff', 'AnnouncementExpired', 'AnnouncementDispatchStarted', 'AnnouncementDeliveryUpdated', 'AnnouncementRead', 'AnnouncementUnread', 'AnnouncementEmailUnsubscribed'],
   REPORT: ['ReportGenerated', 'ReportExported', 'AuditLogExported'],
-  NOTIFICATION: ['NotificationsRead', 'NotificationsUnread', 'AdminPreferencesUpdated', 'AdminEmailDeliveryOutcome'], SYSTEM: ['SeedCreated'], SETTINGS: ['PlatformSettingsUpdated', 'HomeCarouselUploaded', 'HomeCarouselUpdated', 'HomeCarouselDeleted', 'HomeCarouselReordered'], OTHER: [],
+  NOTIFICATION: ['NotificationsRead', 'NotificationsUnread', 'AdminPreferencesUpdated', 'AdminEmailDeliveryOutcome'], SYSTEM: ['SeedCreated'], SETTINGS: ['PlatformSettingsUpdated', 'PaymentDestinationChanged', 'HomeCarouselUploaded', 'HomeCarouselUpdated', 'HomeCarouselDeleted', 'HomeCarouselReordered'], OTHER: [],
 };
 export const eventRegistry = Object.entries(groups).flatMap(([module, actions]) => actions.map(action => ({ action, module })));
 export function classifyAction(action: string): string {
@@ -29,7 +29,7 @@ export function classifyAction(action: string): string {
 }
 export function eventSeverity(action: string): 'INFO' | 'SUCCESS' | 'WARNING' | 'DANGER' {
   if (/reject|block|loginfailed|passwordresetfailed|throttled/i.test(action)) return 'DANGER';
-  if (/accessgranted|accessdenied|suspend|warn|role|delete|cancel|hide_content|membershipremove/i.test(action)) return 'WARNING';
+  if (/accessgranted|accessdenied|suspend|warn|role|delete|cancel|hide_content|membershipremove|paymentdestination/i.test(action)) return 'WARNING';
   if (/approv|publish|complet|resolv|loginsucceeded|deliveryoutcome|memberidissued/i.test(action)) return 'SUCCESS';
   return 'INFO';
 }
