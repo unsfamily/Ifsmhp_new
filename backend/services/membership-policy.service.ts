@@ -5,7 +5,7 @@ import { prisma } from '../config/database';
 import { effectiveSettings } from './settings.service';
 import { writeAudit } from './audit.service';
 import { ApiError } from '../utils/ApiError';
-import { legacyMembershipPolicy, membershipSettings, manualMemberId, isApplicationFeeExempt, normalizePaymentReference, paymentReference, type MembershipPolicy, type MembershipPolicySnapshot } from '../domain/membership';
+import { applicationFeeUpiPayment, legacyMembershipPolicy, membershipSettings, manualMemberId, isApplicationFeeExempt, normalizePaymentReference, paymentReference, type MembershipPolicy, type MembershipPolicySnapshot } from '../domain/membership';
 import { resolveRegistrationDocuments, verifyRegistrationClaimToken, type RegistrationDocumentClaim } from './registration-documents.service';
 type DB = Prisma.TransactionClient;
 export const policyFor = (value: unknown): MembershipPolicy => value == null ? { ...legacyMembershipPolicy } : membershipSettings.parse(value);
@@ -15,7 +15,8 @@ export async function currentMembershipPolicy(): Promise<MembershipPolicySnapsho
 }
 export async function publicMembershipPolicy() {
   const { values: p, revision } = await currentMembershipPolicy();
-  return { revision, requireProfile: p.requireProfile, requireCredential: p.requireCredential, referralCount: p.referralCount, referenceLetterCount: p.referenceLetterCount, applicationFeeEnabled: p.applicationFeeEnabled, applicationFee: p.applicationFee, annualDuesEnabled: p.annualDuesEnabled, annualDues: p.annualDues, currency: p.currency, waiversEnabled: p.waiversEnabled, paymentInstructions: p.paymentInstructions, razorpayEnabled: env.razorpayConfigured && p.currency === 'INR' };
+  const payOnline = env.razorpayConfigured && p.currency === 'INR';
+  return { revision, requireProfile: p.requireProfile, requireCredential: p.requireCredential, referralCount: p.referralCount, referenceLetterCount: p.referenceLetterCount, applicationFeeEnabled: p.applicationFeeEnabled, applicationFee: p.applicationFee, annualDuesEnabled: p.annualDuesEnabled, annualDues: p.annualDues, currency: p.currency, waiversEnabled: p.waiversEnabled, paymentInstructions: payOnline ? '' : p.paymentInstructions, upiPayment: payOnline ? null : applicationFeeUpiPayment(p), razorpayEnabled: payOnline };
 }
 export interface RegistrationEvidence {
   documents: RegistrationDocumentClaim[];

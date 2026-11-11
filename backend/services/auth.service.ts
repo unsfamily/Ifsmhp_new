@@ -1,5 +1,5 @@
 import { currentMembershipPolicy, policyFor, validateMembershipEvidence, createCharge, assertRegistrationPayment, recordRegistrationPayment } from './membership-policy.service';
-import { isApplicationFeeExempt } from '../domain/membership';
+import { isApplicationFeeExempt, policySnapshotValues } from '../domain/membership';
 import type { MembershipPolicySnapshot } from '../domain/membership';
 import { notifyAdmins } from './admin-notifications.service';
 import { newAdminPassword } from '../domain/admin-profile';
@@ -247,7 +247,7 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
     const application = await tx.membershipApplication.create({
       data: {
         applicationCode: code,
-        ...(input.membershipPolicy ? { policySnapshot: policy as unknown as Prisma.InputJsonValue, policyRevision: input.membershipPolicy.revision } : {}),
+        ...(input.membershipPolicy ? { policySnapshot: policySnapshotValues(policy) as unknown as Prisma.InputJsonValue, policyRevision: input.membershipPolicy.revision } : {}),
         referrals: { create: referrals },
         referenceLetters: { create: letters.map(l => ({ fileId: l.fileId })) },
         userId: user.id,

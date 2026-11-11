@@ -45,6 +45,8 @@ const groups: Record<SettingsSection, Group[]> = {
       { key: 'annualDuesEnabled', label: 'Enable annual dues', type: 'checkbox', hint: 'Charged at approval and each anniversary. Due within 30 days; overdue dues do not suspend access.' },
       { key: 'annualDues', label: 'Annual dues amount' },
       { key: 'paymentInstructions', label: 'Payment instructions', type: 'textarea', hint: 'Explain how to pay outside the app. Administrators record received payments.' },
+      { key: 'upiId', label: 'UPI ID for the payment QR code', hint: 'For example name@bank. When Razorpay is not configured, the registration form shows a QR code for the INR application fee beside the instructions. While Razorpay is configured, applicants pay there and this QR stays hidden. Check every character. Leave blank to hide the QR code.' },
+      { key: 'upiPayeeName', label: 'UPI payee name', hint: 'The account holder name applicants are asked to check for before they pay. Enter it as a UPI app shows it for this UPI ID.' },
       { key: 'waiversEnabled', label: 'Allow financial hardship waiver requests', type: 'checkbox' },
     ] },
     { title: 'Referrals, References & Archival', fields: [
@@ -98,7 +100,7 @@ export default function AdminSettingsPage() {
       if (f.type === 'checkbox') return <div key={f.key} className="sm:col-span-2"><Checkbox id={`setting-${f.key}`} name={f.key} label={f.label} checked={Boolean(values[f.key])} onChange={e => set(f.key, e.target.checked)} /><p className="text-xs text-ink-subtle">{error || f.hint}</p></div>;
       if (f.type === 'textarea') return <TextArea key={f.key} {...common} className="sm:col-span-2" value={String(values[f.key])} onChange={e => set(f.key, e.target.value)} />;
       if (f.options) return <SelectInput key={f.key} {...common} value={String(values[f.key])} onChange={e => set(f.key, f.key === 'reminderDays' ? Number(e.target.value) : e.target.value)}>{f.options.map(o => <option key={o}>{o}</option>)}</SelectInput>;
-      return <TextInput key={f.key} {...common} type={f.type ?? 'text'} value={String(values[f.key])} onChange={e => set(f.key, f.type === 'number' ? e.target.value === '' ? '' : Number(e.target.value) : e.target.value)} />;
+      return <TextInput key={f.key} {...common} type={f.type ?? 'text'} value={String(values[f.key] ?? '')} onChange={e => set(f.key, f.type === 'number' ? e.target.value === '' ? '' : Number(e.target.value) : e.target.value)} />;
     })}</fieldset>}{group.unavailable && <><p className="text-sm text-ink-muted">{group.reason}</p><div className="grid gap-3 sm:grid-cols-2">{group.unavailable.map(label => <div key={label} className="flex items-center justify-between gap-2 p-3 rounded-lg border border-paper-border"><span className="text-sm text-ink-muted">{label}</span><Badge variant="default">Unavailable</Badge></div>)}</div></>}</CardContent></Card>)}
     <div className="flex flex-wrap gap-2 justify-end">{buttons}</div><p className="text-xs text-ink-subtle">Supported settings take effect after saving. <Link className="text-forum-700 underline" to="/admin/audit-log?module=SETTINGS">View configuration audit trail</Link></p></div></div>
   </div>;

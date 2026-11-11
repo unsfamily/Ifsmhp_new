@@ -5,6 +5,7 @@ import { settingsDefaults, settingsSchemas, sections, type SettingsSection, type
 import { ApiError } from '../utils/ApiError';
 import { writeAudit } from './audit.service';
 type DB = Prisma.TransactionClient;
+const paymentDestinationKeys = ['upiId', 'upiPayeeName'];
 export async function effectiveSettings(db: DB = prisma): Promise<SettingsValues> {
   const values = structuredClone(settingsDefaults);
   const rows = await db.platformSetting.findMany();
@@ -46,6 +47,7 @@ export async function updateSettings(actorId: string, section: SettingsSection, 
         if (next[flag!] && Number(next[amount!]) <= 0) throw ApiError.unprocessable('Enter a positive fee.', [{ field: amount!, message: 'Must be greater than zero when enabled.' }]);
       }
       if ((next.applicationFeeEnabled || next.annualDuesEnabled) && !next.paymentInstructions) throw ApiError.unprocessable('Enter payment instructions.', [{ field: 'paymentInstructions', message: 'Explain how to pay outside the application.' }]);
+      if (next.upiId && !next.upiPayeeName) throw ApiError.unprocessable('Enter the UPI payee name.', [{ field: 'upiPayeeName', message: 'Required when a UPI ID is set.' }]);
     }
     const keys = Object.keys(patch).filter(key => before[key] !== next[key]);
     if (!keys.length) { await tx.settingRevision.update({ where: { section }, data: { revision } }); return; }
@@ -53,6 +55,9 @@ export async function updateSettings(actorId: string, section: SettingsSection, 
     await tx.settingRevision.update({ where: { section }, data: { updatedBy: actorId, updatedAt: new Date() } });
     const changes = Object.fromEntries(keys.filter(k => !['signature', 'maintenanceMessage', 'address', 'paymentInstructions'].includes(k)).map(k => [k, { before: before[k], after: next[k] }]));
     await writeAudit({ actorId, action: 'PlatformSettingsUpdated', entity: `PlatformSetting ${section}`, entityType: 'PlatformSetting', entityId: section, changes, metadata: { changedFields: keys }, description: `Updated ${section} settings.` }, tx);
+    // Where applicants send money changed. Record it as its own warning-level event so it stands out from routine settings.
+    const destination = keys.filter(k => paymentDestinationKeys.includes(k));
+    if (destination.length) await writeAudit({ actorId, action: 'PaymentDestinationChanged', entity: `PlatformSetting ${section}`, entityType: 'PlatformSetting', entityId: section, changes: Object.fromEntries(destination.map(k => [k, { before: before[k], after: next[k] }])), metadata: { changedFields: destination } }, tx);
   });
   return getSettings();
 }
