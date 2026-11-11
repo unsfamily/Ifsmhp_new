@@ -1,11 +1,37 @@
 ---
-description: Read the IFSMHP agents before changing this project
+description: Read the IFSMHP orchestrator, stage subagents, and skills before changing or releasing this project
 alwaysApply: true
 ---
 
-# Include IFSMHP agents
+# Include IFSMHP Orchestrator & Stage Agents
 
-Before editing, deploying, or running this project, read the agent that matches the work and follow it.
+Before editing, testing, reviewing, creating/merging PRs, or deploying this project, follow the **IFSMHP Agentic SDLC Pipeline** governed by `.cursor/agents/ifsmhp-orchestrator.md` and `.cursor/skills/ifsmhp-sdlc-pipeline/SKILL.md`.
+
+## Master Orchestrator & Connected Skills
+
+| Role | Artifact |
+|---|---|
+| **End-to-End Agentic Workflow Spec** | `docs/agentic-workflow.md` |
+| **Master Supervisor / Flow Controller** | `.cursor/agents/ifsmhp-orchestrator.md` |
+| **SDLC Pipeline Skill & Handoff Contracts** | `.cursor/skills/ifsmhp-sdlc-pipeline/SKILL.md` + `CONTRACTS.md` |
+| **Local Runtime & Operations Skill** | `.cursor/skills/ifsmhp-operate/SKILL.md` |
+
+## Sequential Pipeline Subagents (Stage 1 → Stage 8)
+
+Execute stages sequentially via `ifsmhp-orchestrator`. Every stage returns a structured `handoff_envelope` verified by the orchestrator before advancing:
+
+| Order | Stage | Agent | Mode |
+|---|---|---|---|
+| **1** | Development Coding | `.cursor/agents/ifsmhp-development.md` | Read/Write |
+| **2** | Unit & Integration Testing | `.cursor/agents/ifsmhp-unit-test.md` | Read/Write |
+| **3** | Code Review | `.cursor/agents/ifsmhp-code-review.md` | `readonly` |
+| **4** | Security Audit (`R1`–`R5`, `I.1`–`I.17`) | `.cursor/agents/ifsmhp-security.md` | `readonly` |
+| **5** | Pull Request Creation | `.cursor/agents/ifsmhp-pr-creator.md` | Read/Write |
+| **6** | Pull Request Validation | `.cursor/agents/ifsmhp-pr-validator.md` | `readonly` |
+| **7** | Pull Request Merge | `.cursor/agents/ifsmhp-pr-merger.md` | Read/Write (explicit merge request only) |
+| **8** | Production Deployment | `.cursor/agents/ifsmhp-deployment.md` | Read/Write (explicit deploy request only) |
+
+## Operational Specialists (Invoked by Orchestrator / Stage 8)
 
 | Work | Read first |
 |---|---|
@@ -13,8 +39,8 @@ Before editing, deploying, or running this project, read the agent that matches 
 | Frontend build or Hostinger publish | `.cursor/agents/ifsmhp-frontend-release.md` |
 | PR merge, deployment, or hosting verification | `.cursor/agents/ifsmhp-release-verifier.md` |
 
-Read every agent whose work the change touches. After a deploy or PR, run the release verifier before calling the work done. Also follow `.cursor/skills/ifsmhp-operate/SKILL.md` for local setup.
+Read every agent whose work the change touches. On any `FAIL` in Stages 2–4 or 6, loop back to Stage 1 (`ifsmhp-development`) and re-verify from Stage 2. Stop after Stage 6 (validated PR) unless the user asked to merge or deploy. After any deploy or PR merge, run `.cursor/agents/ifsmhp-release-verifier.md` before calling the work done.
 
-Work as a senior engineer: keep the change small, do not commit secrets, prove the result with a test or a live check, and do not claim a release is complete until the verifier passes.
+Work as a senior engineer: keep the change small, do not commit secrets or unrelated dirty files, prove the result with a test or a live check, and do not claim a release is complete until the verifier passes.
 
 Ask the user only before a critical change: deleting or resetting production data, changing the `www`, `@`, or `ftp` DNS records, replacing a working certificate, opening a new public port, or touching any server other than the `ifsmhp` instance.

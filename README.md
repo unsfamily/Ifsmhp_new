@@ -223,13 +223,15 @@ Documented in Milestone 18. Non-negotiables already established: HTTPS with HSTS
 
 | Document | Contents |
 |---|---|
+| [`docs/agentic-workflow.md`](docs/agentic-workflow.md) | End-to-end multi-agent SDLC architecture, 8-stage pipeline, handoff contracts, remediation loops, and invocation guide |
+| [`AGENTS.md`](AGENTS.md) | Quick-reference index of the orchestrator, stage subagents, operational specialists, and skills |
 | [`docs/application-flow.md`](docs/application-flow.md) | How a request moves through the SPA, API, and database, and the membership workflow |
 | [`docs/operations.md`](docs/operations.md) | Configure, run, test, and deploy on this machine |
 | [`docs/architecture.md`](docs/architecture.md) | System architecture, data model, permissions, state machines, security review, open questions |
 | [`docs/api.md`](docs/api.md) | Endpoint reference |
 | [`docs/requirements-traceability.md`](docs/requirements-traceability.md) | Requirement → status → frontend/API/database mapping |
 
-Day-to-day run, test, and deploy work is handled by the project subagent [`.cursor/agents/ifsmhp-operator.md`](.cursor/agents/ifsmhp-operator.md). Ask for the IFSMHP operator when you want that workflow.
+End-to-end feature delivery, testing, review, security auditing, PR lifecycle, and production deployment are orchestrated by [`.cursor/agents/ifsmhp-orchestrator.md`](.cursor/agents/ifsmhp-orchestrator.md) (see [`docs/agentic-workflow.md`](docs/agentic-workflow.md)), with day-to-day runtime and deploy operations delegated to [`.cursor/agents/ifsmhp-operator.md`](.cursor/agents/ifsmhp-operator.md).
 
 ## Development principles
 
