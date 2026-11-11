@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { membershipService, type MembershipDetail } from '../../services/membershipService';
-import { openRazorpayCheckout } from '../../services/razorpayCheckout';
+import { openRazorpayCheckout, RazorpayCheckoutError } from '../../services/razorpayCheckout';
 import { apiClient, normalizeError } from '../../api/client';
 import { uploadRegistrationDocument } from '../../api/auth';
 import { useAuth } from '../../context/AuthContext';
@@ -64,7 +64,7 @@ export default function MembershipPanel({ id, onChange }: { id?: string; onChang
       if (!mounted.current || owner.current !== identity) return;
       setData(next); callback.current?.(next); setSuccess('Payment received. An administrator still approves membership separately.');
     } catch (e) {
-      if (mounted.current && owner.current === identity) setError(e instanceof Error && e.message === 'Payment was not completed.' ? e.message : normalizeError(e).message);
+      if (mounted.current && owner.current === identity) setError(e instanceof RazorpayCheckoutError ? e.message : normalizeError(e).message);
     } finally {
       if (mounted.current && owner.current === identity) { lock.current = false; setBusy(false); }
     }
