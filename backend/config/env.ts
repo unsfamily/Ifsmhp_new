@@ -47,6 +47,10 @@ const envSchema = z.object({
   ADMIN_AVATAR_MAX_UPLOAD_MB: z.coerce.number().int().positive().max(25).default(5),
   MEMBER_AVATAR_MAX_UPLOAD_MB: z.coerce.number().int().positive().max(25).default(5),
   MEMBERSHIP_WORKER_ENABLED: z.enum(['true', 'false']).default('true').transform(v => v === 'true'),
+  /** Razorpay key id is public. The secret and webhook secret never leave the server. Both key fields unset keeps the offline UTR flow. */
+  RAZORPAY_KEY_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  RAZORPAY_KEY_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  RAZORPAY_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   ADMIN_EMAIL_WORKER_ENABLED: z.enum(['true', 'false']).default('true').transform(v => v === 'true'),
   GALLERY_MAX_UPLOAD_MB: z.coerce.number().int().positive().max(1024).default(100),
   GALLERY_FFPROBE_PATH: z.string().optional(),
@@ -117,6 +121,9 @@ const envSchema = z.object({
   if (data.AWS_S3_KEY_PREFIX?.includes('..')) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['AWS_S3_KEY_PREFIX'], message: 'AWS_S3_KEY_PREFIX must not contain "..".' });
   }
+  if (Boolean(data.RAZORPAY_KEY_ID) !== Boolean(data.RAZORPAY_KEY_SECRET)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['RAZORPAY_KEY_SECRET'], message: 'RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must both be set.' });
+  }
 
   let remote = false;
   try {
@@ -170,6 +177,8 @@ export const env = {
     .filter(Boolean),
   /** S3 + CloudFront are ready for public media delivery. */
   s3Configured: Boolean(raw.AWS_REGION && raw.AWS_S3_BUCKET && raw.AWS_CLOUDFRONT_URL),
+  /** Razorpay Standard Checkout can collect an INR charge. The key secret never leaves the server. */
+  razorpayConfigured: Boolean(raw.RAZORPAY_KEY_ID && raw.RAZORPAY_KEY_SECRET),
 } as const;
 
 export type Env = typeof env;

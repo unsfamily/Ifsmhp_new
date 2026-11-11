@@ -264,7 +264,7 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
     }
     if (policy.applicationFeeEnabled && !isApplicationFeeExempt(input.professionalType)) {
       const charge = await createCharge(tx, application.id, 'APPLICATION', policy, new Date(), user.id);
-      if (input.membershipPolicy) await recordRegistrationPayment(tx, user.id, charge.id, input);
+      if (input.membershipPolicy && input.paymentScreenshot) await recordRegistrationPayment(tx, user.id, charge.id, input);
       if (input.waiverReason) {
         await tx.membershipWaiver.create({ data: { chargeId: charge.id, requestId: `registration:${application.id}`, reason: input.waiverReason, requestedBy: user.id } });
         await writeAudit({ actorId: user.id, action: 'MembershipWaiverRequested', entity: `MembershipApplication ${application.id}`, entityId: application.id }, tx);

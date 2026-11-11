@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { membershipService, type MembershipDetail } from '../../services/membershipService';
+import { openRazorpayCheckout } from '../../services/razorpayCheckout';
 import { apiClient, normalizeError } from '../../api/client';
 import { uploadRegistrationDocument } from '../../api/auth';
 import { useAuth } from '../../context/AuthContext';
@@ -11,6 +13,8 @@ type Action = { path: string; label: string; needsText: boolean; payload: Record
 const isReferencePath = (path: string) => path.endsWith('/payments') || path.endsWith('/payment-claims');
 export default function MembershipPanel({ id, onChange }: { id?: string; onChange?: (data: MembershipDetail) => void }) {
   const { user } = useAuth(), identity = `${user?.id}:${user?.role}:${user?.status}:${id}`;
+  const [searchParams] = useSearchParams();
+  const paymentResult = searchParams.get('payment');
   const owner = useRef(identity); owner.current = identity;
   const callback = useRef(onChange); callback.current = onChange;
   const [data, setData] = useState<MembershipDetail | null>(null), [error, setError] = useState(''), [success, setSuccess] = useState('');
@@ -49,6 +53,22 @@ export default function MembershipPanel({ id, onChange }: { id?: string; onChang
     } catch (e) { if (mounted.current && owner.current === identity) { const error = normalizeError(e); setError([error.message, ...Object.values(error.fieldErrors)].join(' ')); if ([401, 403].includes(error.status ?? 0)) setData(null); } }
     finally { if (mounted.current && owner.current === identity) { lock.current = false; setBusy(false); } }
   };
+  const payWithRazorpay = async (chargeId: string) => {
+    if (lock.current) return;
+    lock.current = true; setBusy(true); setError('');
+    try {
+      const checkout = await membershipService.razorpay(chargeId);
+      if (!mounted.current || owner.current !== identity) return;
+      const response = await openRazorpayCheckout(checkout);
+      const next = await membershipService.razorpayConfirm(chargeId, { orderId: response.razorpay_order_id, paymentId: response.razorpay_payment_id, signature: response.razorpay_signature });
+      if (!mounted.current || owner.current !== identity) return;
+      setData(next); callback.current?.(next); setSuccess('Payment received. An administrator still approves membership separately.');
+    } catch (e) {
+      if (mounted.current && owner.current === identity) setError(e instanceof Error && e.message === 'Payment was not completed.' ? e.message : normalizeError(e).message);
+    } finally {
+      if (mounted.current && owner.current === identity) { lock.current = false; setBusy(false); }
+    }
+  };
   const download = async (fileId: string, name: string) => {
     try { const response = await apiClient.get(`/files/${fileId}/download`, { responseType: 'blob' }); if (!mounted.current || owner.current !== identity) return; const url = URL.createObjectURL(response.data); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
     catch (e) { if (mounted.current && owner.current === identity) setError(normalizeError(e).message); }
@@ -60,14 +80,16 @@ export default function MembershipPanel({ id, onChange }: { id?: string; onChang
   const evidenceDone = !!data?.evidenceReviewedAt || !(data?.policy.requireProfile || data?.policy.requireCredential || (data?.policy.referralCount ?? 0) || (data?.policy.referenceLetterCount ?? 0));
   return <Card><CardHeader><h2 className="font-display text-xl font-semibold">Membership requirements & payments</h2></CardHeader><CardContent className="space-y-4">
     {error && <p role="alert" className="text-danger-700">{error}</p>}{success && <p role="status" className="text-success-700">{success}</p>}
+    {paymentResult === 'success' && <p role="status" className="rounded-lg bg-success-100 px-3 py-2 text-sm text-success-700">Payment received. An administrator still approves membership separately.</p>}
+    {paymentResult === 'failed' && <p role="alert" className="rounded-lg bg-danger-100 px-3 py-2 text-sm text-danger-700">Payment was not completed. You can try Razorpay again.</p>}
     {!data ? <>{!error && <p role="status">Loading membership details…</p>}{error && <Button onClick={() => setReload(n => n + 1)}>Retry membership details</Button>}</> : <>
       <p>{data.applicationCode ? `Application ${data.applicationCode}` : 'Membership account'} · {data.status}{data.memberId ? ` · ${data.memberId}` : ''}{data.archivedAt ? ' · Archived' : ''}</p>
       {pending && !id && <ol className="list-decimal space-y-1 rounded-lg border border-paper-border bg-paper/60 p-3 pl-8 text-sm">
-        <li>{data.applicationFeeExempt || !applicationCharge ? 'No application fee — student membership can be approved without payment.' : feeSettled ? 'Your application fee is recorded or waived.' : 'Pay the fee using the instructions below, then submit your UTR / UPI reference and a payment screenshot. The screenshot is required.'}</li>
-        <li>An administrator matches your UTR to the bank statement, records payment, reviews documents, then approves membership. You are not a member until that approval.</li>
+        <li>{data.applicationFeeExempt || !applicationCharge ? 'No application fee — student membership can be approved without payment.' : feeSettled ? 'Your application fee is recorded or waived.' : data.razorpayEnabled ? 'Pay the application fee with Razorpay. Membership is granted only after that payment succeeds and an administrator approves it.' : 'Pay the fee using the instructions below, then submit your UTR / UPI reference and a payment screenshot. The screenshot is required.'}</li>
+        <li>{data.razorpayEnabled && !feeSettled ? 'After Razorpay confirms the fee, an administrator reviews the application and approves membership. You are not a member until that approval.' : 'An administrator matches your UTR to the bank statement, records payment, reviews documents, then approves membership. You are not a member until that approval.'}</li>
       </ol>}
       {pending && id && <ol className="list-decimal space-y-1 rounded-lg border border-paper-border bg-paper/60 p-3 pl-8 text-sm">
-        <li>{data.applicationFeeExempt || !applicationCharge ? 'No application fee for this applicant (Student).' : feeSettled ? 'Application fee recorded or waived — approval may proceed once evidence is confirmed.' : 'Verify the UTR in the bank statement, then record payment. Approval stays blocked until the fee is PAID or WAIVED.'}</li>
+        <li>{data.applicationFeeExempt || !applicationCharge ? 'No application fee for this applicant (Student).' : feeSettled ? 'Application fee recorded or waived — approval may proceed once evidence is confirmed.' : data.razorpayEnabled ? 'The applicant pays this fee in Razorpay. Approval stays blocked until Razorpay confirms it, you record it, or a waiver is approved.' : 'Verify the UTR in the bank statement, then record payment. Approval stays blocked until the fee is PAID or WAIVED.'}</li>
         <li>{evidenceDone ? 'Required documents and references reviewed.' : 'Confirm documents and references have been reviewed.'}</li>
         <li>Approve membership separately to issue the member ID — only after payment (unless Student / waived).</li>
       </ol>}
@@ -90,7 +112,8 @@ export default function MembershipPanel({ id, onChange }: { id?: string; onChang
         {c.claimedReference && <p className="text-sm">Submitted payment reference: {c.claimedReference}{c.claimedAt ? ` · ${new Date(c.claimedAt).toLocaleString()}` : ''}{c.status === 'UNPAID' ? ' · awaiting admin verification' : ''}</p>}
         {c.claimedScreenshot && <p className="text-sm">Payment screenshot: <button type="button" className="font-medium text-forum-700 underline" onClick={() => void download(c.claimedScreenshot!.fileId, c.claimedScreenshot!.name)}>{c.claimedScreenshot.name}</button></p>}
         <div className="flex flex-wrap gap-2">
-          {!id && c.status === 'UNPAID' && data.status !== 'REJECTED' && <Button disabled={busy} variant="outline" onClick={() => choose(`charges/${c.id}/payment-claims`, c.claimedReference ? 'Update payment reference' : 'Submit payment reference', {}, true, c.claimedReference ?? '')}>{c.claimedReference ? 'Update payment reference' : 'Submit payment reference'}</Button>}
+          {!id && c.status === 'UNPAID' && data.status !== 'REJECTED' && data.razorpayEnabled && c.currency === 'INR' && <Button disabled={busy} onClick={() => void payWithRazorpay(c.id)}>Pay with Razorpay</Button>}
+          {!id && c.status === 'UNPAID' && data.status !== 'REJECTED' && !(data.razorpayEnabled && c.currency === 'INR') && <Button disabled={busy} variant="outline" onClick={() => choose(`charges/${c.id}/payment-claims`, c.claimedReference ? 'Update payment reference' : 'Submit payment reference', {}, true, c.claimedReference ?? '')}>{c.claimedReference ? 'Update payment reference' : 'Submit payment reference'}</Button>}
           {id && c.status === 'UNPAID' && <Button disabled={busy} onClick={() => choose(`charges/${c.id}/payments`, 'Record full payment', {}, true, c.claimedReference ?? '')}>Record full payment</Button>}
           {data.policy.waiversEnabled && c.status === 'UNPAID' && data.status !== 'REJECTED' && !c.waivers.some(w => w.status === 'PENDING') && <Button disabled={busy} variant="outline" onClick={() => choose(`charges/${c.id}/waivers`, 'Request full waiver')}>Request waiver</Button>}
         </div>
