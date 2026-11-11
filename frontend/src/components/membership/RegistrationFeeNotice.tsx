@@ -25,9 +25,11 @@ export default function RegistrationFeeNotice({ policy, professionalType }: { po
     <div role="status" className="mt-2 space-y-2 rounded-lg border border-brass-500/30 bg-brass-100/40 px-3 py-2 text-sm text-forum-900">
       <p>
         Application registration fee for {selected}: <span className="font-semibold">{amount}</span>.
-        Pay using the bank / UPI instructions below, then enter the UTR and upload a JPEG or PNG screenshot on this form. Membership is granted only after an administrator verifies that payment in the bank statement (students are free).
+        {policy.razorpayEnabled
+          ? 'After you verify your email, pay this fee with Razorpay. You can use UPI without leaving the page. Membership is granted only after that payment succeeds and an administrator approves the application.'
+          : 'Pay using the bank / UPI instructions below, then enter the UTR and upload a JPEG or PNG screenshot on this form. Membership is granted only after an administrator verifies that payment in the bank statement (students are free).'}
       </p>
-      {policy.paymentInstructions ? <p className="whitespace-pre-wrap rounded-md bg-paper p-3 text-ink">{policy.paymentInstructions}</p> : null}
+      {!policy.razorpayEnabled && policy.paymentInstructions ? <p className="whitespace-pre-wrap rounded-md bg-paper p-3 text-ink">{policy.paymentInstructions}</p> : null}
     </div>
   );
 }

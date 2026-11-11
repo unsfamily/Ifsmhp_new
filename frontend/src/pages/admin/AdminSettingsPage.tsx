@@ -26,6 +26,7 @@ const groups: Record<SettingsSection, Group[]> = {
   general: [
     { title: 'Organization Identity', fields: [{ key: 'fullName', label: 'Organization full name' }, { key: 'shortName', label: 'Short name / acronym' }, { key: 'legalName', label: 'Legal entity name' }, { key: 'registrationNumber', label: 'Registration number' }, { key: 'address', label: 'Office address', type: 'textarea' }, { key: 'contactEmail', label: 'Contact email', type: 'email' }, { key: 'contactPhone', label: 'Contact phone' }] },
     { title: 'Regional Defaults & Links', fields: [{ key: 'locale', label: 'Formatting locale', options: ['en-GB', 'en-US', 'es', 'fr', 'de', 'ja', 'zh-CN', 'hi', 'ar'], hint: 'Controls date formatting, not interface translation.' }, { key: 'timezone', label: 'Default timezone', hint: 'Canonical IANA name, for example Asia/Kolkata. New events inherit this default.' }, { key: 'dateFormat', label: 'Date format', options: ['long', 'MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'] }, { key: 'homepageUrl', label: 'Organization website' }, { key: 'communityUrl', label: 'Community URL' }] },
+    { title: 'Notifications', fields: [{ key: 'publicNotices', label: 'Notifications', type: 'textarea', hint: 'One notification per line. The lines move across the top of every public page. Leave blank to hide the bar.' }] },
     { title: 'Public Notice', fields: [{ key: 'maintenance', label: 'Display a maintenance notice on public pages', type: 'checkbox', hint: 'Sign-in and all workflows remain available.' }, { key: 'maintenanceMessage', label: 'Notice message', type: 'textarea' }] },
   ],
   membership: [
@@ -39,7 +40,7 @@ const groups: Record<SettingsSection, Group[]> = {
     { title: 'Application & Credential Review SLA', fields: [{ key: 'pendingDays', label: 'Pending → start review (calendar days)', type: 'number' }, { key: 'reviewDays', label: 'Under review → decision (calendar days)', type: 'number' }] },
     { title: 'Fees & Financial Hardship', fields: [
       { key: 'currency', label: 'Membership currency', options: ['INR', 'USD', 'GBP'] },
-      { key: 'applicationFeeEnabled', label: 'Enable application fee', type: 'checkbox', hint: 'Default on: applicants pay offline, submit a UTR, admin records payment, then reviews and approves separately. Students are not charged.' },
+      { key: 'applicationFeeEnabled', label: 'Enable application fee', type: 'checkbox', hint: 'Default on. Students are not charged. When Razorpay is configured, other applicants pay the INR fee there; otherwise they submit a UTR and screenshot for an administrator to record. Approval stays separate.' },
       { key: 'applicationFee', label: 'Application fee amount', hint: 'Up to two decimal places. Default is INR 100.00 for non-student applicants.' },
       { key: 'annualDuesEnabled', label: 'Enable annual dues', type: 'checkbox', hint: 'Charged at approval and each anniversary. Due within 30 days; overdue dues do not suspend access.' },
       { key: 'annualDues', label: 'Annual dues amount' },

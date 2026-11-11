@@ -1598,7 +1598,19 @@ model MembershipCharge {
   claimedScreenshot FileObject? @relation("PaymentScreenshot", fields: [claimedScreenshotFileId], references: [id], onDelete: Restrict)
   payments MembershipPayment[]
   waivers MembershipWaiver[]
+  gatewayAttempts MembershipGatewayAttempt[]
   @@unique([applicationId, kind, periodYear])
+}
+/// One Razorpay order. The payment is recorded only after the checkout signature and Razorpay's payment API agree.
+model MembershipGatewayAttempt {
+  id String @id @default(cuid())
+  chargeId String
+  /// Razorpay `order_id` (for example `order_IluGWxBm9U8zJ8`).
+  txnId String @unique @db.VarChar(25)
+  returnPath String @db.VarChar(40)
+  createdAt DateTime @default(now())
+  charge MembershipCharge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  @@index([chargeId])
 }
 model MembershipPayment {
   id String @id @default(cuid())
