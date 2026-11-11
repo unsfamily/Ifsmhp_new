@@ -172,6 +172,7 @@ export default function RegisterPage() {
   });
   const professionalType = watch('professionalType') ?? '';
   const paymentRequired = Boolean(policy?.applicationFeeEnabled && professionalType && !isApplicationFeeExempt(professionalType));
+  const offlinePayment = paymentRequired && !policy?.razorpayEnabled;
 
   useEffect(() => {
     documentUploadsRef.current = documentUploads;
@@ -326,7 +327,7 @@ export default function RegisterPage() {
     referrals: referrals.filter(r => r.name || r.email || r.organization),
     referenceLetters: letters.map(l => ({ fileId: l.id, claimToken: l.claimToken })),
     ...(policy?.applicationFeeEnabled && policy.waiversEnabled && !isApplicationFeeExempt(data.professionalType) && waiver.trim() ? { waiverReason: waiver.trim() } : {}),
-    ...(paymentRequired && paymentProof ? { paymentReference: paymentReference.trim(), paymentScreenshot: { fileId: paymentProof.id, claimToken: paymentProof.claimToken } } : {}),
+    ...(offlinePayment && paymentProof ? { paymentReference: paymentReference.trim(), paymentScreenshot: { fileId: paymentProof.id, claimToken: paymentProof.claimToken } } : {}),
     agreeTerms: data.agreeTerms,
   });
 
@@ -360,7 +361,7 @@ export default function RegisterPage() {
       }));
       return;
     }
-    if (paymentRequired && (paymentReference.trim().length < 4 || !paymentProof)) {
+    if (offlinePayment && (paymentReference.trim().length < 4 || !paymentProof)) {
       setErrorMsg('Enter the UTR / UPI reference and upload a JPEG or PNG payment screenshot.');
       if (!paymentProof) setPaymentError('Upload a JPEG or PNG screenshot of the payment.');
       return;
@@ -580,7 +581,7 @@ export default function RegisterPage() {
                         ))}
                       </SelectInput>
                       {policy && <RegistrationFeeNotice policy={policy} professionalType={professionalType} />}
-                      {paymentRequired && (
+                      {offlinePayment && (
                         <div className="mt-3 space-y-3">
                           <TextInput label="Payment reference (UTR / UPI)" required maxLength={191} value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} />
                           <label className="block text-sm font-medium text-ink">
@@ -856,7 +857,7 @@ export default function RegisterPage() {
                     type="submit"
                     size="lg"
                     className="w-full sm:w-auto"
-                    disabled={isSubmitting || documentsBusy || documentsFailed || !documentsReady || lettersBusy || paymentBusy || !policy || !!policyError || (paymentRequired && (paymentReference.trim().length < 4 || !paymentProof))}
+                    disabled={isSubmitting || documentsBusy || documentsFailed || !documentsReady || lettersBusy || paymentBusy || !policy || !!policyError || (offlinePayment && (paymentReference.trim().length < 4 || !paymentProof))}
                   >
                     <Send className="h-4.5 w-4.5" />
                     {isSubmitting

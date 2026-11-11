@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { env } from '../config';
 import { prisma } from '../config/database';
 import { effectiveSettings } from './settings.service';
 import { writeAudit } from './audit.service';
@@ -14,7 +15,8 @@ export async function currentMembershipPolicy(): Promise<MembershipPolicySnapsho
 }
 export async function publicMembershipPolicy() {
   const { values: p, revision } = await currentMembershipPolicy();
-  return { revision, requireProfile: p.requireProfile, requireCredential: p.requireCredential, referralCount: p.referralCount, referenceLetterCount: p.referenceLetterCount, applicationFeeEnabled: p.applicationFeeEnabled, applicationFee: p.applicationFee, annualDuesEnabled: p.annualDuesEnabled, annualDues: p.annualDues, currency: p.currency, waiversEnabled: p.waiversEnabled, paymentInstructions: p.paymentInstructions, upiPayment: applicationFeeUpiPayment(p) };
+  const payOnline = env.razorpayConfigured && p.currency === 'INR';
+  return { revision, requireProfile: p.requireProfile, requireCredential: p.requireCredential, referralCount: p.referralCount, referenceLetterCount: p.referenceLetterCount, applicationFeeEnabled: p.applicationFeeEnabled, applicationFee: p.applicationFee, annualDuesEnabled: p.annualDuesEnabled, annualDues: p.annualDues, currency: p.currency, waiversEnabled: p.waiversEnabled, paymentInstructions: payOnline ? '' : p.paymentInstructions, upiPayment: payOnline ? null : applicationFeeUpiPayment(p), razorpayEnabled: payOnline };
 }
 export interface RegistrationEvidence {
   documents: RegistrationDocumentClaim[];
@@ -114,15 +116,16 @@ export async function membershipDetail(id: string, ownUserId?: string) {
     const app = await tx.membershipApplication.findFirst({ where: { OR: [{ id }, { userId: id }], ...(ownUserId ? { userId: ownUserId } : {}) }, include: { user: true, profile: { include: { credentials: { include: { file: true } } } }, referrals: true, referenceLetters: { include: { file: true } }, charges: { include: { payments: true, waivers: true, claimedScreenshot: true }, orderBy: { createdAt: 'desc' } } } });
     if (!app && ownUserId) {
       const historical = await tx.user.findUnique({ where: { id: ownUserId }, select: { role: true, status: true, memberProfile: { select: { memberId: true } } } });
-      if (historical?.role === 'MEMBER') return { applicationId: '', applicationCode: '', status: historical.status, memberId: historical.memberProfile?.memberId ?? null, archivedAt: null, archiveSuppressed: false, evidenceReviewedAt: null, applicationFeeExempt: false, policy: { paymentInstructions: '', waiversEnabled: false }, charges: [] };
+      if (historical?.role === 'MEMBER') return { applicationId: '', applicationCode: '', status: historical.status, memberId: historical.memberProfile?.memberId ?? null, archivedAt: null, archiveSuppressed: false, evidenceReviewedAt: null, applicationFeeExempt: false, razorpayEnabled: false, policy: { paymentInstructions: '', waiversEnabled: false }, charges: [] };
     }
     if (!app) throw ApiError.notFound('Membership application not found');
     const p = policyFor(app.policySnapshot);
     const applicationFeeExempt = isApplicationFeeExempt(app.profile.professionalType);
     const hasUnpaid = app.charges.some(c => chargeStatus(c) === 'UNPAID');
+    const payOnline = env.razorpayConfigured && p.currency === 'INR';
     return { applicationId: app.id, applicationCode: app.applicationCode, status: app.status, memberId: app.profile.memberId, archivedAt: app.archivedAt, archiveSuppressed: app.archiveSuppressed,
-      applicationFeeExempt,
-      policy: ownUserId ? { paymentInstructions: hasUnpaid ? p.paymentInstructions : '', waiversEnabled: p.waiversEnabled } : p,
+      applicationFeeExempt, razorpayEnabled: env.razorpayConfigured,
+      policy: ownUserId ? { paymentInstructions: hasUnpaid && !payOnline ? p.paymentInstructions : '', waiversEnabled: p.waiversEnabled } : p,
       evidenceReviewedAt: app.evidenceReviewedAt, approvalProblems: ownUserId ? undefined : approvalProblems(app),
       referrals: ownUserId ? undefined : app.referrals.map(r => ({ id: r.id, name: r.name, email: r.email, organization: r.organization })),
       letters: ownUserId ? undefined : app.referenceLetters.map(l => ({ id: l.id, fileId: l.fileId, name: l.file.originalName })),
@@ -158,6 +161,8 @@ export async function assertRegistrationPayment(input: { professionalType?: stri
     if (input.paymentReference || input.paymentScreenshot) throw ApiError.unprocessable('No application fee is due.', [{ field: 'paymentReference', message: 'Remove the payment details.' }]);
     return;
   }
+  // Razorpay collects the fee after email verification. A client may still send an offline claim.
+  if (env.razorpayConfigured && p.currency === 'INR' && !input.paymentReference && !input.paymentScreenshot) return;
   const reference = paymentReference.safeParse(input.paymentReference ?? '');
   if (!reference.success) throw ApiError.unprocessable('Enter the UTR or UPI payment reference.', [{ field: 'paymentReference', message: reference.error.issues[0]?.message ?? 'Enter the UTR or UPI reference.' }]);
   await loadPaymentScreenshot(db, input.paymentScreenshot);

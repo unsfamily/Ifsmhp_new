@@ -1,4 +1,5 @@
 import { publicMembershipPolicy } from '../services/membership-policy.service';
+import { handleRazorpayWebhook } from '../services/razorpay.service';
 import { publicSettings } from '../services/settings.service';
 import fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
@@ -12,6 +13,12 @@ import { listPublicEvents, publicEventDetail, publicEventCalendar, publicEventCo
 
 const router = Router({ mergeParams: true });
 router.get('/membership-policy', asyncHandler(async (_req, res) => { res.setHeader('Cache-Control', 'no-store'); sendSuccess(res, await publicMembershipPolicy()); }));
+router.post('/razorpay/webhook', asyncHandler(async (req, res) => {
+  const raw = (req as typeof req & { rawBody?: Buffer }).rawBody;
+  if (!raw) { res.status(400).json({ success: false }); return; }
+  const accepted = await handleRazorpayWebhook(raw, req.header('x-razorpay-signature') ?? '');
+  res.status(accepted ? 200 : 400).json({ success: accepted });
+}));
 router.get('/members', asyncHandler(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   sendSuccess(res, await service.publicMemberLookup(req.query.q), 'Member listing');
