@@ -30,7 +30,7 @@ const email = (n: string) => `${PREFIX}.${n}@example.test`;
 
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
 const png = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWPQcKvAihiGlgQAZBI5gU442lQAAAAASUVORK5CYII=',
   'base64',
 );
 
@@ -198,6 +198,7 @@ describe('soft-deleted accounts', () => {
     };
     const cv = await upload(`${PREFIX}-cv.pdf`, pdf, 'application/pdf');
     const credential = await upload(`${PREFIX}-cred.png`, png, 'image/png');
+    const photo = await upload(`${PREFIX}-photo.png`, png, 'image/png');
     const payment = await upload(`${PREFIX}-payment.png`, png, 'image/png');
 
     const payload = {
@@ -212,6 +213,7 @@ describe('soft-deleted accounts', () => {
       documents: [
         { kind: 'CV' as const, fileId: cv.id, claimToken: cv.claimToken },
         { kind: 'CREDENTIAL' as const, fileId: credential.id, claimToken: credential.claimToken },
+        { kind: 'PHOTO' as const, fileId: photo.id, claimToken: photo.claimToken },
       ],
       agreeTerms: true as const,
       paymentReference: 'UPI1234567890',

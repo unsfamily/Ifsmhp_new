@@ -34,7 +34,7 @@ prisma.$use(async (params, next) => {
 
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
 const png = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWPQcKvAihiGlgQAZBI5gU442lQAAAAASUVORK5CYII=',
   'base64',
 );
 
@@ -68,11 +68,14 @@ async function uploadRegistrationDocument(name: string, buffer: Buffer, contentT
 async function uploadRequiredPair(key: string) {
   const cv = await uploadRegistrationDocument(`${PREFIX}-${key}-cv.pdf`, pdf, 'application/pdf');
   const credential = await uploadRegistrationDocument(`${PREFIX}-${key}-credential.png`, png, 'image/png');
+  const photo = await uploadRegistrationDocument(`${PREFIX}-${key}-photo.png`, png, 'image/png');
   expect(cv.status).toBe(201);
   expect(credential.status).toBe(201);
+  expect(photo.status).toBe(201);
   return {
     cv: cv.body.data as { id: string; claimToken: string; name: string },
     credential: credential.body.data as { id: string; claimToken: string; name: string },
+    photo: photo.body.data as { id: string; claimToken: string; name: string },
   };
 }
 
@@ -84,7 +87,7 @@ async function paymentFields(key: string) {
 
 function registrationPayload(
   key: string,
-  documents: Array<{ kind: 'CV' | 'CREDENTIAL'; fileId: string; claimToken: string }>,
+  documents: Array<{ kind: 'CV' | 'CREDENTIAL' | 'PHOTO'; fileId: string; claimToken: string }>,
 ) {
   return {
     purpose: 'REGISTER',
@@ -146,7 +149,7 @@ describe('registration document uploads', () => {
 
     const oversized = await uploadRegistrationDocument(
       `${PREFIX}-large.pdf`,
-      Buffer.alloc(10 * 1024 * 1024 + 1),
+      Buffer.alloc(5 * 1024 * 1024 + 1),
       'application/pdf',
     );
     expect(oversized.status).toBe(422);
@@ -157,7 +160,7 @@ describe('registration document uploads', () => {
   });
 
   it('removes a temporary upload and prevents using it for registration', async () => {
-    const { cv, credential } = await uploadRequiredPair('removed');
+    const { cv, credential, photo } = await uploadRequiredPair('removed');
 
     const removed = await request(app)
       .delete(`/api/v1/files/registration/${cv.id}`)
@@ -169,6 +172,7 @@ describe('registration document uploads', () => {
       .send(registrationPayload('removed', [
         { kind: 'CV', fileId: cv.id, claimToken: cv.claimToken },
         { kind: 'CREDENTIAL', fileId: credential.id, claimToken: credential.claimToken },
+        { kind: 'PHOTO', fileId: photo.id, claimToken: photo.claimToken },
       ]));
     expect(otp.status).toBe(422);
     expect(otp.body.message).toContain('no longer available');
@@ -177,10 +181,11 @@ describe('registration document uploads', () => {
 
 describe('registration document persistence and retrieval', () => {
   it('links uploaded documents to the verified applicant and authorizes retrieval', async () => {
-    const { cv, credential } = await uploadRequiredPair('workflow');
+    const { cv, credential, photo } = await uploadRequiredPair('workflow');
     const documents = [
       { kind: 'CV' as const, fileId: cv.id, claimToken: cv.claimToken },
       { kind: 'CREDENTIAL' as const, fileId: credential.id, claimToken: credential.claimToken },
+      { kind: 'PHOTO' as const, fileId: photo.id, claimToken: photo.claimToken },
     ];
 
     const otp = await request(app).post('/api/v1/auth/otp/request').send({ ...registrationPayload('workflow', documents), ...(await paymentFields('workflow')) });
@@ -196,15 +201,18 @@ describe('registration document persistence and retrieval', () => {
       where: { userId },
       include: { credentials: { include: { file: true } } },
     });
-    expect(profile.credentials).toHaveLength(2);
-    expect(profile.credentials.map((item) => item.file?.originalName).sort()).toEqual([credential.name, cv.name].sort());
+    expect(profile.credentials).toHaveLength(3);
+    expect(profile.credentials.map((item) => item.file?.originalName).sort()).toEqual([credential.name, cv.name, photo.name].sort());
+    expect(profile.avatarFileId).toBeTruthy();
+    const avatar = await prisma.fileObject.findUniqueOrThrow({ where: { id: profile.avatarFileId! } });
+    expect(avatar).toMatchObject({ avatarManaged: true, mimeType: 'image/webp', uploaderId: userId });
     expect(profile.credentials.every((item) => item.file?.uploaderId === userId)).toBe(true);
 
     const adminDetail = await adminMemberDetail(verified.body.data.applicationId);
-    expect(adminDetail.credentials.map((item) => item.fileName).sort()).toEqual([credential.name, cv.name].sort());
+    expect(adminDetail.credentials.map((item) => item.fileName).sort()).toEqual([credential.name, cv.name, photo.name].sort());
 
     const ownProfile = await memberProfile(userId);
-    expect(ownProfile.credentials.map((item) => item.fileName).sort()).toEqual([credential.name, cv.name].sort());
+    expect(ownProfile.credentials.map((item) => item.fileName).sort()).toEqual([credential.name, cv.name, photo.name].sort());
 
     const applicantDownload = await request(app)
       .get(`/api/v1/files/${cv.id}/download`)
@@ -279,14 +287,14 @@ describe('registration document persistence and retrieval', () => {
     });
     expect(fetched.body.data.education[0]).toMatchObject({ degree: registrationPayload('workflow', documents).education });
     expect(fetched.body.data.researchInterests).toContain('Digital mental health');
-    expect(fetched.body.data.credentials).toHaveLength(2);
+    expect(fetched.body.data.credentials).toHaveLength(3);
     expect(JSON.stringify(fetched.body.data)).not.toMatch(/storageKey|claimToken|Private review note|profileId/);
     const download = await request(app).get(`/api/v1/files/${cv.id}/download`).auth(token, { type: 'bearer' });
     expect(download.status).toBe(200);
     expect(download.body).toEqual(pdf);
     await prisma.fileObject.update({ where: { id: cv.id }, data: { deletedAt: new Date() } });
     const afterDeletion = await request(app).get('/api/v1/members/me/profile').auth(token, { type: 'bearer' });
-    expect(afterDeletion.body.data.credentials).toHaveLength(1);
+    expect(afterDeletion.body.data.credentials).toHaveLength(2);
     expect((await request(app).get(`/api/v1/files/${cv.id}/download`).auth(token, { type: 'bearer' })).status).toBe(404);
   });
 
@@ -298,6 +306,25 @@ describe('registration document persistence and retrieval', () => {
 
     expect(response.status).toBe(422);
     expect(response.body.errors[0].field).toContain('documents');
+  });
+
+  it('requires a photograph and refuses a document in that slot', async () => {
+    const { cv, credential } = await uploadRequiredPair('portrait');
+    const pdfPhoto = await uploadRegistrationDocument(`${PREFIX}-portrait.pdf`, pdf, 'application/pdf');
+    expect(pdfPhoto.status).toBe(201);
+    const base = [
+      { kind: 'CV' as const, fileId: cv.id, claimToken: cv.claimToken },
+      { kind: 'CREDENTIAL' as const, fileId: credential.id, claimToken: credential.claimToken },
+    ];
+    const missing = await request(app).post('/api/v1/auth/otp/request').send({ ...registrationPayload('portrait-missing', base), ...(await paymentFields('portrait-missing')) });
+    expect(missing.status).toBe(422);
+    expect(missing.body.errors).toContainEqual({ field: 'documents.PHOTO', message: 'Upload your photograph.' });
+    const wrong = await request(app).post('/api/v1/auth/otp/request').send({
+      ...registrationPayload('portrait-pdf', [...base, { kind: 'PHOTO', fileId: pdfPhoto.body.data.id, claimToken: pdfPhoto.body.data.claimToken }]),
+      ...(await paymentFields('portrait-pdf')),
+    });
+    expect(wrong.status).toBe(422);
+    expect(wrong.body.errors[0].field).toBe('documents.PHOTO');
   });
 });
 
@@ -438,10 +465,11 @@ describe('scientist profile persistence and isolation', () => {
 
 describe('extended registration fields', () => {
   async function draft(key: string, fields: Record<string, unknown> = {}) {
-    const { cv, credential } = await uploadRequiredPair(key);
+    const { cv, credential, photo } = await uploadRequiredPair(key);
     return { ...registrationPayload(key, [
       { kind: 'CV', fileId: cv.id, claimToken: cv.claimToken },
       { kind: 'CREDENTIAL', fileId: credential.id, claimToken: credential.claimToken },
+      { kind: 'PHOTO', fileId: photo.id, claimToken: photo.claimToken },
     ]), ...(await paymentFields(key)), ...fields };
   }
   it('preserves new fields through OTP resend, verification, session and private detail responses', async () => {

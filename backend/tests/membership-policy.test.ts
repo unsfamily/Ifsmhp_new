@@ -18,7 +18,7 @@ import { updateSettings } from '../services/settings.service';
 import type { Request } from 'express';
 const app = createApp(), prefix = 'membership-policy-test-', api = '/api/v1';
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWPQcKvAihiGlgQAZBI5gU442lQAAAAASUVORK5CYII=', 'base64');
 let adminId: string, token: string, auditFail = false;
 let original: Awaited<ReturnType<typeof prisma.platformSetting.findMany>>, revisions: Awaited<ReturnType<typeof prisma.settingRevision.findMany>>;
 prisma.$use(async (p, next) => { if (auditFail && p.model === 'AuditLog' && p.action === 'create') throw new Error('Injected membership audit failure'); return next(p); });
@@ -44,7 +44,7 @@ async function upload(kind: 'pdf' | 'png' = 'pdf') {
   const r = await request(app).post(api + '/files/registration').attach('file', file, { filename, contentType });
   expect(r.status).toBe(201); return { fileId: r.body.data.id as string, claimToken: r.body.data.claimToken as string };
 }
-function input(documents: { kind: 'CV' | 'CREDENTIAL'; fileId: string; claimToken: string }[] = [], professionalType = 'Researcher') {
+function input(documents: { kind: 'CV' | 'CREDENTIAL' | 'PHOTO'; fileId: string; claimToken: string }[] = [], professionalType = 'Researcher') {
   return { fullName: 'Policy Applicant', firstName: 'Policy', lastName: 'Applicant', email: `${prefix}${randomUUID()}@example.test`, professionalType, institution: 'Test Institute', credentials: 'Professional research credentials', education: 'Doctoral degree in research', researchInterests: 'Community mental health research', documents, agreeTerms: true as const };
 }
 async function policy(values: Partial<MembershipPolicy>) {
@@ -55,7 +55,7 @@ async function policy(values: Partial<MembershipPolicy>) {
 async function applicant(values: Partial<MembershipPolicy> = {}, legacy = false, professionalType = 'Researcher') {
   // Keep fees off in the fixture unless a test opts in, so approval-path tests stay focused.
   const snap = { revision: 1, values: { ...legacyMembershipPolicy, requireProfile: false, requireCredential: false, applicationFeeEnabled: false, paymentInstructions: '', ...values } };
-  const documents = legacy ? [{ kind: 'CV' as const, ...await upload() }, { kind: 'CREDENTIAL' as const, ...await upload() }] : [];
+  const documents = [{ kind: 'PHOTO' as const, ...await upload('png') }, ...(legacy ? [{ kind: 'CV' as const, ...await upload() }, { kind: 'CREDENTIAL' as const, ...await upload() }] : [])];
   const payload = input(documents, professionalType);
   const registered = await registerApplicant({ ...payload, ...(snap.values.applicationFeeEnabled && professionalType !== 'Student' ? { paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') } : {}), ...(!legacy ? { membershipPolicy: snap } : {}) }, { get: () => undefined } as unknown as Request);
   const application = await prisma.membershipApplication.findUniqueOrThrow({ where: { userId: registered.user.id } });
@@ -99,7 +99,7 @@ describe('Membership settings, registration and review', () => {
     await policy({ applicationFee: '250.50' });
     expect((await request(app).get(api + '/public/membership-policy')).body.data.upiPayment.uri).toContain('&am=250.50&cu=INR');
     expect(await prisma.auditLog.count({ where: { actorId: adminId, action: 'PaymentDestinationChanged' } })).toBe(1);
-    const registered = await registerApplicant({ ...input([], 'Psychologist'), membershipPolicy: await currentMembershipPolicy(), paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') }, { get: () => undefined } as unknown as Request);
+    const registered = await registerApplicant({ ...input([{ kind: 'PHOTO', ...await upload('png') }], 'Psychologist'), membershipPolicy: await currentMembershipPolicy(), paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') }, { get: () => undefined } as unknown as Request);
     const stored = await prisma.membershipApplication.findUniqueOrThrow({ where: { userId: registered.user.id } });
     expect(stored.policySnapshot).toMatchObject({ applicationFee: '250.50' });
     expect(stored.policySnapshot).not.toHaveProperty('upiId');
@@ -124,7 +124,7 @@ describe('Membership settings, registration and review', () => {
   });
   it('snapshots policy through upload, OTP resend, verification, review and approval', async () => {
     const snap = await policy({ applicationFeeEnabled: true, applicationFee: '100.00', paymentInstructions: 'Bank transfer with application code', waiversEnabled: true, referralCount: 1, referenceLetterCount: 1, annualDuesEnabled: true, annualDues: '500.00' });
-    const documents = [{ kind: 'CV' as const, ...await upload() }, { kind: 'CREDENTIAL' as const, ...await upload() }], letter = await upload();
+    const documents = [{ kind: 'PHOTO' as const, ...await upload('png') }, { kind: 'CV' as const, ...await upload() }, { kind: 'CREDENTIAL' as const, ...await upload() }], letter = await upload();
     const proof = await upload('png');
     const payload = { ...input(documents), purpose: 'REGISTER', policyRevision: snap.revision, referrals: [{ name: 'Referrer Name', email: 'referrer@example.test', organization: 'University' }], referenceLetters: [letter], waiverReason: 'Please consider my financial hardship.', paymentReference: 'UPI1234567890', paymentScreenshot: proof };
     expect((await request(app).post(api + '/auth/otp/request').send(payload)).status).toBe(200);
@@ -149,10 +149,10 @@ describe('Membership settings, registration and review', () => {
   });
   it('accepts optional documents but still rejects invalid supplied claims', async () => {
     const snap = await policy({ requireProfile: false, requireCredential: false });
-    const good = { ...input(), paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') };
+    const good = { ...input([{ kind: 'PHOTO', ...await upload('png') }]), paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') };
     expect((await request(app).post(api + '/auth/otp/request').send({ ...good, purpose: 'REGISTER', policyRevision: snap.revision })).status).toBe(200);
     expect((await request(app).post(api + '/auth/otp/request').send({ ...input([{ kind: 'CV', fileId: 'missing', claimToken: 'x'.repeat(30) }]), purpose: 'REGISTER' })).status).toBe(422);
-    expect((await request(app).post(api + '/auth/otp/request').send({ ...input(), purpose: 'REGISTER', professionalType: 'Student', policyRevision: snap.revision })).status).toBe(200);
+    expect((await request(app).post(api + '/auth/otp/request').send({ ...input([{ kind: 'PHOTO', ...await upload('png') }]), purpose: 'REGISTER', professionalType: 'Student', policyRevision: snap.revision })).status).toBe(200);
     expect((await request(app).post(api + '/auth/otp/request').send({ ...input(), purpose: 'REGISTER', policyRevision: snap.revision })).status).toBe(422);
   });
   it('rejects missing and duplicate referrals, missing letters, and forged policy snapshots', async () => {
@@ -165,7 +165,7 @@ describe('Membership settings, registration and review', () => {
     const old = await applicant({}, true);
     await policy({ idIssuance: 'MANUAL', applicationFeeEnabled: true, applicationFee: '50', paymentInstructions: 'External payment', referralCount: 5 });
     expect((await approve(old.id)).status).toBe(200);
-    const documents = [{ kind: 'CV' as const, ...await upload() }, { kind: 'CREDENTIAL' as const, ...await upload() }];
+    const documents = [{ kind: 'PHOTO' as const, ...await upload('png') }, { kind: 'CV' as const, ...await upload() }, { kind: 'CREDENTIAL' as const, ...await upload() }];
     const draft = input(documents), code = '123456';
     await prisma.emailOtp.create({ data: { email: draft.email, purpose: 'REGISTER', payload: draft, codeHash: sha256(`REGISTER:${draft.email}:${code}`), expiresAt: new Date(Date.now() + 60000), lastSentAt: new Date() } });
     const verified = await request(app).post(api + '/auth/otp/verify').send({ email: draft.email, purpose: 'REGISTER', code });
@@ -273,7 +273,7 @@ describe('Charges, waivers, archive jobs and authorization', () => {
   });
   it('does not expose private letters to another member', async () => {
     const snap = await policy({ requireProfile: false, requireCredential: false, referenceLetterCount: 1 }), letter = await upload();
-    const payload = { ...input(), referenceLetters: [letter], membershipPolicy: snap, paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') };
+    const payload = { ...input([{ kind: 'PHOTO', ...await upload('png') }]), referenceLetters: [letter], membershipPolicy: snap, paymentReference: 'UPI1234567890', paymentScreenshot: await upload('png') };
     const registered = await registerApplicant(payload, { get: () => undefined } as unknown as Request);
     const other = await applicant();
     const ownerToken = await session(registered.user.id, 'APPLICANT');

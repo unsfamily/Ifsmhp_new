@@ -46,10 +46,10 @@ const registerSchema = z.object({
   country: z.string().max(120).optional(),
   phone: z.string().max(40).optional(),
   documents: z.array(z.object({
-    kind: z.enum(['CV', 'CREDENTIAL']),
+    kind: z.enum(['CV', 'CREDENTIAL', 'PHOTO']),
     fileId: z.string().min(1),
     claimToken: z.string().min(20),
-  }).strict()).max(2).default([]),
+  }).strict()).max(3).default([]),
   policyRevision: z.number().int().nonnegative().optional(),
   referrals: z.array(referralSchema).max(5).optional(),
   referenceLetters: z.array(fileClaimSchema).max(5).optional(),

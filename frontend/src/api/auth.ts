@@ -45,7 +45,7 @@ export interface RegisterPayload {
   agreeTerms: true;
 }
 
-export type RegistrationDocumentKind = 'CV' | 'CREDENTIAL';
+export type RegistrationDocumentKind = 'CV' | 'CREDENTIAL' | 'PHOTO';
 
 export interface RegistrationDocumentClaim {
   kind: RegistrationDocumentKind;

@@ -1,4 +1,7 @@
+import { promises as fsp } from 'node:fs';
 import { currentMembershipPolicy, policyFor, validateMembershipEvidence, createCharge, assertRegistrationPayment, recordRegistrationPayment } from './membership-policy.service';
+import { copyStoredImageAsAvatar } from './avatar-storage.service';
+import { assertSafePath } from '../utils/fileStorage';
 import { isApplicationFeeExempt, policySnapshotValues } from '../domain/membership';
 import type { MembershipPolicySnapshot } from '../domain/membership';
 import { notifyAdmins } from './admin-notifications.service';
@@ -198,7 +201,10 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
     .filter(Boolean)
     .slice(0, 20);
 
-  const result = await prisma.$transaction(async (tx) => {
+  let avatarKey: string | undefined;
+  let result: { user: Awaited<ReturnType<typeof prisma.user.create>>; application: { id: string; applicationCode: string; status: string } };
+  try {
+  result = await prisma.$transaction(async (tx) => {
     // `email` is UNIQUE, so a soft-deleted row still occupies the address even
     // though every auth path treats it as gone. Park it on a tombstone address
     // instead of deleting it — the row still anchors that person's projects,
@@ -292,6 +298,13 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
       const claimed = await tx.fileObject.updateMany({ where: { id: document.fileId, uploaderId: null, deletedAt: null }, data: { uploaderId: user.id } });
       if (!claimed.count) throw ApiError.conflict('A document was already claimed. Upload it again.');
     }
+    const photo = documents.find((document) => document.kind === 'PHOTO');
+    if (photo) {
+      const avatar = await copyStoredImageAsAvatar(photo.file.storageKey, photo.file.originalName);
+      avatarKey = avatar.storageKey;
+      const record = await tx.fileObject.create({ data: { uploaderId: user.id, ...avatar } });
+      await tx.memberProfile.update({ where: { id: profile.id }, data: { avatarFileId: record.id } });
+    }
   await writeAudit({
     actorId: user.id,
     actorLabel: user.email,
@@ -306,7 +319,10 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
 
     return { user, application };
   });
-
+  } catch (error) {
+    if (avatarKey) await fsp.unlink(assertSafePath(avatarKey)).catch(() => undefined);
+    throw error;
+  }
 
   return {
     user: publicUser(result.user),
