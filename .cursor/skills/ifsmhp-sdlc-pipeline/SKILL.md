@@ -42,7 +42,7 @@ Every stage runs in an isolated subagent context, consumes a structured input ar
               │
    ┌──────────┼──────────────────────────────────────────────────────────┐
    ▼          ▼          ▼          ▼          ▼          ▼       ▼      ▼
-[1.Dev] ──► [2.Test] ─► [3.Review] ► [4.Sec] ─► [5.PR] ─► [6.Val] ► [7.Mrg] ► [8.Deploy]
+[1.Dev] ──► [1O.Optimize?] ─► [2.Test] ─► [3.Review] ► [4.Sec] ─► [4D.Docs?] ─► [5.PR] ─► [6.Val] ► [7.Mrg] ► [8.Deploy]
    ▲          │          │          │                     │                    │
    └──────────┴──────────┴──────────┴─────────────────────┘                    ▼
         Bounded Remediation Loop (re-enters Gate 1 → Gate 2)          [ifsmhp-release-verifier]
@@ -52,9 +52,11 @@ Every stage runs in an isolated subagent context, consumes a structured input ar
 |---|---|---|---|---|
 | **0** | `ifsmhp-orchestrator` | Read/Write | Scope analysis, branch isolation check, sequential dispatch, handoff verification | All requested stages `PASS` |
 | **1** | `ifsmhp-development` | Read/Write | Architecture-aligned coding (`routes → middleware → controllers → services → prisma`, React + Zod), `typecheck`, `lint` | `typecheck` & `lint` exit `0`; clean scope |
+| **1O** | `ifsmhp-optimize` | Read/Write | Tighten an oversized or multi-feature diff before tests. Skip a small single-purpose change | Behavior preserved; `typecheck` and `lint` exit `0`, or an explicit `SKIPPED` check |
 | **2** | `ifsmhp-unit-test` | Read/Write | Author/update Vitest, frontend session, & Playwright tests; run suites on local port `3308` DB | Targeted & regression tests exit `0` |
 | **3** | `ifsmhp-code-review` | `readonly` | Diff audit: architecture layering, exhaustive TS switches, no inline imports, state machines, UI states | Zero `CRITICAL` / `HIGH` defects |
 | **4** | `ifsmhp-security` | `readonly` | OWASP & IFSMHP `docs/architecture.md` §B.3 (R1–R5) + §I.1–I.17 audit (BOLA, PII serializers, file streams, secrets) | Zero `CRITICAL` / `HIGH` security risks |
+| **4D** | `ifsmhp-docs` | Read/Write | After security, update product docs and the agentic workflow when behavior or a repeatable validation rule changed. Skip when nothing new needs writing | Docs match the diff, or an explicit `SKIPPED` check |
 | **5** | `ifsmhp-pr-creator` | Read/Write | Feature branch check, secret-free staging, conventional commit, push, `gh pr create` / update | Open PR URL + clean `git status` |
 | **6** | `ifsmhp-pr-validator` | `readonly` | Verify PR metadata, base branch (`main`), mergeability, CI checks (`gh pr checks`), diff vs scope, `npm run verify` readiness | Merge-ready PR, zero failing checks |
 | **7** | `ifsmhp-pr-merger` | Read/Write | Enforce merge authorization gate, merge PR cleanly via `gh pr merge`, sync `main` | PR state `MERGED` on `main` |
@@ -78,6 +80,8 @@ Every agent in this pipeline connects to the repository's authoritative knowledg
   - `.cursor/agents/ifsmhp-operator.md` — Environment, DB, local runtime, backend deploy.
   - `.cursor/agents/ifsmhp-frontend-release.md` — Production SPA build (`VITE_API_BASE_URL=https://api.ifsmhp.com/api/v1`) and Hostinger/EC2 sync.
   - `.cursor/agents/ifsmhp-release-verifier.md` — Post-PR and post-deploy live verification.
+  - `.cursor/agents/ifsmhp-docs.md` — Conditional product and workflow documentation after security and before the pull request.
+  - `.cursor/agents/ifsmhp-optimize.md` — Conditional tightening of a large or multi-feature diff after development and before tests.
 
 ---
 

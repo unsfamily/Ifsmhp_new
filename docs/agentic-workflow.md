@@ -112,7 +112,10 @@ flowchart TD
     S0 --> S1["Stage 1: ifsmhp-development<br/>Implement Backend/Frontend/Prisma + typecheck + lint"]
     S1 --> G1{Gate 1 PASS?}
     G1 -- No --> S1
-    G1 -- Yes --> S2["Stage 2: ifsmhp-unit-test<br/>Vitest + Session + Playwright on localhost:3308"]
+    G1 -- Yes --> OPT{Large or mixed<br/>feature diff?}
+    OPT -- No --> S2
+    OPT -- Yes --> S1O["ifsmhp-optimize<br/>Tighten the diff, keep behavior"]
+    S1O --> S2["Stage 2: ifsmhp-unit-test<br/>Vitest + Session + Playwright on localhost:3308"]
 
     S2 --> G2{Gate 2 PASS?}
     G2 -- "FAIL (App Bug, <=3x)" --> S1
@@ -124,7 +127,10 @@ flowchart TD
 
     S4 --> G4{Gate 4 PASS?}
     G4 -- "FAIL (CRITICAL/HIGH, <=3x)" --> S1
-    G4 -- Yes --> S5["Stage 5: ifsmhp-pr-creator<br/>Topic Branch · Selective git add · Push · gh pr create"]
+    G4 -- Yes --> DOC{Behavior or workflow<br/>rule needs writing?}
+    DOC -- Yes --> S4D["ifsmhp-docs<br/>Update docs/ and agentic workflow"]
+    DOC -- No --> S5["Stage 5: ifsmhp-pr-creator<br/>Topic Branch · Selective git add · Push · gh pr create"]
+    S4D --> S5
 
     S5 --> G5{Gate 5 PASS?}
     G5 -- "BLOCKED (e.g. gh auth)" --> ESC([Surface Exact Unblock Command])
@@ -307,6 +313,8 @@ handoff_envelope:
   2. Determines the **Target Horizon** (`STAGE_6_PR_VALIDATED`, `STAGE_7_PR_MERGED`, or `STAGE_8_DEPLOYED`).
   3. Maintains a live `TodoWrite` progress checklist across active stages.
   4. Dispatches Stages 1 → 8 one at a time, validates each `handoff_envelope`, executes remediation loops on `FAIL`, and compiles the final audit ledger.
+  5. Confirms `git rev-parse --show-toplevel` before every git or npm command. A dirty checkout that is not the working branch is out of scope and must not be staged, reset, pulled, or deployed.
+  6. Diffs and reviews against `origin/main`, not a stale local `main`. A behind local `main` can invent a false multi-file diff.
 
 ### Stage 1 — Development Coding Agent (`ifsmhp-development`)
 - **File:** `.cursor/agents/ifsmhp-development.md` | **Mode:** Read/Write
@@ -315,6 +323,11 @@ handoff_envelope:
   2. Implements changes following strict IFSMHP backend layering (`routes → middleware/validators → controllers → services → prisma`) and React + Tailwind + Zod frontend patterns.
   3. Enforces top-of-file imports, exhaustive `never` switches, additive Prisma migrations, Windows Prisma DLL stop/generate/restart handling, and UI loading/empty/error states.
   4. Runs `npm run typecheck` and `npm run lint` until both exit `0`, smoke-testing running API (`:4000`) / UI (`:5173`) flows.
+
+### Stage 1O — Optimization Agent (`ifsmhp-optimize`), when the diff is large
+- **File:** `.cursor/agents/ifsmhp-optimize.md` | **Mode:** Read/Write
+- **When:** After Stage 1 and before Stage 2, if the change set is more than about 8 files or 250 lines, or it mixes several features. Skip a small single-purpose change.
+- **Responsibilities:** Remove duplication and unused code introduced by that diff. Keep the existing behavior. Do not commit `.hostinger/`, `.env`, or secrets. A skip is a `PASS` with `optimization: SKIPPED`.
 
 ### Stage 2 — Unit & Integration Testing Agent (`ifsmhp-unit-test`)
 - **File:** `.cursor/agents/ifsmhp-unit-test.md` | **Mode:** Read/Write
@@ -344,6 +357,14 @@ handoff_envelope:
      - **R5:** `404` on non-owned member resources to prevent enumeration
      - **I.2–I.17:** Strict Zod schemas, magic-byte file upload checks, constant-time HMAC webhook verification, XSS/SSRF prevention, and zero hardcoded secrets.
 
+### Stage 4D — Documentation Agent (`ifsmhp-docs`), when needed
+- **File:** `.cursor/agents/ifsmhp-docs.md` | **Mode:** Read/Write
+- **When:** After Stage 4 `PASS` and before Stage 5, if the diff changes user-visible behavior, an API, a rollout rule, or a repeatable validation rule that is not already written down. Skip comment-only edits, behavior-neutral refactors, and diffs that are already accurate documentation.
+- **Responsibilities:**
+  1. Records product behavior in the existing page under `docs/` (`api.md`, `architecture.md`, `operations.md`, or one feature note such as `membership-certificate.md`).
+  2. Records a new agent validation rule in `.cursor/agents/ifsmhp-orchestrator.md`, `.cursor/skills/ifsmhp-sdlc-pipeline/CONTRACTS.md`, and this document. Does not put product essays in the orchestrator.
+  3. Does not edit application code, commit, or deploy. A skip is a `PASS` with `documentation: SKIPPED`. Stage 5 stages only the files this agent lists.
+
 ### Stage 5 — Pull Request Creation Agent (`ifsmhp-pr-creator`)
 - **File:** `.cursor/agents/ifsmhp-pr-creator.md` | **Mode:** Read/Write
 - **Responsibilities:**
@@ -354,21 +375,21 @@ handoff_envelope:
 ### Stage 6 — Pull Request Validation Agent (`ifsmhp-pr-validator`)
 - **File:** `.cursor/agents/ifsmhp-pr-validator.md` | **Mode:** `readonly: true`
 - **Responsibilities:**
-  1. Queries live GitHub PR state via `gh pr view` and `gh pr checks`.
-  2. Verifies `state == OPEN`, `isDraft == false`, `baseRefName == main`, `mergeable == MERGEABLE`, exact `headRefOid` match, clean PR file list, and passing CI checks (or verified local `typecheck` + `lint` + `test` + `build` when no remote workflow is attached).
+  1. Queries live GitHub PR state via `gh pr view` and `gh pr checks`, or the REST equivalents when GraphQL is unavailable.
+  2. Verifies `state == OPEN`, `isDraft == false`, `baseRefName == main`, `mergeable == MERGEABLE`, exact `headRefOid` match, clean PR file list against `origin/main`, and passing CI checks (or verified local `typecheck` + `lint` + `test` when no remote workflow is attached).
 
 ### Stage 7 — Pull Request Merge Agent (`ifsmhp-pr-merger`)
 - **File:** `.cursor/agents/ifsmhp-pr-merger.md` | **Mode:** Read/Write (Requires explicit merge horizon)
 - **Responsibilities:**
   1. Confirms `Target Horizon` authorizes merging and re-verifies `headRefOid` matches Stage 6's validated SHA (preventing Time-of-Check to Time-of-Use races).
-  2. Executes `gh pr merge <number> --merge`, verifies `state == MERGED`, records `mergeCommit.oid`, and safely updates `origin/main` refs without clobbering any local dirty files.
+  2. Executes `gh pr merge <number> --merge` (REST `PUT .../pulls/<number>/merge` when GraphQL lacks `read:org`), verifies `state == MERGED`, and records the merge commit only after its parents include the validated head and the previous `origin/main`. A provisional `merge_commit_sha` shown before the merge is not the release commit. Updates `origin/main` without checking out or resetting a dirty worktree.
 
 ### Stage 8 — Deployment Agent (`ifsmhp-deployment`) & Operational Specialists
 - **File:** `.cursor/agents/ifsmhp-deployment.md` | **Mode:** Read/Write (Requires explicit deploy horizon)
 - **Coordinated Specialists:**
-  - **`ifsmhp-operator` (`.cursor/agents/ifsmhp-operator.md`):** Pulls `origin/main` on EC2 `100.52.212.133` via `ssh -F NUL -i C:\Users\ariva\.ssh\ifsmhp.pem ubuntu@100.52.212.133`, runs `npm --prefix backend run db:deploy` (when migrations exist), builds & restarts the API, and checks `/api/v1/health`.
-  - **`ifsmhp-frontend-release` (`.cursor/agents/ifsmhp-frontend-release.md`):** Builds `frontend/dist` with inline env `VITE_API_BASE_URL=https://api.ifsmhp.com/api/v1` (preserving local `frontend/.env`), verifies zero `localhost:4000` strings in built JS, and syncs `/opt/ifsmhp/frontend/dist` (+ Hostinger status reporting).
-  - **`ifsmhp-release-verifier` (`.cursor/agents/ifsmhp-release-verifier.md`):** Mandatory final gate verifying (1) merged PR state, (2) `https://api.ifsmhp.com/api/v1/health` + valid TLS certificate, (3) DNS integrity (`api`, `www`, `@`, `ftp`), (4) running EC2 process & dist bundle URL, and (5) `https://www.ifsmhp.com` availability. **A release is never declared complete until `ifsmhp-release-verifier` returns `PASS`.**
+  - **`ifsmhp-operator` (`.cursor/agents/ifsmhp-operator.md`):** Fast-forwards `origin/main` on EC2 `100.52.212.133` via `ssh -F NUL -i C:\Users\ariva\.ssh\ifsmhp.pem ubuntu@100.52.212.133`, runs `npm --prefix backend run db:deploy` only when the pulled range contains a Prisma migration, builds and restarts the API, and checks `/api/v1/health`. Files under `backend/assets/` are not copied by `tsc`; the server path must be checked after the pull. See [membership-certificate.md](membership-certificate.md) for the letterhead.
+  - **`ifsmhp-frontend-release` (`.cursor/agents/ifsmhp-frontend-release.md`):** Builds `frontend/dist` with inline env `VITE_API_BASE_URL=https://api.ifsmhp.com/api/v1` (preserving local `frontend/.env`), verifies zero `localhost:4000` strings in built JS, and syncs `/opt/ifsmhp/frontend/dist` (+ Hostinger status reporting). Skip this specialist when the diff does not change the frontend.
+  - **`ifsmhp-release-verifier` (`.cursor/agents/ifsmhp-release-verifier.md`):** Mandatory named final gate, separate from the deployment agent's own checks. It verifies (1) merged PR state, (2) `https://api.ifsmhp.com/api/v1/health` + valid TLS certificate, (3) DNS integrity (`api`, `www`, `@`, `ftp`), (4) running EC2 process, deployed SHA, and dist bundle URL, and (5) `https://www.ifsmhp.com` availability. **A release is never declared complete until this agent returns `PASS`.**
 
 ---
 
@@ -484,7 +505,8 @@ Suppose you invoke:
 
 | Symptom / Blocker | Stage Affected | Root Cause | Standard Resolution |
 |---|---|---|---|
-| `HTTP 401: Bad credentials` from `gh` | Stage 5 / 6 / 7 | Local GitHub CLI token expired | Run `gh auth login -h github.com` once in terminal, then resume `ifsmhp-orchestrator` from Stage 5. |
+| `HTTP 401: Bad credentials` from `gh` | Stage 5 / 6 / 7 | `GITHUB_TOKEN` is set and invalid, so it overrides stored git credentials | Unset `GITHUB_TOKEN`. Set `GH_TOKEN` from `git credential fill` for `github.com` without printing it. Do not run `gh auth login` in the agent. If GraphQL then fails for missing `read:org`, use `gh api` REST for pull-request view, edit, checks, and merge. |
+| `git diff main...HEAD` lists files outside the change | Stage 3 / 6 | Local `main` is behind `origin/main` | Diff `origin/main...HEAD`. Fetch `origin/main` before judging scope. |
 | `EPERM: operation not permitted, rename ... query_engine-windows.dll.node` | Stage 1 / 2 | Running Node/`tsx watch` process on Windows locks Prisma's native engine binary | Stop the running backend dev server, run `npm run db:generate` or `npm run db:setup`, then restart `npm run dev`. |
 | Connection refused on `localhost:3308` | Stage 1 / 2 | Local Docker MySQL container stopped | Run `docker start ifsmhp-mysql` and verify port `3308` before re-running Stage 2. |
 | SSH config parse error on Windows | Stage 8 | Local `~/.ssh/config` contains unsupported options | Always pass `-F NUL`: `ssh -F NUL -i C:\Users\ariva\.ssh\ifsmhp.pem ubuntu@100.52.212.133`. |

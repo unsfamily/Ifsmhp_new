@@ -149,7 +149,7 @@ These are stated separately because they are the tests in §55 and the most comm
 2. Admin inspects profile fields and streams credential documents through the authorized file endpoint.
 3. Admin optionally sets `UNDER_REVIEW` (signals "seen", not decided).
 4. **Approve** → single transaction: assert application is `PENDING`/`UNDER_REVIEW` → reserve next Member ID (§E.6) → set `MemberProfile.memberId`, `approvedAt` → `User.role=MEMBER`, `status=ACTIVE` → `MembershipApplication.status=APPROVED`, `reviewedBy`, `reviewedAt` → insert `Notification` → insert `AuditLog` → enqueue `EmailJob(MEMBERSHIP_APPROVED)`.
-5. Email dispatched by the worker **after** commit. Email failure never rolls back approval.
+5. Email dispatched **after** commit. The message attaches the membership certificate PDF described in [membership-certificate.md](membership-certificate.md). Email failure never rolls back approval.
 6. **Reject** → same shape, no Member ID issued, `reviewNotes` required, `User.status=REJECTED`.
 
 ### C.3 Member Login
@@ -620,7 +620,7 @@ Only `PUBLISHED` is publicly readable. `APPROVED` is an internal green light, de
 22. **Meeting requests.** §15 lists "request meetings" but no scheduling mechanism is specified. Is it a flagged message with a proposed time, or is calendar integration expected?
 23. **Support-request withdrawal.** May a member cancel a `PENDING` request?
 24. **Event registration.** Is registration handled in-platform (requiring an `EventRegistration` model) or via an external link only? Who may see online joining links?
-25. **Membership certificate** (§6). Is it a generated PDF, a manually issued document, or a page? Generation would add a template and PDF pipeline.
+25. **Membership certificate** (§6). Resolved: a generated PDF on the official letterhead, attached to the approval email and available again through `POST /admin/members/:id/certificate-email`. See [membership-certificate.md](membership-certificate.md).
 26. **Data protection regime.** Which jurisdiction's rules apply (GDPR? Indian DPDP Act? other)? This affects retention periods, the right to erasure vs. audit-log retention (§57), and consent copy.
 27. **Retention.** How long are rejected applications, credential documents and contact inquiries kept?
 28. **Full-text format.** Is publication `fullText` plain text, Markdown, or rich HTML? This determines the editor, the sanitization strategy (I.9) and the rendering path.

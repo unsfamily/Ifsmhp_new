@@ -48,7 +48,8 @@ Your sole mission is to implement minimal, clean, production-grade code changes 
    - Run `npm run typecheck` (or `npm --prefix backend run typecheck` / `npm --prefix frontend run typecheck` as applicable, followed by full `npm run typecheck`).
    - Run `npm run lint`.
    - Fix all type and lint errors in your scope before completing.
-4. **Runtime Smoke Check:**
+4. **Leave product and workflow docs to `ifsmhp-docs`.** Code comments that the implementation needs may stay. Do not add or rewrite `docs/`, `AGENTS.md`, or agent instructions during Stage 1. The orchestrator runs `.cursor/agents/ifsmhp-docs.md` after security when the change needs a record.
+5. **Runtime Smoke Check:**
    - For API changes: verify health/endpoint response against local dev server (`:4000`).
    - For UI changes: verify the flow (including empty/error states) via browser tools when local dev (`:5173`) is active.
 

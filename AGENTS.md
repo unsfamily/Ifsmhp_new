@@ -9,7 +9,7 @@ This repository implements a deterministic **Supervisor-Worker Agentic SDLC Pipe
 - **End-to-End Architecture & Workflow Documentation:**
   - [`docs/agentic-workflow.md`](docs/agentic-workflow.md) — Complete specification of the multi-agent architecture, sequence diagrams, handoff envelopes, remediation state machine, governance gates, and concrete walkthroughs.
 - **Orchestrative Supervisor Agent:** [`.cursor/agents/ifsmhp-orchestrator.md`](.cursor/agents/ifsmhp-orchestrator.md)
-  - Owns the complete functional pipeline, maintains the Pipeline State Ledger, dispatches specialist subagents **one by one in strict sequence**, verifies every stage's YAML `handoff_envelope`, and manages bounded remediation loops.
+ - Owns the complete functional pipeline, maintains the Pipeline State Ledger, dispatches specialist subagents **one by one in strict sequence**, verifies every stage's YAML `handoff_envelope`, and manages bounded remediation loops. Release checks that later runs must repeat (diff against `origin/main`, GitHub token handling, asset paths `tsc` does not copy, and a separate release verifier) are in that agent and in [docs/agentic-workflow.md](docs/agentic-workflow.md). The membership certificate those checks covered is in [docs/membership-certificate.md](docs/membership-certificate.md).
 - **Pipeline Skill & Schemas:**
   - [`.cursor/skills/ifsmhp-sdlc-pipeline/SKILL.md`](.cursor/skills/ifsmhp-sdlc-pipeline/SKILL.md) — End-to-end 8-stage workflow & governance horizons.
   - [`.cursor/skills/ifsmhp-sdlc-pipeline/CONTRACTS.md`](.cursor/skills/ifsmhp-sdlc-pipeline/CONTRACTS.md) — Canonical `Pipeline Dispatch Brief` (input) and `Stage Handoff Envelope` (output).
@@ -28,12 +28,16 @@ User Objective
      │
      ├──► [1] ifsmhp-development     (Code + Prisma + UI, typecheck & lint)
      │         ▲
+     ├──► [1O] ifsmhp-optimize       (only when the diff is large: tighten without new behavior)
+     │
      ├──► [2] ifsmhp-unit-test       (Vitest + Session + Playwright on local :3308 DB)
      │         │ (FAIL loops back to [1])
      ├──► [3] ifsmhp-code-review     (readonly: Layering, TS Exhaustive Switch, Regressions)
      │         │ (FAIL loops back to [1] → re-runs from [2])
      ├──► [4] ifsmhp-security        (readonly: OWASP, BOLA R1–R5, I.1–I.17, Secret Scan)
      │         │ (FAIL loops back to [1] → re-runs from [2])
+     ├──► [4D] ifsmhp-docs           (only when needed: product docs + agentic workflow)
+     │
      ├──► [5] ifsmhp-pr-creator      (Topic branch, selective staging, push, gh pr create)
      │
      ├──► [6] ifsmhp-pr-validator    (readonly: Base=main, Mergeable, Diff Audit, CI Checks)
@@ -54,9 +58,11 @@ User Objective
 |---|---|---|---|
 | **Orchestrator** | `.cursor/agents/ifsmhp-orchestrator.md` | Read/Write | Master flow controller & handoff gate verifier |
 | **Stage 1 — Development** | `.cursor/agents/ifsmhp-development.md` | Read/Write | Express/Prisma/React implementation, `typecheck`, `lint` |
+| **Stage 1O — Optimization** | `.cursor/agents/ifsmhp-optimize.md` | Read/Write | Tighten a large or multi-feature diff before tests. Skip a small change |
 | **Stage 2 — Unit Testing** | `.cursor/agents/ifsmhp-unit-test.md` | Read/Write | Vitest, frontend session, & Playwright tests on dev DB |
 | **Stage 3 — Code Review** | `.cursor/agents/ifsmhp-code-review.md` | `readonly` | Architecture layering, state machines, TS standards, UI states |
 | **Stage 4 — Security** | `.cursor/agents/ifsmhp-security.md` | `readonly` | BOLA (`R1`–`R5`), PII serializers, uploads, webhooks, secrets |
+| **Stage 4D — Documentation** | `.cursor/agents/ifsmhp-docs.md` | Read/Write | After security, update `docs/` and the agentic workflow when a feature, fix, or validation rule needs a record. Skip otherwise |
 | **Stage 5 — PR Creator** | `.cursor/agents/ifsmhp-pr-creator.md` | Read/Write | Branch safety, clean staging, commit, push, `gh pr create` |
 | **Stage 6 — PR Validator** | `.cursor/agents/ifsmhp-pr-validator.md` | `readonly` | PR metadata, conflict check, file scope audit, `gh pr checks` |
 | **Stage 7 — PR Merger** | `.cursor/agents/ifsmhp-pr-merger.md` | Read/Write | Authorized `gh pr merge` into `main` with SHA verification |
