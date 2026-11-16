@@ -34,6 +34,8 @@ User Objective
      │         │ (FAIL loops back to [1] → re-runs from [2])
      ├──► [4] ifsmhp-security        (readonly: OWASP, BOLA R1–R5, I.1–I.17, Secret Scan)
      │         │ (FAIL loops back to [1] → re-runs from [2])
+     ├──► [4D] ifsmhp-docs           (only when needed: product docs + agentic workflow)
+     │
      ├──► [5] ifsmhp-pr-creator      (Topic branch, selective staging, push, gh pr create)
      │
      ├──► [6] ifsmhp-pr-validator    (readonly: Base=main, Mergeable, Diff Audit, CI Checks)
@@ -57,6 +59,7 @@ User Objective
 | **Stage 2 — Unit Testing** | `.cursor/agents/ifsmhp-unit-test.md` | Read/Write | Vitest, frontend session, & Playwright tests on dev DB |
 | **Stage 3 — Code Review** | `.cursor/agents/ifsmhp-code-review.md` | `readonly` | Architecture layering, state machines, TS standards, UI states |
 | **Stage 4 — Security** | `.cursor/agents/ifsmhp-security.md` | `readonly` | BOLA (`R1`–`R5`), PII serializers, uploads, webhooks, secrets |
+| **Stage 4D — Documentation** | `.cursor/agents/ifsmhp-docs.md` | Read/Write | After security, update `docs/` and the agentic workflow when a feature, fix, or validation rule needs a record. Skip otherwise |
 | **Stage 5 — PR Creator** | `.cursor/agents/ifsmhp-pr-creator.md` | Read/Write | Branch safety, clean staging, commit, push, `gh pr create` |
 | **Stage 6 — PR Validator** | `.cursor/agents/ifsmhp-pr-validator.md` | `readonly` | PR metadata, conflict check, file scope audit, `gh pr checks` |
 | **Stage 7 — PR Merger** | `.cursor/agents/ifsmhp-pr-merger.md` | Read/Write | Authorized `gh pr merge` into `main` with SHA verification |

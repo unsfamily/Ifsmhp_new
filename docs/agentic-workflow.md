@@ -124,7 +124,10 @@ flowchart TD
 
     S4 --> G4{Gate 4 PASS?}
     G4 -- "FAIL (CRITICAL/HIGH, <=3x)" --> S1
-    G4 -- Yes --> S5["Stage 5: ifsmhp-pr-creator<br/>Topic Branch · Selective git add · Push · gh pr create"]
+    G4 -- Yes --> DOC{Behavior or workflow<br/>rule needs writing?}
+    DOC -- Yes --> S4D["ifsmhp-docs<br/>Update docs/ and agentic workflow"]
+    DOC -- No --> S5["Stage 5: ifsmhp-pr-creator<br/>Topic Branch · Selective git add · Push · gh pr create"]
+    S4D --> S5
 
     S5 --> G5{Gate 5 PASS?}
     G5 -- "BLOCKED (e.g. gh auth)" --> ESC([Surface Exact Unblock Command])
@@ -345,6 +348,14 @@ handoff_envelope:
      - **R4 & I.13:** Default-deny public/member/admin serializers
      - **R5:** `404` on non-owned member resources to prevent enumeration
      - **I.2–I.17:** Strict Zod schemas, magic-byte file upload checks, constant-time HMAC webhook verification, XSS/SSRF prevention, and zero hardcoded secrets.
+
+### Stage 4D — Documentation Agent (`ifsmhp-docs`), when needed
+- **File:** `.cursor/agents/ifsmhp-docs.md` | **Mode:** Read/Write
+- **When:** After Stage 4 `PASS` and before Stage 5, if the diff changes user-visible behavior, an API, a rollout rule, or a repeatable validation rule that is not already written down. Skip comment-only edits, behavior-neutral refactors, and diffs that are already accurate documentation.
+- **Responsibilities:**
+  1. Records product behavior in the existing page under `docs/` (`api.md`, `architecture.md`, `operations.md`, or one feature note such as `membership-certificate.md`).
+  2. Records a new agent validation rule in `.cursor/agents/ifsmhp-orchestrator.md`, `.cursor/skills/ifsmhp-sdlc-pipeline/CONTRACTS.md`, and this document. Does not put product essays in the orchestrator.
+  3. Does not edit application code, commit, or deploy. A skip is a `PASS` with `documentation: SKIPPED`. Stage 5 stages only the files this agent lists.
 
 ### Stage 5 — Pull Request Creation Agent (`ifsmhp-pr-creator`)
 - **File:** `.cursor/agents/ifsmhp-pr-creator.md` | **Mode:** Read/Write

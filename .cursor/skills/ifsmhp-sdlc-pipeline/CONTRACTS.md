@@ -100,11 +100,14 @@ Before transitioning from Stage `N` to Stage `N+1`, `ifsmhp-orchestrator` verifi
    - The reviewed diff is `git diff origin/main...HEAD` in the brief's worktree. A diff against a stale local `main` is not evidence.
    - Layering (`routes → middleware → controllers → services → prisma`), `no-inline-imports`, `typescript-exhaustive-switch`, and UI empty/error states confirmed.
 
-4. **Gate 4 → Gate 5 (Security → PR Creator):**
+4. **Gate 4 → Gate 4D (Security → Documentation, when needed):**
    - `verdict == PASS` with zero `CRITICAL` or `HIGH` findings.
    - Verified against `docs/architecture.md` §B.3 (`R1`–`R5`) and §I (`I.1`–`I.17`), plus secret scan on diff.
+   - Dispatch `ifsmhp-docs` when the diff changes user-visible behavior, an API, a rollout rule, or a repeatable validation rule that is not already documented. Skip it for comment-only edits, behavior-neutral refactors, and diffs that are already accurate documentation.
+   - A documentation `PASS` with `documentation: SKIPPED` advances to Stage 5. A documentation `PASS` that edited files adds those paths to the Stage 5 in-scope list. Do not re-run Stages 2–4 for markdown-only documentation edits.
 
 5. **Gate 5 → Gate 6 (PR Creator → PR Validator):**
+   - Stage 5 stages the product diff and every path in the `ifsmhp-docs` handoff. It does not stage unrelated dirty files or `.env`.
    - Feature/fix branch used (never direct push to `main`).
    - Only in-scope files committed; zero `.env` or secret files staged.
    - PR opened/updated against `main` with traceability summary and test evidence.

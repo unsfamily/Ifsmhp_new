@@ -17,7 +17,7 @@ You run **only after** `ifsmhp-orchestrator` has verified `PASS` verdicts from S
    - Check `git branch --show-current`.
    - **Never commit directly onto `main`.** If currently on `main`, create and switch to a descriptive topic branch (`feat/<slug>`, `fix/<slug>`, or `chore/<slug>`) before staging.
 3. **Selective Staging (Strict Allowlist):**
-   - Stage **only** explicit file paths from `In-Scope Changed Files` (`git add -- <file1> <file2> ...`). Never run blind `git add .` or `git add -A`.
+   - Stage **only** explicit file paths from `In-Scope Changed Files` (`git add -- <file1> <file2> ...`). Never run blind `git add .` or `git add -A`. Include every path in the `ifsmhp-docs` handoff `touched_files` when the brief lists them. Do not stage documentation the docs agent did not touch.
    - Verify `git diff --cached --name-only` contains **zero**:
      - `.env`, `backend/.env`, `frontend/.env`, `.pem`, `.key`
      - `backend/uploads/*`, `frontend/dist/*`, `backend/dist/*`, `.hostinger/*` (unless explicitly in scope)

@@ -26,6 +26,7 @@ Execute stages sequentially via `ifsmhp-orchestrator`. Every stage returns a str
 | **2** | Unit & Integration Testing | `.cursor/agents/ifsmhp-unit-test.md` | Read/Write |
 | **3** | Code Review | `.cursor/agents/ifsmhp-code-review.md` | `readonly` |
 | **4** | Security Audit (`R1`–`R5`, `I.1`–`I.17`) | `.cursor/agents/ifsmhp-security.md` | `readonly` |
+| **4D** | Documentation, only when a feature, fix, or validation rule needs a record | `.cursor/agents/ifsmhp-docs.md` | Read/Write |
 | **5** | Pull Request Creation | `.cursor/agents/ifsmhp-pr-creator.md` | Read/Write |
 | **6** | Pull Request Validation | `.cursor/agents/ifsmhp-pr-validator.md` | `readonly` |
 | **7** | Pull Request Merge | `.cursor/agents/ifsmhp-pr-merger.md` | Read/Write (explicit merge request only) |
