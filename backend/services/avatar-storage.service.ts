@@ -44,6 +44,29 @@ export async function storeAvatar<T>(file: Express.Multer.File | undefined, maxB
   }
 }
 
+/** Makes a membership-card portrait from an already stored registration photograph. */
+export async function copyStoredImageAsAvatar(sourceKey: string, originalName: string): Promise<AvatarFileData> {
+  const storageKey = randomUUID();
+  const target = assertSafePath(storageKey);
+  try {
+    await sharp(assertSafePath(sourceKey), { failOn: 'error' }).rotate().resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true }).webp({ quality: 85 }).toFile(target);
+    const bytes = await fsp.readFile(target);
+    return {
+      storageKey,
+      originalName: path.basename(originalName).slice(0, 191) || 'member-photo.webp',
+      mimeType: 'image/webp',
+      sizeBytes: bytes.length,
+      checksum: createHash('sha256').update(bytes).digest('hex'),
+      avatarManaged: true,
+      visibility: 'PRIVATE',
+    };
+  } catch (error) {
+    await fsp.unlink(target).catch(() => undefined);
+    if (error instanceof ApiError) throw error;
+    throw ApiError.unprocessable('The photograph could not be read.', [{ field: 'documents.PHOTO', message: 'Upload a JPEG, PNG, or WebP photograph.' }]);
+  }
+}
+
 export async function purgeAvatars() {
   const rows = await prisma.fileObject.findMany({ where: { avatarManaged: true, deletedAt: { not: null }, purgedAt: null, adminAvatars: { none: {} }, memberAvatars: { none: {} } }, take: 100 });
   for (const row of rows) {

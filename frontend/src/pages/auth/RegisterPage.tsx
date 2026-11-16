@@ -87,28 +87,48 @@ type UploadState = {
   error: string | null;
 };
 
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
 const documentSlots: Array<{
   kind: RegistrationDocumentKind;
   label: string;
   accept: string;
+  extensions: string[];
+  typeError: string;
   hint: string;
 }> = [
-  { kind: 'CV', label: 'Profile', accept: '.pdf,.doc,.docx', hint: 'PDF, DOC, DOCX (max 10MB)' },
+  {
+    kind: 'CV',
+    label: 'Profile',
+    accept: 'application/pdf,.pdf,application/msword,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx',
+    extensions: ['pdf', 'doc', 'docx'],
+    typeError: 'Upload a PDF, DOC, or DOCX file.',
+    hint: 'PDF, DOC, or DOCX, up to 5 MB',
+  },
   {
     kind: 'CREDENTIAL',
     label: 'Credentials / Certifications / ID Card',
-    accept: '.pdf,.doc,.docx,.jpg,.jpeg,.png',
-    hint: 'PDF, DOC, DOCX (max 10MB)',
+    accept: 'application/pdf,.pdf,application/msword,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp',
+    extensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp'],
+    typeError: 'Upload a PDF, DOC, DOCX, JPG, PNG, or WebP file.',
+    hint: 'PDF, DOC, DOCX, JPG, PNG, or WebP, up to 5 MB',
+  },
+  {
+    kind: 'PHOTO',
+    label: 'Member photograph',
+    accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp',
+    extensions: ['jpg', 'jpeg', 'png', 'webp'],
+    typeError: 'Upload a JPG, PNG, or WebP photograph.',
+    hint: 'A clear photograph of you. JPG, PNG, or WebP, up to 5 MB',
   },
 ];
 
 const initialUploadState = (): Record<RegistrationDocumentKind, UploadState> => ({
   CV: { status: 'idle', file: null, uploaded: null, previewUrl: null, error: null },
   CREDENTIAL: { status: 'idle', file: null, uploaded: null, previewUrl: null, error: null },
+  PHOTO: { status: 'idle', file: null, uploaded: null, previewUrl: null, error: null },
 });
-
-const allowedExtensions = new Set(['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png']);
-const previewMimeTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
+const previewMimeTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
 
 function fileExtension(fileName: string) {
   return fileName.split('.').pop()?.toLowerCase() ?? '';
@@ -121,13 +141,14 @@ function readableType(mimeType: string, fileName: string) {
   if (mimeType.includes('wordprocessingml')) return 'DOCX';
   if (mimeType === 'image/jpeg') return 'JPG';
   if (mimeType === 'image/png') return 'PNG';
+  if (mimeType === 'image/webp') return 'WebP';
   return ext || mimeType;
 }
 
-function clientFileError(file: File) {
+function clientFileError(file: File, slot: (typeof documentSlots)[number]) {
   if (file.size <= 0) return 'Choose a non-empty file.';
-  if (file.size > 10 * 1024 * 1024) return 'Upload a file under 10 MB.';
-  if (!allowedExtensions.has(fileExtension(file.name))) return 'Upload a PDF, DOC, DOCX, JPG, or PNG file.';
+  if (file.size > MAX_UPLOAD_BYTES) return 'Upload a file under 5 MB.';
+  if (!slot.extensions.includes(fileExtension(file.name))) return slot.typeError;
   return null;
 }
 
@@ -143,7 +164,7 @@ export default function RegisterPage() {
   const [referrals, setReferrals] = useState<ReferralInput[]>([]), [letters, setLetters] = useState<RegistrationDocumentUpload[]>([]), [waiver, setWaiver] = useState(''), [lettersBusy, setLettersBusy] = useState(false);
   const [paymentReference, setPaymentReference] = useState(''), [paymentProof, setPaymentProof] = useState<RegistrationDocumentUpload | null>(null), [paymentBusy, setPaymentBusy] = useState(false), [paymentError, setPaymentError] = useState('');
   useEffect(() => { const controller = new AbortController(); setPolicyError(''); membershipService.policy(controller.signal).then(p => { if (!controller.signal.aborted) setPolicy(p); }).catch(e => { if (!controller.signal.aborted) setPolicyError(normalizeError(e).message); }); return () => controller.abort(); }, [policyReload]);
-  const isRequired = (kind: RegistrationDocumentKind) => kind === 'CV' ? policy?.requireProfile ?? true : policy?.requireCredential ?? true;
+  const isRequired = (kind: RegistrationDocumentKind) => kind === 'PHOTO' || (kind === 'CV' ? policy?.requireProfile ?? true : policy?.requireCredential ?? true);
   const [submitted, setSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [documentUploads, setDocumentUploads] = useState(initialUploadState);
@@ -208,7 +229,8 @@ export default function RegisterPage() {
     setErrorMsg(null);
 
     const previous = documentUploads[kind];
-    const localError = clientFileError(file);
+    const slot = documentSlots.find((item) => item.kind === kind);
+    const localError = slot ? clientFileError(file, slot) : 'Choose a supported file.';
     if (localError) {
       setDocumentUploads((current) => ({
         ...current,
@@ -339,7 +361,7 @@ export default function RegisterPage() {
       setPaymentError('Upload a JPEG or PNG screenshot of the payment.');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) { setPaymentError('Upload a JPEG or PNG screenshot under 10 MB.'); return; }
+    if (file.size > MAX_UPLOAD_BYTES) { setPaymentError('Upload a JPEG or PNG screenshot under 5 MB.'); return; }
     setPaymentBusy(true); setPaymentError('');
     try {
       const uploaded = await uploadRegistrationDocument(file);
@@ -354,10 +376,12 @@ export default function RegisterPage() {
     if (!documentsReady) {
       setErrorMsg('Upload the required documents before submitting your application.');
       setDocumentUploads((current) => ({
+        ...current,
         CV: !isRequired('CV') || current.CV.uploaded ? current.CV : { ...current.CV, error: 'Upload your Profile.' },
         CREDENTIAL: !isRequired('CREDENTIAL') || current.CREDENTIAL.uploaded
           ? current.CREDENTIAL
           : { ...current.CREDENTIAL, error: 'Upload your Credentials / Certifications / ID Card.' },
+        PHOTO: current.PHOTO.uploaded ? current.PHOTO : { ...current.PHOTO, error: 'Upload your photograph.' },
       }));
       return;
     }
@@ -586,9 +610,9 @@ export default function RegisterPage() {
                           <TextInput label="Payment reference (UTR / UPI)" required maxLength={191} value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} />
                           <label className="block text-sm font-medium text-ink">
                             Payment screenshot <span className="text-danger-600">*</span>
-                            <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="mt-1.5 block w-full text-sm" disabled={paymentBusy} onChange={(event) => { void onPaymentProof(event.target.files?.[0] ?? null); event.target.value = ''; }} />
+                            <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="mt-1.5 block w-full text-base" disabled={paymentBusy} onChange={(event) => { void onPaymentProof(event.target.files?.[0] ?? null); event.target.value = ''; }} />
                           </label>
-                          {paymentProof ? <p className="text-xs text-success-700">{paymentProof.name}</p> : <p className="text-xs text-ink-muted">JPEG or PNG, required before you submit.</p>}
+                          {paymentProof ? <p className="text-xs text-success-700">{paymentProof.name}</p> : <p className="text-xs text-ink-muted">JPEG or PNG, up to 5 MB, required before you submit.</p>}
                           {paymentError && <p role="alert" className="text-xs text-danger-600">{paymentError}</p>}
                         </div>
                       )}
@@ -683,8 +707,8 @@ export default function RegisterPage() {
                     <FileCheck2 className="h-5 w-5 text-forum-700" />
                     Document Upload
                   </h2>
-                  <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 sm:grid-rows-[auto_minmax(0,1fr)] sm:gap-x-5 sm:gap-y-1.5">
-                    {documentSlots.map((slot, index) => {
+                  <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {documentSlots.map((slot) => {
                       const state = documentUploads[slot.kind];
                       const uploaded = state.uploaded;
                       const statusText =
@@ -707,12 +731,12 @@ export default function RegisterPage() {
                               : 'bg-warning-100 text-warning-600';
 
                       return (
-                        <div key={slot.kind} className={`flex flex-col gap-1.5 sm:row-start-1 sm:row-span-2 sm:grid sm:grid-rows-subgrid ${index === 0 ? 'sm:col-start-1' : 'sm:col-start-2'}`}>
+                        <div key={slot.kind} className="flex flex-col gap-1.5">
                           <div className="flex items-start justify-between gap-3">
-                            <label className="min-w-0 text-sm font-medium leading-5 text-ink">
+                            <p className="min-w-0 text-sm font-medium leading-5 text-ink">
                               {slot.label}
                               {isRequired(slot.kind) ? <span className="ml-1 text-danger-600">*</span> : <span className="ml-1 text-ink-subtle">(optional)</span>}
-                            </label>
+                            </p>
                             <span className={`mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass}`}>
                               {['uploading', 'removing'].includes(state.status) && <RefreshCw className="h-3 w-3 animate-spin" />}
                               {state.status === 'failed' && <AlertCircle className="h-3 w-3" />}
@@ -778,13 +802,13 @@ export default function RegisterPage() {
                                     )}
                                     Remove
                                   </Button>
-                                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-forum-600 bg-transparent px-3 py-1.5 text-sm font-medium text-forum-700 transition-colors hover:bg-forum-50">
+                                  <label className="relative inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-forum-600 bg-transparent px-3 py-2 text-sm font-medium text-forum-700 transition-colors hover:bg-forum-50">
                                     <Upload className="h-3.5 w-3.5" />
                                     Replace
                                     <input
                                       type="file"
                                       accept={slot.accept}
-                                      className="sr-only"
+                                      className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                                       disabled={state.status === 'removing'}
                                       onChange={(event) => {
                                         void handleDocumentSelected(slot.kind, event.currentTarget.files?.[0] ?? null);
@@ -797,12 +821,12 @@ export default function RegisterPage() {
                             ) : (
                               <div className="text-center">
                                 <Upload className="mx-auto h-9 w-9 text-ink-subtle" />
-                                <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-lg bg-forum-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-forum-700">
+                                <label className="relative mt-3 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg bg-forum-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-forum-700">
                                   {state.status === 'uploading' ? 'Uploading...' : 'Upload file'}
                                   <input
                                     type="file"
                                     accept={slot.accept}
-                                    className="sr-only"
+                                    className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                                     disabled={state.status === 'uploading'}
                                     onChange={(event) => {
                                       void handleDocumentSelected(slot.kind, event.currentTarget.files?.[0] ?? null);

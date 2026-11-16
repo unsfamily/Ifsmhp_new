@@ -20,6 +20,8 @@ import { logger } from '../utils/logger';
 import { authorizeCommunityFile } from '../services/community-access.service';
 import {
   createRegistrationClaimToken,
+  REGISTRATION_MAX_BYTES,
+  REGISTRATION_MAX_MB,
   registrationAllowedExtensions,
   registrationAllowedMimeTypes,
   verifyRegistrationClaimToken,
@@ -56,7 +58,7 @@ const upload = multer({
 
 const registrationUpload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  limits: { fileSize: REGISTRATION_MAX_BYTES, files: 1 },
 });
 
 async function detectedMime(filePath: string): Promise<string | undefined> {
@@ -118,8 +120,10 @@ function originalFilename(name: string) {
 
 function declaredMime(file: Express.Multer.File) {
   const extension = path.extname(file.originalname).toLowerCase();
-  if (file.mimetype === 'application/octet-stream') return mimeForExtension(extension) ?? file.mimetype;
-  return file.mimetype;
+  // Phones often omit the type, or send image/jpg for a JPEG photograph.
+  const raw = file.mimetype === 'image/jpg' ? 'image/jpeg' : file.mimetype;
+  if (!raw || raw === 'application/octet-stream') return mimeForExtension(extension) ?? raw;
+  return raw;
 }
 
 function mimeMatches(declared: string, magicMime: string | undefined) {
@@ -144,7 +148,7 @@ async function validateStoredUpload(
   if (options.validateExtension && !registrationAllowedExtensions.has(extension)) {
     await fsp.unlink(file.path).catch(() => undefined);
     throw new ApiError(422, 'Unsupported file type', [
-      { field: 'file', message: 'Upload a PDF, DOC, DOCX, JPG, or PNG file.' },
+      { field: 'file', message: 'Upload a PDF, DOC, DOCX, JPG, PNG, or WebP file.' },
     ]);
   }
 
@@ -197,7 +201,7 @@ router.post(
     const { mimeType, checksum } = await validateStoredUpload(file, {
       allowedMimeTypes: registrationAllowedMimeTypes,
       validateExtension: true,
-      maxMb: 10,
+      maxMb: REGISTRATION_MAX_MB,
     });
     const record = await persistUpload(file, mimeType, checksum);
 
