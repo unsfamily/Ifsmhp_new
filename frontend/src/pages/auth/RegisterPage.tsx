@@ -10,6 +10,7 @@ import {
   GraduationCap,
   CheckCircle2,
   FileCheck2,
+  Camera,
   Briefcase,
   Send,
   Upload,
@@ -639,9 +640,66 @@ export default function RegisterPage() {
                       label="Type of Professional Organization / Independent Professionals"
                       placeholder="University, Hospital, Private Practice..."
                       required
+                      className="flex h-full flex-col [&>label]:mb-0 [&>div]:mt-auto [&>div]:pt-2.5"
                       error={errors.institution?.message}
                       {...register('institution')}
                     />
+                    {documentSlots.filter((slot) => slot.kind === 'PHOTO').map((slot) => {
+                      const state = documentUploads[slot.kind];
+                      const uploaded = state.uploaded;
+                      const busy = state.status === 'uploading' || state.status === 'removing';
+                      return (
+                        <div key={slot.kind} className="flex h-full flex-col">
+                          <label htmlFor="registration-photo" className="block text-sm font-medium leading-5 text-ink">
+                            Photo
+                            {isRequired(slot.kind) ? <span className="ml-1 text-danger-600">*</span> : <span className="ml-1 text-ink-subtle">(optional)</span>}
+                          </label>
+                          <div className="mt-auto pt-2.5">
+                            <div
+                              className={`flex h-[42px] items-center gap-3 rounded-md border bg-paper px-3 shadow-sm ${
+                                state.error ? 'border-danger-600' : uploaded ? 'border-success-600/40' : 'border-paper-border'
+                              }`}
+                            >
+                              {state.previewUrl ? (
+                                <img src={state.previewUrl} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                              ) : (
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-forum-50 text-forum-700">
+                                  <Camera className="h-4 w-4" aria-hidden="true" />
+                                </span>
+                              )}
+                              <p className="min-w-0 flex-1 truncate text-sm text-forum-900">
+                                {uploaded ? uploaded.name : 'JPG, PNG, or WebP'}
+                              </p>
+                              {uploaded && (
+                                <button
+                                  type="button"
+                                  className="shrink-0 text-sm font-medium text-ink-muted hover:text-danger-600 disabled:opacity-60"
+                                  disabled={busy}
+                                  onClick={() => { void removeDocument(slot.kind); }}
+                                >
+                                  Remove
+                                </button>
+                              )}
+                              <label className="relative shrink-0 cursor-pointer text-sm font-semibold text-forum-700">
+                                {state.status === 'uploading' ? 'Uploading…' : uploaded ? 'Replace' : 'Choose'}
+                                <input
+                                  id="registration-photo"
+                                  type="file"
+                                  accept={slot.accept}
+                                  className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                                  disabled={busy}
+                                  onChange={(event) => {
+                                    void handleDocumentSelected(slot.kind, event.currentTarget.files?.[0] ?? null);
+                                    event.currentTarget.value = '';
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          </div>
+                          {state.error && <p role="alert" className="mt-1 text-xs text-danger-600">{state.error}</p>}
+                        </div>
+                      );
+                    })}
                     <div className="sm:col-span-2">
                       <TextArea
                         label="Communication Address"
@@ -707,8 +765,8 @@ export default function RegisterPage() {
                     <FileCheck2 className="h-5 w-5 text-forum-700" />
                     Document Upload
                   </h2>
-                  <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {documentSlots.map((slot) => {
+                  <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    {documentSlots.filter((slot) => slot.kind !== 'PHOTO').map((slot) => {
                       const state = documentUploads[slot.kind];
                       const uploaded = state.uploaded;
                       const statusText =
