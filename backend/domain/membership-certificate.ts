@@ -70,22 +70,25 @@ export function branchLabel(country: string | null): string {
 
 export const CERTIFICATE_TITLE = 'Certificate of Membership';
 
+export const CERTIFICATE_AUTHORITY = 'International Forum for Scientists and Mental Health Professionals';
+
 /**
- * Formal admission text. It recognises professional standing without inventing
- * a prize the Forum has not conferred.
+ * Citation in the form used by international learned societies.
+ * It records admission to IFSMHP. It does not confer a prize the Forum has not awarded.
  */
 export function certificateParagraphs(person: CertificatePerson): string[] {
   const valid = validThroughLabel(person.approvedAt);
   return [
-    'has been duly admitted as a Member of the International Forum for Scientists and Mental Health Professionals.',
-    "The Forum confers this membership in recognition of the holder's professional standing and contribution to scientific inquiry and mental health practice, and in witness of their undertaking to observe the Forum's standards of ethics, collegiality, and evidence-informed care.",
-    `The membership card below identifies the holder by photograph, name, and membership number. It remains valid through ${valid} while membership continues in good standing, and it is issued under the authority of the Chief Research Officer.`,
+    'has been duly elected and admitted as a Member of the International Forum for Scientists and Mental Health Professionals (IFSMHP).',
+    "In keeping with the practice of learned societies throughout the world, this membership is conferred in recognition of the holder's professional standing and distinguished contribution to scientific inquiry and the practice of mental health, together with an undertaking to observe standards of ethics, scientific integrity, collegiality, and evidence-informed care.",
+    `IFSMHP is a global forum seated at Tambaram, Chennai, India, uniting research scholars, scientists, and mental health professionals in support of rigorous research and its benefit to humanity. Membership number ${person.memberId} remains valid through ${valid} while the holder continues in good standing.`,
+    'Issued under the authority of the Chief Research Officer.',
   ];
 }
 
 export function certificateFacts(person: CertificatePerson): string[] {
   return [
-    `Membership number  ${person.memberId}`,
+    `Membership No.  ${person.memberId}`,
     `Date of admission  ${admissionLabel(person.approvedAt)}`,
     `Valid through  ${validThroughLabel(person.approvedAt)}`,
     `Branch  ${branchLabel(person.country)}`,

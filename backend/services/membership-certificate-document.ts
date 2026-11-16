@@ -4,6 +4,7 @@ import path from 'node:path';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type PDFImage } from 'pdf-lib';
 import sharp from 'sharp';
 import {
+  CERTIFICATE_AUTHORITY,
   CERTIFICATE_TITLE,
   admissionLabel,
   branchLabel,
@@ -44,21 +45,29 @@ function letterheadPath(): string {
   return found;
 }
 
-function drawWrapped(page: PDFPage, text: string, font: PDFFont, size: number, x: number, y: number, maxWidth: number, leading: number, color: ReturnType<typeof rgb>): number {
+const PAGE_CENTER = 595.2756 / 2;
+
+function wrapLines(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
   const words = text.split(' ').filter(Boolean);
+  const lines: string[] = [];
   let line = '';
   for (const word of words) {
     const next = line ? `${line} ${word}` : word;
     if (font.widthOfTextAtSize(next, size) > maxWidth && line) {
-      page.drawText(line, { x, y, size, font, color });
-      y -= leading;
+      lines.push(line);
       line = word;
     } else {
       line = next;
     }
   }
-  if (line) {
-    page.drawText(line, { x, y, size, font, color });
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawCentered(page: PDFPage, text: string, font: PDFFont, size: number, y: number, maxWidth: number, leading: number, color: ReturnType<typeof rgb>): number {
+  for (const line of wrapLines(text, font, size, maxWidth)) {
+    const width = font.widthOfTextAtSize(line, size);
+    page.drawText(line, { x: PAGE_CENTER - width / 2, y, size, font, color });
     y -= leading;
   }
   return y;
@@ -103,30 +112,30 @@ export async function renderMembershipCertificate(person: CertificatePerson, pho
 
   const name = holderName(person.fullName);
   const designation = designationLine(person);
-  const left = 54;
-  const width = 488;
-  let y = 668;
+  const measure = 470;
+  let y = 700;
 
-  page.drawText(admissionLabel(person.issuedAt), { x: left, y, size: 11, font: roman, color: INK });
-  y = 638;
-  page.drawText(CERTIFICATE_TITLE, { x: left, y, size: 20, font: romanBold, color: NAVY });
+  y = drawCentered(page, admissionLabel(person.issuedAt), roman, 13, y, measure, 18, INK);
   y -= 8;
-  page.drawRectangle({ x: left, y, width: 168, height: 1.2, color: BRASS });
-  y -= 28;
-  page.drawText('This is to certify that', { x: left, y, size: 12, font: romanItalic, color: INK });
-  y -= 28;
-  y = drawWrapped(page, name, romanBold, 18, left, y, width, 22, NAVY);
-  y -= 4;
-  y = drawWrapped(page, designation, romanItalic, 12, left, y, width, 16, BRASS);
+  y = drawCentered(page, CERTIFICATE_TITLE, romanBold, 24, y, measure, 28, NAVY);
+  y -= 2;
+  page.drawRectangle({ x: PAGE_CENTER - 92, y, width: 184, height: 1.4, color: BRASS });
+  y -= 20;
+  y = drawCentered(page, CERTIFICATE_AUTHORITY, roman, 12, y, measure, 16, BRASS);
+  y -= 14;
+  y = drawCentered(page, 'This is to certify that', romanItalic, 15, y, measure, 20, INK);
+  y -= 8;
+  y = drawCentered(page, name, romanBold, 22, y, measure, 26, NAVY);
+  y -= 2;
+  y = drawCentered(page, designation, romanItalic, 14, y, measure, 18, BRASS);
   y -= 12;
   for (const paragraph of certificateParagraphs(person)) {
-    y = drawWrapped(page, paragraph, roman, 11.5, left, y, width, 16, INK);
-    y -= 8;
+    y = drawCentered(page, paragraph, roman, 13, y, measure, 17.5, INK);
+    y -= 7;
   }
-  y -= 4;
+  y -= 2;
   for (const fact of certificateFacts(person)) {
-    page.drawText(fact, { x: left, y, size: 11, font: romanBold, color: NAVY });
-    y -= 16;
+    y = drawCentered(page, fact, romanBold, 13, y, measure, 16.5, NAVY);
   }
 
   cover(page, PHOTO.x, PHOTO.y, PHOTO.width, PHOTO.height);

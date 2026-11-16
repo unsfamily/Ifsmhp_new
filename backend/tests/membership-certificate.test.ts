@@ -44,10 +44,16 @@ describe('membership certificate wording', () => {
     expect(certificateText('José  Álvarez')).toBe('Jose Alvarez');
     expect(holderName('   ')).toBe('Member');
     const paragraphs = certificateParagraphs(sarah);
-    expect(paragraphs[0]).toContain('duly admitted as a Member');
-    expect(paragraphs[1]).toContain('professional standing and contribution to scientific inquiry and mental health practice');
-    expect(paragraphs[2]).toContain('valid through January 2027');
-    expect(certificateFacts(sarah).join('\n')).toContain('IFSMHP-000001');
+    const body = paragraphs.join('\n');
+    expect(paragraphs[0]).toContain('duly elected and admitted as a Member');
+    expect(body).toContain('learned societies throughout the world');
+    expect(body).toContain('distinguished contribution to scientific inquiry and the practice of mental health');
+    expect(body).toContain('Tambaram, Chennai, India');
+    expect(body).toContain('valid through January 2027');
+    expect(body).toContain('Chief Research Officer');
+    const facts = certificateFacts(sarah).join('\n');
+    expect(facts).toContain('IFSMHP-000001');
+    expect(facts).toContain('United States');
   });
 });
 
