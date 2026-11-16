@@ -26,8 +26,10 @@ const WHITE = rgb(1, 1, 1);
 const PHOTO_FRAME = 1.6;
 
 /**
- * Measured from the letterhead content stream. Each value sits on the printed
+ * Measured from the current letterhead. Each value sits on the printed
  * label's baseline; the cover is only as tall as that one line.
+ * The citation must stay below the header rule (about y=717) and above
+ * the dotted cut line (about y=175).
  */
 const PHOTO = { x: 93.4, y: 61.6, width: 46.7, height: 46.7 };
 const CARD_NAME = { x: 144.5, y: 93.7, size: 7.1, maxWidth: 168 };
