@@ -1,9 +1,10 @@
 /**
  * Wording and field formatting for the membership certificate.
  *
- * The letterhead already carries the Forum's name, address, and the Chief
- * Research Officer's signature. This module supplies only the holder-specific
- * lines: the certificate prose, the designation, and the card details.
+ * The printed letterhead carries the Forum's name, address, and the
+ * membership card, including the Chief Research Officer's signature.
+ * This module supplies only the holder-specific lines: the certificate
+ * prose, the designation, and the card details that replace the sample.
  */
 
 export interface CertificatePerson {
