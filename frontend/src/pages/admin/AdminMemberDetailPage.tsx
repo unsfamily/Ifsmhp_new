@@ -263,6 +263,7 @@ export default function AdminMemberDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [resendingEmail, setResendingEmail] = useState(false);
+  const [sendingCertificate, setSendingCertificate] = useState(false);
 
   // The decision panels live far down the right-hand column — well below the
   // fold on a phone — so revealing one is not enough on its own: the page has
@@ -338,10 +339,10 @@ export default function AdminMemberDetailPage() {
       const result = await adminApi.approveMember(id!, reviewNotes || undefined, membership?.policy.idIssuance === 'MANUAL' ? manualId : undefined);
       // The member is approved regardless; only the notification can fail.
       if (result.emailSent) {
-        setActionNotice(`Approved. Member ID ${result.memberId} issued and the member has been emailed.`);
+        setActionNotice(`Approved. Member ID ${result.memberId} issued, and the membership certificate has been emailed.`);
       } else {
         setActionError(
-          `Approved and Member ID ${result.memberId} issued, but the acknowledgement email could not be sent. Use Retry below.`,
+          `Approved and Member ID ${result.memberId} issued, but the certificate email could not be sent. Use Retry below.`,
         );
       }
       setDecision(null);
@@ -361,7 +362,7 @@ export default function AdminMemberDetailPage() {
     try {
       const result = await adminApi.resendApprovalEmail(id!);
       if (result.emailSent) {
-        setActionNotice('Acknowledgement email sent.');
+        setActionNotice('Acknowledgement email sent, with the membership certificate attached.');
       } else {
         setActionError(`Still could not send the acknowledgement: ${result.emailError ?? 'unknown error'}`);
       }
@@ -370,6 +371,25 @@ export default function AdminMemberDetailPage() {
       setActionError(normalizeError(err).message || 'Could not send the acknowledgement.');
     } finally {
       setResendingEmail(false);
+    }
+  };
+
+  /** Sends the certificate to a member who is already approved, including one welcomed before certificates were attached. */
+  const sendCertificate = async () => {
+    setSendingCertificate(true);
+    setActionError(null);
+    setActionNotice(null);
+    try {
+      const result = await adminApi.emailMembershipCertificate(id!);
+      if (result.emailSent) {
+        setActionNotice('Membership certificate emailed.');
+      } else {
+        setActionError(`Could not email the membership certificate: ${result.emailError ?? 'unknown error'}`);
+      }
+    } catch (err) {
+      setActionError(normalizeError(err).message || 'Could not email the membership certificate.');
+    } finally {
+      setSendingCertificate(false);
     }
   };
 
@@ -534,11 +554,15 @@ export default function AdminMemberDetailPage() {
       )}
 
       {status === 'APPROVED' && data?.approvalEmailSentAt && (
-        <div className="rounded-lg border border-success-600/20 bg-success-100/60 p-4 flex items-start gap-3">
-          <Mail className="h-5 w-5 text-success-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-success-600">
+        <div className="rounded-lg border border-success-600/20 bg-success-100/60 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <Mail className="h-5 w-5 text-success-600 shrink-0" />
+          <p className="flex-1 text-sm text-success-600">
             Acknowledgement emailed to {application.email} on {formatDateFull(data.approvalEmailSentAt)}.
           </p>
+          <Button size="sm" variant="outline" onClick={sendCertificate} disabled={sendingCertificate}>
+            {sendingCertificate ? <Clock3 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {sendingCertificate ? 'Sending…' : 'Email certificate'}
+          </Button>
         </div>
       )}
 

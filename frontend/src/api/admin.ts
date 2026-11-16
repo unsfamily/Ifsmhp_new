@@ -310,6 +310,9 @@ export const adminApi = {
   /** Retries a failed acknowledgement. Refused once one has been sent. */
   resendApprovalEmail: (id: string) =>
     post(`/admin/members/${id}/resend-approval-email`) as Promise<{ emailSent: boolean; emailError?: string }>,
+  /** Emails the membership certificate. Allowed after the one-time welcome message has already gone out. */
+  emailMembershipCertificate: (id: string) =>
+    post(`/admin/members/${id}/certificate-email`) as Promise<{ emailSent: boolean; emailError?: string }>,
   rejectMember: (id: string, reason: string) => post(`/admin/members/${id}/reject`, { reason }),
   projects: (params?: Record<string, unknown>) => get('/admin/projects', params) as Promise<AdminProjectsResult>,
   project: (id: string) => get(`/admin/projects/${id}`) as Promise<AdminProjectDetail>,
