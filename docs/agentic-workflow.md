@@ -112,7 +112,10 @@ flowchart TD
     S0 --> S1["Stage 1: ifsmhp-development<br/>Implement Backend/Frontend/Prisma + typecheck + lint"]
     S1 --> G1{Gate 1 PASS?}
     G1 -- No --> S1
-    G1 -- Yes --> S2["Stage 2: ifsmhp-unit-test<br/>Vitest + Session + Playwright on localhost:3308"]
+    G1 -- Yes --> OPT{Large or mixed<br/>feature diff?}
+    OPT -- No --> S2
+    OPT -- Yes --> S1O["ifsmhp-optimize<br/>Tighten the diff, keep behavior"]
+    S1O --> S2["Stage 2: ifsmhp-unit-test<br/>Vitest + Session + Playwright on localhost:3308"]
 
     S2 --> G2{Gate 2 PASS?}
     G2 -- "FAIL (App Bug, <=3x)" --> S1
@@ -320,6 +323,11 @@ handoff_envelope:
   2. Implements changes following strict IFSMHP backend layering (`routes → middleware/validators → controllers → services → prisma`) and React + Tailwind + Zod frontend patterns.
   3. Enforces top-of-file imports, exhaustive `never` switches, additive Prisma migrations, Windows Prisma DLL stop/generate/restart handling, and UI loading/empty/error states.
   4. Runs `npm run typecheck` and `npm run lint` until both exit `0`, smoke-testing running API (`:4000`) / UI (`:5173`) flows.
+
+### Stage 1O — Optimization Agent (`ifsmhp-optimize`), when the diff is large
+- **File:** `.cursor/agents/ifsmhp-optimize.md` | **Mode:** Read/Write
+- **When:** After Stage 1 and before Stage 2, if the change set is more than about 8 files or 250 lines, or it mixes several features. Skip a small single-purpose change.
+- **Responsibilities:** Remove duplication and unused code introduced by that diff. Keep the existing behavior. Do not commit `.hostinger/`, `.env`, or secrets. A skip is a `PASS` with `optimization: SKIPPED`.
 
 ### Stage 2 — Unit & Integration Testing Agent (`ifsmhp-unit-test`)
 - **File:** `.cursor/agents/ifsmhp-unit-test.md` | **Mode:** Read/Write

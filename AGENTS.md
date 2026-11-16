@@ -28,6 +28,8 @@ User Objective
      │
      ├──► [1] ifsmhp-development     (Code + Prisma + UI, typecheck & lint)
      │         ▲
+     ├──► [1O] ifsmhp-optimize       (only when the diff is large: tighten without new behavior)
+     │
      ├──► [2] ifsmhp-unit-test       (Vitest + Session + Playwright on local :3308 DB)
      │         │ (FAIL loops back to [1])
      ├──► [3] ifsmhp-code-review     (readonly: Layering, TS Exhaustive Switch, Regressions)
@@ -56,6 +58,7 @@ User Objective
 |---|---|---|---|
 | **Orchestrator** | `.cursor/agents/ifsmhp-orchestrator.md` | Read/Write | Master flow controller & handoff gate verifier |
 | **Stage 1 — Development** | `.cursor/agents/ifsmhp-development.md` | Read/Write | Express/Prisma/React implementation, `typecheck`, `lint` |
+| **Stage 1O — Optimization** | `.cursor/agents/ifsmhp-optimize.md` | Read/Write | Tighten a large or multi-feature diff before tests. Skip a small change |
 | **Stage 2 — Unit Testing** | `.cursor/agents/ifsmhp-unit-test.md` | Read/Write | Vitest, frontend session, & Playwright tests on dev DB |
 | **Stage 3 — Code Review** | `.cursor/agents/ifsmhp-code-review.md` | `readonly` | Architecture layering, state machines, TS standards, UI states |
 | **Stage 4 — Security** | `.cursor/agents/ifsmhp-security.md` | `readonly` | BOLA (`R1`–`R5`), PII serializers, uploads, webhooks, secrets |

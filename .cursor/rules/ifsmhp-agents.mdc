@@ -23,6 +23,7 @@ Execute stages sequentially via `ifsmhp-orchestrator`. Every stage returns a str
 | Order | Stage | Agent | Mode |
 |---|---|---|---|
 | **1** | Development Coding | `.cursor/agents/ifsmhp-development.md` | Read/Write |
+| **1O** | Optimization, only when the diff is large or mixes several features | `.cursor/agents/ifsmhp-optimize.md` | Read/Write |
 | **2** | Unit & Integration Testing | `.cursor/agents/ifsmhp-unit-test.md` | Read/Write |
 | **3** | Code Review | `.cursor/agents/ifsmhp-code-review.md` | `readonly` |
 | **4** | Security Audit (`R1`–`R5`, `I.1`–`I.17`) | `.cursor/agents/ifsmhp-security.md` | `readonly` |
