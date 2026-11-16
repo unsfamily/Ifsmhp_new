@@ -97,6 +97,7 @@ Before transitioning from Stage `N` to Stage `N+1`, `ifsmhp-orchestrator` verifi
 
 3. **Gate 3 → Gate 4 (Code Review → Security):**
    - `verdict == PASS` with zero `CRITICAL` or `HIGH` findings.
+   - The reviewed diff is `git diff origin/main...HEAD` in the brief's worktree. A diff against a stale local `main` is not evidence.
    - Layering (`routes → middleware → controllers → services → prisma`), `no-inline-imports`, `typescript-exhaustive-switch`, and UI empty/error states confirmed.
 
 4. **Gate 4 → Gate 5 (Security → PR Creator):**
@@ -109,13 +110,15 @@ Before transitioning from Stage `N` to Stage `N+1`, `ifsmhp-orchestrator` verifi
    - PR opened/updated against `main` with traceability summary and test evidence.
 
 6. **Gate 6 → Gate 7 or STOP (PR Validator → PR Merger):**
-   - PR state is `OPEN`, mergeable (`CONFLICTING` == false), base is `main`, all attached CI checks green (or locally proven via `npm run verify` when repo has no remote Actions workflow).
+   - PR state is `OPEN`, mergeable (`CONFLICTING` == false), base is `main`, head SHA matches the validated commit, and the file list matches `origin/main...HEAD`.
+   - Attached CI checks are green. When the repository has no GitHub Actions workflow for that commit, local `typecheck`, `lint`, and the targeted tests from Stages 1–2 are the evidence. Do not fail the gate only because no remote workflow exists.
    - **Governance Gate:** If the user did NOT ask to merge, **STOP cleanly here** and return the validated PR URL. Proceed to Stage 7 only when merge (or end-to-end deploy) was requested by the user.
 
 7. **Gate 7 → Gate 8 or STOP (PR Merger → Deployment):**
-   - PR state confirmed `MERGED` into `main` with merge commit SHA recorded.
+   - PR state confirmed `MERGED` into `main`. The recorded merge commit's parents include the Stage 6 head SHA and the previous `origin/main`. Ignore a provisional merge SHA returned before the merge.
    - **Governance Gate:** Proceed to Stage 8 only when deployment was requested by the user.
 
 8. **Gate 8 → COMPLETE (Deployment → Release Verification):**
-   - Backend (`api.ifsmhp.com`) and/or Frontend (`/opt/ifsmhp/frontend/dist` + Hostinger status) deployed per scope without touching forbidden DNS/certs/prod seed.
-   - `.cursor/agents/ifsmhp-release-verifier.md` executed and returned `PASS`. Never declare deployment complete without `ifsmhp-release-verifier` passing.
+   - Backend (`api.ifsmhp.com`) and, when the diff changes the frontend, the SPA are deployed without touching forbidden DNS, TLS certificates, or production seed/reset.
+   - `db:deploy` runs only when the pulled range contains a Prisma migration. Runtime assets under `backend/assets/` are verified on the server by path and hash, because `tsc` does not copy them.
+   - `.cursor/agents/ifsmhp-release-verifier.md` was dispatched as its own stage and returned `PASS`. The deployment agent's self-check is not that gate.

@@ -9,7 +9,7 @@ This repository implements a deterministic **Supervisor-Worker Agentic SDLC Pipe
 - **End-to-End Architecture & Workflow Documentation:**
   - [`docs/agentic-workflow.md`](docs/agentic-workflow.md) — Complete specification of the multi-agent architecture, sequence diagrams, handoff envelopes, remediation state machine, governance gates, and concrete walkthroughs.
 - **Orchestrative Supervisor Agent:** [`.cursor/agents/ifsmhp-orchestrator.md`](.cursor/agents/ifsmhp-orchestrator.md)
-  - Owns the complete functional pipeline, maintains the Pipeline State Ledger, dispatches specialist subagents **one by one in strict sequence**, verifies every stage's YAML `handoff_envelope`, and manages bounded remediation loops.
+ - Owns the complete functional pipeline, maintains the Pipeline State Ledger, dispatches specialist subagents **one by one in strict sequence**, verifies every stage's YAML `handoff_envelope`, and manages bounded remediation loops. Release checks that later runs must repeat (diff against `origin/main`, GitHub token handling, asset paths `tsc` does not copy, and a separate release verifier) are in that agent and in [docs/agentic-workflow.md](docs/agentic-workflow.md). The membership certificate those checks covered is in [docs/membership-certificate.md](docs/membership-certificate.md).
 - **Pipeline Skill & Schemas:**
   - [`.cursor/skills/ifsmhp-sdlc-pipeline/SKILL.md`](.cursor/skills/ifsmhp-sdlc-pipeline/SKILL.md) — End-to-end 8-stage workflow & governance horizons.
   - [`.cursor/skills/ifsmhp-sdlc-pipeline/CONTRACTS.md`](.cursor/skills/ifsmhp-sdlc-pipeline/CONTRACTS.md) — Canonical `Pipeline Dispatch Brief` (input) and `Stage Handoff Envelope` (output).

@@ -55,6 +55,20 @@ Before calling Stage 1:
    - **Merge Horizon (`STAGE_7_PR_MERGED`):** Run through Stage `7` **only** when the user explicitly asked to merge the PR (or requested full pipeline through merge/deploy).
    - **Deployment Horizon (`STAGE_8_DEPLOYED`):** Run through Stage `8` (including `ifsmhp-release-verifier`) **only** when the user explicitly asked to deploy/release to production.
 3. **Track Pipeline Progress:** Use `TodoWrite` with one item per active pipeline stage so the user has real-time visibility into the orchestration state.
+4. **Prove the workspace before every stage:** `git rev-parse --show-toplevel` must be the brief's worktree. A dirty checkout on another branch is out of scope. Never stage, reset, pull, merge, or deploy from it.
+5. **Judge the diff against `origin/main`.** A stale local `main` produces a false file list. Fetch before Stage 3 and Stage 6, and reject a scope check that used local `main` when it disagrees with `origin/main`.
+
+---
+
+## 3.1 Release-validation rules
+
+These checks come from shipped releases. Apply them on every run; do not treat a previous PASS as a substitute for re-running the gate.
+
+- **GitHub CLI.** If `gh` returns HTTP 401, `GITHUB_TOKEN` is present and invalid. Unset it and set `GH_TOKEN` from `git credential fill` for `github.com`. Never print the token and never run interactive `gh auth login`. If GraphQL fails because the token lacks `read:org`, use `gh api` REST for view, edit, checks, and merge.
+- **Merge commit.** Re-read the head SHA immediately before merge. Record `merge_commit_sha` only after the pull request is `MERGED` and that commit's parents include the validated head and the previous `origin/main`. A provisional SHA returned while the pull request is still open is not the release commit.
+- **Assets `tsc` does not copy.** A file under `backend/assets/` is read at runtime. On the server, confirm the deployed path and hash. For the membership certificate that path is `/opt/ifsmhp/backend/assets/certificates/ifsmhp-letterhead.pdf`. Behavior and layout limits are in `docs/membership-certificate.md`.
+- **Scope of hosting.** Run `db:deploy` only when the pulled range contains a Prisma migration. Republish the frontend only when the diff changes it. Do not email members while deploying. A letterhead or other template swap must not mass-send certificates.
+- **Named verifier.** Stage 8 is incomplete until `.cursor/agents/ifsmhp-release-verifier.md` has been dispatched and has returned `PASS`. The deployment agent's own health checks do not replace that agent.
 
 ---
 
@@ -74,7 +88,7 @@ After **every** subagent returns:
    - **Mandatory Re-Verification Rule:** Any code modification made during remediation MUST re-run from **Stage 2 (`ifsmhp-unit-test`) → Stage 3 (`ifsmhp-code-review`) → Stage 4 (`ifsmhp-security`)** so a late fix never introduces untested regressions or security flaws.
    - If a gate still fails after **3 remediation cycles**, mark the pipeline `BLOCKED` and escalate to the user with root-cause evidence and concrete options via `AskQuestion`.
 4. **Handle `BLOCKED` (External / Auth / Critical Decision):**
-   - Examples: expired `gh auth` token on PR creation, missing SSH key for EC2 deploy, or a critical production change requiring explicit user approval.
+   - Examples: `gh` still failing after unsetting `GITHUB_TOKEN` and using `git credential fill`, missing SSH key for EC2 deploy, or a critical production change requiring explicit user approval.
    - Complete every possible local check first, preserve state cleanly, and surface the exact single remediation command or `AskQuestion` decision to the user.
 
 ---

@@ -162,7 +162,9 @@ Production process:
 6. Restart the API after the build so workers pick up the new code.
 7. Confirm `GET /api/v1/health`, an administrator password login, and one public page (`/api/v1/public/publications` or the SPA home page).
 
-Feature-specific rollout notes (what not to reseed, which migration is additive) are in the matching file under `docs/`, such as `gallery-management.md`, `community-workflow.md`, and `administration-settings.md`.
+Feature-specific rollout notes (what not to reseed, which migration is additive) are in the matching file under `docs/`, such as `gallery-management.md`, `community-workflow.md`, `administration-settings.md`, and `membership-certificate.md`.
+
+A change that only replaces `backend/assets/certificates/ifsmhp-letterhead.pdf` does not need `db:deploy` or a frontend publish. `tsc` does not copy that PDF. After a fast-forward, confirm `/opt/ifsmhp/backend/assets/certificates/ifsmhp-letterhead.pdf` matches the committed file, build the API, and restart it. Do not email members as part of that deploy.
 
 ## Member profile image rollout and verification
 
