@@ -15,7 +15,7 @@ import type {
 } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
-import { buildPaginatedResult, type PaginationQuery, toSkipTake } from '../utils/pagination';
+import { buildPaginatedResult, paginationQuerySchema, type PaginationQuery, toSkipTake } from '../utils/pagination';
 import { logger } from '../utils/logger';
 import { writeAudit, changesBetween } from './audit.service';
 import { toExcelSheet } from '../utils/excel-sheet';
@@ -1858,39 +1858,110 @@ export async function exportAdminMembers(req: Request) {
 }
 
 const PUBLIC_LOOKUP_LIMIT = 20;
+const PUBLIC_DIRECTORY_PAGE_CAP = 100;
+
+const publicMemberSelect = {
+  fullName: true,
+  memberProfile: {
+    select: {
+      memberId: true,
+      professionalTitle: true,
+      professionalType: true,
+      institution: true,
+      country: true,
+    },
+  },
+} satisfies Prisma.UserSelect;
+
+type PublicMemberRow = Prisma.UserGetPayload<{ select: typeof publicMemberSelect }>;
+
+/** Approved members only. Contact fields, addresses, and pending applications stay off this projection. */
+function approvedMemberWhere(query?: string): Prisma.UserWhereInput {
+  return {
+    deletedAt: null,
+    status: 'ACTIVE',
+    role: 'MEMBER',
+    memberProfile: { is: { memberId: { not: null } } },
+    ...(query
+      ? {
+          OR: [
+            { fullName: { contains: query } },
+            { memberProfile: { is: { memberId: { contains: query } } } },
+          ],
+        }
+      : {}),
+  };
+}
+
+function toPublicMember(row: PublicMemberRow) {
+  const profile = row.memberProfile;
+  if (!profile?.memberId) return null;
+  return {
+    name: row.fullName,
+    memberId: profile.memberId,
+    designation: profile.professionalTitle?.trim() || profile.professionalType,
+    professionalType: profile.professionalType,
+    institution: profile.institution,
+    country: profile.country ?? '',
+  };
+}
+
+function publicDirectoryPage(raw: unknown): PaginationQuery {
+  const query = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  const parsed = paginationQuerySchema.safeParse({
+    page: query.page === undefined || query.page === '' ? undefined : query.page,
+    limit: query.limit === undefined || query.limit === '' ? PUBLIC_DIRECTORY_PAGE_CAP : query.limit,
+  });
+  if (!parsed.success) {
+    throw ApiError.unprocessable('Enter a valid page and limit.', parsed.error.issues.map((issue) => ({
+      field: String(issue.path[0] ?? 'page'),
+      message: issue.message,
+    })));
+  }
+  return parsed.data;
+}
+
+/**
+ * Every approved member, for the public directory under the membership search.
+ * Omitting `q` returns the full directory. A `q` of at least two characters
+ * narrows it by name or member ID. Pending applications are excluded.
+ */
+export async function publicMemberDirectory(raw: unknown) {
+  const queryBag = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  const query = String(queryBag.q ?? '').trim().replace(/\s+/g, ' ');
+  if (query.length === 1) {
+    throw ApiError.unprocessable('Enter at least 2 characters of a name or member ID.', [{ field: 'q', message: 'Enter at least 2 characters.' }]);
+  }
+  const pagination = publicDirectoryPage(queryBag);
+  const where = approvedMemberWhere(query.length >= 2 ? query : undefined);
+  const [total, rows] = await Promise.all([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      select: publicMemberSelect,
+      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+      ...toSkipTake(pagination),
+    }),
+  ]);
+  return buildPaginatedResult(rows.flatMap((row) => {
+    const item = toPublicMember(row);
+    return item ? [item] : [];
+  }), total, pagination);
+}
 
 /** Public confirmation that an approved member is listed. Private contact fields stay off this response. */
 export async function publicMemberLookup(rawQuery: unknown) {
   const query = String(rawQuery ?? '').trim().replace(/\s+/g, ' ');
   if (query.length < 2) throw ApiError.unprocessable('Enter at least 2 characters of a name or member ID.', [{ field: 'q', message: 'Enter at least 2 characters.' }]);
   const rows = await prisma.user.findMany({
-    where: {
-      deletedAt: null,
-      status: 'ACTIVE',
-      role: 'MEMBER',
-      memberProfile: { is: { memberId: { not: null } } },
-      OR: [
-        { fullName: { contains: query } },
-        { memberProfile: { is: { memberId: { contains: query } } } },
-      ],
-    },
-    select: {
-      fullName: true,
-      memberProfile: { select: { memberId: true, professionalType: true, institution: true, country: true } },
-    },
-    orderBy: { fullName: 'asc' },
+    where: approvedMemberWhere(query),
+    select: publicMemberSelect,
+    orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
     take: PUBLIC_LOOKUP_LIMIT,
   });
   const items = rows.flatMap((row) => {
-    const profile = row.memberProfile;
-    if (!profile?.memberId) return [];
-    return [{
-      name: row.fullName,
-      memberId: profile.memberId,
-      professionalType: profile.professionalType,
-      institution: profile.institution,
-      country: profile.country ?? '',
-    }];
+    const item = toPublicMember(row);
+    return item ? [item] : [];
   });
   return { query, listed: items.length > 0, truncated: items.length === PUBLIC_LOOKUP_LIMIT, items };
 }

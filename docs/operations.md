@@ -34,6 +34,7 @@ Create `frontend/.env` from `frontend/.env.example` if it is missing. Create `ba
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` to different random strings of at least 32 characters
 - `CLIENT_URL=http://localhost:5173`
 - leave `SMTP_HOST`, `SMTP_USER`, and `SMTP_PASS` empty unless real mail is required
+- leave `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` unset, or set a `rzp_test_…` pair, for local checkout. Live `rzp_live_…` keys belong only in the production API environment. See [Membership settings](membership-settings.md). Never commit `backend/.env`.
 
 `backend/config/env.ts` exits on startup when a required variable is missing or too short.
 
@@ -154,7 +155,7 @@ npm run build
 
 Production process:
 
-1. Set `NODE_ENV=production` and provide `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `CLIENT_URL` in the environment. Do not generate `backend/.env` on the server.
+1. Set `NODE_ENV=production` and provide `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `CLIENT_URL` in the environment. Do not generate `backend/.env` on the server. Razorpay live keys, when used, are `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in that same server environment. Restart the API after changing them. Do not print those values.
 2. Use HTTPS. Keep `trust proxy` at one hop (already set when `NODE_ENV=production`).
 3. Apply schema with `npm --prefix backend run db:deploy`. Never `migrate dev`, `db:setup --reset`, or `db:seed` against production.
 4. Keep `UPLOAD_STORAGE_PATH` outside any web root and persistent across restarts.

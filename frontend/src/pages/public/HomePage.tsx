@@ -260,7 +260,7 @@ export default function HomePage() {
     <>
       <div
         aria-hidden
-        className="pointer-events-none fixed right-2 top-20 z-40 sm:right-4 sm:top-24 lg:right-7 lg:top-24"
+        className="pointer-events-none fixed right-2 top-[calc(5rem+var(--public-notice-height,0px))] z-40 sm:right-4 sm:top-[calc(6rem+var(--public-notice-height,0px))] lg:right-7"
       >
         <span className="inline-flex items-center justify-center rounded-xl bg-white/60 px-1 py-1 shadow-[0_4px_14px_-4px_rgba(20,29,27,0.45)] ring-1 ring-inset ring-white/80 backdrop-blur-sm sm:rounded-2xl sm:px-1.5 sm:py-1.5 lg:rounded-2xl lg:px-2 lg:py-2">
           <img

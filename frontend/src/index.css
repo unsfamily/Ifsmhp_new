@@ -46,6 +46,130 @@
   }
 }
 
+.notice-bar {
+  display: flex;
+  align-items: stretch;
+  min-height: 2.65rem;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(195, 157, 73, 0.16), transparent 18%, transparent 82%, rgba(195, 157, 73, 0.16)),
+    #012559;
+  border-bottom: 2px solid #c39d49;
+  color: #fff;
+}
+
+.notice-kicker {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.9rem;
+  background: #001738;
+  border-right: 1px solid rgba(195, 157, 73, 0.55);
+  color: #f5ebcb;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.notice-beacon {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #c39d49;
+  box-shadow: 0 0 0 0 rgba(195, 157, 73, 0.75);
+  animation: notice-pulse 1.8s ease-out infinite;
+}
+
+.notice-viewport {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.75rem;
+}
+
+.notice-viewport:has(.notice-count) {
+  padding-right: 3.5rem;
+}
+
+.notice-sentence {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  max-width: 52rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.notice-sentence::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -0.28rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #f8e7b5, transparent);
+  transform: scaleX(0.15);
+  transform-origin: left center;
+  animation: notice-rule 3.2s ease-in-out infinite;
+}
+
+.notice-copy {
+  font-family: "Source Serif 4", Charter, Georgia, serif;
+  font-size: 0.98rem;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.notice-count {
+  position: absolute;
+  right: 0.65rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: #f5ebcb;
+}
+
+.notice-bar.is-paused .notice-sentence::after,
+.notice-bar.is-paused .notice-beacon {
+  animation-play-state: paused;
+}
+
+.notice-control {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  color: #f5ebcb;
+}
+
+.notice-control:hover {
+  color: #ffffff;
+}
+
+@keyframes notice-rule {
+  0%,
+  8% { transform: scaleX(0.12); opacity: 0.35; }
+  42% { transform: scaleX(1); opacity: 1; }
+  70%,
+  100% { transform: scaleX(0.12); opacity: 0.2; }
+}
+
+@keyframes notice-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(195, 157, 73, 0.75); }
+  70%, 100% { box-shadow: 0 0 0 7px rgba(195, 157, 73, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice-sentence::after,
+  .notice-beacon { animation: none; }
+}
+
 .auth-background {
   position: absolute;
   inset: 0;

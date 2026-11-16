@@ -103,7 +103,7 @@ export default function MembershipPage() {
         className="bg-paper border-b border-paper-border"
         aria-labelledby="membership-heading"
       >
-        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-24 lg:py-28">
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
           <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 lg:items-center">
             <div>
               <div className="flex items-center gap-3">

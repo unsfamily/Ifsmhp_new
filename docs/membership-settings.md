@@ -1,6 +1,31 @@
 # Membership settings and workflow
 
-Admin → Settings → Membership controls the policy used for **future applications**. Existing settings revisions, optimistic concurrency, field validation, and transactional audit records remain in use. Historical applications and outstanding OTP drafts without a policy snapshot keep the legacy requirements. Changing these settings does not reissue member IDs. The two queue review thresholds remain live settings for current applications.
+Admin → Settings → Membership controls the policy used for **future applications**. Sign in as an administrator and open `/admin/settings` (`https://www.ifsmhp.com/admin/settings` on the public site). Choose **Membership** in the left column. The fee fields are under **Fees & Financial Hardship**. This is not the public **Membership** item in the site menu.
+
+Existing settings revisions, optimistic concurrency, field validation, and transactional audit records remain in use. Historical applications and outstanding OTP drafts without a policy snapshot keep the legacy requirements. Changing these settings does not reissue member IDs. The two queue review thresholds remain live settings for current applications.
+
+## Where the application fee goes
+
+The default fee is INR 100 for every professional type except Student. Students are not charged. A recorded payment does not approve membership. An administrator still reviews the application and issues the member ID separately.
+
+### Razorpay
+
+Razorpay is the live way to collect an INR fee. It is on when the API process has both `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`. The secret never goes to the browser. The checkout script receives only the key id.
+
+- Local testing keeps the `rzp_test_…` key in the gitignored `backend/.env` on the developer machine. Those payments do not settle real money.
+- Live keys start with `rzp_live_`. Put them in the API server's own `backend/.env` (`/opt/ifsmhp/backend/.env` on the IFSMHP API host), then restart the `ifsmhp-api` service. Do not commit that file, and do not put the secret in the frontend.
+- After email verification, the applicant pays in Razorpay Checkout on the registration page, including by UPI. The site records the fee only when the checkout signature matches and Razorpay reports the payment captured for the same amount. A captured payment is not the same as money already in the bank. Razorpay holds it and transfers it later, on the settlement schedule, to the bank account saved under Razorpay → **Banking**. Until then, the payment is visible under Razorpay → **Transactions**. A UPI success screen from the payer's app shows the registered business name. It does not show a UPI ID, and it does not mean the HDFC account has been credited yet.
+- The optional webhook is `POST /api/v1/public/razorpay/webhook`. In the Razorpay dashboard, create it with that URL and put the signing secret in `RAZORPAY_WEBHOOK_SECRET` in the same server file, then restart the API. Checkout still completes if the webhook is unset. The webhook records the same captured payment when the browser closes first.
+
+While Razorpay is collecting the INR fee, the public policy returns `razorpayEnabled: true`, an empty `paymentInstructions`, and `upiPayment: null`. The registration page shows Razorpay and hides the bank instructions and QR code so the fee cannot be paid twice.
+
+### Bank UPI ID and QR code
+
+The application does not create a UPI ID. The ID belongs to the HDFC account named in the payment instructions: account name IFSMHP, account number `50200123978890`, IFSC `HDFC0000111`.
+
+Find it in the HDFC mobile app under UPI → **Manage UPI ID** / **My UPI ID**, or in PhonePe, Google Pay, or BHIM for that same account. It looks like `name@hdfcbank`. If the account has no UPI ID, create one in the HDFC app for this account. Copy the payee name exactly as that app shows it. Payments to the ID cannot be recalled.
+
+Enter those two values on **Settings → Membership** as **UPI ID for the payment QR code** and **UPI payee name**, then save. They take effect only when Razorpay is not configured. The registration form then shows the QR code to the right of the bank details (below them on a phone). The applicant still enters the UTR and uploads a screenshot. An administrator checks the bank credit and records the payment. Scan the QR and make one small payment before telling applicants to use it.
 
 ## Defaults and behavior
 
@@ -20,8 +45,10 @@ Applicants now go to `/application` after registration or OTP login. They can vi
 
 Existing success/error envelopes are retained. New admin endpoints require an active ADMIN and a persisted session; own-membership endpoints derive ownership from the authenticated session. Private responses use `Cache-Control: private, no-store`. Validation returns 422, stale policies/invalid transitions/duplicate IDs return 409, missing or inaccessible records return 404, and authentication/authorization use 401/403.
 
-- `GET /api/v1/public/membership-policy`: public requirements, fees, currency, payment instructions, waiver availability, and policy revision. Does not expose identity configuration, review metadata, referrals, or applicant records.
-- `GET /api/v1/public/membership-policy` also returns `upiPayment`: `{ upiId, payeeName, amount, uri }`, or `null` when no QR code applies. `PATCH /api/v1/admin/settings/membership` also accepts `upiId` and `upiPayeeName`; a malformed UPI ID, or a UPI ID without a payee name, returns 422.
+- `GET /api/v1/public/membership-policy`: public requirements, fees, currency, payment instructions, waiver availability, policy revision, `razorpayEnabled`, and `upiPayment`. Does not expose identity configuration, review metadata, referrals, or applicant records. `razorpayEnabled` is true only when Razorpay is configured and the currency is INR. `upiPayment` is `{ upiId, payeeName, amount, uri }`, or `null` when no QR code applies, including while Razorpay is collecting the fee. `PATCH /api/v1/admin/settings/membership` also accepts `upiId` and `upiPayeeName`; a malformed UPI ID, or a UPI ID without a payee name, returns 422.
+- `POST /api/v1/membership/charges/:chargeId/razorpay`: the signed-in applicant or member starts a Razorpay order for their own unpaid INR charge. The response includes the public key id, order id, and amount in paise. It does not include the key secret.
+- `POST /api/v1/membership/charges/:chargeId/razorpay/confirm`: `{ orderId, paymentId, signature }`. Records the charge only after the signature matches and Razorpay reports that payment captured for the same order and amount. Does not approve membership.
+- `POST /api/v1/public/razorpay/webhook`: raw-body `payment.captured` or `order.paid` events. Accepted only when `RAZORPAY_WEBHOOK_SECRET` matches the `X-Razorpay-Signature` header.
 - `PATCH /api/v1/admin/settings/membership`: existing `{ expectedRevision, values }` contract. New keys: `idIssuance`, `idPrefix`, `idPadding`, `requireProfile`, `requireCredential`, `applicationFeeEnabled`, `applicationFee`, `annualDuesEnabled`, `annualDues`, `currency`, `paymentInstructions`, `waiversEnabled`, `referralCount`, `referenceLetterCount`, `autoArchive`, `archiveAfterDays`.
 - Registration `POST /api/v1/auth/otp/request`: accepts optional `policyRevision`, `referrals: [{ name, email, organization }]`, `referenceLetters: [{ fileId, claimToken }]`, and `waiverReason`. Existing `documents` kinds remain unchanged. Missing optional documents normalize to an empty list; policy validation determines required evidence.
 - `GET /api/v1/membership`: the authenticated applicant/member's status and charges; never arbitrary user lookup. `POST /api/v1/membership/charges/:chargeId/payment-claims`: `{ requestId: UUID, reference }` stores an applicant UTR for matching without settling the charge. `POST /api/v1/membership/charges/:chargeId/waivers`: `{ requestId: UUID, reason }`.

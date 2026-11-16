@@ -46,6 +46,9 @@ Registration requests retain `fullName` and accept optional `firstName` and `las
 | `GET` | `/public/events/:slugOrId` | Event detail |
 | `GET` | `/public/gallery` | Public gallery albums, banners, and items |
 | `POST` | `/contact` | Create a contact inquiry |
+| `GET` | `/public/membership-policy` | Public fee, Razorpay availability, and UPI QR details. See [membership settings](membership-settings.md). |
+| `GET` | `/public/members` | Approved-member directory. With no `q`, or with `page` or `limit`, returns paginated `{ items, pagination }` (`memberId`, `name`, `designation`, plus professional type, institution, and country). `page` defaults to 1 and `limit` defaults to 100 (maximum 100). A `q` of at least 2 characters filters that page by name or member ID. A bare `q` with no `page` or `limit` confirms a match as `{ query, listed, truncated, items }` (at most 20). Pending applications and private contact fields are omitted. |
+| `POST` | `/public/razorpay/webhook` | Razorpay `payment.captured` / `order.paid` webhook. Requires the raw body and a valid signature. |
 
 ## Member
 

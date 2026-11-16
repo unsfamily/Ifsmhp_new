@@ -327,11 +327,28 @@ describe('Charges, waivers, archive jobs and authorization', () => {
 
     const found = await request(app).get(`${api}/public/members`).query({ q: listedName });
     expect(found.status).toBe(200);
-    expect(found.body.data).toMatchObject({ listed: true, items: [expect.objectContaining({ name: listedName, memberId })] });
+    expect(found.body.data).toMatchObject({ listed: true, items: [expect.objectContaining({ name: listedName, memberId, designation: 'Researcher' })] });
     const publicBody = JSON.stringify(found.body.data);
     expect(publicBody).not.toContain('9876543210');
     expect(publicBody).not.toContain('Private Road');
     expect(publicBody).not.toContain('@example.test');
+
+    const directory = await request(app).get(`${api}/public/members`).query({ limit: 100 });
+    expect(directory.status).toBe(200);
+    expect(directory.body.data.pagination.total).toBeGreaterThanOrEqual(1);
+    let listedRow = (directory.body.data.items as Array<{ memberId: string }>).find((item) => item.memberId === memberId);
+    for (let page = 2; !listedRow && page <= directory.body.data.pagination.pages; page += 1) {
+      const next = await request(app).get(`${api}/public/members`).query({ limit: 100, page });
+      expect(next.status).toBe(200);
+      listedRow = (next.body.data.items as Array<{ memberId: string }>).find((item) => item.memberId === memberId);
+    }
+    expect(listedRow).toMatchObject({ name: listedName, memberId, designation: 'Researcher' });
+    const directoryBody = JSON.stringify(directory.body.data);
+    expect(directoryBody).not.toContain('9876543210');
+    expect(directoryBody).not.toContain('Private Road');
+    expect(directoryBody).not.toContain(pendingName);
+    expect(directoryBody).not.toContain('@example.test');
+
     expect((await request(app).get(`${api}/public/members`).query({ q: pendingName })).body.data.listed).toBe(false);
     expect((await request(app).get(`${api}/public/members`).query({ q: 'a' })).status).toBe(422);
     expect((await request(app).get(`${api}/admin/members/export`)).status).toBe(401);

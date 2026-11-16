@@ -50,4 +50,4 @@ The existing local `tsx watch` API was reloaded after migration; `/api/v1/health
 
 ## Configurable membership requirements
 
-See [Membership settings](membership-settings.md) for configurable documents, references, manual fees, immutable registration-policy snapshots, and the applicant status page. Historical applications and outstanding OTP drafts keep their original requirements.
+See [Membership settings](membership-settings.md) for the application fee, Razorpay Checkout, the bank UPI ID and QR code, configurable documents, references, immutable registration-policy snapshots, and the applicant status page. Historical applications and outstanding OTP drafts keep their original requirements.
