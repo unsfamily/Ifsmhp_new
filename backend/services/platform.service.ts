@@ -1859,6 +1859,8 @@ export async function exportAdminMembers(req: Request) {
 
 const PUBLIC_LOOKUP_LIMIT = 20;
 const PUBLIC_DIRECTORY_PAGE_CAP = 100;
+/** The public directory is one snapshot of approved members, rebuilt about every 30 minutes. */
+export const PUBLIC_MEMBER_DIRECTORY_REFRESH_MS = 30 * 60 * 1000;
 
 const publicMemberSelect = {
   fullName: true,
@@ -1921,10 +1923,76 @@ function publicDirectoryPage(raw: unknown): PaginationQuery {
   return parsed.data;
 }
 
+type PublicMemberView = NonNullable<ReturnType<typeof toPublicMember>>;
+
+interface MemberDirectorySnapshot {
+  fetchedAt: number;
+  members: PublicMemberView[];
+}
+
+let memberDirectorySnapshot: MemberDirectorySnapshot | undefined;
+let memberDirectoryLoad: Promise<MemberDirectorySnapshot> | undefined;
+
+function memberDirectoryRefreshMs(): number {
+  return process.env.NODE_ENV === 'test' ? 0 : PUBLIC_MEMBER_DIRECTORY_REFRESH_MS;
+}
+
+function memberMatches(member: PublicMemberView, query: string): boolean {
+  const needle = query.toLowerCase();
+  return member.name.toLowerCase().includes(needle) || member.memberId.toLowerCase().includes(needle);
+}
+
+async function loadApprovedMemberSnapshot(): Promise<MemberDirectorySnapshot> {
+  const rows = await prisma.user.findMany({
+    where: approvedMemberWhere(),
+    select: publicMemberSelect,
+    orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+  });
+  return {
+    fetchedAt: Date.now(),
+    members: rows.flatMap((row) => {
+      const item = toPublicMember(row);
+      return item ? [item] : [];
+    }),
+  };
+}
+
+/** Approved members from the current snapshot. A test run reads the database on every call. */
+async function approvedMemberSnapshot(): Promise<MemberDirectorySnapshot> {
+  const refreshMs = memberDirectoryRefreshMs();
+  if (memberDirectorySnapshot && Date.now() - memberDirectorySnapshot.fetchedAt < refreshMs) return memberDirectorySnapshot;
+  if (!memberDirectoryLoad) {
+    memberDirectoryLoad = loadApprovedMemberSnapshot()
+      .then((snapshot) => {
+        memberDirectorySnapshot = snapshot;
+        return snapshot;
+      })
+      .finally(() => {
+        memberDirectoryLoad = undefined;
+      });
+  }
+  return memberDirectoryLoad;
+}
+
+function directoryFreshness(fetchedAt: number) {
+  return {
+    refreshedAt: new Date(fetchedAt).toISOString(),
+    refreshIntervalSeconds: PUBLIC_MEMBER_DIRECTORY_REFRESH_MS / 1000,
+  };
+}
+
+/** Browser cache lifetime left in the current 30-minute snapshot. */
+export function publicMemberCacheControl(refreshedAt: string): string {
+  const ageSeconds = Math.floor((Date.now() - Date.parse(refreshedAt)) / 1000);
+  const remaining = Math.max(0, PUBLIC_MEMBER_DIRECTORY_REFRESH_MS / 1000 - Math.max(0, ageSeconds));
+  return `public, max-age=${remaining}`;
+}
+
 /**
  * Every approved member, for the public directory under the membership search.
- * Omitting `q` returns the full directory. A `q` of at least two characters
- * narrows it by name or member ID. Pending applications are excluded.
+ * The snapshot is rebuilt about every 30 minutes. Omitting `q` returns that
+ * snapshot. A `q` of at least two characters narrows it by name or member ID.
+ * Pending applications are excluded.
  */
 export async function publicMemberDirectory(raw: unknown) {
   const queryBag = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
@@ -1933,37 +2001,29 @@ export async function publicMemberDirectory(raw: unknown) {
     throw ApiError.unprocessable('Enter at least 2 characters of a name or member ID.', [{ field: 'q', message: 'Enter at least 2 characters.' }]);
   }
   const pagination = publicDirectoryPage(queryBag);
-  const where = approvedMemberWhere(query.length >= 2 ? query : undefined);
-  const [total, rows] = await Promise.all([
-    prisma.user.count({ where }),
-    prisma.user.findMany({
-      where,
-      select: publicMemberSelect,
-      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
-      ...toSkipTake(pagination),
-    }),
-  ]);
-  return buildPaginatedResult(rows.flatMap((row) => {
-    const item = toPublicMember(row);
-    return item ? [item] : [];
-  }), total, pagination);
+  const snapshot = await approvedMemberSnapshot();
+  const matched = query.length >= 2 ? snapshot.members.filter((member) => memberMatches(member, query)) : snapshot.members;
+  const start = (pagination.page - 1) * pagination.limit;
+  return {
+    ...buildPaginatedResult(matched.slice(start, start + pagination.limit), matched.length, pagination),
+    ...directoryFreshness(snapshot.fetchedAt),
+  };
 }
 
 /** Public confirmation that an approved member is listed. Private contact fields stay off this response. */
 export async function publicMemberLookup(rawQuery: unknown) {
   const query = String(rawQuery ?? '').trim().replace(/\s+/g, ' ');
   if (query.length < 2) throw ApiError.unprocessable('Enter at least 2 characters of a name or member ID.', [{ field: 'q', message: 'Enter at least 2 characters.' }]);
-  const rows = await prisma.user.findMany({
-    where: approvedMemberWhere(query),
-    select: publicMemberSelect,
-    orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
-    take: PUBLIC_LOOKUP_LIMIT,
-  });
-  const items = rows.flatMap((row) => {
-    const item = toPublicMember(row);
-    return item ? [item] : [];
-  });
-  return { query, listed: items.length > 0, truncated: items.length === PUBLIC_LOOKUP_LIMIT, items };
+  const snapshot = await approvedMemberSnapshot();
+  const matched = snapshot.members.filter((member) => memberMatches(member, query));
+  const items = matched.slice(0, PUBLIC_LOOKUP_LIMIT);
+  return {
+    query,
+    listed: items.length > 0,
+    truncated: matched.length > PUBLIC_LOOKUP_LIMIT,
+    items,
+    ...directoryFreshness(snapshot.fetchedAt),
+  };
 }
 
 export async function adminMemberDetail(id: string) {

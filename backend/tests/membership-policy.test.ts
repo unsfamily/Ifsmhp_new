@@ -347,6 +347,9 @@ describe('Charges, waivers, archive jobs and authorization', () => {
 
     const directory = await request(app).get(`${api}/public/members`).query({ limit: 100 });
     expect(directory.status).toBe(200);
+    expect(directory.body.data.refreshIntervalSeconds).toBe(1800);
+    expect(Date.parse(directory.body.data.refreshedAt as string)).not.toBeNaN();
+    expect(directory.headers['cache-control']).toMatch(/^public, max-age=\d+$/);
     expect(directory.body.data.pagination.total).toBeGreaterThanOrEqual(1);
     let listedRow = (directory.body.data.items as Array<{ memberId: string }>).find((item) => item.memberId === memberId);
     for (let page = 2; !listedRow && page <= directory.body.data.pagination.pages; page += 1) {

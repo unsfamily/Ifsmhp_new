@@ -20,15 +20,15 @@ router.post('/razorpay/webhook', asyncHandler(async (req, res) => {
   res.status(accepted ? 200 : 400).json({ success: accepted });
 }));
 router.get('/members', asyncHandler(async (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
   const query = String(req.query.q ?? '').trim();
   // A page or limit asks for the directory, including a name or member-ID filter.
   // A bare `q` stays the short listing check used by existing clients.
-  if (!query || req.query.page !== undefined || req.query.limit !== undefined) {
-    sendSuccess(res, await service.publicMemberDirectory(req.query), 'Registered members');
-    return;
-  }
-  sendSuccess(res, await service.publicMemberLookup(req.query.q), 'Member listing');
+  const directory = !query || req.query.page !== undefined || req.query.limit !== undefined;
+  const data = directory
+    ? await service.publicMemberDirectory(req.query)
+    : await service.publicMemberLookup(req.query.q);
+  res.setHeader('Cache-Control', service.publicMemberCacheControl(data.refreshedAt));
+  sendSuccess(res, data, directory ? 'Registered members' : 'Member listing');
 }));
 router.get('/settings', asyncHandler(async (_req, res) => { res.setHeader('Cache-Control', 'no-store'); sendSuccess(res, await publicSettings()); }));
 

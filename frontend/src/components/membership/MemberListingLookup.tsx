@@ -19,16 +19,20 @@ export default function MemberListingLookup() {
   const [members, setMembers] = useState<PublicMember[]>([]);
   const [directoryState, setDirectoryState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [directoryError, setDirectoryError] = useState('');
+  const [refreshedAt, setRefreshedAt] = useState('');
   const [reloadToken, setReloadToken] = useState(0);
   const [error, setError] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    let refreshTimer = 0;
 
-    const loadDirectory = async () => {
-      setDirectoryState('loading');
-      setDirectoryError('');
+    const loadDirectory = async (background: boolean) => {
+      if (!background) {
+        setDirectoryState('loading');
+        setDirectoryError('');
+      }
       try {
         const data = await publicApi.memberDirectory({
           page,
@@ -39,9 +43,17 @@ export default function MemberListingLookup() {
         setMembers(data.items);
         setPages(data.pagination.pages);
         setTotal(data.pagination.total);
+        setRefreshedAt(data.refreshedAt);
         setDirectoryState('ready');
+        const intervalMs = Math.max(1, data.refreshIntervalSeconds) * 1000;
+        const remainingMs = Date.parse(data.refreshedAt) + intervalMs - Date.now();
+        refreshTimer = window.setTimeout(() => { void loadDirectory(true); }, Math.min(Math.max(remainingMs, 15_000), intervalMs));
       } catch (caught) {
         if (cancelled || controller.signal.aborted) return;
+        if (background) {
+          refreshTimer = window.setTimeout(() => { void loadDirectory(true); }, 30 * 60 * 1000);
+          return;
+        }
         setMembers([]);
         setTotal(0);
         setPages(1);
@@ -50,10 +62,11 @@ export default function MemberListingLookup() {
       }
     };
 
-    void loadDirectory();
+    void loadDirectory(false);
     return () => {
       cancelled = true;
       controller.abort();
+      window.clearTimeout(refreshTimer);
     };
   }, [page, submittedQuery, reloadToken]);
 
@@ -102,7 +115,7 @@ export default function MemberListingLookup() {
             Check whether a member is listed
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-ink-muted sm:text-[16px]">
-            Approved members are listed below by member ID, name, and designation. Search by name or member ID to narrow the list. Pending applications are not shown.
+            Approved members are listed below by member ID, name, and designation. Search by name or member ID to narrow the list. Pending applications are not shown. The list refreshes about every 30 minutes{refreshedAt ? `, last updated ${new Date(refreshedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}.
           </p>
         </div>
 
