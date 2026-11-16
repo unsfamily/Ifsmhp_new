@@ -2,6 +2,8 @@
 
 The registration form now sends First Name, Last Name, Communication Address, and Permanent Address through the existing OTP flow. Professional Type remains free text so the updated choices remain compatible. Organization and document labels retain their current wording and storage meanings; document kinds remain `CV` and `CREDENTIAL`.
 
+The member photograph (`PHOTO`) is entered beside Type of Professional Organization, in the file input `registration-photo`. Profile (`CV`) and credentials (`CREDENTIAL`) stay in the Document Upload row. The photograph still uses the same upload, removal, and document claim as those files.
+
 ## API and persistence
 
 `POST /api/v1/auth/otp/request` with `purpose: "REGISTER"` retains the existing `fullName` and document claims. It additionally accepts:
