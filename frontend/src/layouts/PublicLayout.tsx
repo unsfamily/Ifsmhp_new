@@ -4,6 +4,7 @@ import { Outlet } from 'react-router-dom';
 import { ArrowUp } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
+import NotificationTicker from '../components/layout/NotificationTicker';
 
 export default function PublicLayout() {
   const settings = usePublicSettings();
@@ -29,6 +30,7 @@ export default function PublicLayout() {
         Skip to main content
       </a>
       <Navbar />
+      <NotificationTicker notices={settings?.publicNotices ?? ''} />
       {settings?.maintenance && settings.maintenanceMessage && <aside role="status" className="bg-brass-50 border-b border-brass-200 px-4 py-3 text-center text-sm whitespace-pre-line">{settings.maintenanceMessage}</aside>}
       <main id="main" className="flex-1">
         <Outlet />

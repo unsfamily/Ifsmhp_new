@@ -76,17 +76,20 @@ export function homeCarouselImageUrl(path: string) {
   return path.startsWith('http') ? path : `${baseURL}${path}`;
 }
 
+export interface PublicMember {
+  name: string;
+  memberId: string;
+  designation: string;
+  professionalType: string;
+  institution: string;
+  country: string;
+}
+
 export interface PublicMemberListing {
   query: string;
   listed: boolean;
   truncated: boolean;
-  items: Array<{
-    name: string;
-    memberId: string;
-    professionalType: string;
-    institution: string;
-    country: string;
-  }>;
+  items: PublicMember[];
 }
 
 /** Resolves a DOI to its canonical landing page. */
@@ -111,6 +114,9 @@ export const publicApi = {
   contact: async (payload: unknown) => (await apiClient.post<Envelope<unknown>>('/contact', payload)).data.data,
   memberListing: async (q: string) =>
     (await apiClient.get<Envelope<PublicMemberListing>>('/public/members', { params: { q } })).data.data,
+  /** Approved members from the 30-minute snapshot. Pass `q` to narrow a page by name or member ID. */
+  memberDirectory: async (params: { page?: number; limit?: number; q?: string } = {}, signal?: AbortSignal) =>
+    (await apiClient.get<Envelope<Paginated<PublicMember> & { refreshedAt: string; refreshIntervalSeconds: number }>>('/public/members', { params: { page: 1, limit: 10, ...params }, signal })).data.data,
   registerCeremony: async (slug: string, payload: {
     fullName: string; email: string; phone: string; institution: string; designation?: string;
     participationType: 'DELEGATE' | 'STUDENT_POSTER' | 'AWARD_NOMINATION'; message?: string; consent: true;

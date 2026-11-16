@@ -52,7 +52,7 @@ export default function Footer() {
         {!settings?.legalName && settings?.registrationNumber && <p>{settings.registrationNumber}</p>}
         {settings?.address && <p className="whitespace-pre-line">{settings.address}</p>}
         {settings?.contactEmail && <p><a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a></p>}
-        {settings?.contactPhone && <p>{settings.contactPhone}</p>}
+        {settings?.contactPhone && <p><a href={`tel:${settings.contactPhone.replace(/[^\d+]/g, '')}`}>{settings.contactPhone}</a></p>}
         {settings?.homepageUrl && <p><a href={settings.homepageUrl}>Organization website</a></p>}
         {settings?.communityUrl && <p><a href={settings.communityUrl}>Community</a></p>}
         {settings?.privacyEmail && <p>Privacy contact: <a href={`mailto:${settings.privacyEmail}`}>{settings.privacyEmail}</a></p>}

@@ -282,9 +282,13 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-forum-900">Phone</h3>
-                  <p className="mt-1 text-sm text-ink-muted">
-                    {settings?.contactPhone || 'Phone not configured'}
-                  </p>
+                  {settings?.contactPhone ? (
+                    <a href={`tel:${settings.contactPhone.replace(/[^\d+]/g, '')}`} className="mt-1 inline-block text-sm font-medium text-forum-700 hover:text-forum-900">
+                      {settings.contactPhone}
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-sm text-ink-muted">Phone not configured</p>
+                  )}
                 </div>
               </div>
               <div className="mt-8 hidden lg:block rounded-lg bg-forum-50 p-5">

@@ -64,7 +64,7 @@ Five things drive most of the engineering risk, and they should be treated as fi
 
 ### A.5 Deliberate non-goals for v1
 
-Recorded so scope doesn't drift: no peer-review committee (single CRO reviewer), no payments/dues, no public commenting, no real-time websockets (messaging is request/response with polling), no microservices, no external calendar integration, no multi-language content.
+Recorded so scope doesn't drift: no peer-review committee (single CRO reviewer), no public commenting, no real-time websockets (messaging is request/response with polling), no microservices, no external calendar integration, no multi-language content. Application fees are in scope: Razorpay Checkout collects an INR fee when configured, and the bank/UPI instructions plus QR code are the fallback. See [Membership settings](membership-settings.md). Annual dues exist as a setting and default to off.
 
 ---
 

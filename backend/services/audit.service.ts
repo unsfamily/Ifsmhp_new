@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Prisma, type AuditSeverity } from '@prisma/client';
 import { prisma } from '../config/database';
 import { classifyAction, eventSeverity } from '../domain/audit';
@@ -12,14 +13,25 @@ export interface AuditInput {
   ipAddress?: string; userAgent?: string; deduplicationKey?: string;
 }
 // Explicit allowlists prevent credentials, arbitrary payloads and private content from becoming permanent logs.
-const changeKeys = new Set(['idIssuance', 'idPrefix', 'idPadding', 'requireProfile', 'requireCredential', 'applicationFeeEnabled', 'applicationFee', 'annualDuesEnabled', 'annualDues', 'currency', 'upiId', 'upiPayeeName', 'waiversEnabled', 'referralCount', 'referenceLetterCount', 'autoArchive', 'archiveAfterDays', 'fullName', 'shortName', 'legalName', 'registrationNumber', 'contactEmail', 'contactPhone', 'homepageUrl', 'communityUrl', 'locale', 'timezone', 'dateFormat', 'maintenance', 'pendingDays', 'reviewDays', 'capacity', 'registrationRequired', 'senderName', 'replyTo', 'announcementSignoff', 'publicationDays', 'projectDays', 'supportDays', 'privacyEmail', 'status', 'role', 'visibility', 'isHidden', 'isPinned', 'isLocked', 'displayOrder', 'albumId', 'subcategoryId', 'categoryId', 'assignedAdminId', 'assignedToId', 'deletedAt', 'removedAt', 'publishedAt', 'scheduledPublishAt', 'featured', 'sendReminder', 'reminderDays', 'emailEnabled', 'read', 'revision', 'userRole', 'memberId', 'category', 'priority', 'altText', 'published']);
+const changeKeys = new Set(['idIssuance', 'idPrefix', 'idPadding', 'requireProfile', 'requireCredential', 'applicationFeeEnabled', 'applicationFee', 'annualDuesEnabled', 'annualDues', 'currency', 'upiId', 'upiPayeeName', 'waiversEnabled', 'referralCount', 'referenceLetterCount', 'autoArchive', 'archiveAfterDays', 'fullName', 'shortName', 'legalName', 'registrationNumber', 'contactEmail', 'contactPhone', 'publicNotices', 'homepageUrl', 'communityUrl', 'locale', 'timezone', 'dateFormat', 'maintenance', 'pendingDays', 'reviewDays', 'capacity', 'registrationRequired', 'senderName', 'replyTo', 'announcementSignoff', 'publicationDays', 'projectDays', 'supportDays', 'privacyEmail', 'status', 'role', 'visibility', 'isHidden', 'isPinned', 'isLocked', 'displayOrder', 'albumId', 'subcategoryId', 'categoryId', 'assignedAdminId', 'assignedToId', 'deletedAt', 'removedAt', 'publishedAt', 'scheduledPublishAt', 'featured', 'sendReminder', 'reminderDays', 'emailEnabled', 'read', 'revision', 'userRole', 'memberId', 'category', 'priority', 'altText', 'published']);
 const metadataKeys = new Set(['count', 'rows', 'fileId', 'attachmentId', 'reportId', 'communityId', 'conversationId', 'applicationId', 'jobId', 'channel', 'purpose', 'reasonCode', 'changedFields', 'from', 'to', 'cutoff', 'module', 'action', 'actorRole', 'severity', 'sort', 'searchApplied', 'actorId']);
-function scalar(value: unknown): string | number | boolean | null {
+const AUDIT_TEXT_LIMIT = 500;
+
+function scalar(value: unknown, limit = AUDIT_TEXT_LIMIT): string | number | boolean | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number' && Number.isFinite(value) || typeof value === 'boolean') return value as number | boolean;
   if (value instanceof Date) return value.toISOString();
-  return typeof value === 'string' ? value.slice(0, 500) : null;
+  if (typeof value !== 'string') return null;
+  return Number.isFinite(limit) ? value.slice(0, limit) : value;
 }
+
+/** A long notice is stored as a bounded prefix. When that prefix hides the edit, a short digest keeps the before and after values distinct. */
+function boundedNotice(value: string): string {
+  if (value.length <= AUDIT_TEXT_LIMIT) return value;
+  const digest = createHash('sha256').update(value).digest('hex').slice(0, 8);
+  return `${value.slice(0, AUDIT_TEXT_LIMIT - digest.length - 1)} ${digest}`;
+}
+
 export function safeChanges(value: unknown): Prisma.InputJsonObject | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const result: Record<string, Prisma.InputJsonValue> = {};
@@ -27,8 +39,17 @@ export function safeChanges(value: unknown): Prisma.InputJsonObject | undefined 
     if (!changeKeys.has(key) || !pair || typeof pair !== 'object' || !('before' in pair) || !('after' in pair)) continue;
     const supported = (v: unknown) => v == null || typeof v === 'string' || typeof v === 'boolean' || typeof v === 'number' && Number.isFinite(v) || v instanceof Date && !Number.isNaN(+v);
     if (!supported(pair.before) || !supported(pair.after)) continue;
-    const before = scalar(pair.before), after = scalar(pair.after);
-    if (before !== after) result[key] = { before, after };
+    const compareLimit = key === 'publicNotices' ? Number.POSITIVE_INFINITY : AUDIT_TEXT_LIMIT;
+    const beforeFull = scalar(pair.before, compareLimit);
+    const afterFull = scalar(pair.after, compareLimit);
+    if (beforeFull === afterFull) continue;
+    const before = scalar(pair.before);
+    const after = scalar(pair.after);
+    const hiddenByLimit = key === 'publicNotices' && before === after;
+    result[key] = {
+      before: hiddenByLimit && typeof pair.before === 'string' ? boundedNotice(pair.before) : before,
+      after: hiddenByLimit && typeof pair.after === 'string' ? boundedNotice(pair.after) : after,
+    };
   }
   return Object.keys(result).length ? result : undefined;
 }

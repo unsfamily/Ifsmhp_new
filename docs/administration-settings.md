@@ -1,6 +1,6 @@
 # Administration Settings
 
-The nine administration tabs now use persisted configuration. Only supported workflows are editable. Membership now supports manual fee tracking, document/reference requirements, configurable ID issuance, and retained-record archival; see [Membership settings](membership-settings.md). Online payments, SSO, MFA, delegation, newsletters, backup jobs, and retention deletion systems remain unavailable.
+The nine administration tabs now use persisted configuration. Only supported workflows are editable. Membership supports the application fee through Razorpay, or through the bank instructions and UPI QR code when Razorpay is not configured, plus document/reference requirements, configurable ID issuance, and retained-record archival. See [Membership settings](membership-settings.md). SSO, MFA, delegation, newsletters, backup jobs, and retention deletion systems remain unavailable.
 
 ## API and concurrency
 
@@ -14,7 +14,7 @@ Administrative routes require an active ADMIN and a real stored session; develop
 
 `PlatformSetting` remains the value store. `SettingRevision` provides one revision per section. A MySQL insert/update locks the section before comparing the expected revision, including concurrent first saves. Setting writes, revision updates and `PlatformSettingsUpdated` audit creation share a transaction. No-op writes leave revision, timestamp and audit history unchanged. Retries after a lost response either save nothing or require reviewing the current revision; they cannot overwrite another save silently.
 
-The audit event belongs to `SETTINGS`. It captures allowlisted scalar changes and changed field names. Signature, notice and address text are excluded from before/after audit values. Settings are read from MySQL for each operation/delivery; there is no process-local configuration cache or restart requirement.
+The audit event belongs to `SETTINGS`. It captures allowlisted scalar changes and changed field names. A `publicNotices` value longer than 500 characters is stored as a bounded prefix. When that prefix would hide the edit, an 8-character digest keeps the before and after values distinct. Signature, maintenance-message, and address text stay out of before/after audit values. Settings are read from MySQL for each operation/delivery; there is no process-local configuration cache or restart requirement.
 
 ## Setting-to-consumer registry
 
@@ -23,10 +23,11 @@ Definitions and validation live in `backend/domain/settings.ts`; effective-value
 | Section / keys | Defaults | Consumer |
 | --- | --- | --- |
 | General: `fullName`, `shortName` | Existing application identity: International Forum of Scientists and Mental Health Professionals / IFSMHP | Shared administrator/member shell branding, public logo accessibility text and footer |
-| General: `legalName`, `registrationNumber`, `address`, `contactEmail`, `contactPhone`, `homepageUrl`, `communityUrl` | Empty, never fictional company details | Public footer/contact displays and links |
+| General: `legalName`, `registrationNumber`, `address`, `contactEmail`, `contactPhone`, `homepageUrl`, `communityUrl` | IFSMHP legal name, `U85499TN2025NPL186316`, the Tambaram address, `info@ifsmhp.com`, and `+91 99529 06227`. Homepage and community URLs stay empty. | Public footer and contact page. The phone is a `tel:` link with spaces removed. |
 | General: `locale`, `dateFormat` | `en-GB`, `long` | Settings saved dates, public event dates and calendar formatting; no interface translation |
 | General: `timezone` | Existing `events.default_timezone`, otherwise UTC | New event editor and backend default; configured display dates. Existing event times retain their own timezone; date-only event labels cannot shift to another calendar day. |
-| General: `maintenance`, `maintenanceMessage` | false / empty | Public notice banner only. No access restrictions or authentication changes. Enabling requires a nonempty message. |
+| General: `maintenance`, `maintenanceMessage` | false / empty | Public maintenance banner only. No access restrictions or authentication changes. Enabling requires a nonempty message. |
+| General: `publicNotices` | Empty | One public notice per nonblank line, shown in the ticker under the public navbar. |
 | Membership: `pendingDays`, `reviewDays` | Existing `membership.approval_sla_days`, otherwise 5 / 5 | Application queue ageing and reports attention. Pending starts at submission; under-review starts at the latest genuine transition to UNDER_REVIEW. Missing historical transitions display unavailable. |
 | Events: `capacity`, `registrationRequired`, `reminderDays` | 0 (unlimited), true, 1 | New event editor and backend create defaults. Reminder choices: 0, 1, 3, 7. Explicit overrides and existing records remain unchanged. |
 | Communications: `senderName`, `replyTo`, `signature` | Empty; existing sender behavior when unset | Shared outgoing SMTP delivery, including authentication, approvals, event jobs, announcements and administrator notification jobs |
