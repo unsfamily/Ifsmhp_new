@@ -20,7 +20,7 @@ const app = createApp(), prefix = 'membership-policy-test-', api = '/api/v1';
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWPQcKvAihiGlgQAZBI5gU442lQAAAAASUVORK5CYII=', 'base64');
 let adminId: string, token: string, auditFail = false;
-let original: Awaited<ReturnType<typeof prisma.platformSetting.findMany>>, revisions: Awaited<ReturnType<typeof prisma.settingRevision.findMany>>;
+let original: Awaited<ReturnType<typeof prisma.platformSetting.findMany>> | undefined, revisions: Awaited<ReturnType<typeof prisma.settingRevision.findMany>> | undefined;
 prisma.$use(async (p, next) => { if (auditFail && p.model === 'AuditLog' && p.action === 'create') throw new Error('Injected membership audit failure'); return next(p); });
 async function session(userId: string, role: 'ADMIN' | 'APPLICANT' | 'MEMBER') {
   const s = await prisma.session.create({ data: { userId, tokenHash: sha256(randomUUID()), expiresAt: new Date(Date.now() + 86400000) } });
@@ -64,14 +64,26 @@ async function applicant(values: Partial<MembershipPolicy> = {}, legacy = false,
 const post = (id: string, suffix: string, body: unknown = {}, t = token) => request(app).post(`${api}/admin/membership/${id}/${suffix}`).set('Authorization', `Bearer ${t}`).send(body);
 const approve = (id: string, memberId?: string) => request(app).post(`${api}/admin/members/${id}/approve`).set('Authorization', `Bearer ${token}`).send({ memberId });
 const detail = (id: string) => request(app).get(`${api}/admin/membership/${id}`).set('Authorization', `Bearer ${token}`);
+function isolatedTestDatabase(): boolean {
+  try {
+    const url = new URL(env.DATABASE_URL);
+    return ['localhost', '127.0.0.1'].includes(url.hostname) && url.pathname.endsWith('_test');
+  } catch {
+    return false;
+  }
+}
 beforeAll(async () => {
-  const url = new URL(env.DATABASE_URL); if (!['localhost', '127.0.0.1'].includes(url.hostname) || !url.pathname.endsWith('_test')) throw Error('Use isolated test MySQL');
+  if (!isolatedTestDatabase()) throw Error('Use isolated test MySQL');
   original = await prisma.platformSetting.findMany(); revisions = await prisma.settingRevision.findMany();
   const admin = await prisma.user.create({ data: { fullName: 'Membership Policy Admin', email: `${prefix}admin@example.test`, role: 'ADMIN', status: 'ACTIVE' } }); adminId = admin.id; token = await session(adminId, 'ADMIN');
 });
-beforeEach(async () => { auditFail = false; await prisma.platformSetting.deleteMany({ where: { section: 'membership' } }); await prisma.settingRevision.deleteMany({ where: { section: 'membership' } }); });
-afterEach(async () => { auditFail = false; await cleanup(); });
+beforeEach(async () => {
+  if (!isolatedTestDatabase()) return;
+  auditFail = false; await prisma.platformSetting.deleteMany({ where: { section: 'membership' } }); await prisma.settingRevision.deleteMany({ where: { section: 'membership' } });
+});
+afterEach(async () => { auditFail = false; if (isolatedTestDatabase()) await cleanup(); });
 afterAll(async () => {
+  if (!isolatedTestDatabase() || !original || !revisions) { await prisma.$disconnect(); return; }
   await prisma.platformSetting.deleteMany(); await prisma.settingRevision.deleteMany();
   if (original.length) await prisma.platformSetting.createMany({ data: original }); if (revisions.length) await prisma.settingRevision.createMany({ data: revisions });
   await prisma.auditLog.deleteMany({ where: { actorId: adminId } }); await prisma.user.delete({ where: { id: adminId } }); await prisma.$disconnect();
