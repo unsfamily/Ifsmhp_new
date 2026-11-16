@@ -45,11 +45,22 @@ export async function sendAnnouncementEmail(input: { to: string; subject: string
   return true;
 }
 
+interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
 interface Mail {
   to: string;
   subject: string;
   text: string;
   html: string;
+  attachments?: MailAttachment[];
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
 }
 
 /**
@@ -158,8 +169,12 @@ export async function sendApprovalEmail(
   email: string,
   fullName: string,
   memberId: string,
+  certificate: Buffer,
+  certificateFilename = 'IFSMHP-Membership-Certificate.pdf',
 ): Promise<void> {
   const subject = `Welcome to IFSMHP — your Member ID is ${memberId}`;
+  const safeName = escapeHtml(fullName);
+  const safeId = escapeHtml(memberId);
 
   const text = [
     `Dear ${fullName},`,
@@ -167,6 +182,9 @@ export async function sendApprovalEmail(
     `Your IFSMHP membership application has been approved.`,
     ``,
     `Member ID: ${memberId}`,
+    ``,
+    `Your Certificate of Membership is attached. It records your name, designation,`,
+    `and membership number, and it includes your membership card.`,
     ``,
     `Your membership is now active. To sign in, go to the member portal and enter`,
     `this email address — we will send you a 6-digit code. There is no password to`,
@@ -178,11 +196,15 @@ export async function sendApprovalEmail(
   const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#17251A">
       <h1 style="font-size:18px;margin:0 0 16px">Your IFSMHP membership is approved</h1>
-      <p style="margin:0 0 16px;color:#405046">Dear ${fullName}, your application has been reviewed and approved.</p>
+      <p style="margin:0 0 16px;color:#405046">Dear ${safeName}, your application has been reviewed and approved.</p>
       <div style="border:1px solid #d9e2dc;border-radius:8px;padding:16px;margin:0 0 20px">
         <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#718078">Member ID</p>
-        <p style="margin:0;font-size:22px;font-weight:700;letter-spacing:1px">${memberId}</p>
+        <p style="margin:0;font-size:22px;font-weight:700;letter-spacing:1px">${safeId}</p>
       </div>
+      <p style="margin:0 0 8px;color:#405046">
+        Your Certificate of Membership is attached to this email. It records your name,
+        designation, and membership number, and it includes your membership card.
+      </p>
       <p style="margin:0 0 8px;color:#405046">
         Your membership is now active. To sign in, enter this email address on the member
         portal and we will send you a 6-digit code — there is no password to remember.
@@ -193,7 +215,56 @@ export async function sendApprovalEmail(
     </div>
   `.trim();
 
-  await deliver({ to: email, subject, text, html }, `approval email for ${email} (${memberId})`);
+  await deliver({
+    to: email,
+    subject,
+    text,
+    html,
+    attachments: [{ filename: certificateFilename, content: certificate, contentType: 'application/pdf' }],
+  }, `approval email for ${email} (${memberId})`);
+}
+
+/** Sends the certificate on its own, for a member whose welcome message was already delivered. */
+export async function sendMembershipCertificateEmail(
+  email: string,
+  fullName: string,
+  memberId: string,
+  certificate: Buffer,
+  certificateFilename = 'IFSMHP-Membership-Certificate.pdf',
+): Promise<void> {
+  const subject = `Your IFSMHP Certificate of Membership — ${memberId}`;
+  const safeName = escapeHtml(fullName);
+  const safeId = escapeHtml(memberId);
+  const text = [
+    `Dear ${fullName},`,
+    ``,
+    `Your Certificate of Membership is attached.`,
+    ``,
+    `Member ID: ${memberId}`,
+    ``,
+    `The certificate records your name and designation. The membership card on the`,
+    `same page carries your photograph, name, and membership number.`,
+    ``,
+    `International Forum for Scientists and Mental Health Professionals.`,
+  ].join('\n');
+  const html = `
+    <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#17251A">
+      <h1 style="font-size:18px;margin:0 0 16px">Your Certificate of Membership</h1>
+      <p style="margin:0 0 16px;color:#405046">Dear ${safeName}, your membership certificate is attached.</p>
+      <div style="border:1px solid #d9e2dc;border-radius:8px;padding:16px;margin:0 0 20px">
+        <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#718078">Member ID</p>
+        <p style="margin:0;font-size:22px;font-weight:700;letter-spacing:1px">${safeId}</p>
+      </div>
+      <p style="margin:0;color:#405046">The certificate records your name and designation. The membership card on the same page carries your photograph, name, and membership number.</p>
+    </div>
+  `.trim();
+  await deliver({
+    to: email,
+    subject,
+    text,
+    html,
+    attachments: [{ filename: certificateFilename, content: certificate, contentType: 'application/pdf' }],
+  }, `membership certificate for ${email} (${memberId})`);
 }
 
 export async function sendEventEmail(email: string, event: { title: string; date: Date | null; timeStart: string; timeEnd: string; timezone: string; location: string; cancellationReason: string | null }, cancelled: boolean): Promise<boolean> {

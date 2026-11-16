@@ -111,6 +111,11 @@ router.post('/members/:id/resend-approval-email', validate({ params: idParams })
   sendSuccess(res, data, data.emailSent ? 'Acknowledgement email sent' : 'Acknowledgement email could not be sent');
 }));
 
+router.post('/members/:id/certificate-email', validate({ params: idParams }), asyncHandler(async (req, res) => {
+  const data = await service.emailMembershipCertificate(req.params.id!, req.user!.id);
+  sendSuccess(res, data, data.emailSent ? 'Membership certificate emailed' : 'Membership certificate could not be emailed');
+}));
+
 router.post('/members/:id/review', validate({ params: idParams, body: noteBody }), asyncHandler(async (req, res) => {
   sendSuccess(res, await service.reviewMember(req.params.id!, req.user!.id, req.body.reviewNotes), 'Application moved to review');
 }));

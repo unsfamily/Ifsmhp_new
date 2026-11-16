@@ -19,7 +19,8 @@ import { buildPaginatedResult, type PaginationQuery, toSkipTake } from '../utils
 import { logger } from '../utils/logger';
 import { writeAudit, changesBetween } from './audit.service';
 import { toExcelSheet } from '../utils/excel-sheet';
-import { sendApprovalEmail } from './mail.service';
+import { sendApprovalEmail, sendMembershipCertificateEmail } from './mail.service';
+import { renderApplicationCertificate } from './membership-certificate.service';
 import { isLegacyVideoUrl } from '../domain/document-exchange';
 import { memberPhoneMessage, memberPhoneSchema } from '../domain/member-profile';
 import { parseProjectTimeline, serializeProjectTimeline } from '../domain/project-timeline';
@@ -2020,7 +2021,10 @@ async function deliverApprovalEmail(
   recipient: ApprovalRecipient, actorId: string, resend = false,
 ): Promise<{ emailSent: boolean; emailError?: string }> {
   let emailError: string | undefined;
-  try { await sendApprovalEmail(recipient.email, recipient.fullName, recipient.memberId); }
+  try {
+    const certificate = await renderApplicationCertificate(recipient.applicationId);
+    await sendApprovalEmail(recipient.email, recipient.fullName, recipient.memberId, certificate.pdf, certificate.filename);
+  }
   catch (error) {
     emailError = error instanceof Error ? error.message : String(error);
     logger.error('Approval email failed', { applicationId: recipient.applicationId });
@@ -2062,6 +2066,40 @@ export async function resendApprovalEmail(id: string, actorId: string) {
   }, actorId, true);
 
   return delivery;
+}
+
+/**
+ * Emails the certificate to an approved member.
+ *
+ * Separate from the welcome acknowledgement, which is sent only once. An
+ * administrator uses this when a member was approved before certificates were
+ * attached, or after the member has added a portrait.
+ */
+export async function emailMembershipCertificate(id: string, actorId: string) {
+  const app = await prisma.membershipApplication.findFirst({
+    where: { OR: [{ id }, { userId: id }, { applicationCode: id }] },
+    include: { user: true, profile: true },
+  });
+  if (!app || app.user.deletedAt) throw ApiError.notFound('Member application not found');
+  if (app.status !== 'APPROVED' || !app.profile.memberId) {
+    throw new ApiError(409, 'A membership certificate is available after approval');
+  }
+  let emailError: string | undefined;
+  try {
+    const certificate = await renderApplicationCertificate(app.id);
+    await sendMembershipCertificateEmail(app.user.email, app.user.fullName, app.profile.memberId, certificate.pdf, certificate.filename);
+  } catch (error) {
+    emailError = error instanceof Error ? error.message : String(error);
+    logger.error('Membership certificate email failed', { applicationId: app.id });
+  }
+  await writeAudit({
+    actorId,
+    action: 'MembershipCertificateDeliveryOutcome',
+    entity: `MembershipApplication ${app.id}`,
+    outcome: emailError ? 'FAILED' : 'SUCCEEDED',
+    metadata: { channel: 'EMAIL' },
+  });
+  return emailError ? { emailSent: false, emailError } : { emailSent: true };
 }
 
 export async function rejectMember(id: string, actorId: string, reason: string, note?: string) {
