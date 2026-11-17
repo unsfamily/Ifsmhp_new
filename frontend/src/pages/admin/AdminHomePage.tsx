@@ -5,8 +5,6 @@ import {
   ShieldCheck,
   Calendar,
   Clock,
-  TrendingUp,
-  TrendingDown,
   ChevronRight,
   Bell,
   UserCircle2,
@@ -28,6 +26,9 @@ import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardContent } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
+import { useApiData } from '../../hooks/useApiData';
+import { type DashboardCounts } from './dashboardCounts';
+import { loadDashboardCounts } from './loadDashboardCounts';
 
 const DEMO_LABEL = '[DEMO DATA — API pending]';
 
@@ -49,70 +50,20 @@ const getGreeting = () => {
 };
 
 interface KpiItem {
+  key: keyof DashboardCounts;
   label: string;
-  value: string;
-  trend: 'up' | 'down' | 'flat';
-  trendText: string;
   icon: typeof Users;
   color: 'forum' | 'slateteal' | 'brass';
   linkTo: string;
 }
 
 const kpis: KpiItem[] = [
-  {
-    label: 'Total Members',
-    value: '277',
-    trend: 'up',
-    trendText: '+14 this week',
-    icon: Users,
-    color: 'forum',
-    linkTo: '/admin/members',
-  },
-  {
-    label: 'Pending Applications',
-    value: '6',
-    trend: 'up',
-    trendText: '+2 new today',
-    icon: Clock,
-    color: 'brass',
-    linkTo: '/admin/members/pending',
-  },
-  {
-    label: 'Active Research Projects',
-    value: '142',
-    trend: 'up',
-    trendText: '+8 submitted',
-    icon: FolderKanban,
-    color: 'slateteal',
-    linkTo: '/admin/projects',
-  },
-  {
-    label: 'Publications Awaiting Review',
-    value: '12',
-    trend: 'down',
-    trendText: '-3 approved',
-    icon: FileText,
-    color: 'brass',
-    linkTo: '/admin/publications',
-  },
-  {
-    label: 'Open Support Requests',
-    value: '23',
-    trend: 'up',
-    trendText: '+2 urgent',
-    icon: ShieldCheck,
-    color: 'forum',
-    linkTo: '/admin/support',
-  },
-  {
-    label: 'Upcoming Events',
-    value: '5',
-    trend: 'flat',
-    trendText: '1 this week',
-    icon: Calendar,
-    color: 'slateteal',
-    linkTo: '/admin/events',
-  },
+  { key: 'totalMembers', label: 'Total Members', icon: Users, color: 'forum', linkTo: '/admin/members' },
+  { key: 'pendingApplications', label: 'Pending Applications', icon: Clock, color: 'brass', linkTo: '/admin/members/pending' },
+  { key: 'researchProjects', label: 'Research Projects', icon: FolderKanban, color: 'slateteal', linkTo: '/admin/projects' },
+  { key: 'publicationsAwaitingReview', label: 'Publications Awaiting Review', icon: FileText, color: 'brass', linkTo: '/admin/publications' },
+  { key: 'openSupportRequests', label: 'Open Support Requests', icon: ShieldCheck, color: 'forum', linkTo: '/admin/support' },
+  { key: 'upcomingEvents', label: 'Upcoming Events', icon: Calendar, color: 'slateteal', linkTo: '/admin/events' },
 ];
 
 type Priority = 'Urgent' | 'High' | 'Normal' | 'Low';
@@ -407,12 +358,6 @@ const priorityIcon: Record<Priority, typeof AlertTriangle> = {
   Low: Minus,
 };
 
-const trendClasses = {
-  up: 'text-success-600 bg-success-100',
-  down: 'text-danger-600 bg-danger-100',
-  flat: 'text-ink-muted bg-forum-100',
-};
-
 const colorBg = {
   forum: 'bg-forum-50 text-forum-700',
   slateteal: 'bg-slateteal-100 text-slateteal-700',
@@ -422,6 +367,7 @@ const colorBg = {
 export default function AdminHomePage() {
   const greeting = getGreeting();
   const currentDate = formatCurrentDate();
+  const { data: counts, loading: countsLoading, error: countsError } = useApiData(loadDashboardCounts, [], true);
 
   return (
     <div className="space-y-6">
@@ -435,11 +381,6 @@ export default function AdminHomePage() {
                   <Calendar className="h-3.5 w-3.5" />
                   {currentDate}
                 </span>
-                <span className="text-paper-border">·</span>
-                <Badge variant="brass">
-                  <Sparkles className="h-2.5 w-2.5 mr-1" />
-                  {DEMO_LABEL}
-                </Badge>
               </div>
               <h2 className="mt-3 font-display text-2xl sm:text-3xl font-semibold text-forum-900 leading-tight">
                 {greeting}, Chief Research Officer
@@ -478,29 +419,28 @@ export default function AdminHomePage() {
       </Card>
 
       {/* ===== KPI CARDS ===== */}
+      {countsError && (
+        <p className="rounded-lg border border-danger-600/20 bg-danger-100 px-4 py-3 text-sm text-danger-600" role="alert">
+          {countsError}
+        </p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {kpis.map((k) => {
           const Icon = k.icon;
-          const TrendIcon = k.trend === 'up' ? TrendingUp : k.trend === 'down' ? TrendingDown : Minus;
+          const value = countsLoading || !counts ? '—' : counts[k.key].toLocaleString();
           return (
             <Link
-              key={k.label}
+              key={k.key}
               to={k.linkTo}
               className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-600 focus-visible:ring-offset-2 rounded-lg"
             >
               <Card className="h-full transition-all duration-150 group-hover:shadow-md group-hover:-translate-y-0.5 group-hover:border-forum-300">
                 <CardContent className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div className={`h-11 w-11 flex items-center justify-center rounded-lg ${colorBg[k.color]}`}>
-                      <Icon className="h-5.5 w-5.5" />
-                    </div>
-                    <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${trendClasses[k.trend]}`}>
-                      <TrendIcon className="h-3 w-3" />
-                      {k.trendText}
-                    </span>
+                  <div className={`h-11 w-11 flex items-center justify-center rounded-lg ${colorBg[k.color]}`}>
+                    <Icon className="h-5.5 w-5.5" />
                   </div>
                   <div className="mt-4 flex items-end justify-between">
-                    <p className="font-display text-3xl font-semibold text-forum-900">{k.value}</p>
+                    <p className="font-display text-3xl font-semibold text-forum-900">{value}</p>
                     <ChevronRight className="h-5 w-5 text-ink-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-forum-700" />
                   </div>
                   <p className="mt-0.5 text-sm text-ink-muted">{k.label}</p>
