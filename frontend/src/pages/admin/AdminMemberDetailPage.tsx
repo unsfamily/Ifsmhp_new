@@ -567,41 +567,41 @@ export default function AdminMemberDetailPage() {
       )}
 
       {/* ===== APPLICANT PROFILE HEADER ===== */}
-      <div className="rounded-2xl border border-paper-border bg-gradient-to-br from-forum-600 via-forum-700 to-forum-900 p-6 sm:p-8 text-white relative overflow-hidden">
+      <div className="rounded-2xl border border-white/20 bg-forum-900 p-6 sm:p-8 text-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
         <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="flex items-start gap-4 sm:gap-5">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-brass-500 text-white font-display text-3xl font-bold ring-4 ring-brass-500/20 shadow-lg">
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-white text-forum-900 font-display text-3xl font-bold ring-4 ring-white/40 shadow-lg">
               <div className="relative">
                 <span>{initials}</span>
-                <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-success-600 border-2 border-forum-900" />
+                <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-success-600 border-2 border-white" />
               </div>
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h2 className="font-display text-2xl sm:text-3xl font-semibold leading-tight">
+                <h2 className="font-display text-2xl sm:text-3xl font-semibold leading-tight text-white">
                   {application.fullName}
                 </h2>
               </div>
               <div className="flex flex-wrap items-center gap-2 mb-2">
-                <Badge variant="brass" className="bg-white/10 text-forum-100 border border-white/20">
+                <span className="inline-flex items-center rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-forum-900">
                   {application.professionalType}
-                </Badge>
-                <Badge variant={statusBadgeMap[status]} className="border border-white/20">
+                </span>
+                <span className="inline-flex items-center rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-forum-900">
                   <Clock className="h-2.5 w-2.5 mr-1" />
                   {statusLabelMap[status]}
-                </Badge>
+                </span>
                 {application.memberId && (
-                  <Badge variant="info" className="bg-white/10 text-forum-100 border border-white/20">
+                  <span className="inline-flex items-center rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-forum-900">
                     <IdCard className="h-2.5 w-2.5 mr-1" />
                     {application.memberId}
-                  </Badge>
+                  </span>
                 )}
               </div>
-              <p className="text-forum-100/90 text-sm sm:text-base leading-snug">
+              <p className="text-white text-sm sm:text-base leading-snug">
                 {application.professionalTitle}
               </p>
-              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-forum-100/85">
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-white">
                 <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{application.email}</span>
                 {application.phone && (
                   <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{application.phone}</span>
