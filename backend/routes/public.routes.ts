@@ -27,7 +27,7 @@ router.get('/members', asyncHandler(async (req, res) => {
   const data = directory
     ? await service.publicMemberDirectory(req.query)
     : await service.publicMemberLookup(req.query.q);
-  res.setHeader('Cache-Control', service.publicMemberCacheControl(data.refreshedAt));
+  res.setHeader('Cache-Control', service.publicMemberCacheControl());
   sendSuccess(res, data, directory ? 'Registered members' : 'Member listing');
 }));
 router.get('/settings', asyncHandler(async (_req, res) => { res.setHeader('Cache-Control', 'no-store'); sendSuccess(res, await publicSettings()); }));
