@@ -15,6 +15,7 @@ import { legacyMembershipPolicy, type MembershipPolicy } from '../domain/members
 import { currentMembershipPolicy, runMembershipJobs, anniversary } from '../services/membership-policy.service';
 import { readXlsxEntries } from '../utils/excel-sheet';
 import { updateSettings } from '../services/settings.service';
+import { setMemberDirectoryRefreshMsForTests } from '../services/platform.service';
 import type { Request } from 'express';
 const app = createApp(), prefix = 'membership-policy-test-', api = '/api/v1';
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
@@ -81,7 +82,7 @@ beforeEach(async () => {
   if (!isolatedTestDatabase()) return;
   auditFail = false; await prisma.platformSetting.deleteMany({ where: { section: 'membership' } }); await prisma.settingRevision.deleteMany({ where: { section: 'membership' } });
 });
-afterEach(async () => { auditFail = false; if (isolatedTestDatabase()) await cleanup(); });
+afterEach(async () => { auditFail = false; setMemberDirectoryRefreshMsForTests(undefined); if (isolatedTestDatabase()) await cleanup(); });
 afterAll(async () => {
   if (!isolatedTestDatabase() || !original || !revisions) { await prisma.$disconnect(); return; }
   await prisma.platformSetting.deleteMany(); await prisma.settingRevision.deleteMany();
@@ -349,7 +350,7 @@ describe('Charges, waivers, archive jobs and authorization', () => {
     expect(directory.status).toBe(200);
     expect(directory.body.data.refreshIntervalSeconds).toBe(1800);
     expect(Date.parse(directory.body.data.refreshedAt as string)).not.toBeNaN();
-    expect(directory.headers['cache-control']).toMatch(/^public, max-age=\d+$/);
+    expect(directory.headers['cache-control']).toBe('no-cache');
     expect(directory.body.data.pagination.total).toBeGreaterThanOrEqual(1);
     let listedRow = (directory.body.data.items as Array<{ memberId: string }>).find((item) => item.memberId === memberId);
     for (let page = 2; !listedRow && page <= directory.body.data.pagination.pages; page += 1) {
@@ -381,5 +382,24 @@ describe('Charges, waivers, archive jobs and authorization', () => {
     expect(worksheet).toContain(memberId);
     expect(worksheet).toContain('9876543210');
     expect(worksheet).not.toContain(pendingName);
+  });
+  it('lists a member on the next request after approval, without waiting for the snapshot interval', async () => {
+    setMemberDirectoryRefreshMsForTests(30 * 60 * 1000);
+    try {
+      const before = await request(app).get(`${api}/public/members`).query({ limit: 100 });
+      expect(before.status).toBe(200);
+      const listed = await applicant();
+      const listedName = `Fresh ${randomUUID()}`;
+      await prisma.user.update({ where: { id: listed.userId }, data: { fullName: listedName } });
+      const approval = await approve(listed.id);
+      expect(approval.status).toBe(200);
+      const memberId = approval.body.data.memberId as string;
+      const after = await request(app).get(`${api}/public/members`).query({ q: listedName });
+      expect(after.status).toBe(200);
+      expect(after.headers['cache-control']).toBe('no-cache');
+      expect(after.body.data).toMatchObject({ listed: true, items: [expect.objectContaining({ name: listedName, memberId })] });
+    } finally {
+      setMemberDirectoryRefreshMsForTests(undefined);
+    }
   });
 });

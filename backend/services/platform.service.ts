@@ -1859,7 +1859,10 @@ export async function exportAdminMembers(req: Request) {
 
 const PUBLIC_LOOKUP_LIMIT = 20;
 const PUBLIC_DIRECTORY_PAGE_CAP = 100;
-/** The public directory is one snapshot of approved members, rebuilt about every 30 minutes. */
+/**
+ * Fallback interval reported to older membership pages. The snapshot itself is
+ * discarded when a member is approved, so a new request does not wait this long.
+ */
 export const PUBLIC_MEMBER_DIRECTORY_REFRESH_MS = 30 * 60 * 1000;
 
 const publicMemberSelect = {
@@ -1932,9 +1935,23 @@ interface MemberDirectorySnapshot {
 
 let memberDirectorySnapshot: MemberDirectorySnapshot | undefined;
 let memberDirectoryLoad: Promise<MemberDirectorySnapshot> | undefined;
+let directoryRefreshMsOverride: number | undefined;
 
 function memberDirectoryRefreshMs(): number {
+  if (directoryRefreshMsOverride !== undefined) return directoryRefreshMsOverride;
   return process.env.NODE_ENV === 'test' ? 0 : PUBLIC_MEMBER_DIRECTORY_REFRESH_MS;
+}
+
+/** Drops the public directory so the next request reads approved members again. */
+export function clearPublicMemberDirectory(): void {
+  memberDirectorySnapshot = undefined;
+}
+
+/** Test seam. Production ignores it. Passing `undefined` restores the normal interval. */
+export function setMemberDirectoryRefreshMsForTests(ms: number | undefined): void {
+  if (process.env.NODE_ENV !== 'test') return;
+  directoryRefreshMsOverride = ms;
+  clearPublicMemberDirectory();
 }
 
 function memberMatches(member: PublicMemberView, query: string): boolean {
@@ -1981,18 +1998,16 @@ function directoryFreshness(fetchedAt: number) {
   };
 }
 
-/** Browser cache lifetime left in the current 30-minute snapshot. */
-export function publicMemberCacheControl(refreshedAt: string): string {
-  const ageSeconds = Math.floor((Date.now() - Date.parse(refreshedAt)) / 1000);
-  const remaining = Math.max(0, PUBLIC_MEMBER_DIRECTORY_REFRESH_MS / 1000 - Math.max(0, ageSeconds));
-  return `public, max-age=${remaining}`;
+/** Ask caches to revalidate. An approval must be visible on the next request. */
+export function publicMemberCacheControl(): string {
+  return 'no-cache';
 }
 
 /**
  * Every approved member, for the public directory under the membership search.
- * The snapshot is rebuilt about every 30 minutes. Omitting `q` returns that
- * snapshot. A `q` of at least two characters narrows it by name or member ID.
- * Pending applications are excluded.
+ * The snapshot stays in memory until a member is approved, then the next request
+ * rebuilds it. Omitting `q` returns that snapshot. A `q` of at least two
+ * characters narrows it by name or member ID. Pending applications are excluded.
  */
 export async function publicMemberDirectory(raw: unknown) {
   const queryBag = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
@@ -2131,6 +2146,8 @@ export async function approveMember(id: string, actorId: string, note?: string, 
     await writeAudit({ actorId, action: 'MemberIdIssued', entity: `MemberProfile ${app.profileId}`, changes: { memberId: { before: app.profile.memberId, after: memberId } } }, tx);
     return { memberId, applicationId: app.id, email: app.user.email, fullName: app.user.fullName };
   }).catch(error => { if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') throw new ApiError(409, 'This member ID is already assigned.', [{ field: 'memberId', message: 'Choose another member ID.' }]); throw error; });
+
+  clearPublicMemberDirectory();
 
   // Deliberately outside the transaction: the approval is already committed and
   // a member ID has been issued, so a mail failure must not undo any of it. The

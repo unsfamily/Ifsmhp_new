@@ -114,7 +114,7 @@ export const publicApi = {
   contact: async (payload: unknown) => (await apiClient.post<Envelope<unknown>>('/contact', payload)).data.data,
   memberListing: async (q: string) =>
     (await apiClient.get<Envelope<PublicMemberListing>>('/public/members', { params: { q } })).data.data,
-  /** Approved members from the 30-minute snapshot. Pass `q` to narrow a page by name or member ID. */
+  /** Approved members. The API replaces this list when a member is approved. Pass `q` to narrow a page by name or member ID. */
   memberDirectory: async (params: { page?: number; limit?: number; q?: string } = {}, signal?: AbortSignal) =>
     (await apiClient.get<Envelope<Paginated<PublicMember> & { refreshedAt: string; refreshIntervalSeconds: number }>>('/public/members', { params: { page: 1, limit: 10, ...params }, signal })).data.data,
   registerCeremony: async (slug: string, payload: {
