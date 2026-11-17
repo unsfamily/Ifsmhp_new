@@ -15,7 +15,7 @@ import { legacyMembershipPolicy, type MembershipPolicy } from '../domain/members
 import { currentMembershipPolicy, runMembershipJobs, anniversary } from '../services/membership-policy.service';
 import { readXlsxEntries } from '../utils/excel-sheet';
 import { updateSettings } from '../services/settings.service';
-import { setMemberDirectoryRefreshMsForTests } from '../services/platform.service';
+import { setMemberDirectoryLoadGateForTests, setMemberDirectoryRefreshMsForTests } from '../services/platform.service';
 import type { Request } from 'express';
 const app = createApp(), prefix = 'membership-policy-test-', api = '/api/v1';
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
@@ -82,7 +82,7 @@ beforeEach(async () => {
   if (!isolatedTestDatabase()) return;
   auditFail = false; await prisma.platformSetting.deleteMany({ where: { section: 'membership' } }); await prisma.settingRevision.deleteMany({ where: { section: 'membership' } });
 });
-afterEach(async () => { auditFail = false; setMemberDirectoryRefreshMsForTests(undefined); if (isolatedTestDatabase()) await cleanup(); });
+afterEach(async () => { auditFail = false; setMemberDirectoryLoadGateForTests(undefined); setMemberDirectoryRefreshMsForTests(undefined); if (isolatedTestDatabase()) await cleanup(); });
 afterAll(async () => {
   if (!isolatedTestDatabase() || !original || !revisions) { await prisma.$disconnect(); return; }
   await prisma.platformSetting.deleteMany(); await prisma.settingRevision.deleteMany();
@@ -399,6 +399,34 @@ describe('Charges, waivers, archive jobs and authorization', () => {
       expect(after.headers['cache-control']).toBe('no-cache');
       expect(after.body.data).toMatchObject({ listed: true, items: [expect.objectContaining({ name: listedName, memberId })] });
     } finally {
+      setMemberDirectoryRefreshMsForTests(undefined);
+    }
+  });
+  it('does not publish a directory read that started before approval', async () => {
+    setMemberDirectoryRefreshMsForTests(30 * 60 * 1000);
+    let release: () => void = () => undefined;
+    let markStarted: () => void = () => undefined;
+    const started = new Promise<void>((resolve) => { markStarted = resolve; });
+    const wait = new Promise<void>((resolve) => { release = resolve; });
+    setMemberDirectoryLoadGateForTests({ started: markStarted, wait });
+    try {
+      const inflight = request(app).get(`${api}/public/members`).query({ limit: 1 });
+      const done = inflight.then((response) => response);
+      await started;
+      const listed = await applicant();
+      const listedName = `Overlap ${randomUUID()}`;
+      await prisma.user.update({ where: { id: listed.userId }, data: { fullName: listedName } });
+      const approval = await approve(listed.id);
+      expect(approval.status).toBe(200);
+      release();
+      expect((await done).status).toBe(200);
+      const memberId = approval.body.data.memberId as string;
+      const after = await request(app).get(`${api}/public/members`).query({ q: listedName });
+      expect(after.status).toBe(200);
+      expect(after.body.data).toMatchObject({ listed: true, items: [expect.objectContaining({ name: listedName, memberId })] });
+    } finally {
+      release();
+      setMemberDirectoryLoadGateForTests(undefined);
       setMemberDirectoryRefreshMsForTests(undefined);
     }
   });

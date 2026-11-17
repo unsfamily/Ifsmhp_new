@@ -111,7 +111,7 @@ export default function MemberListingLookup() {
             Check whether a member is listed
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-ink-muted sm:text-[16px]">
-            Approved members are listed below by member ID, name, and designation. Search by name or member ID to narrow the list. Pending applications are not shown. A newly approved member appears here as soon as an administrator approves the application.
+            Approved members are listed below by member ID, name, and designation. Search by name or member ID to narrow the list. Pending applications are not shown. A newly approved member appears the next time this page is opened, or when you return to this tab.
           </p>
         </div>
 

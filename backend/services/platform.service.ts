@@ -1935,7 +1935,9 @@ interface MemberDirectorySnapshot {
 
 let memberDirectorySnapshot: MemberDirectorySnapshot | undefined;
 let memberDirectoryLoad: Promise<MemberDirectorySnapshot> | undefined;
+let memberDirectoryGeneration = 0;
 let directoryRefreshMsOverride: number | undefined;
+let directoryLoadGate: { started: () => void; wait: Promise<void> } | undefined;
 
 function memberDirectoryRefreshMs(): number {
   if (directoryRefreshMsOverride !== undefined) return directoryRefreshMsOverride;
@@ -1944,7 +1946,9 @@ function memberDirectoryRefreshMs(): number {
 
 /** Drops the public directory so the next request reads approved members again. */
 export function clearPublicMemberDirectory(): void {
+  memberDirectoryGeneration += 1;
   memberDirectorySnapshot = undefined;
+  memberDirectoryLoad = undefined;
 }
 
 /** Test seam. Production ignores it. Passing `undefined` restores the normal interval. */
@@ -1952,6 +1956,12 @@ export function setMemberDirectoryRefreshMsForTests(ms: number | undefined): voi
   if (process.env.NODE_ENV !== 'test') return;
   directoryRefreshMsOverride = ms;
   clearPublicMemberDirectory();
+}
+
+/** Test seam. Holds a directory read after its query and before the snapshot is published. */
+export function setMemberDirectoryLoadGateForTests(gate: { started: () => void; wait: Promise<void> } | undefined): void {
+  if (process.env.NODE_ENV !== 'test') return;
+  directoryLoadGate = gate;
 }
 
 function memberMatches(member: PublicMemberView, query: string): boolean {
@@ -1965,6 +1975,11 @@ async function loadApprovedMemberSnapshot(): Promise<MemberDirectorySnapshot> {
     select: publicMemberSelect,
     orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
   });
+  const gate = directoryLoadGate;
+  if (gate) {
+    gate.started();
+    await gate.wait;
+  }
   return {
     fetchedAt: Date.now(),
     members: rows.flatMap((row) => {
@@ -1978,17 +1993,21 @@ async function loadApprovedMemberSnapshot(): Promise<MemberDirectorySnapshot> {
 async function approvedMemberSnapshot(): Promise<MemberDirectorySnapshot> {
   const refreshMs = memberDirectoryRefreshMs();
   if (memberDirectorySnapshot && Date.now() - memberDirectorySnapshot.fetchedAt < refreshMs) return memberDirectorySnapshot;
+  const generation = memberDirectoryGeneration;
   if (!memberDirectoryLoad) {
-    memberDirectoryLoad = loadApprovedMemberSnapshot()
+    const load = loadApprovedMemberSnapshot()
       .then((snapshot) => {
-        memberDirectorySnapshot = snapshot;
+        if (generation === memberDirectoryGeneration) memberDirectorySnapshot = snapshot;
         return snapshot;
       })
       .finally(() => {
-        memberDirectoryLoad = undefined;
+        if (memberDirectoryLoad === load) memberDirectoryLoad = undefined;
       });
+    memberDirectoryLoad = load;
   }
-  return memberDirectoryLoad;
+  const snapshot = await memberDirectoryLoad;
+  if (generation !== memberDirectoryGeneration) return approvedMemberSnapshot();
+  return snapshot;
 }
 
 function directoryFreshness(fetchedAt: number) {
