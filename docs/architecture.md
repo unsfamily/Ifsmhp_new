@@ -516,10 +516,12 @@ PENDING ──► UNDER_REVIEW ──► APPROVED   (terminal — issues Member 
 | From | To | Actor | Side effects |
 |---|---|---|---|
 | PENDING | UNDER_REVIEW | Admin | audit |
-| PENDING/UNDER_REVIEW | APPROVED | Admin | Member ID, `User.role=MEMBER`, `status=ACTIVE`, notification, email, audit |
+| PENDING/UNDER_REVIEW | APPROVED | Admin | Member ID, `User.role=MEMBER`, `status=ACTIVE`, notification, email, audit, public directory snapshot cleared |
 | PENDING/UNDER_REVIEW | REJECTED | Admin | `reviewNotes` required, `User.status=REJECTED`, notification, email, audit |
 
 Invariants: no path reaches `APPROVED` without a Member ID; a member can never trigger any of these transitions; `APPROVED` is irreversible (deactivation is a separate `User.status` concern, not a reversal of approval).
+
+`GET /public/members` lists approved active members and leaves out pending applications and contact fields. The API keeps one in-memory snapshot and discards it when approval commits, so the next request includes the new member. The response uses `Cache-Control: no-cache`. The membership page loads that list when it opens and again when the visitor returns to the tab.
 
 ### H.2 Project
 
