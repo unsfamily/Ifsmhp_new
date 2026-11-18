@@ -3,9 +3,9 @@ import { useRef, useState } from 'react';
 import { announcementApi, announcementSchema, type Announcement, type AnnouncementInput, type AnnouncementAction } from '../api/announcements';
 import { normalizeError } from '../api/client';
 export type ComposerState = AnnouncementInput & { scheduleMode: 'draft' | 'now' | 'scheduled' };
-export const EMPTY_COMPOSER: ComposerState = { subject: '', body: '', audience: 'All Members', channel: 'Email + In-App', expiresAt: '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', scheduledAt: '', senderAsCRO: true, appendUnsubscribe: true, sendSABPreview: false, scheduleMode: 'draft' };
+export const EMPTY_COMPOSER: ComposerState = { subject: '', body: '', audience: 'All Members', channel: 'Email + In-App', expiresAt: '', attachmentFileId: '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', scheduledAt: '', senderAsCRO: true, appendUnsubscribe: true, sendSABPreview: false, scheduleMode: 'draft' };
 export function composerInput(c: ComposerState): AnnouncementInput {
-  return { expiresAt: c.expiresAt, subject: c.subject, body: c.body, audience: c.audience, channel: c.channel, timezone: c.timezone, senderAsCRO: c.senderAsCRO, appendUnsubscribe: c.appendUnsubscribe, sendSABPreview: c.sendSABPreview, scheduledAt: c.scheduleMode === 'scheduled' ? c.scheduledAt : '' };
+  return { expiresAt: c.expiresAt, attachmentFileId: c.attachmentFileId, subject: c.subject, body: c.body, audience: c.audience, channel: c.channel, timezone: c.timezone, senderAsCRO: c.senderAsCRO, appendUnsubscribe: c.appendUnsubscribe, sendSABPreview: c.sendSABPreview, scheduledAt: c.scheduleMode === 'scheduled' ? c.scheduledAt : '' };
 }
 export function useAnnouncementComposer(refresh: () => void) {
   const [composer, setComposer] = useState(EMPTY_COMPOSER);
@@ -16,6 +16,7 @@ export function useAnnouncementComposer(refresh: () => void) {
   const [stale, setStale] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState('');
+  const [pdf, setPdf] = useState<{ name: string; sizeBytes: number } | null>(null);
   const lock = useRef(false);
   const requests = useRef(new Map<string, string>());
   const pendingAction = useRef<{ signature: string; row: Announcement; requestId: string } | null>(null);
@@ -29,13 +30,28 @@ export function useAnnouncementComposer(refresh: () => void) {
     setComposer(c => ({ ...c, [key]: value, ...(key === 'audience' && value === 'Pending Applicants' ? { channel: 'Email' as const } : {}) }));
     setErrors(e => ({ ...e, [key]: '' })); setError('');
   };
-  const reset = async () => { if (lock.current) return; setRecord(null); setComposer(EMPTY_COMPOSER); setErrors({}); setError(''); setStale(false); setResult(''); requests.current.clear(); pendingAction.current = null; lock.current = true; setBusy(true); try { const s = await settingsService.get(); setComposer({ ...EMPTY_COMPOSER, sendSABPreview: s.values.communications.announcementSignoff }); } catch(e) { fail(e); setStale(true); } finally { lock.current = false; setBusy(false); } };
+  const reset = async () => { if (lock.current) return; setRecord(null); setComposer(EMPTY_COMPOSER); setPdf(null); setErrors({}); setError(''); setStale(false); setResult(''); requests.current.clear(); pendingAction.current = null; lock.current = true; setBusy(true); try { const s = await settingsService.get(); setComposer({ ...EMPTY_COMPOSER, sendSABPreview: s.values.communications.announcementSignoff }); } catch(e) { fail(e); setStale(true); } finally { lock.current = false; setBusy(false); } };
   const openDraft = async (row: Pick<Announcement, 'id'>, schedule = false) => {
     if (lock.current) return;
     lock.current = true; setBusy(true); setError('');
-    try { const full = await announcementApi.detail(row.id); setRecord(full); setComposer({ ...composerInput({ ...full, scheduleMode: 'scheduled' }), scheduleMode: schedule || full.status === 'Scheduled' ? 'scheduled' : 'draft' }); setShowComposer(true); setErrors({}); setStale(false); setResult(''); requests.current.clear(); }
+    try { const full = await announcementApi.detail(row.id); setRecord(full); setPdf(full.attachment ? { name: full.attachment.name, sizeBytes: full.attachment.sizeBytes } : null); setComposer({ ...composerInput({ ...full, scheduleMode: 'scheduled' }), scheduleMode: schedule || full.status === 'Scheduled' ? 'scheduled' : 'draft' }); setShowComposer(true); setErrors({}); setStale(false); setResult(''); requests.current.clear(); }
     catch (e) { fail(e); } finally { lock.current = false; setBusy(false); }
   };
+  const uploadPdf = async (file: File) => {
+    if (lock.current) return;
+    const namedPdf = file.name.toLowerCase().endsWith('.pdf');
+    const typedPdf = !file.type || file.type === 'application/pdf' || file.type === 'application/octet-stream';
+    if (!namedPdf || !typedPdf) { setErrors(e => ({ ...e, attachmentFileId: 'Upload a PDF file.' })); return; }
+    if (file.size > 10 * 1024 * 1024) { setErrors(e => ({ ...e, attachmentFileId: 'PDF must be 10 MB or smaller.' })); return; }
+    lock.current = true; setBusy(true); setError('');
+    try {
+      const uploaded = await announcementApi.uploadPdf(file);
+      setComposer(c => ({ ...c, attachmentFileId: uploaded.id }));
+      setPdf({ name: uploaded.name, sizeBytes: uploaded.sizeBytes });
+      setErrors(e => ({ ...e, attachmentFileId: '' }));
+    } catch (e) { fail(e); } finally { lock.current = false; setBusy(false); }
+  };
+  const clearPdf = () => { if (lock.current) return; setComposer(c => ({ ...c, attachmentFileId: '' })); setPdf(null); setErrors(e => ({ ...e, attachmentFileId: '' })); };
   const run = async (mode: 'draft' | 'send' | 'schedule' | 'preview') => {
     if (lock.current) return;
     const input = composerInput(composer);
@@ -62,5 +78,5 @@ export function useAnnouncementComposer(refresh: () => void) {
     try { const updated = await announcementApi.act(row, kind, requestId([kind, row.id, row.revision]), confirmed); if (record?.id === row.id) { if (kind === 'delete') { setRecord(null); setComposer(EMPTY_COMPOSER); setShowComposer(false); } else setRecord(updated); } setResult(kind === 'delete' ? 'Announcement deleted.' : kind === 'sign-off' ? 'SAB sign-off recorded for this revision.' : kind === 'cancel' ? 'Schedule cancelled. Announcement returned to drafts.' : 'Delivery retry queued.'); refresh(); return true; }
     catch (e) { fail(e); return false; } finally { lock.current = false; setBusy(false); }
   };
-  return { composer, record, showComposer, setShowComposer, errors, error, stale, busy, result, update, reset, openDraft, run, action };
+  return { composer, record, pdf, showComposer, setShowComposer, errors, error, stale, busy, result, update, reset, openDraft, uploadPdf, clearPdf, run, action };
 }

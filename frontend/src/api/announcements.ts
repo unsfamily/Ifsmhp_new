@@ -11,6 +11,7 @@ export interface Announcement extends AnnouncementInput {
   preview: string; createdAt: string; updatedAt: string; sentAt: string | null; scheduledFor: string | null; dispatchStartedAt: string | null;
   recipients: number; delivery: { status: string; channel: string; count: number }[];
   previewDelivery: { status: string; channel: string; count: number }[]; previewReady: boolean; signedOff: boolean;
+  attachment: { id: string; name: string; sizeBytes: number } | null;
 }
 export interface Delivery { id: string; recipientEmail: string | null; recipientUserId: string | null; channel: string; purpose: string; revision: number | null; status: string; attempts: number; deliveredAt: string | null; openedAt: string | null; error: string | null }
 export interface AnnouncementOptions { audiences: { name: string; total: number; email: number; inApp: number; available: boolean }[]; smtpConfigured: boolean; sabRecipients: number; workerEnabled: boolean }
@@ -26,4 +27,10 @@ export const announcementApi = {
   },
   act: async (row: Pick<Announcement, 'id' | 'revision'>, action: AnnouncementAction, requestId: string, confirmed?: boolean) => (await apiClient.post<{ data: Announcement }>(`${root}/${row.id}/${action}`, { requestId, expectedRevision: row.revision, ...(confirmed ? { confirmed } : {}) })).data.data,
   deliveries: async (id: string, params: { page: number; limit: number; channel: string; purpose: string }) => (await apiClient.get<{ data: Page<Delivery> }>(`${root}/${id}/deliveries`, { params })).data.data,
+  uploadPdf: async (file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return (await apiClient.post<{ data: { id: string; name: string; sizeBytes: number } }>(`${root}/attachments`, body)).data.data;
+  },
+  downloadPdf: async (id: string) => (await apiClient.get<Blob>(`${root}/${id}/attachment`, { responseType: 'blob' })).data,
 };

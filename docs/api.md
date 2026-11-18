@@ -124,6 +124,9 @@ All admin routes require an active `ADMIN` session.
 | `POST` | `/admin/inquiries/:id/spam` | Mark inquiry as spam |
 | `GET` | `/admin/announcements` | Announcement list |
 | `POST` | `/admin/announcements` | Create draft/scheduled/sent announcement |
+| `POST` | `/admin/announcements/attachments` | Upload one private PDF (10 MB) for a draft |
+| `GET` | `/admin/announcements/:id/attachment` | Download that announcement's PDF |
+| `GET` | `/members/me/announcements/:id/attachment` | Download a delivered announcement PDF the member can already read |
 | `GET` | `/admin/gallery` | Admin gallery view |
 | `GET` | `/admin/audit-log` | Persisted audit timeline with combined search/classification/date filters, deterministic sorting and pagination |
 | `GET` | `/admin/audit-log/summary` | Database counts for administrator activity (24h), warnings/danger (7d), and indefinite retention |

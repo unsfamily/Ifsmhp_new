@@ -5,6 +5,7 @@ import { env } from '../config';
 import { logger } from '../utils/logger';
 import { recipientWhere, channelsFor, hash, audit } from './announcements.service';
 import { sendAnnouncementEmail } from './mail.service';
+import { readAnnouncementPdf } from './announcement-attachment.service';
 import { unsubscribeToken } from './announcement-preferences.service';
 
 async function dispatch(id: string, now: Date) {
@@ -70,7 +71,8 @@ export async function processAnnouncementJobs(now = new Date(), onlyId?: string)
         } else {
           const web = (env.ANNOUNCEMENT_WEB_URL ?? env.allowedOrigins[0]!).replace(/\/$/, '');
           const unsubscribeUrl = !preview && user && row.appendUnsubscribe ? `${web}/announcements/unsubscribe#token=${unsubscribeToken(user.id)}` : undefined;
-          const sent = await sendAnnouncementEmail({ to: user?.email ?? job.recipientEmail!, subject: row.subject, body: row.body, senderAsCRO: row.senderAsCRO, preview, unsubscribeUrl, messageId: `<announcement-${job.key}@ifsmhp.local>` });
+          const attachment = row.attachmentFileId ? await readAnnouncementPdf(row.attachmentFileId) : undefined;
+          const sent = await sendAnnouncementEmail({ to: user?.email ?? job.recipientEmail!, subject: row.subject, body: row.body, senderAsCRO: row.senderAsCRO, preview, unsubscribeUrl, attachment, messageId: `<announcement-${job.key}@ifsmhp.local>` });
           if (!sent) { status = 'UNCONFIGURED'; error = 'SMTP is not configured. No email was sent.'; }
         }
         await tx.announcementDelivery.updateMany({ where: { id: job.id, claimToken: token }, data: { status, error, ...(status === 'SENT' ? { attempts: { increment: 1 }, recipientEmail: user?.email ?? job.recipientEmail } : {}), deliveredAt: status === 'SENT' ? now : null, lockedAt: null, claimToken: null, ...(status === 'UNCONFIGURED' ? { dueAt: new Date(now.getTime() + 60000) } : {}) } });

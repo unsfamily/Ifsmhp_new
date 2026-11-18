@@ -9,6 +9,7 @@ import { env } from '../config';
 import { ApiError } from '../utils/ApiError';
 import { paginationQuerySchema, toSkipTake, buildPaginatedResult } from '../utils/pagination';
 import { ANNOUNCEMENT_AUDIENCES, ANNOUNCEMENT_STATUSES, announcementFields, announcementSchema, mutationFields, type AnnouncementInput } from '../domain/announcement-input';
+import { bindAnnouncementPdf, pdfConflict } from './announcement-attachment.service';
 
 export const createBody = announcementFields.extend({ sendSABPreview: z.boolean().optional() }).merge(mutationFields).strict();
 export const updateBody = announcementFields.partial().merge(mutationFields.required()).strict();
@@ -48,11 +49,12 @@ export async function options() {
 }
 export function toInput(row: Announcement): AnnouncementInput {
   return { subject: row.subject, body: row.body, audience: row.audience as AnnouncementInput['audience'], channel: row.channel as AnnouncementInput['channel'], timezone: row.timezone,
-    scheduledAt: row.scheduledAt ? DateTime.fromJSDate(row.scheduledAt).setZone(row.timezone).toFormat("yyyy-MM-dd'T'HH:mm") : '', expiresAt: row.expiresAt ? DateTime.fromJSDate(row.expiresAt).setZone(row.timezone).toFormat("yyyy-MM-dd'T'HH:mm") : '', senderAsCRO: row.senderAsCRO, appendUnsubscribe: row.appendUnsubscribe, sendSABPreview: row.sendSABPreview };
+    scheduledAt: row.scheduledAt ? DateTime.fromJSDate(row.scheduledAt).setZone(row.timezone).toFormat("yyyy-MM-dd'T'HH:mm") : '', expiresAt: row.expiresAt ? DateTime.fromJSDate(row.expiresAt).setZone(row.timezone).toFormat("yyyy-MM-dd'T'HH:mm") : '', attachmentFileId: row.attachmentFileId ?? '', senderAsCRO: row.senderAsCRO, appendUnsubscribe: row.appendUnsubscribe, sendSABPreview: row.sendSABPreview };
 }
 const label = (status: string) => status.charAt(0) + status.slice(1).toLowerCase();
-const include = { author: { select: { fullName: true } } } satisfies Prisma.AnnouncementInclude;
-async function serialize(row: Announcement & { author: { fullName: string } | null }) {
+const include = { author: { select: { fullName: true } }, attachment: { select: { id: true, originalName: true, sizeBytes: true, deletedAt: true } } } satisfies Prisma.AnnouncementInclude;
+type AnnouncementRow = Prisma.AnnouncementGetPayload<{ include: typeof include }>;
+async function serialize(row: AnnouncementRow) {
   const grouped = await prisma.announcementDelivery.groupBy({ by: ['purpose', 'status', 'channel'], where: { announcementId: row.id, ...(row.managed ? { revision: row.revision } : {}) }, _count: true });
   const preview = grouped.filter(g => g.purpose === 'PREVIEW');
   const deliveries = grouped.filter(g => g.purpose === 'BROADCAST');
@@ -63,6 +65,7 @@ async function serialize(row: Announcement & { author: { fullName: string } | nu
     previewDelivery: preview.map(g => ({ status: g.status, channel: g.channel, count: g._count })),
     previewReady: row.previewRevision === row.revision && preview.length > 0 && preview.every(g => g.status === 'SENT'),
     signedOff: row.signedOffRevision === row.revision, signedOffAt: row.signedOffAt, signedOffBy: row.signedOffBy,
+    attachment: row.attachment && !row.attachment.deletedAt ? { id: row.attachment.id, name: row.attachment.originalName, sizeBytes: row.attachment.sizeBytes } : null,
   };
 }
 export async function detail(id: string, includeDeleted = false) {
@@ -127,12 +130,15 @@ export async function save(actorId: string, raw: unknown, id?: string) {
     const value = announcementSchema().parse({ ...(row ? toInput(row) : {}), ...fields, ...(!row && raw && typeof raw === 'object' && !('sendSABPreview' in raw) ? { sendSABPreview: defaults.communications.announcementSignoff } : {}) });
     const scheduledAt = value.scheduledAt ? DateTime.fromISO(value.scheduledAt, { zone: value.timezone }) : null;
     if (scheduledAt && (!scheduledAt.isValid || scheduledAt.toFormat("yyyy-MM-dd'T'HH:mm") !== value.scheduledAt)) throw ApiError.unprocessable('Invalid scheduled time', [{ field: 'scheduledAt', message: 'Choose a valid local date and time.' }]);
-    const data = { ...value, scheduledAt: scheduledAt?.toJSDate() ?? null, expiresAt: value.expiresAt ? DateTime.fromISO(value.expiresAt, { zone: value.timezone }).toJSDate() : null, status: 'DRAFT' as const, managed: true };
-    if (!row) return (await tx.announcement.create({ data: { ...data, authorId: actorId } })).id;
-    if (JSON.stringify(toInput(row)) === JSON.stringify(value) && row.status === 'DRAFT' && row.managed) return row.id;
-    await tx.announcementDelivery.updateMany({ where: { announcementId: row.id, purpose: 'PREVIEW', status: { in: ['QUEUED', 'PROCESSING', 'FAILED', 'UNCONFIGURED'] } }, data: { status: 'CANCELLED', claimToken: null, lockedAt: null } });
-    await tx.announcement.update({ where: { id: row.id }, data: { ...data, revision: { increment: 1 }, previewRevision: null, signedOffRevision: null, signedOffAt: null, signedOffBy: null } });
-    return row.id;
+    const attachmentFileId = await bindAnnouncementPdf(tx, actorId, row?.id, value.attachmentFileId);
+    const data = { subject: value.subject, body: value.body, audience: value.audience, channel: value.channel, timezone: value.timezone, senderAsCRO: value.senderAsCRO, appendUnsubscribe: value.appendUnsubscribe, sendSABPreview: value.sendSABPreview, attachmentFileId, scheduledAt: scheduledAt?.toJSDate() ?? null, expiresAt: value.expiresAt ? DateTime.fromISO(value.expiresAt, { zone: value.timezone }).toJSDate() : null, status: 'DRAFT' as const, managed: true };
+    try {
+      if (!row) return (await tx.announcement.create({ data: { ...data, authorId: actorId } })).id;
+      if (JSON.stringify(toInput(row)) === JSON.stringify(value) && row.status === 'DRAFT' && row.managed) return row.id;
+      await tx.announcementDelivery.updateMany({ where: { announcementId: row.id, purpose: 'PREVIEW', status: { in: ['QUEUED', 'PROCESSING', 'FAILED', 'UNCONFIGURED'] } }, data: { status: 'CANCELLED', claimToken: null, lockedAt: null } });
+      await tx.announcement.update({ where: { id: row.id }, data: { ...data, revision: { increment: 1 }, previewRevision: null, signedOffRevision: null, signedOffAt: null, signedOffBy: null } });
+      return row.id;
+    } catch (error) { pdfConflict(error); }
   });
 }
 export async function act(actorId: string, id: string, action: 'preview' | 'sign-off' | 'send' | 'schedule' | 'cancel' | 'retry' | 'delete', raw: unknown) {

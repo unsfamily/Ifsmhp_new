@@ -13,7 +13,8 @@ All paths are below `/api/v1`; existing success/error envelopes and authenticati
 | Method | Path | Behavior |
 | --- | --- | --- |
 | GET | `/members/me/announcements` | Paginated list; `q`, `status=All\|READ\|UNREAD`, `page`, `limit`; includes independent unread count. |
-| GET | `/members/me/announcements/:id` | Authorized full content, sender, publication/expiry dates, read state. |
+| GET | `/members/me/announcements/:id` | Authorized full content, sender, publication/expiry dates, read state, and PDF name when one is attached. |
+| GET | `/members/me/announcements/:id/attachment` | Stream that PDF. Same visibility rules as the detail. Missing or unauthorized attachments return 404. |
 | POST | `/members/me/announcements/:id/read` | Idempotently mark read; preserve first successful delivery-read timestamp. |
 | POST | `/members/me/announcements/:id/unread` | Mark unread without erasing historical engagement. |
 | POST | `/notifications/:id/unread` | Current-user notification only; announcement lifecycle/visibility enforced. |

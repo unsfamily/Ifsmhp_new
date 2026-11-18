@@ -7,6 +7,7 @@ import { useAnnouncementUpdates } from '../../hooks/useAnnouncementUpdates';
 import { ExchangeModal } from '../exchange/ExchangeDialog';
 import Button from '../common/Button';
 import AnnouncementBody from './AnnouncementBody';
+import AnnouncementPdf from './AnnouncementPdf';
 
 export default function MemberAnnouncementDetail({ id, close, returnFocus }: { id: string; close: () => void; returnFocus?: Element | null }) {
   const opener = useRef(returnFocus ?? document.activeElement);
@@ -46,6 +47,7 @@ export default function MemberAnnouncementDetail({ id, close, returnFocus }: { i
       </div>
       {error && <p role="alert" className="mb-3 text-sm text-danger-600">{error}<Button disabled={busy} variant="outline" onClick={() => void mark(retryRead)}>Retry</Button></p>}
       <AnnouncementBody body={row.body} />
+      {row.attachment && <AnnouncementPdf name={row.attachment.name} sizeBytes={row.attachment.sizeBytes} load={() => memberAnnouncementsApi.downloadPdf(row.id)} />}
       {row.expiresAt && <p className="mt-5 text-xs text-ink-muted">Available until {new Date(row.expiresAt).toLocaleString()}</p>}
     </>}
   </ExchangeModal>;

@@ -10,6 +10,7 @@ export const announcementFields = z.object({
   timezone: z.string().max(100).refine(v => v === 'UTC' || IANAZone.isValidZone(v), 'Use an IANA timezone.').default('UTC'),
   scheduledAt: z.string().max(30).default(''), senderAsCRO: z.boolean().default(true),
   expiresAt: z.string().max(30).default(''),
+  attachmentFileId: z.union([z.string().cuid(), z.literal('')]).default(''),
   appendUnsubscribe: z.boolean().default(true), sendSABPreview: z.boolean().default(false),
 }).strict();
 export type AnnouncementInput = z.infer<typeof announcementFields>;
