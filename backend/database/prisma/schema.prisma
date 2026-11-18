@@ -386,6 +386,7 @@ model FileObject {
   homeCarouselSlides HomeCarouselSlide[]
   awardEventMedia    AwardEventMedia[]
   inquiryAttachments ContactInquiryAttachment[]
+  announcementPdf    Announcement?              @relation("AnnouncementPdf")
 
   @@index([uploaderId])
   @@index([visibility])
@@ -1165,9 +1166,11 @@ model Announcement {
   completedAt       DateTime?
   expiresAt         DateTime?
   deletedAt         DateTime?
+  attachmentFileId  String?                @unique
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
   author            User?                  @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+  attachment        FileObject?            @relation("AnnouncementPdf", fields: [attachmentFileId], references: [id], onDelete: Restrict)
   deliveries        AnnouncementDelivery[]
   operations        AnnouncementOperation[]
   notifications     Notification[]

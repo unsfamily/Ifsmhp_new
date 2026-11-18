@@ -6,6 +6,7 @@ import { usePolledApiData } from '../../hooks/usePolledApiData';
 import { ExchangeModal } from '../exchange/ExchangeDialog';
 import Button from '../common/Button';
 import AnnouncementBody from './AnnouncementBody';
+import AnnouncementPdf from './AnnouncementPdf';
 import Pagination from './Pagination';
 export default function AnnouncementDetail({ id, close, changed }: { id: string; close: () => void; changed: () => void }) {
   const [page, setPage] = useState(1);
@@ -41,6 +42,7 @@ export default function AnnouncementDetail({ id, close, changed }: { id: string;
       </div>
       {view === 'preview' ? <>
         <AnnouncementBody body={row.body} />
+        {row.attachment && <AnnouncementPdf name={row.attachment.name} sizeBytes={row.attachment.sizeBytes} load={() => announcementApi.downloadPdf(row.id)} />}
         <p className="mt-5 text-sm font-medium">{row.senderAsCRO ? 'CRO Office' : 'Communications team'}</p>
         {row.appendUnsubscribe && row.channel !== 'In-App Only' && <p className="mt-2 text-xs text-ink-subtle">Announcement-email unsubscribe footer included.</p>}
         {(row.sendSABPreview || row.previewDelivery.length > 0) && <div className="mt-5 border-t border-paper-border pt-4 text-sm">

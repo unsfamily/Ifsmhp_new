@@ -20,6 +20,7 @@ import {
   Check,
   History,
   FileText,
+  Paperclip,
   Ban,
   Trash2,
   ShieldCheck,
@@ -199,6 +200,13 @@ export default function AdminAnnouncementsPage() {
                     error={err('body')}
                     hint={`${composer.body.length} chars · preview: "${previewLine(composer.body || '—')}"`}
                   />
+                  <div className="rounded-lg border border-paper-border bg-paper-raised p-4 space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-ink-subtle flex items-center gap-1.5" htmlFor="announcement-pdf"><Paperclip className="h-3.5 w-3.5 text-brass-700" /> PDF attachment (optional)</label>
+                    <input id="announcement-pdf" aria-label="Announcement PDF" type="file" accept="application/pdf,.pdf" className="block w-full text-sm text-ink file:mr-3 file:rounded-md file:border-0 file:bg-forum-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-forum-700" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void form.uploadPdf(file); }} />
+                    <p className="text-xs text-ink-subtle">Members can download it from the announcement. Email delivery attaches the same PDF. Maximum 10 MB.</p>
+                    {form.pdf && <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-forum-900"><span className="min-w-0 break-all">{form.pdf.name} · {(form.pdf.sizeBytes / 1024).toFixed(0)} KB</span><button type="button" className="text-xs font-semibold text-danger-600" onClick={form.clearPdf}>Remove PDF</button></div>}
+                    {form.errors.attachmentFileId && <p className="text-xs text-danger-600">{form.errors.attachmentFileId}</p>}
+                  </div>
                   <div className="rounded-lg border border-paper-border bg-paper-raised p-4 space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-ink-subtle flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-brass-700" /> Sender Options</p>
                     <div className="grid gap-3 sm:grid-cols-1">
@@ -367,6 +375,7 @@ export default function AdminAnnouncementsPage() {
                         </span>
                         <span className="inline-flex items-center gap-1">by {a.author}</span>
                         {a.expiresAt && <span>Expires {a.expiresAt.replace('T', ' ')} {a.timezone}</span>}
+                        {a.attachment && <span className="inline-flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" />PDF</span>}
                         {a.delivery.map(d => <Badge key={`${d.channel}-${d.status}`} variant={d.status === 'FAILED' ? 'danger' : 'default'} className="!text-[10px] !py-0">{d.channel === 'IN_APP' ? 'In-app' : d.channel}: {d.count} {d.status.toLowerCase()}</Badge>)}
                       </div>
                     </div>

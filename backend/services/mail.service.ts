@@ -32,14 +32,16 @@ function getTransport(): Transporter {
   return transporter;
 }
 
-export async function sendAnnouncementEmail(input: { to: string; subject: string; body: string; senderAsCRO: boolean; preview: boolean; unsubscribeUrl?: string; messageId: string }): Promise<boolean> {
+export async function sendAnnouncementEmail(input: { to: string; subject: string; body: string; senderAsCRO: boolean; preview: boolean; unsubscribeUrl?: string; messageId: string; attachment?: MailAttachment }): Promise<boolean> {
   if (!env.mailConfigured) return false;
   const signature = input.senderAsCRO ? 'CRO Office' : 'Communications team';
+  const attached = input.attachment ? '\n\nA PDF is attached to this announcement.' : '';
   const footer = input.unsubscribeUrl ? `\n\nUnsubscribe from announcement emails: ${input.unsubscribeUrl}` : '';
   const result = await sendConfiguredMail({ from: env.mailFrom, to: input.to, messageId: input.messageId,
     subject: `${input.preview ? '[SAB Preview] ' : ''}${input.subject}`,
-    text: `${input.body}\n\n${signature}${footer}`,
-    html: `<div style="font-family:system-ui;max-width:640px">${renderAnnouncement(input.body)}<p>${signature}</p>${input.unsubscribeUrl ? `<p><a href="${input.unsubscribeUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Unsubscribe from announcement emails</a></p>` : ''}</div>`,
+    text: `${input.body}${attached}\n\n${signature}${footer}`,
+    html: `<div style="font-family:system-ui;max-width:640px">${renderAnnouncement(input.body)}${input.attachment ? '<p>A PDF is attached to this announcement.</p>' : ''}<p>${signature}</p>${input.unsubscribeUrl ? `<p><a href="${input.unsubscribeUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Unsubscribe from announcement emails</a></p>` : ''}</div>`,
+    ...(input.attachment ? { attachments: [input.attachment] } : {}),
   });
   if (!result.accepted?.length) throw new Error('SMTP did not accept the announcement recipient');
   return true;

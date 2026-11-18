@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Paperclip, Search } from 'lucide-react';
 import { memberAnnouncementsApi } from '../../api/memberAnnouncements';
 import { usePolledApiData } from '../../hooks/usePolledApiData';
 import { useAnnouncementUpdates } from '../../hooks/useAnnouncementUpdates';
@@ -31,7 +31,7 @@ export default function MemberAnnouncementList() {
     {list.error && <p role="alert" className="py-4 text-sm text-danger-600">{list.error}<Button variant="outline" onClick={list.refresh}>Retry</Button></p>}
     <div className="divide-y divide-paper-border" aria-busy={list.loading}>
       {data?.items.map(row => <button key={row.id} onClick={() => setSelected(row.id)} className="block w-full px-3 py-4 text-left hover:bg-forum-50/30">
-        <div className="flex flex-wrap items-center gap-2"><h3 className="break-words font-semibold text-forum-900">{row.subject}</h3><Badge>{row.status === 'UNREAD' ? 'Unread' : 'Read'}</Badge></div>
+        <div className="flex flex-wrap items-center gap-2"><h3 className="break-words font-semibold text-forum-900">{row.subject}</h3><Badge>{row.status === 'UNREAD' ? 'Unread' : 'Read'}</Badge>{row.attachment && <span className="inline-flex items-center gap-1 text-xs text-ink-muted"><Paperclip className="h-3.5 w-3.5" />PDF</span>}</div>
         <p className="my-2 text-xs text-ink-muted">{row.sender}{row.sentAt && ` / ${new Date(row.sentAt).toLocaleString()}`}</p>
         <p className="line-clamp-2 break-words text-sm text-ink">{row.body}</p>
       </button>)}

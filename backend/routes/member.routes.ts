@@ -34,6 +34,7 @@ const router = Router({ mergeParams: true });
 
 router.use(requireAuth, requireRole('MEMBER'), requireMembershipStatus('ACTIVE'));
 router.get('/me/announcements', asyncHandler(async (req, res) => sendSuccess(res, await announcements.listMemberAnnouncements(req.user!.id, req.query), 'Announcements')));
+router.get('/me/announcements/:id/attachment', asyncHandler(async (req, res, next) => announcements.streamMemberAnnouncementPdf(req.user!.id, req.params.id!, res, next)));
 router.get('/me/announcements/:id', asyncHandler(async (req, res) => sendSuccess(res, await announcements.memberAnnouncementDetail(req.user!.id, req.params.id!), 'Announcement')));
 for (const action of ['read', 'unread'] as const) {
   router.post(`/me/announcements/:id/${action}`, asyncHandler(async (req, res) => sendSuccess(res, await announcements.setAnnouncementRead(req.user!.id, req.params.id!, action === 'read'), 'Announcement updated')));

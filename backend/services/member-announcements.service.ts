@@ -4,7 +4,9 @@ import { z } from 'zod';
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/ApiError';
 import { buildPaginatedResult, paginationQuerySchema, toSkipTake } from '../utils/pagination';
+import type { NextFunction, Response } from 'express';
 import { scientists, professionals } from './announcements.service';
+import { streamAnnouncementPdf } from './announcement-attachment.service';
 
 export const memberAnnouncementQuery = paginationQuerySchema.extend({ q: z.string().trim().max(220).default(''), status: z.enum(['All', 'UNREAD', 'READ']).default('All') });
 export async function announcementScope(userId: string, db: Prisma.TransactionClient = prisma, now = new Date()): Promise<Prisma.AnnouncementWhereInput> {
@@ -40,11 +42,13 @@ export async function announcementScope(userId: string, db: Prisma.TransactionCl
 const select = (userId: string) => ({
   id: true, subject: true, body: true, senderAsCRO: true, sentAt: true, dispatchStartedAt: true, expiresAt: true,
   notifications: { where: { userId }, select: { status: true, readAt: true }, take: 1 },
+  attachment: { select: { originalName: true, sizeBytes: true, deletedAt: true } },
 }) satisfies Prisma.AnnouncementSelect;
 type Row = Prisma.AnnouncementGetPayload<{ select: ReturnType<typeof select> }>;
+const attachmentOf = (row: Row) => row.attachment && !row.attachment.deletedAt ? { name: row.attachment.originalName, sizeBytes: row.attachment.sizeBytes } : null;
 const serialize = (row: Row, full = false) => ({ id: row.id, subject: row.subject, body: full ? row.body : row.body.slice(0, 180),
   sender: row.senderAsCRO ? 'CRO Office' : 'Communications team', sentAt: row.sentAt ?? row.dispatchStartedAt, expiresAt: row.expiresAt,
-  status: row.notifications[0]?.status === 'READ' ? 'READ' : 'UNREAD', readAt: row.notifications[0]?.readAt ?? null });
+  status: row.notifications[0]?.status === 'READ' ? 'READ' : 'UNREAD', readAt: row.notifications[0]?.readAt ?? null, attachment: attachmentOf(row) });
 
 export async function listMemberAnnouncements(userId: string, raw: unknown) {
   const query = memberAnnouncementQuery.parse(raw);
@@ -60,6 +64,11 @@ export async function listMemberAnnouncements(userId: string, raw: unknown) {
     prisma.announcement.count({ where: { AND: [scope, { notifications: { none: { userId, status: 'READ' } } }] } }),
   ]);
   return { ...buildPaginatedResult(rows.map(row => serialize(row)), total, query), unread };
+}
+
+export async function streamMemberAnnouncementPdf(userId: string, id: string, res: Response, next: NextFunction) {
+  const row = await prisma.announcement.findFirst({ where: { AND: [{ id }, await announcementScope(userId)] }, select: { attachmentFileId: true } });
+  await streamAnnouncementPdf(id, res, next, userId, row?.attachmentFileId ?? null);
 }
 
 export async function memberAnnouncementDetail(userId: string, id: string) {
