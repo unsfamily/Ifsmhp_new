@@ -111,5 +111,50 @@ export const awardNominationListQuery = paginationQuerySchema.extend({
   ceremony: z.enum(CEREMONY_SLUGS).default('second-international'),
 }).strict();
 
+export const awardNominationExportQuery = z.object({
+  ceremony: z.enum(CEREMONY_SLUGS).default('second-international'),
+  format: z.enum(['csv', 'xlsx']).default('xlsx'),
+}).strict();
+
+function isAwardDivision(value: string): value is (typeof AWARD_DIVISIONS)[number] {
+  return (AWARD_DIVISIONS as readonly string[]).includes(value);
+}
+
+function isNominationType(value: string): value is (typeof NOMINATION_TYPES)[number] {
+  return (NOMINATION_TYPES as readonly string[]).includes(value);
+}
+
+export function awardDivisionLabel(division: string | null): string {
+  if (division === null || !isAwardDivision(division)) return division ?? '';
+  switch (division) {
+    case 'DISTINGUISHED_FELLOWS':
+      return 'Senior — Distinguished Fellows (Lifetime Contribution)';
+    case 'EXCELLENCE':
+      return 'Mid-career — Excellence (Established Contribution)';
+    case 'RISING_ACHIEVERS':
+      return 'Young — Rising Achievers (Emerging Contribution)';
+    default: {
+      const unknown: never = division;
+      return unknown;
+    }
+  }
+}
+
+export function nominationTypeLabel(nominationType: string): string {
+  if (!isNominationType(nominationType)) return nominationType;
+  switch (nominationType) {
+    case 'SELF':
+      return 'Self nomination';
+    case 'INSTITUTIONAL':
+      return 'Institutional nomination';
+    case 'COLLEAGUE':
+      return 'Colleague nomination';
+    default: {
+      const unknown: never = nominationType;
+      return unknown;
+    }
+  }
+}
+
 export const AWARD_NOMINATION_RATE_LIMIT = 5;
 export const AWARD_NOMINATION_RATE_WINDOW_MS = 60 * 60 * 1000;

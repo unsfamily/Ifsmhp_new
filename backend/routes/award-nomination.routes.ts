@@ -6,11 +6,13 @@ import {
   AWARD_NOMINATION_RATE_LIMIT,
   AWARD_NOMINATION_RATE_WINDOW_MS,
   awardNominationBody,
+  awardNominationExportQuery,
   awardNominationListQuery,
 } from '../domain/award-nomination';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import { deleteAwardNomination, getAwardNomination, listAwardNominations, submitAwardNomination } from '../services/award-nomination.service';
+import { writeAudit } from '../services/audit.service';
+import { deleteAwardNomination, exportAwardNominations, getAwardNomination, listAwardNominations, submitAwardNomination } from '../services/award-nomination.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 
@@ -48,6 +50,25 @@ adminRouter.get(
   asyncHandler(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     sendSuccess(res, await listAwardNominations(req.query as unknown as z.infer<typeof awardNominationListQuery>), 'Award nominations');
+  }),
+);
+adminRouter.get(
+  '/export',
+  validate({ query: awardNominationExportQuery }),
+  asyncHandler(async (req, res) => {
+    const query = req.query as unknown as z.infer<typeof awardNominationExportQuery>;
+    const workbook = await exportAwardNominations(query);
+    await writeAudit({
+      actorId: req.user!.id,
+      action: 'AwardNominationExported',
+      entity: 'Award nominations',
+      outcome: 'ACCESS_GRANTED',
+      metadata: { rows: workbook.rows },
+    });
+    res.setHeader('Content-Type', workbook.format === 'csv' ? 'text/csv; charset=utf-8' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(workbook.filename)}`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(workbook.body);
   }),
 );
 adminRouter.get(
