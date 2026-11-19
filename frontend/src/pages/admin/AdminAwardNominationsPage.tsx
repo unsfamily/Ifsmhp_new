@@ -1,4 +1,4 @@
-import { Award, Eye, Trash2 } from 'lucide-react';
+import { Award, Download, Eye, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import Button from '../../components/common/Button';
 import { Card, CardContent, CardHeader } from '../../components/common/Card';
@@ -51,6 +51,8 @@ export default function AdminAwardNominationsPage() {
   const [pendingDelete, setPendingDelete] = useState<AwardNominationRow | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState<'csv' | 'xlsx' | null>(null);
+  const [exportError, setExportError] = useState('');
   const { data, loading, error } = useApiData(
     () => adminApi.awardNominations({ ceremony: 'second-international', page, limit }),
     [reload, page, limit],
@@ -67,6 +69,18 @@ export default function AdminAwardNominationsPage() {
       setViewError(normalizeError(caught).message);
     } finally {
       setViewLoading(false);
+    }
+  };
+
+  const exportNominations = async (format: 'csv' | 'xlsx') => {
+    setExporting(format);
+    setExportError('');
+    try {
+      await adminApi.exportAwardNominations({ format, ceremony: 'second-international' });
+    } catch (caught) {
+      setExportError(normalizeError(caught).message);
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -98,8 +112,21 @@ export default function AdminAwardNominationsPage() {
         </div>
       </div>
       <Card>
-        <CardHeader>
-          <p className="text-sm text-ink-muted">{loading && !data ? 'Loading award nominations…' : `${data?.pagination.total ?? 0} nomination${data?.pagination.total === 1 ? '' : 's'}`}</p>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm text-ink-muted">{loading && !data ? 'Loading award nominations…' : `${data?.pagination.total ?? 0} nomination${data?.pagination.total === 1 ? '' : 's'}`}</p>
+            {exportError && <p role="alert" className="mt-1 text-xs text-danger-600">{exportError}</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => { void exportNominations('csv'); }} disabled={exporting !== null || loading}>
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              {exporting === 'csv' ? 'Exporting…' : 'Export all CSV'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => { void exportNominations('xlsx'); }} disabled={exporting !== null || loading}>
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              {exporting === 'xlsx' ? 'Exporting…' : 'Export all Excel'}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {error && (

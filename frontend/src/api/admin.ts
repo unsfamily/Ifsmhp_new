@@ -399,6 +399,20 @@ export const adminApi = {
   inquiries: (params?: Record<string, unknown>) => get('/admin/inquiries', params),
   ceremonyRegistrations: (params?: Record<string, unknown>) => get('/admin/ceremony-registrations', params) as Promise<{ items: CeremonyRegistrationRow[]; pagination: { page: number; limit: number; total: number; pages: number } }>,
   awardNominations: (params?: Record<string, unknown>) => get('/admin/award-nominations', params) as Promise<{ items: AwardNominationRow[]; pagination: { page: number; limit: number; total: number; pages: number } }>,
+  exportAwardNominations: async (params?: Record<string, unknown>) => {
+    const response = await apiClient.get('/admin/award-nominations/export', { params, responseType: 'blob' });
+    const disposition = String(response.headers['content-disposition'] ?? '');
+    const match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+    const filename = match?.[1] ? decodeURIComponent(match[1]) : 'ifsmhp-award-nominations.xlsx';
+    const url = URL.createObjectURL(response.data as Blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
   awardNomination: (id: string) => get(`/admin/award-nominations/${id}`) as Promise<AwardNominationDetail>,
   deleteAwardNomination: (id: string) => remove(`/admin/award-nominations/${id}`) as Promise<{ id: string; reference: string }>,
   replyInquiry: (id: string, text: string) => post(`/admin/inquiries/${id}/reply`, { text }),

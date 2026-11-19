@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app';
 import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
+import { readXlsxEntries } from '../utils/excel-sheet';
 import { sha256, signAccessToken } from '../utils/security';
 
 vi.mock('../services/mail.service', async (importOriginal) => {
@@ -183,6 +184,34 @@ describe('award nomination', () => {
     expect(detail.status).toBe(200);
     expect(detail.body.data.statement).toContain(prefix);
     expect(detail.body.data.nomineeEmailNormalized).toBeUndefined();
+    const csv = await request(app).get(`${adminPath}/export`).query({ format: 'csv', ceremony: 'second-international' }).set('Authorization', `Bearer ${adminToken}`);
+    expect(csv.status).toBe(200);
+    expect(csv.headers['content-type']).toContain('text/csv');
+    expect(csv.headers['content-disposition']).toContain('.csv');
+    expect(csv.headers['cache-control']).toBe('private, no-store');
+    expect(csv.text.startsWith('\uFEFFReference,')).toBe(true);
+    expect(csv.text).toContain(`Updated ${prefix}`);
+    expect(csv.text).toContain(`${prefix}-unsent@example.test`);
+    expect(csv.text).toContain('Updated statement');
+    expect(csv.text).not.toContain('nomineeEmailNormalized');
+    const workbook = await request(app).get(`${adminPath}/export`).query({ format: 'xlsx', ceremony: 'second-international' }).set('Authorization', `Bearer ${adminToken}`).buffer(true).parse((res, done) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => done(null, Buffer.concat(chunks)));
+    });
+    expect(workbook.status).toBe(200);
+    expect(workbook.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(workbook.headers['content-disposition']).toContain('.xlsx');
+    const worksheet = readXlsxEntries(workbook.body as Buffer).get('xl/worksheets/sheet1.xml') ?? '';
+    expect(worksheet).toContain(`Updated ${prefix}`);
+    expect(worksheet).toContain(`${prefix}-unsent@example.test`);
+    expect((await request(app).get(`${adminPath}/export`)).status).toBe(401);
+    expect((await request(app).get(`${adminPath}/export`).set('Authorization', `Bearer ${memberToken}`)).status).toBe(403);
+    expect((await request(app).get(`${adminPath}/export`).query({ format: 'pdf' }).set('Authorization', `Bearer ${adminToken}`)).status).toBe(422);
+    expect((await request(app).get(`${adminPath}/export`).query({ page: 1, limit: 1, format: 'csv' }).set('Authorization', `Bearer ${adminToken}`)).status).toBe(422);
+    const exportAudit = await prisma.auditLog.findFirstOrThrow({ where: { actorId: adminId, action: 'AwardNominationExported' } });
+    expect(JSON.stringify(exportAudit)).not.toContain(nomineeEmail);
+    expect(JSON.stringify(exportAudit)).not.toContain(statement);
     expect((await request(app).get(`${adminPath}/${saved.id}`)).status).toBe(401);
     expect((await request(app).get(`${adminPath}/${saved.id}`).set('Authorization', `Bearer ${memberToken}`)).status).toBe(403);
     const removed = await request(app).delete(`${adminPath}/${saved.id}`).set('Authorization', `Bearer ${adminToken}`);

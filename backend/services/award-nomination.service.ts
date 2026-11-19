@@ -1,14 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma, type AwardNomination } from '@prisma/client';
 import { prisma } from '../config/database';
 import {
+  awardDivisionLabel,
   awardLabel,
+  nominationTypeLabel,
   type AwardNominationInput,
 } from '../domain/award-nomination';
 import { isCeremonySlug, type CeremonySlug } from '../domain/ceremony-registration';
 import { writeAudit } from './audit.service';
 import { sendAwardNominationAcknowledgement } from './mail.service';
 import { ApiError } from '../utils/ApiError';
+import { toCsv } from '../utils/csv';
+import { toExcelSheet } from '../utils/excel-sheet';
 import { logger } from '../utils/logger';
 import { buildPaginatedResult, toSkipTake, type PaginationQuery } from '../utils/pagination';
 
@@ -151,6 +155,7 @@ export async function getAwardNomination(id: string) {
   const row = await prisma.awardNomination.findUnique({ where: { id } });
   if (!row) throw ApiError.notFound('Nomination not found');
   const { nomineeEmailNormalized, ...detail } = row;
+  void nomineeEmailNormalized;
   return detail;
 }
 
@@ -174,4 +179,138 @@ export async function deleteAwardNomination(id: string, actorId: string) {
     throw error;
   }
   return { id: existing.id, reference: existing.reference };
+}
+
+const AWARD_NOMINATION_EXPORT_LIMIT = 10000;
+
+const awardNominationExportHeaders = [
+  'Reference',
+  'Award',
+  'Award code',
+  'Division',
+  'Nomination type',
+  'Nominee name',
+  'Nominee email',
+  'Nominee phone',
+  'Date of birth',
+  'Nationality',
+  'Country of residence',
+  'Qualification',
+  'Designation',
+  'Institution',
+  'Specialisation',
+  'Years of contribution',
+  'ORCID',
+  'Career overview',
+  'Principal contributions',
+  'Impact',
+  'Leadership',
+  'Major awards',
+  'Publications',
+  'Patents',
+  'Projects',
+  'Institutions established',
+  'Societal impact',
+  'Statement',
+  'Nominator name',
+  'Nominator designation',
+  'Nominator institution',
+  'Nominator email',
+  'Nominator phone',
+  'Relationship',
+  'CV included',
+  'Statement included',
+  'Evidence included',
+  'Honours included',
+  'Recommendation included',
+  'Photograph included',
+  'Consent confirmed',
+  'Declared at',
+  'Acknowledgement sent at',
+  'Submitted at',
+  'Updated at',
+];
+
+function included(value: boolean) {
+  return value ? 'Yes' : 'No';
+}
+
+function awardNominationExportCells(row: AwardNomination): unknown[] {
+  return [
+    row.reference,
+    row.awardName,
+    row.awardCode,
+    awardDivisionLabel(row.division),
+    nominationTypeLabel(row.nominationType),
+    row.nomineeName,
+    row.nomineeEmail,
+    row.nomineePhone,
+    row.dateOfBirth,
+    row.nationality,
+    row.countryOfResidence,
+    row.qualification,
+    row.designation,
+    row.institution,
+    row.specialisation,
+    row.yearsOfContribution,
+    row.orcid ?? '',
+    row.careerOverview,
+    row.principalContributions,
+    row.impact,
+    row.leadership,
+    row.majorAwards,
+    row.publications,
+    row.patents,
+    row.projects,
+    row.institutionsEstablished,
+    row.societalImpact,
+    row.statement,
+    row.nominatorName,
+    row.nominatorDesignation,
+    row.nominatorInstitution,
+    row.nominatorEmail,
+    row.nominatorPhone,
+    row.relationship,
+    included(row.checklistCv),
+    included(row.checklistStatement),
+    included(row.checklistEvidence),
+    included(row.checklistHonours),
+    included(row.checklistRecommendation),
+    included(row.checklistPhotograph),
+    included(row.checklistConsent),
+    row.declaredAt,
+    row.acknowledgementSentAt,
+    row.createdAt,
+    row.updatedAt,
+  ];
+}
+
+/** Every saved nomination for one ceremony. The list page is paginated; this export is not. */
+export async function exportAwardNominations(query: { ceremony: CeremonySlug; format: 'csv' | 'xlsx' }) {
+  const where = { ceremonySlug: query.ceremony };
+  const total = await prisma.awardNomination.count({ where });
+  if (total > AWARD_NOMINATION_EXPORT_LIMIT) {
+    throw ApiError.unprocessable(`One export holds ${AWARD_NOMINATION_EXPORT_LIMIT} nominations, and ${total} are saved.`);
+  }
+  const rows = await prisma.awardNomination.findMany({ where, orderBy: { updatedAt: 'desc' } });
+  const cells = rows.map(awardNominationExportCells);
+  const day = new Date().toISOString().slice(0, 10);
+  switch (query.format) {
+    case 'csv': {
+      const columns = awardNominationExportHeaders.map((label, index) => ({ key: String(index), label }));
+      const csvRows = cells.map((row) => Object.fromEntries(row.map((value, index) => [String(index), value])));
+      return { filename: `ifsmhp-award-nominations-${day}.csv`, body: toCsv(columns, csvRows), rows: rows.length, format: 'csv' as const };
+    }
+    case 'xlsx':
+      return {
+        filename: `ifsmhp-award-nominations-${day}.xlsx`,
+        body: toExcelSheet('Award nominations', awardNominationExportHeaders, cells),
+        rows: rows.length,
+        format: 'xlsx' as const,
+      };
+    default: {
+      const unknown: never = query.format;
+      throw ApiError.unprocessable(`Unsupported export format: ${String(unknown)}`);
+    }
+  }
 }
