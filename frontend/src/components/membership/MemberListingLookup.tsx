@@ -91,6 +91,14 @@ export default function MemberListingLookup() {
     setError('');
   };
 
+  const onQueryChange = (value: string) => {
+    if (value.trim().length === 0) {
+      showAllMembers();
+      return;
+    }
+    setQuery(value);
+  };
+
   const goToPage = (next: number) => {
     setPage(next);
     document.getElementById('member-directory')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -124,7 +132,7 @@ export default function MemberListingLookup() {
                 id="public-member-search"
                 type="search"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => onQueryChange(event.target.value)}
                 placeholder="e.g. Anita Rao or IFSMHP-000003"
                 autoComplete="off"
                 className="w-full rounded-xl border border-paper-border bg-paper-raised py-3 pl-10 pr-4 text-[15px] text-forum-900 shadow-sm outline-none ring-brass-500/30 placeholder:text-ink-subtle focus:border-brass-500 focus:ring-2"
