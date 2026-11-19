@@ -18,6 +18,7 @@ import { ApiError } from '../utils/ApiError';
 import { buildPaginatedResult, paginationQuerySchema, type PaginationQuery, toSkipTake } from '../utils/pagination';
 import { logger } from '../utils/logger';
 import { writeAudit, changesBetween } from './audit.service';
+import { toCsv } from '../utils/csv';
 import { toExcelSheet } from '../utils/excel-sheet';
 import { sendApprovalEmail, sendMembershipCertificateEmail } from './mail.service';
 import { renderApplicationCertificate } from './membership-certificate.service';
@@ -1661,7 +1662,7 @@ export function parseDateBound(value: unknown, endOfDay = false): Date | undefin
 }
 
 /** The same filters the admin member directory applies, shared with the Excel export. */
-export function memberDirectoryWhere(req: Request): Prisma.UserWhereInput {
+export function memberDirectoryWhere(req: Pick<Request, 'query'>): Prisma.UserWhereInput {
   const status = String(req.query.status ?? 'All');
   const q = String(req.query.q ?? req.query.search ?? '').trim();
 
@@ -1824,17 +1825,10 @@ function serializeMember(
 const MEMBER_EXPORT_LIMIT = 10000;
 const memberExportHeaders = ['Full name', 'First name', 'Last name', 'Email', 'Phone', 'Member ID', 'Professional type', 'Professional title', 'Institution', 'Country', 'Account status', 'Application status', 'Application code', 'Registered at', 'Approved at', 'Communication address', 'Permanent address'];
 
-/** Every directory row matching the current admin filters, as an Excel workbook. */
-export async function exportAdminMembers(req: Request) {
-  const where = memberDirectoryWhere(req);
-  const total = await prisma.user.count({ where });
-  if (total > MEMBER_EXPORT_LIMIT) throw ApiError.unprocessable(`Narrow the filters before exporting. ${total} members match, and one workbook holds ${MEMBER_EXPORT_LIMIT}.`);
-  const rows = await prisma.user.findMany({
-    where,
-    include: { memberProfile: true, membershipApplication: true },
-    orderBy: { createdAt: 'desc' },
-  });
-  const sheet = toExcelSheet('Registered members', memberExportHeaders, rows.map((user) => [
+type MemberExportRow = Prisma.UserGetPayload<{ include: { memberProfile: true; membershipApplication: true } }>;
+
+function memberExportCells(user: MemberExportRow): unknown[] {
+  return [
     user.fullName,
     user.firstName ?? '',
     user.lastName ?? '',
@@ -1852,9 +1846,33 @@ export async function exportAdminMembers(req: Request) {
     user.memberProfile?.approvedAt?.toISOString() ?? '',
     user.memberProfile?.communicationAddress ?? '',
     user.memberProfile?.permanentAddress ?? '',
-  ]));
+  ];
+}
+
+/** Every directory row, either for the current filters or for the whole unfiltered directory. */
+export async function exportAdminMembers(req: Request) {
+  const format = req.query.format === 'csv' ? 'csv' : 'xlsx';
+  const where = req.query.scope === 'all' ? memberDirectoryWhere({ query: {} }) : memberDirectoryWhere(req);
+  const total = await prisma.user.count({ where });
+  if (total > MEMBER_EXPORT_LIMIT) throw ApiError.unprocessable(`Narrow the filters before exporting. ${total} members match, and one export holds ${MEMBER_EXPORT_LIMIT}.`);
+  const rows = await prisma.user.findMany({
+    where,
+    include: { memberProfile: true, membershipApplication: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  const cells = rows.map(memberExportCells);
   const day = new Date().toISOString().slice(0, 10);
-  return { filename: `ifsmhp-registered-members-${day}.xlsx`, body: sheet, rows: rows.length };
+  if (format === 'csv') {
+    const columns = memberExportHeaders.map((label, index) => ({ key: String(index), label }));
+    const csvRows = cells.map((row) => Object.fromEntries(row.map((value, index) => [String(index), value])));
+    return { filename: `ifsmhp-registered-members-${day}.csv`, body: toCsv(columns, csvRows), rows: rows.length, format };
+  }
+  return {
+    filename: `ifsmhp-registered-members-${day}.xlsx`,
+    body: toExcelSheet('Registered members', memberExportHeaders, cells),
+    rows: rows.length,
+    format,
+  };
 }
 
 const PUBLIC_LOOKUP_LIMIT = 20;

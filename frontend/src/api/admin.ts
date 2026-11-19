@@ -267,6 +267,45 @@ export interface AwardNominationRow {
   updatedAt: string;
 }
 
+export interface AwardNominationDetail extends AwardNominationRow {
+  awardCode: string;
+  dateOfBirth: string;
+  nationality: string;
+  qualification: string;
+  designation: string;
+  institution: string;
+  specialisation: string;
+  yearsOfContribution: string;
+  countryOfResidence: string;
+  nomineePhone: string;
+  orcid: string | null;
+  careerOverview: string;
+  principalContributions: string;
+  impact: string;
+  leadership: string;
+  majorAwards: string;
+  publications: string;
+  patents: string;
+  projects: string;
+  institutionsEstablished: string;
+  societalImpact: string;
+  statement: string;
+  nominationType: string;
+  nominatorDesignation: string;
+  nominatorInstitution: string;
+  nominatorPhone: string;
+  relationship: string;
+  checklistCv: boolean;
+  checklistStatement: boolean;
+  checklistEvidence: boolean;
+  checklistHonours: boolean;
+  checklistRecommendation: boolean;
+  checklistPhotograph: boolean;
+  checklistConsent: boolean;
+  declaredAt: string;
+  createdAt: string;
+}
+
 export interface CeremonyRegistrationRow {
   id: string;
   fullName: string;
@@ -284,6 +323,7 @@ export interface CeremonyRegistrationRow {
 
 const get = async (url: string, params?: Record<string, unknown>) => (await apiClient.get<Envelope<unknown>>(url, { params })).data.data;
 const post = async (url: string, payload?: unknown) => (await apiClient.post<Envelope<unknown>>(url, payload ?? {})).data.data;
+const remove = async (url: string) => (await apiClient.delete<Envelope<unknown>>(url)).data.data;
 const patch = async (url: string, payload?: unknown) => (await apiClient.patch<Envelope<unknown>>(url, payload ?? {})).data.data;
 
 export const adminApi = {
@@ -359,6 +399,8 @@ export const adminApi = {
   inquiries: (params?: Record<string, unknown>) => get('/admin/inquiries', params),
   ceremonyRegistrations: (params?: Record<string, unknown>) => get('/admin/ceremony-registrations', params) as Promise<{ items: CeremonyRegistrationRow[]; pagination: { page: number; limit: number; total: number; pages: number } }>,
   awardNominations: (params?: Record<string, unknown>) => get('/admin/award-nominations', params) as Promise<{ items: AwardNominationRow[]; pagination: { page: number; limit: number; total: number; pages: number } }>,
+  awardNomination: (id: string) => get(`/admin/award-nominations/${id}`) as Promise<AwardNominationDetail>,
+  deleteAwardNomination: (id: string) => remove(`/admin/award-nominations/${id}`) as Promise<{ id: string; reference: string }>,
   replyInquiry: (id: string, text: string) => post(`/admin/inquiries/${id}/reply`, { text }),
   gallery: (params?: Record<string, unknown>) => get('/admin/gallery', params),
   auditLog: (params?: Record<string, unknown>) => get('/admin/audit-log', params),

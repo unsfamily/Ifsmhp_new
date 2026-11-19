@@ -173,6 +173,23 @@ describe('award nomination', () => {
     expect(admin.status).toBe(200);
     expect(admin.headers['cache-control']).toBe('no-store');
     expect(admin.body.data.items.find((row: { nomineeEmail: string }) => row.nomineeEmail === nomineeEmail)).toMatchObject({ nomineeName: `Updated ${prefix}`, awardName: 'Dr. M. S. Swaminathan Award' });
+    const paged = await request(app).get(adminPath).query({ ceremony: 'second-international', page: 1, limit: 1 }).set('Authorization', `Bearer ${adminToken}`);
+    expect(paged.status).toBe(200);
+    expect(paged.body.data.items).toHaveLength(1);
+    expect(paged.body.data.pagination).toMatchObject({ page: 1, limit: 1 });
+    expect(paged.body.data.pagination.pages).toBe(paged.body.data.pagination.total);
+    const saved = admin.body.data.items.find((row: { nomineeEmail: string }) => row.nomineeEmail === nomineeEmail);
+    const detail = await request(app).get(`${adminPath}/${saved.id}`).set('Authorization', `Bearer ${adminToken}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.statement).toContain(prefix);
+    expect(detail.body.data.nomineeEmailNormalized).toBeUndefined();
+    expect((await request(app).get(`${adminPath}/${saved.id}`)).status).toBe(401);
+    expect((await request(app).get(`${adminPath}/${saved.id}`).set('Authorization', `Bearer ${memberToken}`)).status).toBe(403);
+    const removed = await request(app).delete(`${adminPath}/${saved.id}`).set('Authorization', `Bearer ${adminToken}`);
+    expect(removed.status).toBe(200);
+    expect(removed.body.data.reference).toBe(saved.reference);
+    expect((await request(app).get(`${adminPath}/${saved.id}`).set('Authorization', `Bearer ${adminToken}`)).status).toBe(404);
+    expect((await request(app).delete(`${adminPath}/${saved.id}`).set('Authorization', `Bearer ${memberToken}`)).status).toBe(403);
   });
 
   it('returns a safe error and keeps the email out of logs when saving fails', async () => {

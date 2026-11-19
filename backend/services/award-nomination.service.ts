@@ -125,11 +125,53 @@ export async function submitAwardNomination(slug: string, input: AwardNomination
   return { received: true as const, acknowledgementSent };
 }
 
+const nominationListSelect = {
+  id: true,
+  reference: true,
+  awardName: true,
+  division: true,
+  nomineeName: true,
+  nomineeEmail: true,
+  nominatorName: true,
+  nominatorEmail: true,
+  acknowledgementSentAt: true,
+  updatedAt: true,
+} satisfies Prisma.AwardNominationSelect;
+
 export async function listAwardNominations(query: PaginationQuery & { ceremony: CeremonySlug }) {
   const where = { ceremonySlug: query.ceremony };
   const [items, total] = await prisma.$transaction([
-    prisma.awardNomination.findMany({ where, orderBy: { updatedAt: 'desc' }, ...toSkipTake(query) }),
+    prisma.awardNomination.findMany({ where, orderBy: { updatedAt: 'desc' }, select: nominationListSelect, ...toSkipTake(query) }),
     prisma.awardNomination.count({ where }),
   ]);
   return buildPaginatedResult(items, total, query);
+}
+
+export async function getAwardNomination(id: string) {
+  const row = await prisma.awardNomination.findUnique({ where: { id } });
+  if (!row) throw ApiError.notFound('Nomination not found');
+  const { nomineeEmailNormalized, ...detail } = row;
+  return detail;
+}
+
+export async function deleteAwardNomination(id: string, actorId: string) {
+  const existing = await prisma.awardNomination.findUnique({ where: { id }, select: { id: true, reference: true } });
+  if (!existing) throw ApiError.notFound('Nomination not found');
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.awardNomination.delete({ where: { id } });
+      await writeAudit({
+        actorId,
+        action: 'AwardNominationDeleted',
+        entity: `AwardNomination ${existing.reference}`,
+        entityType: 'AwardNomination',
+        entityId: existing.id,
+        outcome: 'SUCCEEDED',
+      }, tx);
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') throw ApiError.notFound('Nomination not found');
+    throw error;
+  }
+  return { id: existing.id, reference: existing.reference };
 }
