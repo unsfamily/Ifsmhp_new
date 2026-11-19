@@ -10,7 +10,7 @@ import {
 } from '../domain/award-nomination';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import { listAwardNominations, submitAwardNomination } from '../services/award-nomination.service';
+import { deleteAwardNomination, getAwardNomination, listAwardNominations, submitAwardNomination } from '../services/award-nomination.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 
@@ -38,6 +38,8 @@ publicRouter.post(
   }),
 );
 
+const nominationIdParams = z.object({ id: z.string().trim().min(1).max(40) }).strict();
+
 const adminRouter = Router();
 adminRouter.use(requireAuth, requireRole('ADMIN'));
 adminRouter.get(
@@ -46,6 +48,22 @@ adminRouter.get(
   asyncHandler(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     sendSuccess(res, await listAwardNominations(req.query as unknown as z.infer<typeof awardNominationListQuery>), 'Award nominations');
+  }),
+);
+adminRouter.get(
+  '/:id',
+  validate({ params: nominationIdParams }),
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    sendSuccess(res, await getAwardNomination(req.params.id ?? ''), 'Award nomination');
+  }),
+);
+adminRouter.delete(
+  '/:id',
+  validate({ params: nominationIdParams }),
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    sendSuccess(res, await deleteAwardNomination(req.params.id ?? '', req.user!.id), 'Award nomination deleted');
   }),
 );
 

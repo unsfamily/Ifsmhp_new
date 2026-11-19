@@ -71,7 +71,7 @@ export default function AdminMembersPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [actionMenuOpenId, setActionMenuOpenId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<'csv' | 'xlsx' | null>(null);
   const [exportError, setExportError] = useState('');
 
   // Debounced so typing does not fire a request per keystroke.
@@ -118,26 +118,15 @@ export default function AdminMembersPage() {
   }, [debounced, typeFilter, archiveFilter, statusFilter, regFrom, regTo, pageSize]);
 
   const refresh = () => setReloadKey((k) => k + 1);
-  const exportMembers = async () => {
-    setExporting(true);
+  const exportMembers = async (format: 'csv' | 'xlsx') => {
+    setExporting(format);
     setExportError('');
     try {
-      await adminApi.exportMembers({
-        q: debounced.search,
-        memberId: debounced.memberIdSearch,
-        email: debounced.emailSearch,
-        institution: debounced.institutionSearch,
-        country: debounced.countrySearch,
-        professionalType: typeFilter,
-        status: statusFilter,
-        archive: archiveFilter,
-        registeredFrom: regFrom,
-        registeredTo: regTo,
-      });
+      await adminApi.exportMembers({ format, scope: 'all' });
     } catch (error) {
       setExportError(normalizeError(error).message);
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
   const safePage = page;
@@ -362,9 +351,13 @@ export default function AdminMembersPage() {
             {exportError && <p role="alert" className="mt-1 text-xs text-danger-600">{exportError}</p>}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => { void exportMembers(); }} disabled={exporting || loading}>
+            <Button variant="outline" size="sm" onClick={() => { void exportMembers('csv'); }} disabled={exporting !== null || loading}>
               <Download className="h-3.5 w-3.5" />
-              {exporting ? 'Exporting…' : 'Export Excel'}
+              {exporting === 'csv' ? 'Exporting…' : 'Export all CSV'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { void exportMembers('xlsx'); }} disabled={exporting !== null || loading}>
+              <Download className="h-3.5 w-3.5" />
+              {exporting === 'xlsx' ? 'Exporting…' : 'Export all Excel'}
             </Button>
             <label className="text-xs text-ink-muted">Rows per page</label>
             <SelectInput

@@ -382,6 +382,14 @@ describe('Charges, waivers, archive jobs and authorization', () => {
     expect(worksheet).toContain(memberId);
     expect(worksheet).toContain('9876543210');
     expect(worksheet).not.toContain(pendingName);
+
+    const csv = await request(app).get(`${api}/admin/members/export`).query({ format: 'csv', scope: 'all' }).set('Authorization', `Bearer ${token}`);
+    expect(csv.status).toBe(200);
+    expect(csv.headers['content-type']).toContain('text/csv');
+    expect(csv.headers['content-disposition']).toContain('.csv');
+    expect(csv.text).toContain(listedName);
+    expect(csv.text).toContain(memberId);
+    expect(csv.text.startsWith('\uFEFFFull name,')).toBe(true);
   });
   it('lists a member on the next request after approval, without waiting for the snapshot interval', async () => {
     setMemberDirectoryRefreshMsForTests(30 * 60 * 1000);
