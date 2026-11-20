@@ -53,6 +53,19 @@ interface MailAttachment {
   contentType: string;
 }
 
+/** The membership certificate (with the card) and the admission certificate travel as two files. */
+export interface CertificateMail {
+  membership: { pdf: Buffer; filename: string };
+  admission: { pdf: Buffer; filename: string };
+}
+
+function certificateAttachments(documents: CertificateMail): MailAttachment[] {
+  return [
+    { filename: documents.membership.filename, content: documents.membership.pdf, contentType: 'application/pdf' },
+    { filename: documents.admission.filename, content: documents.admission.pdf, contentType: 'application/pdf' },
+  ];
+}
+
 interface Mail {
   to: string;
   subject: string;
@@ -171,8 +184,7 @@ export async function sendApprovalEmail(
   email: string,
   fullName: string,
   memberId: string,
-  certificate: Buffer,
-  certificateFilename = 'IFSMHP-Membership-Certificate.pdf',
+  certificates: CertificateMail,
 ): Promise<void> {
   const subject = `Welcome to IFSMHP — your Member ID is ${memberId}`;
   const safeName = escapeHtml(fullName);
@@ -185,9 +197,10 @@ export async function sendApprovalEmail(
     ``,
     `Member ID: ${memberId}`,
     ``,
-    `Your Certificate of Membership is attached. It records your name, designation,`,
-    `and membership number, and it includes your membership card. The same file`,
-    `includes an admission certificate in your registered name and professional type.`,
+    `Two certificates are attached as separate files. The Certificate of Membership`,
+    `records your name, designation, and membership number, and it includes your`,
+    `membership card. The admission certificate records your registered name and`,
+    `professional type.`,
     ``,
     `Your membership is now active. To sign in, go to the member portal and enter`,
     `this email address — we will send you a 6-digit code. There is no password to`,
@@ -205,9 +218,10 @@ export async function sendApprovalEmail(
         <p style="margin:0;font-size:22px;font-weight:700;letter-spacing:1px">${safeId}</p>
       </div>
       <p style="margin:0 0 8px;color:#405046">
-        Your Certificate of Membership is attached to this email. It records your name,
-        designation, and membership number, and it includes your membership card.
-        The same file includes an admission certificate in your registered name and professional type.
+        Two certificates are attached to this email as separate files. The Certificate of
+        Membership records your name, designation, and membership number, and it includes
+        your membership card. The admission certificate records your registered name and
+        professional type.
       </p>
       <p style="margin:0 0 8px;color:#405046">
         Your membership is now active. To sign in, enter this email address on the member
@@ -224,7 +238,7 @@ export async function sendApprovalEmail(
     subject,
     text,
     html,
-    attachments: [{ filename: certificateFilename, content: certificate, contentType: 'application/pdf' }],
+    attachments: certificateAttachments(certificates),
   }, `approval email for ${email} (${memberId})`);
 }
 
@@ -233,8 +247,7 @@ export async function sendMembershipCertificateEmail(
   email: string,
   fullName: string,
   memberId: string,
-  certificate: Buffer,
-  certificateFilename = 'IFSMHP-Membership-Certificate.pdf',
+  certificates: CertificateMail,
 ): Promise<void> {
   const subject = `Your IFSMHP Certificate of Membership — ${memberId}`;
   const safeName = escapeHtml(fullName);
@@ -246,9 +259,10 @@ export async function sendMembershipCertificateEmail(
     ``,
     `Member ID: ${memberId}`,
     ``,
-    `The certificate records your name and designation. The membership card on the`,
-    `same page carries your photograph, name, and membership number. A second page`,
-    `is your admission certificate, in your registered name and professional type.`,
+    `Two certificates are attached as separate files. The Certificate of Membership`,
+    `records your name and designation. The membership card on that page carries`,
+    `your photograph, name, and membership number. The admission certificate records`,
+    `your registered name and professional type.`,
     ``,
     `International Forum for Scientists and Mental Health Professionals.`,
   ].join('\n');
@@ -260,7 +274,7 @@ export async function sendMembershipCertificateEmail(
         <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#718078">Member ID</p>
         <p style="margin:0;font-size:22px;font-weight:700;letter-spacing:1px">${safeId}</p>
       </div>
-      <p style="margin:0;color:#405046">The certificate records your name and designation. The membership card on the same page carries your photograph, name, and membership number. A second page is your admission certificate, in your registered name and professional type.</p>
+      <p style="margin:0;color:#405046">Two certificates are attached as separate files. The Certificate of Membership records your name and designation. The membership card on that page carries your photograph, name, and membership number. The admission certificate records your registered name and professional type.</p>
     </div>
   `.trim();
   await deliver({
@@ -268,7 +282,7 @@ export async function sendMembershipCertificateEmail(
     subject,
     text,
     html,
-    attachments: [{ filename: certificateFilename, content: certificate, contentType: 'application/pdf' }],
+    attachments: certificateAttachments(certificates),
   }, `membership certificate for ${email} (${memberId})`);
 }
 
