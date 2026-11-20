@@ -1,7 +1,7 @@
 import { promises as fsp } from 'node:fs';
 import { prisma } from '../config/database';
-import { certificateFilename, type CertificatePerson } from '../domain/membership-certificate';
-import { renderMembershipCertificate } from './membership-certificate-document';
+import { admissionFilename, certificateFilename, type CertificatePerson } from '../domain/membership-certificate';
+import { renderAdmissionCertificate, renderMembershipCertificate } from './membership-certificate-document';
 import { ApiError } from '../utils/ApiError';
 import { assertSafePath } from '../utils/fileStorage';
 import { logger } from '../utils/logger';
@@ -16,8 +16,13 @@ async function portraitBytes(storageKey: string | null | undefined, deletedAt: D
   }
 }
 
-/** Builds the PDF for an approved application. The address and portrait come from the stored profile, never from the request. */
-export async function renderApplicationCertificate(applicationId: string): Promise<{ pdf: Buffer; filename: string }> {
+export interface MembershipDocuments {
+  membership: { pdf: Buffer; filename: string };
+  admission: { pdf: Buffer; filename: string };
+}
+
+/** Builds both PDFs for an approved application. The address and portrait come from the stored profile, never from the request. */
+export async function renderApplicationCertificate(applicationId: string): Promise<MembershipDocuments> {
   const application = await prisma.membershipApplication.findUnique({
     where: { id: applicationId },
     include: { user: true, profile: { include: { avatar: true } } },
@@ -37,6 +42,12 @@ export async function renderApplicationCertificate(applicationId: string): Promi
     issuedAt: new Date(),
   };
   const photo = await portraitBytes(application.profile.avatar?.storageKey, application.profile.avatar?.deletedAt);
-  const pdf = await renderMembershipCertificate(person, photo);
-  return { pdf, filename: certificateFilename(person.memberId) };
+  const [membership, admission] = await Promise.all([
+    renderMembershipCertificate(person, photo),
+    renderAdmissionCertificate(person),
+  ]);
+  return {
+    membership: { pdf: membership, filename: certificateFilename(person.memberId) },
+    admission: { pdf: admission, filename: admissionFilename(person.memberId) },
+  };
 }

@@ -109,7 +109,14 @@ export function certificateFacts(person: CertificatePerson): string[] {
   ];
 }
 
+function certificateFileStem(memberId: string): string {
+  return certificateText(memberId).replace(/[^A-Za-z0-9.-]+/g, '-').replace(/^-+|-+$/g, '') || 'member';
+}
+
 export function certificateFilename(memberId: string): string {
-  const safe = certificateText(memberId).replace(/[^A-Za-z0-9.-]+/g, '-').replace(/^-+|-+$/g, '') || 'member';
-  return `IFSMHP-Membership-Certificate-${safe}.pdf`;
+  return `IFSMHP-Membership-Certificate-${certificateFileStem(memberId)}.pdf`;
+}
+
+export function admissionFilename(memberId: string): string {
+  return `IFSMHP-Admission-Certificate-${certificateFileStem(memberId)}.pdf`;
 }

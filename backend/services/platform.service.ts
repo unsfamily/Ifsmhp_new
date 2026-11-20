@@ -2208,7 +2208,7 @@ async function deliverApprovalEmail(
   let emailError: string | undefined;
   try {
     const certificate = await renderApplicationCertificate(recipient.applicationId);
-    await sendApprovalEmail(recipient.email, recipient.fullName, recipient.memberId, certificate.pdf, certificate.filename);
+    await sendApprovalEmail(recipient.email, recipient.fullName, recipient.memberId, certificate);
   }
   catch (error) {
     emailError = error instanceof Error ? error.message : String(error);
@@ -2272,7 +2272,7 @@ export async function emailMembershipCertificate(id: string, actorId: string) {
   let emailError: string | undefined;
   try {
     const certificate = await renderApplicationCertificate(app.id);
-    await sendMembershipCertificateEmail(app.user.email, app.user.fullName, app.profile.memberId, certificate.pdf, certificate.filename);
+    await sendMembershipCertificateEmail(app.user.email, app.user.fullName, app.profile.memberId, certificate);
   } catch (error) {
     emailError = error instanceof Error ? error.message : String(error);
     logger.error('Membership certificate email failed', { applicationId: app.id });

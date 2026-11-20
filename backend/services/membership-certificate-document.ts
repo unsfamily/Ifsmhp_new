@@ -171,18 +171,23 @@ function drawFittedLeft(page: PDFPage, text: string, font: PDFFont, x: number, y
   page.drawText(shown, { x, y, size: fitted, font, color });
 }
 
-/** Second page: the designed admission certificate, filled with this member. */
-async function drawAdmissionCertificate(pdf: PDFDocument, person: CertificatePerson): Promise<void> {
+/** The designed admission certificate, as its own one-page PDF. */
+export async function renderAdmissionCertificate(person: CertificatePerson): Promise<Buffer> {
+  const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkit);
   const template = await PDFDocument.load(await fsp.readFile(certificateAsset('ifsmhp-admission-certificate.pdf')));
   const [page] = await pdf.copyPages(template, [0]);
   if (!page) throw new Error('Admission certificate template has no page');
   pdf.addPage(page);
-  pdf.registerFontkit(fontkit);
   const italic = await pdf.embedFont(await fsp.readFile(certificateAsset('Lato-BlackItalic.ttf')), { subset: true });
   drawFittedLeft(page, holderName(person.fullName), italic, ADMISSION_X, ADMISSION_NAME.y, ADMISSION_MAX_WIDTH, ADMISSION_NAME.size, ADMISSION_NAME.min, ADMISSION_NAVY);
   drawFittedLeft(page, admissionProfession(person), italic, ADMISSION_X, ADMISSION_PROFESSION.y, ADMISSION_MAX_WIDTH, ADMISSION_PROFESSION.size, ADMISSION_PROFESSION.min, ADMISSION_NAVY);
   drawFittedLeft(page, admissionMembershipLine(person.memberId), italic, ADMISSION_X, ADMISSION_MEMBERSHIP.y, ADMISSION_MAX_WIDTH, ADMISSION_MEMBERSHIP.size, ADMISSION_MEMBERSHIP.min, ADMISSION_INK);
   drawFittedLeft(page, admissionDateLine(person.approvedAt), italic, ADMISSION_X, ADMISSION_DATE.y, ADMISSION_MAX_WIDTH, ADMISSION_DATE.size, ADMISSION_DATE.min, ADMISSION_INK);
+  pdf.setTitle(`Admission Certificate — ${person.memberId}`);
+  pdf.setAuthor('International Forum for Scientists and Mental Health Professionals');
+  pdf.setSubject('Admission Certificate');
+  return Buffer.from(await pdf.save());
 }
 
 function drawFitted(page: PDFPage, text: string, font: PDFFont, x: number, y: number, maxWidth: number, size: number, minSize: number, color: ReturnType<typeof rgb>): void {
@@ -302,7 +307,6 @@ export async function renderMembershipCertificate(person: CertificatePerson, pho
   drawFitted(page, `: ${branchLabel(person.country)}`, sansBold, CARD_BRANCH.x, CARD_BRANCH.y, CARD_BRANCH.maxWidth, CARD_BRANCH.size, 5.5, NAVY);
   drawFitted(page, `: ${certificateText(person.memberId)}`, sansBold, CARD_ID.x, CARD_ID.y, CARD_ID.maxWidth, CARD_ID.size, 5.5, NAVY);
   drawFitted(page, `: ${validThroughLabel(person.approvedAt)}`, sansBold, CARD_VALID.x, CARD_VALID.y, CARD_VALID.maxWidth, CARD_VALID.size, 5.5, NAVY);
-  await drawAdmissionCertificate(pdf, person);
 
   pdf.setTitle(`${CERTIFICATE_TITLE} — ${person.memberId}`);
   pdf.setAuthor('International Forum for Scientists and Mental Health Professionals');

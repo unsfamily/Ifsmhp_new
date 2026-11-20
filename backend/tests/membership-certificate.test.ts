@@ -3,6 +3,7 @@ import { PDFDocument, decodePDFRawStream } from 'pdf-lib';
 import sharp from 'sharp';
 import {
   admissionDateLine,
+  admissionFilename,
   admissionLabel,
   admissionMembershipLine,
   admissionProfession,
@@ -17,7 +18,7 @@ import {
   validThroughLabel,
   type CertificatePerson,
 } from '../domain/membership-certificate';
-import { renderMembershipCertificate } from '../services/membership-certificate-document';
+import { renderAdmissionCertificate, renderMembershipCertificate } from '../services/membership-certificate-document';
 
 const admitted = new Date('2026-01-15T10:00:00Z');
 
@@ -46,6 +47,7 @@ describe('membership certificate wording', () => {
     expect(branchLabel(null)).toBe('International');
     expect(cardInitials('Dr. Sarah Chen')).toBe('SC');
     expect(certificateFilename('IFSMHP-000001')).toBe('IFSMHP-Membership-Certificate-IFSMHP-000001.pdf');
+    expect(admissionFilename('IFSMHP-000001')).toBe('IFSMHP-Admission-Certificate-IFSMHP-000001.pdf');
   });
 
   it('folds characters the certificate font cannot draw and keeps the admission wording', () => {
@@ -107,8 +109,19 @@ describe('membership certificate pdf', () => {
       memberId: 'IFSMHP-000029',
     });
     const document = await PDFDocument.load(pdf);
-    expect(document.getPageCount()).toBe(2);
-    const admission = pageText(document, 1);
+    expect(document.getPageCount()).toBe(1);
+    const admissionPdf = await renderAdmissionCertificate({
+      ...sarah,
+      fullName: 'Nirushan Tamilselvan',
+      professionalTitle: 'Student',
+      professionalType: 'Student',
+      institution: 'University',
+      country: null,
+      memberId: 'IFSMHP-000029',
+    });
+    const admissionDocument = await PDFDocument.load(admissionPdf);
+    expect(admissionDocument.getPageCount()).toBe(1);
+    const admission = pageText(admissionDocument, 0);
     expect(admission).toContain('1 0 0 1 59.527557 532.0007 Tm');
     expect(admission).toContain('1 0 0 1 59.527557 448.0007 Tm');
     expect(admission).toContain('1 0 0 1 59.527557 326.862 Tm');
