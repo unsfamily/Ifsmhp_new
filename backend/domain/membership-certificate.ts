@@ -82,7 +82,7 @@ export function certificateParagraphs(person: CertificatePerson): string[] {
   return [
     'has been duly elected and admitted as a Member of the International Forum for Scientists and Mental Health Professionals (IFSMHP).',
     "In keeping with the practice of learned societies throughout the world, this membership is conferred in recognition of the holder's professional standing and distinguished contribution to scientific inquiry and the practice of mental health, together with an undertaking to observe standards of ethics, scientific integrity, collegiality, and evidence-informed care.",
-    `IFSMHP is a global forum seated at Tambaram, Chennai, India, uniting research scholars, scientists, and mental health professionals in support of rigorous research and its benefit to humanity. Membership number ${person.memberId} remains valid through ${valid} while the holder continues in good standing.`,
+    `IFSMHP is a global forum seated at Chennai, India, uniting research scholars, scientists, and mental health professionals in support of rigorous research and its benefit to humanity. Membership number ${person.memberId} remains valid through ${valid} while the holder continues in good standing.`,
     'Issued under the authority of the Chief Research Officer.',
   ];
 }
@@ -90,9 +90,9 @@ export function certificateParagraphs(person: CertificatePerson): string[] {
 export function certificateFacts(person: CertificatePerson): string[] {
   return [
     `Membership No.  ${person.memberId}`,
-    `Date of admission  ${admissionLabel(person.approvedAt)}`,
     `Valid through  ${validThroughLabel(person.approvedAt)}`,
     `Branch  ${branchLabel(person.country)}`,
+    `Date of admission  ${admissionLabel(person.approvedAt)}`,
   ];
 }
 

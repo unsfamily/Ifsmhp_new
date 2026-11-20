@@ -24,7 +24,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { isApplicationFeeExempt } from '../../domain/membershipFee';
+import { isApplicationFeeExempt, isCvOptional, isSchoolStudent, SCHOOL_STUDENT_TYPE, STEM_COLLEGE_STUDENT_TYPE } from '../../domain/membershipFee';
 import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput, Checkbox } from '../../components/common/Input';
 import OtpCodeStep from '../../components/auth/OtpCodeStep';
@@ -52,6 +52,8 @@ const professionalTypes = [
   'Social Worker',
   'Doctoral Candidate',
   'Student',
+  SCHOOL_STUDENT_TYPE,
+  STEM_COLLEGE_STUDENT_TYPE,
   'Academic Researcher',
   'Mental Health Professional',
   'Public Servant',
@@ -62,19 +64,27 @@ const professionalTypes = [
 // The address is asked for once: a one-time code is emailed to it and the
 // account is not created until that code comes back, so a typo cannot slip
 // through unnoticed the way it could when registration completed immediately.
-const schema = z.object({
+const registerFields = z.object({
   firstName: z.string().trim().min(1, 'Please enter your first name').max(59),
   lastName: z.string().trim().min(1, 'Please enter your last name').max(59),
   email: z.string().email('Enter a valid email address'),
   phone: z.string().trim().min(7, 'Enter a valid phone number').max(40, 'Phone number must be 40 characters or fewer'),
   professionalType: z.string().min(1, 'Select your professional type'),
-  institution: z.string().min(2, 'Type of Professional Organization / Independent Professionals is required'),
-  communicationAddress: z.string().trim().min(5, 'Enter your communication address').max(1000),
-  permanentAddress: z.string().trim().min(5, 'Enter your permanent address').max(1000),
-  credentials: z.string().min(10, 'Please briefly describe your credentials'),
-  education: z.string().min(10, 'Please list your relevant education'),
-  researchInterests: z.string().min(10, 'Please describe your research interests'),
+  institution: z.string().trim().max(200),
+  communicationAddress: z.string().trim().max(1000),
+  permanentAddress: z.string().trim().max(1000),
+  credentials: z.string().trim().max(5000),
+  education: z.string().trim().max(5000),
+  researchInterests: z.string().trim().min(10, 'Please describe your research interests').max(5000),
   agreeTerms: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms' }) }),
+});
+const schema = registerFields.superRefine((value, ctx) => {
+  if (isSchoolStudent(value.professionalType)) return;
+  if (value.institution.length < 2) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['institution'], message: 'Type of Professional Organization / Independent Professionals is required' });
+  if (value.communicationAddress.length < 5) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['communicationAddress'], message: 'Enter your communication address' });
+  if (value.permanentAddress.length < 5) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['permanentAddress'], message: 'Enter your permanent address' });
+  if (value.credentials.length < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['credentials'], message: 'Please briefly describe your credentials' });
+  if (value.education.length < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['education'], message: 'Please list your relevant education' });
 });
 
 type FormData = z.infer<typeof schema>;
@@ -100,11 +110,11 @@ const documentSlots: Array<{
 }> = [
   {
     kind: 'CV',
-    label: 'Profile',
-    accept: 'application/pdf,.pdf,application/msword,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx',
-    extensions: ['pdf', 'doc', 'docx'],
-    typeError: 'Upload a PDF, DOC, or DOCX file.',
-    hint: 'PDF, DOC, or DOCX, up to 5 MB',
+    label: 'CV',
+    accept: 'application/pdf,.pdf,application/msword,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp',
+    extensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp'],
+    typeError: 'Upload a PDF, DOC, DOCX, JPG, PNG, or WebP file.',
+    hint: 'PDF, DOC, DOCX, JPG, PNG, or WebP, up to 5 MB. School students and STEM students joining college may upload a school ID card or bonafide certificate. This information can be used for insurance purposes.',
   },
   {
     kind: 'CREDENTIAL',
@@ -165,7 +175,6 @@ export default function RegisterPage() {
   const [referrals, setReferrals] = useState<ReferralInput[]>([]), [letters, setLetters] = useState<RegistrationDocumentUpload[]>([]), [waiver, setWaiver] = useState(''), [lettersBusy, setLettersBusy] = useState(false);
   const [paymentReference, setPaymentReference] = useState(''), [paymentProof, setPaymentProof] = useState<RegistrationDocumentUpload | null>(null), [paymentBusy, setPaymentBusy] = useState(false), [paymentError, setPaymentError] = useState('');
   useEffect(() => { const controller = new AbortController(); setPolicyError(''); membershipService.policy(controller.signal).then(p => { if (!controller.signal.aborted) setPolicy(p); }).catch(e => { if (!controller.signal.aborted) setPolicyError(normalizeError(e).message); }); return () => controller.abort(); }, [policyReload]);
-  const isRequired = (kind: RegistrationDocumentKind) => kind === 'PHOTO' || (kind === 'CV' ? policy?.requireProfile ?? true : policy?.requireCredential ?? true);
   const [submitted, setSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [documentUploads, setDocumentUploads] = useState(initialUploadState);
@@ -191,8 +200,24 @@ export default function RegisterPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      institution: '',
+      communicationAddress: '',
+      permanentAddress: '',
+      credentials: '',
+      education: '',
+      researchInterests: '',
+      professionalType: '',
+    },
   });
   const professionalType = watch('professionalType') ?? '';
+  const schoolStudent = isSchoolStudent(professionalType);
+  const isRequired = (kind: RegistrationDocumentKind) => {
+    if (kind === 'PHOTO') return true;
+    if (schoolStudent) return false;
+    if (kind === 'CV' && isCvOptional(professionalType)) return false;
+    return kind === 'CV' ? policy?.requireProfile ?? true : policy?.requireCredential ?? true;
+  };
   const paymentRequired = Boolean(policy?.applicationFeeEnabled && professionalType && !isApplicationFeeExempt(professionalType));
   const offlinePayment = paymentRequired && !policy?.razorpayEnabled;
 
@@ -378,7 +403,7 @@ export default function RegisterPage() {
       setErrorMsg('Upload the required documents before submitting your application.');
       setDocumentUploads((current) => ({
         ...current,
-        CV: !isRequired('CV') || current.CV.uploaded ? current.CV : { ...current.CV, error: 'Upload your Profile.' },
+        CV: !isRequired('CV') || current.CV.uploaded ? current.CV : { ...current.CV, error: 'Upload your CV.' },
         CREDENTIAL: !isRequired('CREDENTIAL') || current.CREDENTIAL.uploaded
           ? current.CREDENTIAL
           : { ...current.CREDENTIAL, error: 'Upload your Credentials / Certifications / ID Card.' },
@@ -401,7 +426,7 @@ export default function RegisterPage() {
       if (normalized.status === 409) { setPolicy(null); setPolicyReload(n => n + 1); }
       for (const [field, message] of Object.entries(normalized.fieldErrors)) {
         if (field === 'fullName') setError('firstName', { type: 'server', message });
-        else if (field in schema.shape) setError(field as keyof FormData, { type: 'server', message });
+        else if (field in registerFields.shape) setError(field as keyof FormData, { type: 'server', message });
       }
     }
   };
@@ -636,6 +661,7 @@ export default function RegisterPage() {
                       error={errors.phone?.message}
                       {...register('phone')}
                     />
+                    {!schoolStudent && (
                     <TextInput
                       label="Type of Professional Organization / Independent Professionals"
                       placeholder="University, Hospital, Private Practice..."
@@ -644,6 +670,7 @@ export default function RegisterPage() {
                       error={errors.institution?.message}
                       {...register('institution')}
                     />
+                    )}
                     {documentSlots.filter((slot) => slot.kind === 'PHOTO').map((slot) => {
                       const state = documentUploads[slot.kind];
                       const uploaded = state.uploaded;
@@ -697,9 +724,20 @@ export default function RegisterPage() {
                             </div>
                           </div>
                           {state.error && <p role="alert" className="mt-1 text-xs text-danger-600">{state.error}</p>}
+                          <figure className="mt-2 flex items-center gap-3">
+                            <svg viewBox="0 0 72 88" className="h-16 w-14 shrink-0 rounded-md border border-paper-border bg-paper" role="img" aria-label="Example portrait">
+                              <rect width="72" height="88" fill="#f4f7f8" />
+                              <circle cx="36" cy="30" r="14" fill="#1e3a5f" />
+                              <path d="M12 80c2-16 12-24 24-24s22 8 24 24" fill="#1e3a5f" />
+                              <text x="36" y="84" textAnchor="middle" fontSize="7" fill="#5c6b73">Example</text>
+                            </svg>
+                            <figcaption className="text-xs text-ink-muted">Example photograph. Upload a clear head-and-shoulders picture like this.</figcaption>
+                          </figure>
                         </div>
                       );
                     })}
+                    {!schoolStudent && (
+                    <>
                     <div className="sm:col-span-2">
                       <TextArea
                         label="Communication Address"
@@ -722,10 +760,18 @@ export default function RegisterPage() {
                         {...register('permanentAddress')}
                       />
                     </div>
+                    </>
+                    )}
                   </div>
                 </div>
 
-                {policy && <RegistrationRequirements policy={policy} professionalType={professionalType} referrals={referrals} setReferrals={setReferrals} letters={letters} setLetters={setLetters} waiver={waiver} setWaiver={setWaiver} setUploading={setLettersBusy} />}
+                {schoolStudent && (
+                  <p className="rounded-lg border border-forum-200 bg-forum-50 px-3 py-2 text-sm text-forum-900">
+                    School students answer only their research interest. The other background questions are not required.
+                  </p>
+                )}
+
+                {!schoolStudent && policy && <RegistrationRequirements policy={policy} professionalType={professionalType} referrals={referrals} setReferrals={setReferrals} letters={letters} setLetters={setLetters} waiver={waiver} setWaiver={setWaiver} setUploading={setLettersBusy} />}
 
                 <div className="pt-2">
                   <h2 className="font-display text-xl font-semibold text-forum-900 flex items-center gap-2">
@@ -733,6 +779,8 @@ export default function RegisterPage() {
                     Professional Background
                   </h2>
                   <div className="mt-5 grid gap-5">
+                    {!schoolStudent && (
+                    <>
                     <TextArea
                       label="Professional Credentials"
                       placeholder="Degrees, licenses, certifications, professional affiliations... (e.g. PhD Clinical Psychology, Licensed Psychologist #12345)"
@@ -749,6 +797,8 @@ export default function RegisterPage() {
                       error={errors.education?.message}
                       {...register('education')}
                     />
+                    </>
+                    )}
                     <TextArea
                       label="Research Interests"
                       placeholder="What areas do you work in? (e.g. digital mental health interventions, treatment-resistant depression, psychedelic research, youth mental health policy)"
@@ -766,7 +816,7 @@ export default function RegisterPage() {
                     Document Upload
                   </h2>
                   <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    {documentSlots.filter((slot) => slot.kind !== 'PHOTO').map((slot) => {
+                    {documentSlots.filter((slot) => slot.kind !== 'PHOTO' && !(schoolStudent && slot.kind === 'CREDENTIAL')).map((slot) => {
                       const state = documentUploads[slot.kind];
                       const uploaded = state.uploaded;
                       const statusText =
@@ -778,7 +828,7 @@ export default function RegisterPage() {
                               ? 'Uploaded'
                               : state.status === 'failed'
                                 ? 'Upload failed'
-                                : 'Required';
+                                : isRequired(slot.kind) ? 'Required' : 'Optional';
                       const statusClass =
                         state.status === 'uploaded'
                           ? 'bg-success-100 text-success-600'
@@ -786,7 +836,9 @@ export default function RegisterPage() {
                             ? 'bg-danger-100 text-danger-600'
                             : ['uploading', 'removing'].includes(state.status)
                               ? 'bg-forum-50 text-forum-700'
-                              : 'bg-warning-100 text-warning-600';
+                              : isRequired(slot.kind)
+                                ? 'bg-warning-100 text-warning-600'
+                                : 'bg-forum-50 text-ink-muted';
 
                       return (
                         <div key={slot.kind} className="flex flex-col gap-1.5">

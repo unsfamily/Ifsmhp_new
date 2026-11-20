@@ -68,5 +68,12 @@ export const normalizePaymentReference = (value: string) => value.trim().replace
 export const manualMemberId = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_/-]{2,99}$/, 'Use 3–100 letters, digits, hyphens, underscores or slashes.');
 /** Professional type that skips the application registration fee. Exact register-form value. */
 export const APPLICATION_FEE_EXEMPT_TYPE = 'Student';
-export const isApplicationFeeExempt = (professionalType: string) => professionalType.trim() === APPLICATION_FEE_EXEMPT_TYPE;
+/** School applicants answer only their research interest. STEM students joining college keep the full form. */
+export const SCHOOL_STUDENT_TYPE = 'School Student';
+export const STEM_COLLEGE_STUDENT_TYPE = 'STEM Student (joining college)';
+const FEE_EXEMPT_TYPES = new Set([APPLICATION_FEE_EXEMPT_TYPE, SCHOOL_STUDENT_TYPE, STEM_COLLEGE_STUDENT_TYPE]);
+export const isApplicationFeeExempt = (professionalType: string) => FEE_EXEMPT_TYPES.has(professionalType.trim());
+export const isSchoolStudent = (professionalType: string) => professionalType.trim() === SCHOOL_STUDENT_TYPE;
+/** CV is optional for students, including school students and STEM students who are joining college. */
+export const isCvOptional = (professionalType: string) => FEE_EXEMPT_TYPES.has(professionalType.trim());
 export interface MembershipPolicySnapshot { revision: number; values: MembershipPolicy }

@@ -1,4 +1,4 @@
-import { referralSchema, fileClaimSchema, waiverReason, paymentReference } from '../domain/membership';
+import { referralSchema, fileClaimSchema, waiverReason, paymentReference, isSchoolStudent } from '../domain/membership';
 import { securityAudit } from '../services/audit.service';
 import { sendFailure } from '../utils/apiResponse';
 import { Router } from 'express';
@@ -31,7 +31,7 @@ const loginSchema = z.object({
   remember: z.boolean().optional(),
 }).strict();
 
-const registerSchema = z.object({
+const registerFields = z.object({
   fullName: z.string().min(2).max(120),
   firstName: memberNameSchema.optional(),
   lastName: memberNameSchema.optional(),
@@ -39,9 +39,9 @@ const registerSchema = z.object({
   permanentAddress: memberAddressSchema,
   email: z.string().email('Invalid email format'),
   professionalType: z.string().min(2).max(120),
-  institution: z.string().min(2).max(200),
-  credentials: z.string().min(10).max(5000),
-  education: z.string().min(10).max(5000),
+  institution: z.string().trim().max(200),
+  credentials: z.string().trim().max(5000),
+  education: z.string().trim().max(5000),
   researchInterests: z.string().min(10).max(5000),
   country: z.string().max(120).optional(),
   phone: z.string().max(40).optional(),
@@ -59,6 +59,13 @@ const registerSchema = z.object({
   agreeTerms: z.literal(true, { invalid_type_error: 'You must agree to the terms' }),
 }).strict();
 
+function refineApplicantDetail(value: { professionalType: string; institution: string; credentials: string; education: string }, ctx: z.RefinementCtx) {
+  if (isSchoolStudent(value.professionalType)) return;
+  if (value.institution.length < 2) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['institution'], message: 'Type of Professional Organization / Independent Professionals is required' });
+  if (value.credentials.length < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['credentials'], message: 'Please briefly describe your credentials' });
+  if (value.education.length < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['education'], message: 'Please list your relevant education' });
+}
+
 /**
  * OTP request accepts either a login (email alone) or a registration draft.
  * The discriminated union means a REGISTER request is fully validated up front,
@@ -66,9 +73,11 @@ const registerSchema = z.object({
  */
 const otpRequestSchema = z.discriminatedUnion('purpose', [
   z.object({ purpose: z.literal('LOGIN'), email: z.string().email('Enter a valid email address') }).strict(),
-  registerSchema.extend({ purpose: z.literal('REGISTER') }).strict(),
+  registerFields.extend({ purpose: z.literal('REGISTER') }).strict(),
 ]).superRefine((value, ctx) => {
-  if (value.purpose === 'REGISTER') validateRegistrationNames(value, ctx);
+  if (value.purpose !== 'REGISTER') return;
+  validateRegistrationNames(value, ctx);
+  refineApplicantDetail(value, ctx);
 });
 
 /** Resend needs only the address — the draft is already on the live OTP row. */

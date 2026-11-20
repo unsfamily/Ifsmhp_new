@@ -48,12 +48,14 @@ describe('membership certificate wording', () => {
     expect(paragraphs[0]).toContain('duly elected and admitted as a Member');
     expect(body).toContain('learned societies throughout the world');
     expect(body).toContain('distinguished contribution to scientific inquiry and the practice of mental health');
-    expect(body).toContain('Tambaram, Chennai, India');
+    expect(body).toContain('seated at Chennai, India');
+    expect(body).not.toContain('Tambaram');
     expect(body).toContain('valid through January 2027');
     expect(body).toContain('Chief Research Officer');
-    const facts = certificateFacts(sarah).join('\n');
-    expect(facts).toContain('IFSMHP-000001');
-    expect(facts).toContain('United States');
+    const facts = certificateFacts(sarah);
+    expect(facts.join('\n')).toContain('IFSMHP-000001');
+    expect(facts.join('\n')).toContain('United States');
+    expect(facts[facts.length - 1]).toBe('Date of admission  15 January 2026');
   });
 });
 

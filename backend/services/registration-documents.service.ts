@@ -20,7 +20,7 @@ export const REGISTRATION_MAX_BYTES = 5 * 1024 * 1024;
 export const REGISTRATION_MAX_MB = 5;
 const photographMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const missingDocumentMessage: Record<RegistrationDocumentKind, string> = {
-  CV: 'Upload your Profile.',
+  CV: 'Upload your CV.',
   CREDENTIAL: 'Upload your Credentials / Certifications / ID Card.',
   PHOTO: 'Upload your photograph.',
 };
@@ -107,7 +107,7 @@ export async function resolveRegistrationDocuments(
 }
 
 const documentTitles: Record<RegistrationDocumentKind, string> = {
-  CV: 'Profile',
+  CV: 'CV',
   CREDENTIAL: 'Credentials / Certifications / ID Card',
   PHOTO: 'Member photograph',
 };
