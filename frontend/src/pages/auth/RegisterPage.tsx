@@ -964,12 +964,14 @@ export default function RegisterPage() {
                     label={
                       <>
                         I have read and agree to the{' '}
-                        <Link to="/terms-of-service" className="underline text-forum-700 font-medium">
+                        <Link to="/terms-of-service" target="_blank" rel="noopener noreferrer" className="underline text-forum-700 font-medium">
                           Terms of Service
+                          <span className="sr-only"> (opens in a new tab)</span>
                         </Link>{' '}
                         and{' '}
-                        <Link to="/code-of-ethics" className="underline text-forum-700 font-medium">
+                        <Link to="/code-of-ethics" target="_blank" rel="noopener noreferrer" className="underline text-forum-700 font-medium">
                           Code of Ethics
+                          <span className="sr-only"> (opens in a new tab)</span>
                         </Link>
                         .
                       </>
