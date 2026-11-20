@@ -163,6 +163,36 @@ const policyLinks = [
   { to: '/cookie-policy', label: 'Cookie Policy' },
 ];
 
+export function PolicySections({ policy, compact = false }: { policy: Policy; compact?: boolean }) {
+  return (
+    <div className="min-w-0 divide-y divide-paper-border">
+      {policy.sections.map((section, index) => (
+        <section key={section.heading} id={compact ? undefined : `policy-section-${index + 1}`} className={compact ? 'py-5 first:pt-0 last:pb-0' : 'scroll-mt-28 py-7 first:pt-0 last:pb-0'}>
+          {compact
+            ? <h3 className="font-display text-lg font-semibold text-forum-900">{section.heading}</h3>
+            : <h2 className="font-display text-xl font-semibold text-forum-900">{section.heading}</h2>}
+          {section.paragraphs?.map((paragraph) => (
+            <p key={paragraph} className={`mt-3 leading-relaxed text-ink-muted ${compact ? 'text-sm' : ''}`}>{paragraph}</p>
+          ))}
+          {section.bullets && (
+            <ul className={`mt-3 list-disc space-y-2 pl-5 leading-relaxed text-ink-muted marker:text-slateteal-600 ${compact ? 'text-sm' : ''}`}>
+              {section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
+            </ul>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+export function policyDocument(slug: 'terms-of-service' | 'code-of-ethics'): Policy {
+  const policy = policies[slug];
+  if (!policy) {
+    throw new Error(`Missing policy ${slug}`);
+  }
+  return policy;
+}
+
 export default function PolicyPage() {
   const { pathname } = useLocation();
   const slug = pathname.split('/').filter(Boolean).at(-1) ?? '';
@@ -191,21 +221,9 @@ export default function PolicyPage() {
       </div>
 
       <div className="mx-auto grid max-w-5xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_220px] lg:gap-14 lg:py-14">
-        <article className="min-w-0 divide-y divide-paper-border">
-          {policy.sections.map((section, index) => (
-            <section key={section.heading} id={`policy-section-${index + 1}`} className="scroll-mt-28 py-7 first:pt-0 last:pb-0">
-              <h2 className="font-display text-xl font-semibold text-forum-900">{section.heading}</h2>
-              {section.paragraphs?.map((paragraph) => (
-                <p key={paragraph} className="mt-3 leading-relaxed text-ink-muted">{paragraph}</p>
-              ))}
-              {section.bullets && (
-                <ul className="mt-3 list-disc space-y-2 pl-5 leading-relaxed text-ink-muted marker:text-slateteal-600">
-                  {section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
-                </ul>
-              )}
-            </section>
-          ))}
-          <div className="pt-8">
+        <article className="min-w-0">
+          <PolicySections policy={policy} />
+          <div className="border-t border-paper-border pt-8">
             <Button as="link" to="/contact" variant="outline">
               Contact IFSMHP
               <ArrowRight className="h-4 w-4" />

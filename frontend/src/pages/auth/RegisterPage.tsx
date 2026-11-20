@@ -1,3 +1,4 @@
+import PolicyDialog from '../../components/membership/PolicyDialog';
 import RegistrationRequirements, { type ReferralInput } from '../../components/membership/RegistrationRequirements';
 import RegistrationFeeNotice from '../../components/membership/RegistrationFeeNotice';
 import { membershipService, type RegistrationPolicy } from '../../services/membershipService';
@@ -177,6 +178,7 @@ export default function RegisterPage() {
   const [paymentReference, setPaymentReference] = useState(''), [paymentProof, setPaymentProof] = useState<RegistrationDocumentUpload | null>(null), [paymentBusy, setPaymentBusy] = useState(false), [paymentError, setPaymentError] = useState('');
   useEffect(() => { const controller = new AbortController(); setPolicyError(''); membershipService.policy(controller.signal).then(p => { if (!controller.signal.aborted) setPolicy(p); }).catch(e => { if (!controller.signal.aborted) setPolicyError(normalizeError(e).message); }); return () => controller.abort(); }, [policyReload]);
   const [submitted, setSubmitted] = useState(false);
+  const [openPolicy, setOpenPolicy] = useState<'terms-of-service' | 'code-of-ethics' | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [documentUploads, setDocumentUploads] = useState(initialUploadState);
   const documentUploadsRef = useRef(documentUploads);
@@ -964,13 +966,13 @@ export default function RegisterPage() {
                     label={
                       <>
                         I have read and agree to the{' '}
-                        <Link to="/terms-of-service" className="underline text-forum-700 font-medium">
+                        <button type="button" className="underline text-forum-700 font-medium" onClick={() => setOpenPolicy('terms-of-service')}>
                           Terms of Service
-                        </Link>{' '}
+                        </button>{' '}
                         and{' '}
-                        <Link to="/code-of-ethics" className="underline text-forum-700 font-medium">
+                        <button type="button" className="underline text-forum-700 font-medium" onClick={() => setOpenPolicy('code-of-ethics')}>
                           Code of Ethics
-                        </Link>
+                        </button>
                         .
                       </>
                     }
@@ -980,6 +982,7 @@ export default function RegisterPage() {
                     <p className="mt-2 text-xs text-danger-600 pl-6">{errors.agreeTerms.message}</p>
                   )}
                 </div>
+                {openPolicy && <PolicyDialog key={openPolicy} slug={openPolicy} onClose={() => setOpenPolicy(null)} />}
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-2">
                   <p className="text-xs text-ink-subtle">
