@@ -1,11 +1,15 @@
 import fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
+import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type PDFImage } from 'pdf-lib';
 import sharp from 'sharp';
 import {
   CERTIFICATE_AUTHORITY,
   CERTIFICATE_TITLE,
+  admissionDateLine,
+  admissionMembershipLine,
+  admissionProfession,
   branchLabel,
   cardInitials,
   certificateFacts,
@@ -29,28 +33,45 @@ const WHITE = rgb(1, 1, 1);
  * the dotted cut line (about y=175).
  *
  * The printed card frame is x=90..317.3, y=17..156.5. Covers stay inside
- * that stroke. MEMBER is the gold word at x=189.66; the holder name shares
- * that left edge when it fits, and drops clear of the word.
+ * that stroke. The holder name shares the left edge of the Branch label
+ * (x=144.5). MEMBER stays on its own line above the name.
  */
 const CARD_INNER_RIGHT = 313;
 const PHOTO_SLOT = { x: 93.4, y: 61.6, width: 46.75, height: 46.75 };
 const PHOTO_DROP = 4;
-const MEMBER_LEFT = 189.66;
 const NAME_ROW_LEFT = 144.5;
 const CARD_NAME = { x: NAME_ROW_LEFT, y: 89.2, size: 7.1, maxWidth: 168 };
 const CARD_BRANCH = { x: 166.8, y: 75.5, size: 7, maxWidth: 145 };
 const CARD_ID = { x: 214.1, y: 65.1, size: 7, maxWidth: 98 };
 const CARD_VALID = { x: 160.5, y: 55.2, size: 7, maxWidth: 150 };
 
-function letterheadPath(): string {
+function certificateAsset(name: string): string {
   const candidates = [
-    path.resolve(__dirname, '../assets/certificates/ifsmhp-letterhead.pdf'),
-    path.resolve(__dirname, '../../assets/certificates/ifsmhp-letterhead.pdf'),
+    path.resolve(__dirname, '../assets/certificates', name),
+    path.resolve(__dirname, '../../assets/certificates', name),
   ];
   const found = candidates.find((candidate) => fs.existsSync(candidate));
-  if (!found) throw new Error('Membership certificate letterhead is not installed');
+  if (!found) throw new Error(`Membership certificate asset is not installed: ${name}`);
   return found;
 }
+
+function letterheadPath(): string {
+  return certificateAsset('ifsmhp-letterhead.pdf');
+}
+
+/**
+ * Baselines measured on the admission template. The name and professional
+ * type sit in the open lines; the membership number and date replace the
+ * sample lines that were removed from the artwork.
+ */
+const ADMISSION_NAVY = rgb(23 / 255, 41 / 255, 74 / 255);
+const ADMISSION_INK = rgb(0, 0, 0);
+const ADMISSION_X = 59.527557;
+const ADMISSION_MAX_WIDTH = 470;
+const ADMISSION_NAME = { y: 532.0007, size: 31, min: 14 };
+const ADMISSION_PROFESSION = { y: 448.0007, size: 31, min: 13 };
+const ADMISSION_MEMBERSHIP = { y: 326.862, size: 12, min: 8 };
+const ADMISSION_DATE = { y: 312.612, size: 12, min: 8 };
 
 const PAGE_CENTER = 595.2756 / 2;
 
@@ -135,6 +156,33 @@ async function drawRoundSeal(page: PDFPage, pdf: PDFDocument): Promise<void> {
   if (!logo) return;
   const mark = radius * 1.35;
   page.drawImage(logo, { x: centerX - mark / 2, y: centerY - mark / 2, width: mark, height: mark });
+}
+
+function drawFittedLeft(page: PDFPage, text: string, font: PDFFont, x: number, y: number, maxWidth: number, size: number, minSize: number, color: ReturnType<typeof rgb>): void {
+  const value = text.trim();
+  if (!value) return;
+  let fitted = size;
+  while (fitted > minSize && font.widthOfTextAtSize(value, fitted) > maxWidth) fitted -= 0.25;
+  let shown = value;
+  if (font.widthOfTextAtSize(shown, fitted) > maxWidth) {
+    while (shown.length > 1 && font.widthOfTextAtSize(`${shown}...`, fitted) > maxWidth) shown = shown.slice(0, -1);
+    shown = `${shown.trimEnd()}...`;
+  }
+  page.drawText(shown, { x, y, size: fitted, font, color });
+}
+
+/** Second page: the designed admission certificate, filled with this member. */
+async function drawAdmissionCertificate(pdf: PDFDocument, person: CertificatePerson): Promise<void> {
+  const template = await PDFDocument.load(await fsp.readFile(certificateAsset('ifsmhp-admission-certificate.pdf')));
+  const [page] = await pdf.copyPages(template, [0]);
+  if (!page) throw new Error('Admission certificate template has no page');
+  pdf.addPage(page);
+  pdf.registerFontkit(fontkit);
+  const italic = await pdf.embedFont(await fsp.readFile(certificateAsset('Lato-BlackItalic.ttf')), { subset: true });
+  drawFittedLeft(page, holderName(person.fullName), italic, ADMISSION_X, ADMISSION_NAME.y, ADMISSION_MAX_WIDTH, ADMISSION_NAME.size, ADMISSION_NAME.min, ADMISSION_NAVY);
+  drawFittedLeft(page, admissionProfession(person), italic, ADMISSION_X, ADMISSION_PROFESSION.y, ADMISSION_MAX_WIDTH, ADMISSION_PROFESSION.size, ADMISSION_PROFESSION.min, ADMISSION_NAVY);
+  drawFittedLeft(page, admissionMembershipLine(person.memberId), italic, ADMISSION_X, ADMISSION_MEMBERSHIP.y, ADMISSION_MAX_WIDTH, ADMISSION_MEMBERSHIP.size, ADMISSION_MEMBERSHIP.min, ADMISSION_INK);
+  drawFittedLeft(page, admissionDateLine(person.approvedAt), italic, ADMISSION_X, ADMISSION_DATE.y, ADMISSION_MAX_WIDTH, ADMISSION_DATE.size, ADMISSION_DATE.min, ADMISSION_INK);
 }
 
 function drawFitted(page: PDFPage, text: string, font: PDFFont, x: number, y: number, maxWidth: number, size: number, minSize: number, color: ReturnType<typeof rgb>): void {
@@ -240,16 +288,13 @@ export async function renderMembershipCertificate(person: CertificatePerson, pho
     });
   }
 
-  const cardName = name.toUpperCase();
-  const underMemberWidth = CARD_INNER_RIGHT - MEMBER_LEFT;
-  const nameFitsUnderMember = sansBold.widthOfTextAtSize(cardName, CARD_NAME.size) <= underMemberWidth;
   drawFitted(
     page,
-    cardName,
+    name.toUpperCase(),
     sansBold,
-    nameFitsUnderMember ? MEMBER_LEFT : CARD_NAME.x,
+    CARD_NAME.x,
     CARD_NAME.y,
-    nameFitsUnderMember ? underMemberWidth : CARD_INNER_RIGHT - CARD_NAME.x,
+    CARD_NAME.maxWidth,
     CARD_NAME.size,
     5.5,
     NAVY,
@@ -257,6 +302,7 @@ export async function renderMembershipCertificate(person: CertificatePerson, pho
   drawFitted(page, `: ${branchLabel(person.country)}`, sansBold, CARD_BRANCH.x, CARD_BRANCH.y, CARD_BRANCH.maxWidth, CARD_BRANCH.size, 5.5, NAVY);
   drawFitted(page, `: ${certificateText(person.memberId)}`, sansBold, CARD_ID.x, CARD_ID.y, CARD_ID.maxWidth, CARD_ID.size, 5.5, NAVY);
   drawFitted(page, `: ${validThroughLabel(person.approvedAt)}`, sansBold, CARD_VALID.x, CARD_VALID.y, CARD_VALID.maxWidth, CARD_VALID.size, 5.5, NAVY);
+  await drawAdmissionCertificate(pdf, person);
 
   pdf.setTitle(`${CERTIFICATE_TITLE} — ${person.memberId}`);
   pdf.setAuthor('International Forum for Scientists and Mental Health Professionals');

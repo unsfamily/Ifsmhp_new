@@ -186,7 +186,8 @@ export async function sendApprovalEmail(
     `Member ID: ${memberId}`,
     ``,
     `Your Certificate of Membership is attached. It records your name, designation,`,
-    `and membership number, and it includes your membership card.`,
+    `and membership number, and it includes your membership card. The same file`,
+    `includes an admission certificate in your registered name and professional type.`,
     ``,
     `Your membership is now active. To sign in, go to the member portal and enter`,
     `this email address — we will send you a 6-digit code. There is no password to`,
@@ -206,6 +207,7 @@ export async function sendApprovalEmail(
       <p style="margin:0 0 8px;color:#405046">
         Your Certificate of Membership is attached to this email. It records your name,
         designation, and membership number, and it includes your membership card.
+        The same file includes an admission certificate in your registered name and professional type.
       </p>
       <p style="margin:0 0 8px;color:#405046">
         Your membership is now active. To sign in, enter this email address on the member
@@ -245,7 +247,8 @@ export async function sendMembershipCertificateEmail(
     `Member ID: ${memberId}`,
     ``,
     `The certificate records your name and designation. The membership card on the`,
-    `same page carries your photograph, name, and membership number.`,
+    `same page carries your photograph, name, and membership number. A second page`,
+    `is your admission certificate, in your registered name and professional type.`,
     ``,
     `International Forum for Scientists and Mental Health Professionals.`,
   ].join('\n');
@@ -257,7 +260,7 @@ export async function sendMembershipCertificateEmail(
         <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#718078">Member ID</p>
         <p style="margin:0;font-size:22px;font-weight:700;letter-spacing:1px">${safeId}</p>
       </div>
-      <p style="margin:0;color:#405046">The certificate records your name and designation. The membership card on the same page carries your photograph, name, and membership number.</p>
+      <p style="margin:0;color:#405046">The certificate records your name and designation. The membership card on the same page carries your photograph, name, and membership number. A second page is your admission certificate, in your registered name and professional type.</p>
     </div>
   `.trim();
   await deliver({

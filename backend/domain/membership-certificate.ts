@@ -37,6 +37,19 @@ export function holderName(fullName: string): string {
   return certificateText(fullName) || 'Member';
 }
 
+/** The admission certificate prints the registered professional type, not the job title. */
+export function admissionProfession(person: Pick<CertificatePerson, 'professionalTitle' | 'professionalType'>): string {
+  return certificateText(person.professionalType) || certificateText(person.professionalTitle ?? '') || 'Member';
+}
+
+export function admissionMembershipLine(memberId: string): string {
+  return `Membership Number ${certificateText(memberId) || 'Member'}`;
+}
+
+export function admissionDateLine(approvedAt: Date): string {
+  return `On ${admissionLabel(approvedAt)}`;
+}
+
 const HONORIFICS = new Set(['dr', 'prof', 'mr', 'mrs', 'ms', 'miss', 'shri', 'smt']);
 
 /** Two initials for a card that has no portrait yet. A leading honorific is not used. */
