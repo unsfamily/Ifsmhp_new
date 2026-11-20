@@ -1,14 +1,16 @@
 # Membership certificate
 
-Approval emails attach a one-page PDF painted onto `backend/assets/certificates/ifsmhp-letterhead.pdf`. The page is the official letterhead: a header, a blank citation field, a dotted cut line, and a membership card. The Chief Research Officer's signature is already printed on the card.
+Approval emails attach a one-page PDF painted onto `backend/assets/certificates/ifsmhp-letterhead.pdf`. The page is the official letterhead: a header, a blank citation field, a dotted cut line, and a membership card. The handwritten signature stays on the card; the generator covers the director wordmark and adds the round organisation seal.
 
 The holder is taken from the stored profile, never from the request body. An unapproved application cannot receive a certificate (`409`).
 
 ## What the generator fills in
 
-- **Citation**, in the blank field: admission date, the title "Certificate of Membership", the member's name and designation, the admission paragraphs, then membership number, date of admission, validity, and branch.
-- **Card:** photograph when one is stored, otherwise initials; name; branch; membership number; validity month. Membership lasts twelve months from approval, and the card prints that expiry month.
-- The printed header, card labels, address, and signature stay as they are. Do not draw a second signature.
+- **Citation**, in the blank field: the title "Certificate of Membership", the member's name and designation, the admission paragraphs, then membership number, validity, branch, and the date of admission as the last line. The date is not printed above the title.
+- The two long admission paragraphs are justified to both edges. The last line of each stays left aligned. The forum is described as seated at Chennai, India.
+- **Header:** the printed plot address is covered and replaced with `Head office: IFSMHP Building 1B, Kannamal Nagar, Chennai, Tamil Nadu, India, PIN - 600044`.
+- **Card:** photograph when one is stored, otherwise initials. The photograph has no frame and sits slightly below the printed photo slot. The name shares the left edge of the printed word MEMBER when it fits. Branch, membership number, and validity month follow the printed labels. Membership lasts twelve months from approval, and the card prints that expiry month.
+- **Signature:** the printed director wordmark and the word DIRECTOR are covered. The handwritten signature stays. A round seal beside it uses `backend/assets/certificates/ifsmhp-logo.png`. Do not draw a second signature.
 
 Wording lives in `backend/domain/membership-certificate.ts`. Drawing lives in `backend/services/membership-certificate.service.ts` and `backend/services/membership-certificate-document.ts`.
 
@@ -18,7 +20,7 @@ Coordinates are PDF points with the origin at the bottom left, measured on the c
 
 - The citation stays below the header rule (about y = 717) and above the dotted cut line (about y = 175).
 - Card values sit on the printed label baselines. Move those overlays only when a new letterhead moves the labels, and check a rendered sample before merging.
-- `tsc` does not copy the PDF. At runtime the API reads `backend/assets/certificates/ifsmhp-letterhead.pdf`. From compiled `dist/services` that is `../../assets/certificates/ifsmhp-letterhead.pdf`. On the server the file is `/opt/ifsmhp/backend/assets/certificates/ifsmhp-letterhead.pdf`.
+- `tsc` does not copy assets. At runtime the API reads `backend/assets/certificates/ifsmhp-letterhead.pdf` and `backend/assets/certificates/ifsmhp-logo.png`. From compiled `dist/services` those paths are `../../assets/certificates/`. On the server they are `/opt/ifsmhp/backend/assets/certificates/ifsmhp-letterhead.pdf` and `/opt/ifsmhp/backend/assets/certificates/ifsmhp-logo.png`. Confirm both hashes after a deploy. A missing logo still draws the round seal outline.
 
 ## Delivery
 
@@ -35,6 +37,6 @@ Against local MySQL on port `3308`, never production:
 npm --prefix backend run test -- tests/membership-certificate.test.ts
 ```
 
-A letterhead-only production release fast-forwards that PDF, builds the API, and restarts it. Skip `db:deploy` when the pulled commits contain no Prisma migration. Do not republish the frontend. Confirm the server PDF hash matches the committed file. Do not generate or send certificates during the deploy.
+A letterhead-only production release fast-forwards the PDF and the logo, builds the API, and restarts it. Skip `db:deploy` when the pulled commits contain no Prisma migration. Do not republish the frontend unless the registration form also changed. Confirm both server asset hashes match the committed files. Do not generate or send certificates during the deploy.
 
 Reference release: pull request #35, merge `7b3aee3e6e7fbbed59a30b84712e7fd2ee064818`, served by `https://api.ifsmhp.com`.

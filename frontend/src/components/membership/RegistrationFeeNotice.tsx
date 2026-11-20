@@ -11,7 +11,7 @@ export default function RegistrationFeeNotice({ policy, professionalType }: { po
   if (!selected) {
     return (
       <p role="status" className="mt-2 rounded-lg border border-forum-200 bg-forum-50 px-3 py-2 text-sm text-forum-900">
-        Application registration fee: <span className="font-semibold">{amount}</span> for all professional types except Student (free).
+        Application registration fee: <span className="font-semibold">{amount}</span> for all professional types except Student, School Student, and STEM Student (joining college), who are not charged.
         The amount is confirmed when you choose your professional type.
       </p>
     );

@@ -5,11 +5,12 @@ import { prisma } from '../config/database';
 import { effectiveSettings } from './settings.service';
 import { writeAudit } from './audit.service';
 import { ApiError } from '../utils/ApiError';
-import { applicationFeeUpiPayment, legacyMembershipPolicy, membershipSettings, manualMemberId, isApplicationFeeExempt, normalizePaymentReference, paymentReference, type MembershipPolicy, type MembershipPolicySnapshot } from '../domain/membership';
+import { applicationFeeUpiPayment, legacyMembershipPolicy, membershipSettings, manualMemberId, isApplicationFeeExempt, isCvOptional, isSchoolStudent, normalizePaymentReference, paymentReference, type MembershipPolicy, type MembershipPolicySnapshot } from '../domain/membership';
 import { REGISTRATION_MAX_BYTES, resolveRegistrationDocuments, verifyRegistrationClaimToken, type RegistrationDocumentClaim } from './registration-documents.service';
 type DB = Prisma.TransactionClient;
 export const policyFor = (value: unknown): MembershipPolicy => value == null ? { ...legacyMembershipPolicy } : membershipSettings.parse(value);
 export const requiredKinds = (p: MembershipPolicy): RegistrationDocumentClaim['kind'][] => [...(p.requireProfile ? ['CV' as const] : []), ...(p.requireCredential ? ['CREDENTIAL' as const] : [])];
+export const evidenceKinds = (p: MembershipPolicy, professionalType?: string | null): RegistrationDocumentClaim['kind'][] => requiredKinds(p).filter((kind) => !(kind === 'CV' && isCvOptional(professionalType ?? '')) && !(isSchoolStudent(professionalType ?? '') && kind === 'CREDENTIAL'));
 export async function currentMembershipPolicy(): Promise<MembershipPolicySnapshot> {
   return prisma.$transaction(async tx => ({ values: (await effectiveSettings(tx)).membership, revision: (await tx.settingRevision.findUnique({ where: { section: 'membership' } }))?.revision ?? 0 }));
 }
@@ -28,11 +29,12 @@ export interface RegistrationEvidence {
   paymentScreenshot?: { fileId: string; claimToken: string };
 }
 export async function validateMembershipEvidence(input: RegistrationEvidence, p: MembershipPolicy, db: DB = prisma) {
-  const documents = await resolveRegistrationDocuments(input.documents, db, [...requiredKinds(p), 'PHOTO']);
+  const documents = await resolveRegistrationDocuments(input.documents, db, [...evidenceKinds(p, input.professionalType), 'PHOTO']);
   const referrals = input.referrals ?? [], claims = input.referenceLetters ?? [];
-  if (referrals.length < p.referralCount) throw ApiError.unprocessable('Referrals are required.', [{ field: 'referrals', message: `Provide at least ${p.referralCount} referrals.` }]);
+  const schoolStudent = isSchoolStudent(input.professionalType ?? '');
+  if (!schoolStudent && referrals.length < p.referralCount) throw ApiError.unprocessable('Referrals are required.', [{ field: 'referrals', message: `Provide at least ${p.referralCount} referrals.` }]);
   if (new Set(referrals.map(r => r.email.toLowerCase())).size !== referrals.length) throw ApiError.unprocessable('Duplicate referrers.', [{ field: 'referrals', message: 'Use a different email for each referrer.' }]);
-  if (claims.length < p.referenceLetterCount) throw ApiError.unprocessable('Reference letters are required.', [{ field: 'referenceLetters', message: `Upload at least ${p.referenceLetterCount} reference letters.` }]);
+  if (!schoolStudent && claims.length < p.referenceLetterCount) throw ApiError.unprocessable('Reference letters are required.', [{ field: 'referenceLetters', message: `Upload at least ${p.referenceLetterCount} reference letters.` }]);
   const ids = [...input.documents.map(d => d.fileId), ...claims.map(d => d.fileId), ...(input.paymentScreenshot ? [input.paymentScreenshot.fileId] : [])];
   if (new Set(ids).size !== ids.length) throw ApiError.unprocessable('Each document and letter must use a different file.');
   const letters = [];
@@ -71,9 +73,12 @@ export function approvalProblems(app: Application) {
   if (app.archivedAt) problems.push('Restore the archived application first.');
   // Historical applications were already accepted under the legacy review process.
   if (app.policySnapshot) {
-    for (const kind of requiredKinds(p)) if (!app.profile.credentials.some(c => c.credentialType === (kind === 'CV' ? 'CV' : 'Credential') && c.file && !c.file.deletedAt)) problems.push(`Required ${kind === 'CV' ? 'Profile' : 'Credentials'} document is missing.`);
-    if (app.referrals.length < p.referralCount || app.referenceLetters.filter(l => !l.file.deletedAt).length < p.referenceLetterCount) problems.push('Required referral evidence is missing.');
-    if ((requiredKinds(p).length || p.referralCount || p.referenceLetterCount) && !app.evidenceReviewedAt) problems.push('Confirm that the required documents and references have been reviewed.');
+    const kinds = evidenceKinds(p, app.profile.professionalType);
+    const schoolStudent = isSchoolStudent(app.profile.professionalType);
+    for (const kind of kinds) if (!app.profile.credentials.some(c => c.credentialType === (kind === 'CV' ? 'CV' : 'Credential') && c.file && !c.file.deletedAt)) problems.push(`Required ${kind === 'CV' ? 'CV' : 'Credentials'} document is missing.`);
+    if (!schoolStudent && (app.referrals.length < p.referralCount || app.referenceLetters.filter(l => !l.file.deletedAt).length < p.referenceLetterCount)) problems.push('Required referral evidence is missing.');
+    const evidenceExpected = kinds.length > 0 || (!schoolStudent && (p.referralCount > 0 || p.referenceLetterCount > 0));
+    if (evidenceExpected && !app.evidenceReviewedAt) problems.push('Confirm that the required documents and references have been reviewed.');
     if (applicationFeeOutstanding(app, app.profile.professionalType)) {
       problems.push('Record the application fee payment or approve a waiver.');
     }

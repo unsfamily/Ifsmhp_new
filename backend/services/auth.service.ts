@@ -2,7 +2,7 @@ import { promises as fsp } from 'node:fs';
 import { currentMembershipPolicy, policyFor, validateMembershipEvidence, createCharge, assertRegistrationPayment, recordRegistrationPayment } from './membership-policy.service';
 import { copyStoredImageAsAvatar } from './avatar-storage.service';
 import { assertSafePath } from '../utils/fileStorage';
-import { isApplicationFeeExempt, policySnapshotValues } from '../domain/membership';
+import { isApplicationFeeExempt, isSchoolStudent, policySnapshotValues } from '../domain/membership';
 import type { MembershipPolicySnapshot } from '../domain/membership';
 import { notifyAdmins } from './admin-notifications.service';
 import { newAdminPassword } from '../domain/admin-profile';
@@ -217,6 +217,10 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
     }
 
     const policy = policyFor(input.membershipPolicy?.values);
+    const school = isSchoolStudent(input.professionalType);
+    const institution = school && input.institution.trim().length < 2 ? 'School' : input.institution.trim();
+    const credentials = school && input.credentials.trim().length < 10 ? 'School student.' : input.credentials;
+    const education = school && input.education.trim().length < 10 ? 'School student.' : input.education;
     const { documents, letters, referrals } = await validateMembershipEvidence(input, policy, tx);
     if (input.membershipPolicy) await assertRegistrationPayment(input, policy, tx);
     const user = await tx.user.create({
@@ -236,17 +240,17 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         userId: user.id,
         professionalTitle: input.professionalType,
         professionalType: input.professionalType,
-        institution: input.institution.trim(),
+        institution,
         country: input.country ?? null,
         phone: input.phone ?? null,
-        biography: input.credentials,
+        biography: credentials,
         communicationAddress: input.communicationAddress ?? null,
         permanentAddress: input.permanentAddress ?? null,
         interests: {
           create: interests.length > 0 ? interests.map((name) => ({ name })) : [{ name: input.professionalType }],
         },
         education: {
-          create: [{ degree: input.education.slice(0, 180), institution: input.institution.trim(), detail: input.education }],
+          create: [{ degree: education.slice(0, 180), institution, detail: education }],
         },
       },
     });
@@ -258,8 +262,8 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         referenceLetters: { create: letters.map(l => ({ fileId: l.fileId })) },
         userId: user.id,
         profileId: profile.id,
-        credentialsText: input.credentials,
-        educationText: input.education,
+        credentialsText: credentials,
+        educationText: education,
         researchText: input.researchInterests,
         histories: { create: { toStatus: 'PENDING', note: 'Application submitted by applicant' } },
       },
