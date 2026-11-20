@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { legacyMembershipPolicy, isApplicationFeeExempt, isCvOptional, isSchoolStudent, SCHOOL_STUDENT_TYPE, STEM_COLLEGE_STUDENT_TYPE } from '../domain/membership';
+import { legacyMembershipPolicy, hidesAcademicBackground, isApplicationFeeExempt, isCvOptional, isSchoolStudent, SCHOOL_STUDENT_TYPE, STEM_COLLEGE_STUDENT_TYPE } from '../domain/membership';
 import { evidenceKinds } from '../services/membership-policy.service';
 
 const required = { ...legacyMembershipPolicy, requireProfile: true, requireCredential: true };
@@ -18,5 +18,9 @@ describe('student registration evidence', () => {
     expect(isSchoolStudent(SCHOOL_STUDENT_TYPE)).toBe(true);
     expect(evidenceKinds(required, SCHOOL_STUDENT_TYPE)).toEqual([]);
     expect(isSchoolStudent('Student')).toBe(false);
+    expect(hidesAcademicBackground('Student')).toBe(true);
+    expect(hidesAcademicBackground(SCHOOL_STUDENT_TYPE)).toBe(true);
+    expect(hidesAcademicBackground(STEM_COLLEGE_STUDENT_TYPE)).toBe(false);
+    expect(hidesAcademicBackground('Psychologist')).toBe(false);
   });
 });

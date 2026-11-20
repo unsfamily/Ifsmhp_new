@@ -74,6 +74,11 @@ export const STEM_COLLEGE_STUDENT_TYPE = 'STEM Student (joining college)';
 const FEE_EXEMPT_TYPES = new Set([APPLICATION_FEE_EXEMPT_TYPE, SCHOOL_STUDENT_TYPE, STEM_COLLEGE_STUDENT_TYPE]);
 export const isApplicationFeeExempt = (professionalType: string) => FEE_EXEMPT_TYPES.has(professionalType.trim());
 export const isSchoolStudent = (professionalType: string) => professionalType.trim() === SCHOOL_STUDENT_TYPE;
+/** Students and school students are not asked for credentials or education. STEM students joining college still answer those questions. */
+export const hidesAcademicBackground = (professionalType: string) => {
+  const type = professionalType.trim();
+  return type === APPLICATION_FEE_EXEMPT_TYPE || type === SCHOOL_STUDENT_TYPE;
+};
 /** CV is optional for students, including school students and STEM students who are joining college. */
 export const isCvOptional = (professionalType: string) => FEE_EXEMPT_TYPES.has(professionalType.trim());
 export interface MembershipPolicySnapshot { revision: number; values: MembershipPolicy }
