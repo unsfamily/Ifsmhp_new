@@ -24,7 +24,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { isApplicationFeeExempt, isCvOptional, isSchoolStudent, SCHOOL_STUDENT_TYPE, STEM_COLLEGE_STUDENT_TYPE } from '../../domain/membershipFee';
+import { hidesAcademicBackground, isApplicationFeeExempt, isCvOptional, isSchoolStudent, SCHOOL_STUDENT_TYPE, STEM_COLLEGE_STUDENT_TYPE } from '../../domain/membershipFee';
 import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput, Checkbox } from '../../components/common/Input';
 import OtpCodeStep from '../../components/auth/OtpCodeStep';
@@ -83,6 +83,7 @@ const schema = registerFields.superRefine((value, ctx) => {
   if (value.institution.length < 2) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['institution'], message: 'Type of Professional Organization / Independent Professionals is required' });
   if (value.communicationAddress.length < 5) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['communicationAddress'], message: 'Enter your communication address' });
   if (value.permanentAddress.length < 5) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['permanentAddress'], message: 'Enter your permanent address' });
+  if (hidesAcademicBackground(value.professionalType)) return;
   if (value.credentials.length < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['credentials'], message: 'Please briefly describe your credentials' });
   if (value.education.length < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['education'], message: 'Please list your relevant education' });
 });
@@ -666,7 +667,7 @@ export default function RegisterPage() {
                       label="Type of Professional Organization / Independent Professionals"
                       placeholder="University, Hospital, Private Practice..."
                       required
-                      className="flex h-full flex-col [&>label]:mb-0 [&>div]:mt-auto [&>div]:pt-2.5"
+                      className="flex h-full flex-col [&>label]:mb-0 [&>div]:pt-2.5"
                       error={errors.institution?.message}
                       {...register('institution')}
                     />
@@ -779,7 +780,7 @@ export default function RegisterPage() {
                     Professional Background
                   </h2>
                   <div className="mt-5 grid gap-5">
-                    {!schoolStudent && (
+                    {!hidesAcademicBackground(professionalType) && (
                     <>
                     <TextArea
                       label="Professional Credentials"

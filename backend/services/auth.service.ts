@@ -243,15 +243,15 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         institution,
         country: input.country ?? null,
         phone: input.phone ?? null,
-        biography: credentials,
+        biography: credentials.trim() ? credentials : null,
         communicationAddress: input.communicationAddress ?? null,
         permanentAddress: input.permanentAddress ?? null,
         interests: {
           create: interests.length > 0 ? interests.map((name) => ({ name })) : [{ name: input.professionalType }],
         },
-        education: {
-          create: [{ degree: education.slice(0, 180), institution, detail: education }],
-        },
+        ...(education.trim()
+          ? { education: { create: [{ degree: education.slice(0, 180), institution, detail: education }] } }
+          : {}),
       },
     });
     const application = await tx.membershipApplication.create({
