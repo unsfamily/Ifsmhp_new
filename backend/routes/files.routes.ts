@@ -226,7 +226,10 @@ router.delete(
   asyncHandler(async (req, res) => {
     const claimToken = String(req.body?.claimToken ?? '');
     const file = await prisma.fileObject.findUnique({ where: { id: req.params.id } });
-    if (!file || file.deletedAt || file.uploaderId || !verifyRegistrationClaimToken(file, claimToken)) {
+    const linkedNomination = file
+      ? await prisma.awardNomination.findFirst({ where: { OR: [{ cvFileId: file.id }, { photoFileId: file.id }] }, select: { id: true } })
+      : null;
+    if (!file || file.deletedAt || file.uploaderId || linkedNomination || !verifyRegistrationClaimToken(file, claimToken)) {
       throw ApiError.notFound('Uploaded document not found');
     }
 

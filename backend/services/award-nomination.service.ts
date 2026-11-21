@@ -10,6 +10,7 @@ import {
 import { isCeremonySlug, type CeremonySlug } from '../domain/ceremony-registration';
 import { writeAudit } from './audit.service';
 import { sendAwardNominationAcknowledgement } from './mail.service';
+import { verifyRegistrationClaimToken, REGISTRATION_MAX_BYTES } from './registration-documents.service';
 import { ApiError } from '../utils/ApiError';
 import { toCsv } from '../utils/csv';
 import { toExcelSheet } from '../utils/excel-sheet';
@@ -30,7 +31,28 @@ function referenceFor(id: string) {
   return `AWD-2026-${id.slice(-8).toUpperCase()}`;
 }
 
+const CV_MIME = new Set(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+const PHOTO_MIME = new Set(['image/jpeg', 'image/png']);
+
+async function nominationFile(claim: { fileId: string; claimToken: string }, kind: 'cv' | 'photo') {
+  const file = await prisma.fileObject.findUnique({ where: { id: claim.fileId } });
+  const allowed = kind === 'cv' ? CV_MIME : PHOTO_MIME;
+  const message = kind === 'cv' ? 'Upload a PDF, DOC, or DOCX CV under 5 MB.' : 'Upload a JPG or PNG photograph under 5 MB.';
+  if (!file || file.deletedAt || file.uploaderId || !verifyRegistrationClaimToken(file, claim.claimToken)) {
+    throw ApiError.unprocessable('Uploaded document could not be verified.', [{ field: kind, message: 'Remove it and upload the file again.' }]);
+  }
+  if (!allowed.has(file.mimeType) || file.sizeBytes > REGISTRATION_MAX_BYTES) {
+    throw ApiError.unprocessable(message, [{ field: kind, message }]);
+  }
+  return file;
+}
+
 async function saveNomination(slug: CeremonySlug, emailNormalized: string, input: AwardNominationInput) {
+  if (input.cv.fileId === input.photo.fileId) {
+    throw ApiError.unprocessable('Upload a separate CV and photograph.', [{ field: 'photo', message: 'Use a different file for the photograph.' }]);
+  }
+  const cv = await nominationFile(input.cv, 'cv');
+  const photo = await nominationFile(input.photo, 'photo');
   const declaredAt = new Date();
   const details = {
     awardName: awardLabel(input.awardCode),
@@ -65,13 +87,15 @@ async function saveNomination(slug: CeremonySlug, emailNormalized: string, input
     nominatorEmail: input.nominatorEmail.trim().toLowerCase(),
     nominatorPhone: input.nominatorPhone,
     relationship: input.relationship,
-    checklistCv: input.checklistCv,
-    checklistStatement: input.checklistStatement,
-    checklistEvidence: input.checklistEvidence,
-    checklistHonours: input.checklistHonours,
-    checklistRecommendation: input.checklistRecommendation,
-    checklistPhotograph: input.checklistPhotograph,
-    checklistConsent: input.checklistConsent,
+    checklistCv: true,
+    checklistStatement: true,
+    checklistEvidence: false,
+    checklistHonours: false,
+    checklistRecommendation: false,
+    checklistPhotograph: true,
+    checklistConsent: false,
+    cvFileId: cv.id,
+    photoFileId: photo.id,
     declaredAt,
   };
   return prisma.$transaction(async (tx) => {

@@ -16,18 +16,14 @@ import {
 } from '../../domain/awardNomination';
 import { CEREMONY_ADDRESS, CEREMONY_EVENT_DATE, CEREMONY_VENUE } from '../../domain/ceremonyProgramme';
 import { CEREMONY_PAGE_PATH, CEREMONY_SLUG } from '../../domain/ceremonyRegistration';
+import NominationDocuments, { emptyNominationDocuments } from '../../components/awards/NominationDocuments';
 
 const longFields = [
   ['careerOverview', 'Professional career overview'],
   ['principalContributions', 'Principal discoveries, achievements, and contributions'],
-  ['impact', 'Evidence of national or international impact'],
-  ['leadership', 'Leadership, mentoring, and institutional contributions'],
   ['majorAwards', 'Major awards, distinctions, and recognitions'],
   ['publications', 'Research publications / books'],
-  ['patents', 'Patents / technologies / creative works'],
   ['projects', 'Research projects / initiatives'],
-  ['institutionsEstablished', 'Institutions / programmes established'],
-  ['societalImpact', 'Documented societal or professional impact'],
 ] as const;
 
 function fieldMap(issues: { path: (string | number)[]; message: string }[]) {
@@ -41,6 +37,7 @@ function fieldMap(issues: { path: (string | number)[]; message: string }[]) {
 
 export default function AwardNominationPage() {
   const [form, setForm] = useState({ ...emptyAwardNomination, awardKind: 'DISCIPLINARY' as const });
+  const [documents, setDocuments] = useState(emptyNominationDocuments);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -67,11 +64,15 @@ export default function AwardNominationPage() {
     event.preventDefault();
     if (submittingRef.current) return;
     const parsed = awardNominationSchema.safeParse(form);
-    if (!parsed.success) {
-      const next = fieldMap(parsed.error.issues);
+    const cvUpload = documents.cv.status === 'uploaded' ? documents.cv.uploaded : null;
+    const photoUpload = documents.photo.status === 'uploaded' ? documents.photo.uploaded : null;
+    const next: Record<string, string> = parsed.success ? {} : fieldMap(parsed.error.issues);
+    if (!cvUpload) next.cv = 'Upload your CV.';
+    if (!photoUpload) next.photo = 'Upload your recent photo.';
+    if (!parsed.success || !cvUpload || !photoUpload) {
       setErrors(next);
       setFormError('Please correct the highlighted fields.');
-      const first = parsed.error.issues[0]?.path[0];
+      const first = parsed.success ? (next.cv ? 'cv' : 'photo') : parsed.error.issues[0]?.path[0];
       if (first) document.getElementById(`nomination-${String(first)}`)?.focus();
       return;
     }
@@ -89,7 +90,7 @@ export default function AwardNominationPage() {
         qualification: parsed.data.qualification,
         designation: parsed.data.designation,
         institution: parsed.data.institution,
-        specialisation: parsed.data.specialisation,
+        specialisation: parsed.data.specialisation || undefined,
         yearsOfContribution: parsed.data.yearsOfContribution,
         countryOfResidence: parsed.data.countryOfResidence,
         nomineeEmail: parsed.data.nomineeEmail,
@@ -97,14 +98,10 @@ export default function AwardNominationPage() {
         orcid: parsed.data.orcid || undefined,
         careerOverview: parsed.data.careerOverview,
         principalContributions: parsed.data.principalContributions,
-        impact: parsed.data.impact,
-        leadership: parsed.data.leadership,
         majorAwards: parsed.data.majorAwards,
         publications: parsed.data.publications,
-        patents: parsed.data.patents,
         projects: parsed.data.projects,
-        institutionsEstablished: parsed.data.institutionsEstablished,
-        societalImpact: parsed.data.societalImpact,
+        societalImpact: parsed.data.societalImpact || undefined,
         statement: parsed.data.statement,
         nominationType: parsed.data.nominationType,
         nominatorName: parsed.data.nominatorName,
@@ -113,13 +110,8 @@ export default function AwardNominationPage() {
         nominatorEmail: parsed.data.nominatorEmail,
         nominatorPhone: parsed.data.nominatorPhone,
         relationship: parsed.data.relationship,
-        checklistCv: true,
-        checklistStatement: true,
-        checklistEvidence: true,
-        checklistHonours: parsed.data.checklistHonours,
-        checklistRecommendation: parsed.data.checklistRecommendation,
-        checklistPhotograph: true,
-        checklistConsent: true,
+        cv: { fileId: cvUpload.id, claimToken: cvUpload.claimToken },
+        photo: { fileId: photoUpload.id, claimToken: photoUpload.claimToken },
         declaration: true,
       });
       if (!result.success || result.data?.received !== true) {
@@ -195,7 +187,7 @@ export default function AwardNominationPage() {
                 <TextInput id="nomination-qualification" label="Highest qualification" required value={form.qualification} error={errors.qualification} disabled={submitting} onChange={(event) => update('qualification', event.target.value)} />
                 <TextInput id="nomination-designation" label="Current designation" required value={form.designation} error={errors.designation} disabled={submitting} onChange={(event) => update('designation', event.target.value)} />
                 <TextInput id="nomination-institution" label="Institution / organisation" required value={form.institution} error={errors.institution} disabled={submitting} onChange={(event) => update('institution', event.target.value)} />
-                <TextInput id="nomination-specialisation" label="Primary discipline / specialisation" required value={form.specialisation} error={errors.specialisation} disabled={submitting} onChange={(event) => update('specialisation', event.target.value)} />
+                <TextInput id="nomination-specialisation" label="Primary discipline / specialisation" hint="Optional" value={form.specialisation} error={errors.specialisation} disabled={submitting} onChange={(event) => update('specialisation', event.target.value)} />
                 <TextInput id="nomination-yearsOfContribution" label="Years of professional contribution" required value={form.yearsOfContribution} error={errors.yearsOfContribution} disabled={submitting} onChange={(event) => update('yearsOfContribution', event.target.value)} />
                 <TextInput id="nomination-countryOfResidence" label="Country of residence" required value={form.countryOfResidence} error={errors.countryOfResidence} disabled={submitting} onChange={(event) => update('countryOfResidence', event.target.value)} />
                 <TextInput id="nomination-nomineeEmail" label="Nominee email address" type="email" required value={form.nomineeEmail} error={errors.nomineeEmail} disabled={submitting} onChange={(event) => update('nomineeEmail', event.target.value)} />
@@ -208,6 +200,7 @@ export default function AwardNominationPage() {
                 {longFields.map(([key, label]) => (
                   <TextArea key={key} id={`nomination-${key}`} label={label} required rows={4} value={form[key]} error={errors[key]} disabled={submitting} onChange={(event) => update(key, event.target.value)} />
                 ))}
+                <TextArea id="nomination-societalImpact" label="Documented societal or professional impact" hint="Optional" rows={4} value={form.societalImpact} error={errors.societalImpact} disabled={submitting} onChange={(event) => update('societalImpact', event.target.value)} />
                 <TextArea id="nomination-statement" label="Nomination statement" required rows={8} value={form.statement} error={errors.statement} hint={`${nominationWordCount(form.statement)} / 1,000 words`} disabled={submitting} onChange={(event) => update('statement', event.target.value)} />
               </fieldset>
 
@@ -227,27 +220,7 @@ export default function AwardNominationPage() {
                 <TextInput id="nomination-relationship" label="Relationship to nominee" required value={form.relationship} error={errors.relationship} disabled={submitting} onChange={(event) => update('relationship', event.target.value)} />
               </fieldset>
 
-              <fieldset className="space-y-3">
-                <legend className="font-display text-xl font-semibold text-forum-900">Document checklist</legend>
-                <p className="text-sm text-ink-muted">Confirm the materials included in this nomination. The statement above is the nomination statement. This form does not upload files.</p>
-                {([
-                  ['checklistCv', 'Curriculum vitae / professional biography'],
-                  ['checklistStatement', 'Nomination statement'],
-                  ['checklistEvidence', 'Supporting evidence of principal contributions'],
-                  ['checklistHonours', 'Major honours and awards, where applicable'],
-                  ['checklistRecommendation', 'Recommendation letter, where available'],
-                  ['checklistPhotograph', 'Recent photograph'],
-                  ['checklistConsent', 'Nominee consent'],
-                ] as const).map(([key, label]) => (
-                  <div key={key}>
-                    <label className="flex items-start gap-2.5 text-sm text-ink">
-                      <input id={`nomination-${key}`} type="checkbox" className="mt-0.5 h-4 w-4 accent-forum-700" checked={form[key]} disabled={submitting} onChange={(event) => update(key, event.target.checked)} />
-                      <span>{label}{key !== 'checklistHonours' && key !== 'checklistRecommendation' ? <span className="ml-1 text-danger-600">*</span> : null}</span>
-                    </label>
-                    {errors[key] && <p role="alert" className="mt-1 text-xs text-danger-600">{errors[key]}</p>}
-                  </div>
-                ))}
-              </fieldset>
+              <NominationDocuments documents={documents} setDocuments={setDocuments} errors={errors} disabled={submitting} />
 
               <div>
                 <label className="flex items-start gap-2.5 text-sm text-ink-muted">

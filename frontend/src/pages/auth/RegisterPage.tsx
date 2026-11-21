@@ -22,10 +22,12 @@ import {
   RefreshCw,
   AlertCircle,
 } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { hidesAcademicBackground, isApplicationFeeExempt, isCvOptional, isSchoolStudent, SCHOOL_STUDENT_TYPE, STEM_COLLEGE_STUDENT_TYPE } from '../../domain/membershipFee';
+import { DISCIPLINARY_AWARD_OPTIONS } from '../../domain/awardNomination';
+import CheckboxDropdown from '../../components/common/CheckboxDropdown';
 import Button from '../../components/common/Button';
 import { TextInput, TextArea, SelectInput, Checkbox } from '../../components/common/Input';
 import OtpCodeStep from '../../components/auth/OtpCodeStep';
@@ -65,6 +67,8 @@ const professionalTypes = [
 // The address is asked for once: a one-time code is emailed to it and the
 // account is not created until that code comes back, so a typo cannot slip
 // through unnoticed the way it could when registration completed immediately.
+const commemorativeAwardLabels = DISCIPLINARY_AWARD_OPTIONS.map(([, label]) => label);
+const commemorativeAwardEnum = z.enum(commemorativeAwardLabels as unknown as [string, ...string[]], { errorMap: () => ({ message: 'Select a commemorative award.' }) });
 const registerFields = z.object({
   firstName: z.string().trim().min(1, 'Please enter your first name').max(59),
   lastName: z.string().trim().min(1, 'Please enter your last name').max(59),
@@ -73,20 +77,16 @@ const registerFields = z.object({
   professionalType: z.string().min(1, 'Select your professional type'),
   institution: z.string().trim().max(200),
   communicationAddress: z.string().trim().max(1000),
-  permanentAddress: z.string().trim().max(1000),
   credentials: z.string().trim().max(5000),
-  education: z.string().trim().max(5000),
-  researchInterests: z.string().trim().min(10, 'Please describe your research interests').max(5000),
+  researchInterests: z.array(commemorativeAwardEnum).min(1, 'Select at least one commemorative award.').max(2, 'You can choose only two.').refine((items) => new Set(items).size === items.length, 'Select each award only once.'),
   agreeTerms: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms' }) }),
 });
 const schema = registerFields.superRefine((value, ctx) => {
   if (isSchoolStudent(value.professionalType)) return;
   if (value.institution.length < 2) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['institution'], message: 'Type of Professional Organization / Independent Professionals is required' });
   if (value.communicationAddress.length < 5) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['communicationAddress'], message: 'Enter your communication address' });
-  if (value.permanentAddress.length < 5) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['permanentAddress'], message: 'Enter your permanent address' });
   if (hidesAcademicBackground(value.professionalType)) return;
   if (value.credentials.length < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['credentials'], message: 'Please briefly describe your credentials' });
-  if (value.education.length < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['education'], message: 'Please list your relevant education' });
 });
 
 type FormData = z.infer<typeof schema>;
@@ -197,6 +197,7 @@ export default function RegisterPage() {
 
   const {
     register,
+    control,
     handleSubmit,
     setError,
     watch,
@@ -206,10 +207,8 @@ export default function RegisterPage() {
     defaultValues: {
       institution: '',
       communicationAddress: '',
-      permanentAddress: '',
       credentials: '',
-      education: '',
-      researchInterests: '',
+      researchInterests: [],
       professionalType: '',
     },
   });
@@ -364,14 +363,12 @@ export default function RegisterPage() {
     firstName: data.firstName,
     lastName: data.lastName,
     communicationAddress: data.communicationAddress,
-    permanentAddress: data.permanentAddress,
     fullName: `${data.firstName} ${data.lastName}`,
     email: data.email,
     phone: data.phone,
     professionalType: data.professionalType,
     institution: data.institution,
     credentials: data.credentials,
-    education: data.education,
     researchInterests: data.researchInterests,
     documents: documentClaims,
     policyRevision: policy?.revision,
@@ -752,17 +749,6 @@ export default function RegisterPage() {
                         {...register('communicationAddress')}
                       />
                     </div>
-                    <div className="sm:col-span-2">
-                      <TextArea
-                        label="Permanent Address"
-                        maxLength={1000}
-                        placeholder="Street address, city, state / province, postal code, country"
-                        rows={2}
-                        required
-                        error={errors.permanentAddress?.message}
-                        {...register('permanentAddress')}
-                      />
-                    </div>
                     </>
                     )}
                   </div>
@@ -770,7 +756,7 @@ export default function RegisterPage() {
 
                 {schoolStudent && (
                   <p className="rounded-lg border border-forum-200 bg-forum-50 px-3 py-2 text-sm text-forum-900">
-                    School students answer only their research interest. The other background questions are not required.
+                    School students choose up to two commemorative awards. Organization, address, credentials, and education are not required.
                   </p>
                 )}
 
@@ -792,23 +778,22 @@ export default function RegisterPage() {
                       error={errors.credentials?.message}
                       {...register('credentials')}
                     />
-                    <TextArea
-                      label="Education & Qualifications"
-                      placeholder="List degrees, institutions, years. (e.g. PhD in Cognitive Neuroscience, Stanford, 2020; MA Clinical Psychology, Columbia, 2016)"
-                      rows={3}
-                      required
-                      error={errors.education?.message}
-                      {...register('education')}
-                    />
                     </>
                     )}
-                    <TextArea
-                      label="Research Interests"
-                      placeholder="What areas do you work in? (e.g. digital mental health interventions, treatment-resistant depression, psychedelic research, youth mental health policy)"
-                      rows={3}
-                      required
-                      error={errors.researchInterests?.message}
-                      {...register('researchInterests')}
+                    <Controller
+                      name="researchInterests"
+                      control={control}
+                      render={({ field }) => (
+                        <CheckboxDropdown
+                          label="Research Interests"
+                          required
+                          options={commemorativeAwardLabels}
+                          value={field.value}
+                          onChange={field.onChange}
+                          error={errors.researchInterests?.message}
+                          hint="Choose up to two commemorative awards."
+                        />
+                      )}
                     />
                   </div>
                 </div>

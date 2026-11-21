@@ -40,8 +40,8 @@ export interface RegisterInput {
   professionalType: string;
   institution: string;
   credentials: string;
-  education: string;
-  researchInterests: string;
+  education?: string;
+  researchInterests: string[];
   country?: string;
   phone?: string;
   documents: RegistrationDocumentClaim[];
@@ -195,11 +195,7 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
   }
 
   const code = `IFSMHP-APP-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
-  const interests = input.researchInterests
-    .split(/[,;\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 20);
+  const interests = [...new Set(input.researchInterests.map((item) => item.trim()).filter(Boolean))];
 
   let avatarKey: string | undefined;
   let result: { user: Awaited<ReturnType<typeof prisma.user.create>>; application: { id: string; applicationCode: string; status: string } };
@@ -220,7 +216,7 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
     const school = isSchoolStudent(input.professionalType);
     const institution = school && input.institution.trim().length < 2 ? 'School' : input.institution.trim();
     const credentials = school && input.credentials.trim().length < 10 ? 'School student.' : input.credentials;
-    const education = school && input.education.trim().length < 10 ? 'School student.' : input.education;
+    const education = input.education?.trim() ?? '';
     const { documents, letters, referrals } = await validateMembershipEvidence(input, policy, tx);
     if (input.membershipPolicy) await assertRegistrationPayment(input, policy, tx);
     const user = await tx.user.create({
@@ -245,9 +241,9 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         phone: input.phone ?? null,
         biography: credentials.trim() ? credentials : null,
         communicationAddress: input.communicationAddress ?? null,
-        permanentAddress: input.permanentAddress ?? null,
+        permanentAddress: input.permanentAddress?.trim() || null,
         interests: {
-          create: interests.length > 0 ? interests.map((name) => ({ name })) : [{ name: input.professionalType }],
+          create: interests.map((name) => ({ name })),
         },
         ...(education.trim()
           ? { education: { create: [{ degree: education.slice(0, 180), institution, detail: education }] } }
@@ -264,7 +260,7 @@ export async function registerApplicant(input: RegisterInput, req: Request) {
         profileId: profile.id,
         credentialsText: credentials,
         educationText: education,
-        researchText: input.researchInterests,
+        researchText: interests.join('\n'),
         histories: { create: { toStatus: 'PENDING', note: 'Application submitted by applicant' } },
       },
     });
