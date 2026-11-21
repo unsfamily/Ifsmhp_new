@@ -197,6 +197,37 @@ describe('award nomination', () => {
     expect(await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { contains: prefix } } })).toBe(before);
   });
 
+  it('rejects a CV or photograph already stored on another nomination', async () => {
+    const cv = await upload(`${prefix}-owned-cv.pdf`, pdf, 'application/pdf');
+    const photo = await upload(`${prefix}-owned-photo.png`, png, 'image/png');
+    const otherCv = await upload(`${prefix}-other-cv.pdf`, pdf, 'application/pdf');
+    const otherPhoto = await upload(`${prefix}-other-photo.png`, png, 'image/png');
+    const created = await request(app).post(path).send(await valid({
+      nomineeEmail: `${prefix}-owned-file@example.test`,
+      awardCode: 'PC_RAY',
+      cv,
+      photo,
+    }));
+    expect(created.status, JSON.stringify(created.body)).toBe(200);
+    const reusedCv = await request(app).post(path).send(await valid({
+      nomineeEmail: `${prefix}-reused-cv@example.test`,
+      awardCode: 'DN_WADIA',
+      cv,
+      photo: otherPhoto,
+    }));
+    expect(reusedCv.status, JSON.stringify(reusedCv.body)).toBe(422);
+    expect(reusedCv.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'cv' })]));
+    const reusedPhoto = await request(app).post(path).send(await valid({
+      nomineeEmail: `${prefix}-reused-photo@example.test`,
+      awardCode: 'VISVESVARAYA',
+      cv: otherCv,
+      photo,
+    }));
+    expect(reusedPhoto.status, JSON.stringify(reusedPhoto.body)).toBe(422);
+    expect(reusedPhoto.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'photo' })]));
+    expect(await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { in: [`${prefix}-reused-cv@example.test`, `${prefix}-reused-photo@example.test`] } } })).toBe(0);
+  });
+
   it('keeps nominations with the same update time in id order', async () => {
     const firstEmail = `${prefix}-order-first@example.test`;
     const secondEmail = `${prefix}-order-second@example.test`;

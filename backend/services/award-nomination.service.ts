@@ -21,6 +21,19 @@ function isUniqueConflict(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
+function claimedFileConflict(error: unknown): ApiError | null {
+  if (!isUniqueConflict(error) || !(error instanceof Prisma.PrismaClientKnownRequestError)) return null;
+  const target = error.meta?.target;
+  const name = Array.isArray(target) ? target.join(' ') : typeof target === 'string' ? target : '';
+  if (name.includes('cvFileId')) {
+    return ApiError.unprocessable('That CV is already attached to a nomination.', [{ field: 'cv', message: 'Upload a different CV.' }]);
+  }
+  if (name.includes('photoFileId')) {
+    return ApiError.unprocessable('That photograph is already attached to a nomination.', [{ field: 'photo', message: 'Upload a different photograph.' }]);
+  }
+  return null;
+}
+
 function nominationFailure(error: unknown): ApiError {
   const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
   logger.error('Award nomination could not be saved', code ? { code } : undefined);
@@ -137,11 +150,15 @@ export async function submitAwardNomination(slug: string, input: AwardNomination
     result = await saveNomination(slug, emailNormalized, input);
   } catch (error) {
     if (error instanceof ApiError) throw error;
+    const claimed = claimedFileConflict(error);
+    if (claimed) throw claimed;
     if (!isUniqueConflict(error)) throw nominationFailure(error);
     try {
       result = await saveNomination(slug, emailNormalized, input);
     } catch (retryError) {
       if (retryError instanceof ApiError) throw retryError;
+      const retryClaimed = claimedFileConflict(retryError);
+      if (retryClaimed) throw retryClaimed;
       throw nominationFailure(retryError);
     }
   }
