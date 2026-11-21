@@ -136,10 +136,12 @@ export async function submitAwardNomination(slug: string, input: AwardNomination
   try {
     result = await saveNomination(slug, emailNormalized, input);
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     if (!isUniqueConflict(error)) throw nominationFailure(error);
     try {
       result = await saveNomination(slug, emailNormalized, input);
     } catch (retryError) {
+      if (retryError instanceof ApiError) throw retryError;
       throw nominationFailure(retryError);
     }
   }

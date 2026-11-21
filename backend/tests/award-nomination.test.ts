@@ -172,6 +172,27 @@ describe('award nomination', () => {
     expect(await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { contains: prefix } } })).toBe(before);
   });
 
+  it('rejects a CV of the wrong type and a photograph that reuses the CV', async () => {
+    const before = await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { contains: prefix } } });
+    const wrongCv = await upload(`${prefix}-not-a-cv.png`, png, 'image/png');
+    const photo = await upload(`${prefix}-separate.png`, png, 'image/png');
+    const wrongType = await request(app).post(path).send(await valid({
+      nomineeEmail: `${prefix}-bad-cv@example.test`,
+      cv: wrongCv,
+      photo,
+    }));
+    expect(wrongType.status, JSON.stringify(wrongType.body)).toBe(422);
+    expect(wrongType.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'cv' })]));
+    const reused = await request(app).post(path).send(await valid({
+      nomineeEmail: `${prefix}-same-file@example.test`,
+      cv: photo,
+      photo,
+    }));
+    expect(reused.status, JSON.stringify(reused.body)).toBe(422);
+    expect(reused.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'photo' })]));
+    expect(await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { contains: prefix } } })).toBe(before);
+  });
+
   it('shows saved nominations only to an administrator', async () => {
     const anonymous = await request(app).get(adminPath);
     const member = await request(app).get(adminPath).set('Authorization', `Bearer ${memberToken}`);

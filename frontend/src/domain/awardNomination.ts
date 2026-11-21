@@ -48,7 +48,7 @@ const medalCodes = MEDAL_OPTIONS.map(([code]) => code);
 const phoneMessage = 'Enter a phone number that includes the country code, for example +44 7700 900123.';
 const required = (message: string) => z.string().trim().min(1, message);
 const longText = (message: string) => required(message).max(4000, 'Use 4,000 characters or fewer.');
-const optionalText = (max: number) => z.string().trim().max(max, 'Use 4,000 characters or fewer.');
+const optionalText = (max: number) => z.string().trim().max(max, `Use ${max.toLocaleString('en-US')} characters or fewer.`);
 const confirmed = (message: string) => z.literal(true, { errorMap: () => ({ message }) });
 
 export function nominationWordCount(value: string) {
