@@ -165,7 +165,7 @@ Production process:
 
 Feature-specific rollout notes (what not to reseed, which migration is additive) are in the matching file under `docs/`, such as `gallery-management.md`, `community-workflow.md`, `administration-settings.md`, and `membership-certificate.md`.
 
-A change that only replaces `backend/assets/certificates/ifsmhp-letterhead.pdf` or `backend/assets/certificates/ifsmhp-logo.png` does not need `db:deploy` or a frontend publish. `tsc` does not copy those files. After a fast-forward, confirm both server paths match the committed files, build the API, and restart it. Do not email members as part of that deploy.
+A change that only replaces `backend/assets/certificates/ifsmhp-letterhead.pdf` does not need `db:deploy` or a frontend publish. `tsc` does not copy that file. After a fast-forward, confirm the server path matches the committed file, build the API, and restart it. Do not email members as part of that deploy. The letterhead already prints the signature and the round seal.
 
 ## Member profile image rollout and verification
 

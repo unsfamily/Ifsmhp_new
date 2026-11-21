@@ -134,29 +134,12 @@ function drawHeadOffice(page: PDFPage, font: PDFFont): void {
   page.drawText(HEAD_OFFICE, { x: PAGE_CENTER - width / 2, y: 754, size, font, color: INK });
 }
 
-async function organisationMark(pdf: PDFDocument): Promise<PDFImage | null> {
-  const candidates = [
-    path.resolve(__dirname, '../assets/certificates/ifsmhp-logo.png'),
-    path.resolve(__dirname, '../../assets/certificates/ifsmhp-logo.png'),
-  ];
-  const found = candidates.find((candidate) => fs.existsSync(candidate));
-  if (!found) return null;
-  return pdf.embedPng(await fsp.readFile(found));
-}
-
-/** Replaces the printed director wordmark and DIRECTOR line with a round logo seal. The signature stays. */
-async function drawRoundSeal(page: PDFPage, pdf: PDFDocument): Promise<void> {
-  paintWhite(page, 356, 106.9, 158, 22);
-  paintWhite(page, 408, 68.9, 52, 12);
-  const centerX = 500;
-  const centerY = 97.9;
-  const radius = 22;
-  page.drawEllipse({ x: centerX, y: centerY, xScale: radius, yScale: radius, color: WHITE, borderColor: NAVY, borderWidth: 1.35 });
-  const logo = await organisationMark(pdf);
-  if (!logo) return;
-  const mark = radius * 1.35;
-  page.drawImage(logo, { x: centerX - mark / 2, y: centerY - mark / 2, width: mark, height: mark });
-}
+/**
+ * The letterhead already prints the signature and the round seal side by side
+ * under "Yours Sincerely". Measured on IFSMHP_idcardpad.pdf (origin bottom-left):
+ * signature artwork x=348.24..571.28, y=13.29..151.94; gold seal x=410.74..451.07,
+ * y=82.35..122.68. Do not cover or redraw that block.
+ */
 
 function drawFittedLeft(page: PDFPage, text: string, font: PDFFont, x: number, y: number, maxWidth: number, size: number, minSize: number, color: ReturnType<typeof rgb>): void {
   const value = text.trim();
@@ -239,7 +222,6 @@ export async function renderMembershipCertificate(person: CertificatePerson, pho
   let y = 692;
 
   drawHeadOffice(page, roman);
-  await drawRoundSeal(page, pdf);
   y = drawCentered(page, CERTIFICATE_TITLE, romanBold, 24, y, measure, 28, NAVY);
   y -= 2;
   page.drawRectangle({ x: PAGE_CENTER - 92, y, width: 184, height: 1.4, color: BRASS });
