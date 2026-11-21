@@ -51,8 +51,10 @@ async function saveNomination(slug: CeremonySlug, emailNormalized: string, input
   if (input.cv.fileId === input.photo.fileId) {
     throw ApiError.unprocessable('Upload a separate CV and photograph.', [{ field: 'photo', message: 'Use a different file for the photograph.' }]);
   }
-  const cv = await nominationFile(input.cv, 'cv');
-  const photo = await nominationFile(input.photo, 'photo');
+  const [cv, photo] = await Promise.all([
+    nominationFile(input.cv, 'cv'),
+    nominationFile(input.photo, 'photo'),
+  ]);
   const declaredAt = new Date();
   const details = {
     awardName: awardLabel(input.awardCode),
