@@ -197,6 +197,24 @@ describe('award nomination', () => {
     expect(await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { contains: prefix } } })).toBe(before);
   });
 
+  it('keeps nominations with the same update time in id order', async () => {
+    const firstEmail = `${prefix}-order-first@example.test`;
+    const secondEmail = `${prefix}-order-second@example.test`;
+    expect((await request(app).post(path).send(await valid({ nomineeEmail: firstEmail, awardCode: 'SALIM_ALI' }))).status).toBe(200);
+    expect((await request(app).post(path).send(await valid({ nomineeEmail: secondEmail, awardCode: 'NK_BOSE' }))).status).toBe(200);
+    const rows = await prisma.awardNomination.findMany({
+      where: { nomineeEmailNormalized: { in: [firstEmail, secondEmail] } },
+      select: { id: true },
+    });
+    const stamp = new Date('2099-01-01T00:00:00.000Z');
+    for (const row of rows) {
+      await prisma.$executeRaw`UPDATE AwardNomination SET updatedAt = ${stamp} WHERE id = ${row.id}`;
+    }
+    const listed = await request(app).get(adminPath).query({ ceremony: 'second-international', page: 1, limit: 2 }).set('Authorization', `Bearer ${adminToken}`);
+    expect(listed.status, JSON.stringify(listed.body)).toBe(200);
+    expect(listed.body.data.items.map((row: { id: string }) => row.id)).toEqual([...rows.map((row) => row.id)].sort().reverse());
+  });
+
   it('shows saved nominations only to an administrator', async () => {
     const anonymous = await request(app).get(adminPath);
     const member = await request(app).get(adminPath).set('Authorization', `Bearer ${memberToken}`);

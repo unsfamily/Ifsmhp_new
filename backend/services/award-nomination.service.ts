@@ -173,7 +173,7 @@ const nominationListSelect = {
 export async function listAwardNominations(query: PaginationQuery & { ceremony: CeremonySlug }) {
   const where = { ceremonySlug: query.ceremony };
   const [items, total] = await prisma.$transaction([
-    prisma.awardNomination.findMany({ where, orderBy: { updatedAt: 'desc' }, select: nominationListSelect, ...toSkipTake(query) }),
+    prisma.awardNomination.findMany({ where, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }], select: nominationListSelect, ...toSkipTake(query) }),
     prisma.awardNomination.count({ where }),
   ]);
   return buildPaginatedResult(items, total, query);
