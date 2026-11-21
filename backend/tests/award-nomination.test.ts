@@ -112,6 +112,10 @@ describe('award nomination', () => {
       institutionsEstablished: '',
       societalImpact: '',
       checklistCv: true,
+      checklistEvidence: true,
+      checklistConsent: true,
+      checklistHonours: false,
+      checklistRecommendation: false,
       checklistPhotograph: true,
     });
     expect(rows[0]!.cvFileId).toBeTruthy();
