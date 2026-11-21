@@ -15,6 +15,7 @@ vi.mock('../services/mail.service', () => ({
 import { createApp } from '../app';
 import { prisma } from '../config/database';
 import { hashPassword } from '../utils/security';
+import { COMMEMORATIVE_AWARD_LABELS } from '../domain/award-nomination';
 
 /**
  * How the auth surface answers for each account state.
@@ -209,7 +210,7 @@ describe('soft-deleted accounts', () => {
       institution: `${PREFIX} Institute`,
       credentials: 'PhD, clinical research license, and professional certification.',
       education: 'PhD in Clinical Psychology, Test University, 2024.',
-      researchInterests: 'Digital mental health, community care, and assessment.',
+      researchInterests: [COMMEMORATIVE_AWARD_LABELS[0]],
       documents: [
         { kind: 'CV' as const, fileId: cv.id, claimToken: cv.claimToken },
         { kind: 'CREDENTIAL' as const, fileId: credential.id, claimToken: credential.claimToken },

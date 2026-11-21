@@ -12,6 +12,7 @@ import { createApp } from '../app';
 import { sha256, signAccessToken } from '../utils/security';
 import { registerApplicant } from '../services/auth.service';
 import { legacyMembershipPolicy, type MembershipPolicy } from '../domain/membership';
+import { COMMEMORATIVE_AWARD_LABELS } from '../domain/award-nomination';
 import { currentMembershipPolicy, runMembershipJobs, anniversary } from '../services/membership-policy.service';
 import { readXlsxEntries } from '../utils/excel-sheet';
 import { updateSettings } from '../services/settings.service';
@@ -46,7 +47,7 @@ async function upload(kind: 'pdf' | 'png' = 'pdf') {
   expect(r.status).toBe(201); return { fileId: r.body.data.id as string, claimToken: r.body.data.claimToken as string };
 }
 function input(documents: { kind: 'CV' | 'CREDENTIAL' | 'PHOTO'; fileId: string; claimToken: string }[] = [], professionalType = 'Researcher') {
-  return { fullName: 'Policy Applicant', firstName: 'Policy', lastName: 'Applicant', email: `${prefix}${randomUUID()}@example.test`, professionalType, institution: 'Test Institute', credentials: 'Professional research credentials', education: 'Doctoral degree in research', researchInterests: 'Community mental health research', documents, agreeTerms: true as const };
+  return { fullName: 'Policy Applicant', firstName: 'Policy', lastName: 'Applicant', email: `${prefix}${randomUUID()}@example.test`, professionalType, institution: 'Test Institute', credentials: 'Professional research credentials', education: 'Doctoral degree in research', researchInterests: [COMMEMORATIVE_AWARD_LABELS[0]], documents, agreeTerms: true as const };
 }
 async function policy(values: Partial<MembershipPolicy>) {
   const current = await currentMembershipPolicy();

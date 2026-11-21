@@ -27,8 +27,16 @@ let memberToken = '';
 let adminId = '';
 let memberId = '';
 
-const text = (value: string) => value;
-const valid = (overrides: Record<string, unknown> = {}) => ({
+const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
+async function upload(name: string, body: Buffer, type: string) {
+  const response = await request(app).post('/api/v1/files/registration').attach('file', body, { filename: name, contentType: type });
+  expect(response.status, JSON.stringify(response.body)).toBe(201);
+  return { fileId: response.body.data.id as string, claimToken: response.body.data.claimToken as string };
+}
+
+const valid = async (overrides: Record<string, unknown> = {}) => ({
   awardCode: 'SWAMINATHAN',
   division: 'EXCELLENCE',
   nomineeName,
@@ -37,21 +45,15 @@ const valid = (overrides: Record<string, unknown> = {}) => ({
   qualification: 'PhD',
   designation: 'Professor',
   institution: `Institute ${prefix}`,
-  specialisation: 'Agriculture',
   yearsOfContribution: '20',
   countryOfResidence: 'India',
   nomineeEmail,
   nomineePhone: '+919876543210',
-  careerOverview: text('Career overview'),
-  principalContributions: text('Principal contributions'),
-  impact: text('National impact'),
-  leadership: text('Mentoring'),
-  majorAwards: text('Prior distinctions'),
-  publications: text('Selected publications'),
-  patents: text('None recorded'),
-  projects: text('Research projects'),
-  institutionsEstablished: text('Programmes established'),
-  societalImpact: text('Documented impact'),
+  careerOverview: 'Career overview',
+  principalContributions: 'Principal contributions',
+  majorAwards: 'Prior distinctions',
+  publications: 'Selected publications',
+  projects: 'Research projects',
   statement,
   nominationType: 'COLLEAGUE',
   nominatorName: `Nominator ${prefix}`,
@@ -60,11 +62,8 @@ const valid = (overrides: Record<string, unknown> = {}) => ({
   nominatorEmail,
   nominatorPhone: '+919876543211',
   relationship: 'Professional colleague',
-  checklistCv: true,
-  checklistStatement: true,
-  checklistEvidence: true,
-  checklistPhotograph: true,
-  checklistConsent: true,
+  cv: await upload(`${prefix}-cv.pdf`, pdf, 'application/pdf'),
+  photo: await upload(`${prefix}-photo.png`, png, 'image/png'),
   declaration: true,
   ...overrides,
 });
@@ -91,7 +90,7 @@ afterAll(async () => {
 
 describe('award nomination', () => {
   it('saves a nomination and reports an acknowledgement only when mail accepts it', async () => {
-    const response = await request(app).post(path).send(valid());
+    const response = await request(app).post(path).send(await valid());
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect(response.body).toEqual({ success: true, data: { received: true, acknowledgementSent: true }, message: 'Your nomination has been received.' });
     expect(response.headers['cache-control']).toBe('no-store');
@@ -106,7 +105,21 @@ describe('award nomination', () => {
       division: 'EXCELLENCE',
       nomineeName,
       nominatorEmail,
+      specialisation: '',
+      impact: '',
+      leadership: '',
+      patents: '',
+      institutionsEstablished: '',
+      societalImpact: '',
+      checklistCv: true,
+      checklistEvidence: true,
+      checklistConsent: true,
+      checklistHonours: false,
+      checklistRecommendation: false,
+      checklistPhotograph: true,
     });
+    expect(rows[0]!.cvFileId).toBeTruthy();
+    expect(rows[0]!.photoFileId).toBeTruthy();
     expect(rows[0]!.reference).toMatch(/^AWD-2026-/);
     expect(rows[0]!.acknowledgementSentAt).toBeInstanceOf(Date);
     expect(sendAwardNominationAcknowledgement).toHaveBeenCalledWith(nominatorEmail, rows[0]!.reference);
@@ -118,7 +131,7 @@ describe('award nomination', () => {
   it('updates the same nominee and award without sending another acknowledgement', async () => {
     const created = await prisma.awardNomination.findFirstOrThrow({ where: { nomineeEmailNormalized: nomineeEmail, awardCode: 'SWAMINATHAN' } });
     vi.mocked(sendAwardNominationAcknowledgement).mockClear();
-    const response = await request(app).post(path).send(valid({
+    const response = await request(app).post(path).send(await valid({
       nomineeEmail: nomineeEmail.toUpperCase(),
       nomineeName: `Updated ${prefix}`,
       statement: `Updated statement ${prefix}`,
@@ -135,7 +148,7 @@ describe('award nomination', () => {
   it('does not claim an acknowledgement when mail is not accepted', async () => {
     vi.mocked(sendAwardNominationAcknowledgement).mockResolvedValueOnce(false);
     const email = `${prefix}-unsent@example.test`;
-    const response = await request(app).post(path).send(valid({ nomineeEmail: email, nominatorEmail: `${prefix}-sender@example.test`, awardCode: 'KALAM', division: undefined }));
+    const response = await request(app).post(path).send(await valid({ nomineeEmail: email, nominatorEmail: `${prefix}-sender@example.test`, awardCode: 'KALAM', division: undefined }));
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect(response.body.data).toEqual({ received: true, acknowledgementSent: false });
     const row = await prisma.awardNomination.findFirstOrThrow({ where: { nomineeEmailNormalized: email, awardCode: 'KALAM' } });
@@ -146,21 +159,91 @@ describe('award nomination', () => {
 
   it('rejects an incomplete nomination and an unknown ceremony', async () => {
     const before = await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { contains: prefix } } });
-    const missingDivision = await request(app).post(path).send(valid({ division: undefined }));
+    const missingDivision = await request(app).post(path).send(await valid({ division: undefined }));
     expect(missingDivision.status).toBe(422);
     expect(missingDivision.body.errors.map((error: { field: string }) => error.field)).toContain('division');
-    const missingDeclaration = await request(app).post(path).send(valid({ declaration: false }));
+    const missingDeclaration = await request(app).post(path).send(await valid({ declaration: false }));
     expect(missingDeclaration.status).toBe(422);
     expect(missingDeclaration.body.errors.map((error: { field: string }) => error.field)).toContain('declaration');
-    const extra = await request(app).post(path).send(valid({ extra: true }));
+    const extra = await request(app).post(path).send(await valid({ extra: true }));
     expect(extra.status).toBe(422);
     expect(JSON.stringify(extra.body.errors)).toContain('extra');
-    const medalDivision = await request(app).post(path).send(valid({ awardCode: 'SARABHAI', division: 'EXCELLENCE', nomineeEmail: `${prefix}-medal@example.test` }));
+    const medalDivision = await request(app).post(path).send(await valid({ awardCode: 'SARABHAI', division: 'EXCELLENCE', nomineeEmail: `${prefix}-medal@example.test` }));
     expect(medalDivision.status).toBe(422);
     expect(medalDivision.body.errors.map((error: { field: string }) => error.field)).toContain('division');
-    const unknown = await request(app).post('/api/v1/public/awards/other-ceremony/nominations').send(valid({ nomineeEmail: `${prefix}-other@example.test` }));
+    const unknown = await request(app).post('/api/v1/public/awards/other-ceremony/nominations').send(await valid({ nomineeEmail: `${prefix}-other@example.test` }));
     expect(unknown.status).toBe(404);
     expect(await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { contains: prefix } } })).toBe(before);
+  });
+
+  it('rejects a CV of the wrong type and a photograph that reuses the CV', async () => {
+    const before = await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { contains: prefix } } });
+    const wrongCv = await upload(`${prefix}-not-a-cv.png`, png, 'image/png');
+    const photo = await upload(`${prefix}-separate.png`, png, 'image/png');
+    const wrongType = await request(app).post(path).send(await valid({
+      nomineeEmail: `${prefix}-bad-cv@example.test`,
+      cv: wrongCv,
+      photo,
+    }));
+    expect(wrongType.status, JSON.stringify(wrongType.body)).toBe(422);
+    expect(wrongType.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'cv' })]));
+    const reused = await request(app).post(path).send(await valid({
+      nomineeEmail: `${prefix}-same-file@example.test`,
+      cv: photo,
+      photo,
+    }));
+    expect(reused.status, JSON.stringify(reused.body)).toBe(422);
+    expect(reused.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'photo' })]));
+    expect(await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { contains: prefix } } })).toBe(before);
+  });
+
+  it('rejects a CV or photograph already stored on another nomination', async () => {
+    const cv = await upload(`${prefix}-owned-cv.pdf`, pdf, 'application/pdf');
+    const photo = await upload(`${prefix}-owned-photo.png`, png, 'image/png');
+    const otherCv = await upload(`${prefix}-other-cv.pdf`, pdf, 'application/pdf');
+    const otherPhoto = await upload(`${prefix}-other-photo.png`, png, 'image/png');
+    const created = await request(app).post(path).send(await valid({
+      nomineeEmail: `${prefix}-owned-file@example.test`,
+      awardCode: 'PC_RAY',
+      cv,
+      photo,
+    }));
+    expect(created.status, JSON.stringify(created.body)).toBe(200);
+    const reusedCv = await request(app).post(path).send(await valid({
+      nomineeEmail: `${prefix}-reused-cv@example.test`,
+      awardCode: 'DN_WADIA',
+      cv,
+      photo: otherPhoto,
+    }));
+    expect(reusedCv.status, JSON.stringify(reusedCv.body)).toBe(422);
+    expect(reusedCv.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'cv' })]));
+    const reusedPhoto = await request(app).post(path).send(await valid({
+      nomineeEmail: `${prefix}-reused-photo@example.test`,
+      awardCode: 'VISVESVARAYA',
+      cv: otherCv,
+      photo,
+    }));
+    expect(reusedPhoto.status, JSON.stringify(reusedPhoto.body)).toBe(422);
+    expect(reusedPhoto.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'photo' })]));
+    expect(await prisma.awardNomination.count({ where: { nomineeEmailNormalized: { in: [`${prefix}-reused-cv@example.test`, `${prefix}-reused-photo@example.test`] } } })).toBe(0);
+  });
+
+  it('keeps nominations with the same update time in id order', async () => {
+    const firstEmail = `${prefix}-order-first@example.test`;
+    const secondEmail = `${prefix}-order-second@example.test`;
+    expect((await request(app).post(path).send(await valid({ nomineeEmail: firstEmail, awardCode: 'SALIM_ALI' }))).status).toBe(200);
+    expect((await request(app).post(path).send(await valid({ nomineeEmail: secondEmail, awardCode: 'NK_BOSE' }))).status).toBe(200);
+    const rows = await prisma.awardNomination.findMany({
+      where: { nomineeEmailNormalized: { in: [firstEmail, secondEmail] } },
+      select: { id: true },
+    });
+    const stamp = new Date('2099-01-01T00:00:00.000Z');
+    for (const row of rows) {
+      await prisma.$executeRaw`UPDATE AwardNomination SET updatedAt = ${stamp} WHERE id = ${row.id}`;
+    }
+    const listed = await request(app).get(adminPath).query({ ceremony: 'second-international', page: 1, limit: 2 }).set('Authorization', `Bearer ${adminToken}`);
+    expect(listed.status, JSON.stringify(listed.body)).toBe(200);
+    expect(listed.body.data.items.map((row: { id: string }) => row.id)).toEqual([...rows.map((row) => row.id)].sort().reverse());
   });
 
   it('shows saved nominations only to an administrator', async () => {
@@ -223,9 +306,10 @@ describe('award nomination', () => {
 
   it('returns a safe error and keeps the email out of logs when saving fails', async () => {
     const secret = `fail-${prefix}@example.test`;
+    const body = await valid({ nomineeEmail: secret });
     const logged = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     const transaction = vi.spyOn(prisma, '$transaction').mockRejectedValueOnce(new Error(`database down ${secret}`));
-    const response = await request(app).post(path).send(valid({ nomineeEmail: secret }));
+    const response = await request(app).post(path).send(body);
     expect(response.status).toBe(500);
     expect(response.body.message).toBe('Could not save your nomination. Please try again.');
     expect(JSON.stringify(response.body)).not.toContain(secret);

@@ -387,6 +387,8 @@ model FileObject {
   awardEventMedia    AwardEventMedia[]
   inquiryAttachments ContactInquiryAttachment[]
   announcementPdf    Announcement?              @relation("AnnouncementPdf")
+  nominationCvs      AwardNomination[]          @relation("NominationCv")
+  nominationPhotos   AwardNomination[]          @relation("NominationPhoto")
 
   @@index([uploaderId])
   @@index([visibility])
@@ -884,6 +886,10 @@ model AwardNomination {
   checklistRecommendation  Boolean
   checklistPhotograph      Boolean
   checklistConsent         Boolean
+  cvFileId                 String?   @unique
+  photoFileId              String?   @unique
+  cvFile                   FileObject? @relation("NominationCv", fields: [cvFileId], references: [id])
+  photoFile                FileObject? @relation("NominationPhoto", fields: [photoFileId], references: [id])
   declaredAt               DateTime
   acknowledgementSentAt    DateTime?
   createdAt                DateTime  @default(now())

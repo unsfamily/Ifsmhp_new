@@ -33,8 +33,8 @@ export interface RegisterPayload {
   professionalType: string;
   institution: string;
   credentials: string;
-  education: string;
-  researchInterests: string;
+  education?: string;
+  researchInterests: string[];
   documents: RegistrationDocumentClaim[];
   policyRevision?: number;
   referrals?: { name: string; email: string; organization: string }[];

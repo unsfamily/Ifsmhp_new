@@ -10,6 +10,7 @@ import {
 import { isCeremonySlug, type CeremonySlug } from '../domain/ceremony-registration';
 import { writeAudit } from './audit.service';
 import { sendAwardNominationAcknowledgement } from './mail.service';
+import { verifyRegistrationClaimToken, REGISTRATION_MAX_BYTES } from './registration-documents.service';
 import { ApiError } from '../utils/ApiError';
 import { toCsv } from '../utils/csv';
 import { toExcelSheet } from '../utils/excel-sheet';
@@ -18,6 +19,19 @@ import { buildPaginatedResult, toSkipTake, type PaginationQuery } from '../utils
 
 function isUniqueConflict(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+function claimedFileConflict(error: unknown): ApiError | null {
+  if (!isUniqueConflict(error) || !(error instanceof Prisma.PrismaClientKnownRequestError)) return null;
+  const target = error.meta?.target;
+  const name = Array.isArray(target) ? target.join(' ') : typeof target === 'string' ? target : '';
+  if (name.includes('cvFileId')) {
+    return ApiError.unprocessable('That CV is already attached to a nomination.', [{ field: 'cv', message: 'Upload a different CV.' }]);
+  }
+  if (name.includes('photoFileId')) {
+    return ApiError.unprocessable('That photograph is already attached to a nomination.', [{ field: 'photo', message: 'Upload a different photograph.' }]);
+  }
+  return null;
 }
 
 function nominationFailure(error: unknown): ApiError {
@@ -30,7 +44,30 @@ function referenceFor(id: string) {
   return `AWD-2026-${id.slice(-8).toUpperCase()}`;
 }
 
+const CV_MIME = new Set(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+const PHOTO_MIME = new Set(['image/jpeg', 'image/png']);
+
+async function nominationFile(claim: { fileId: string; claimToken: string }, kind: 'cv' | 'photo') {
+  const file = await prisma.fileObject.findUnique({ where: { id: claim.fileId } });
+  const allowed = kind === 'cv' ? CV_MIME : PHOTO_MIME;
+  const message = kind === 'cv' ? 'Upload a PDF, DOC, or DOCX CV under 5 MB.' : 'Upload a JPG or PNG photograph under 5 MB.';
+  if (!file || file.deletedAt || file.uploaderId || !verifyRegistrationClaimToken(file, claim.claimToken)) {
+    throw ApiError.unprocessable('Uploaded document could not be verified.', [{ field: kind, message: 'Remove it and upload the file again.' }]);
+  }
+  if (!allowed.has(file.mimeType) || file.sizeBytes > REGISTRATION_MAX_BYTES) {
+    throw ApiError.unprocessable(message, [{ field: kind, message }]);
+  }
+  return file;
+}
+
 async function saveNomination(slug: CeremonySlug, emailNormalized: string, input: AwardNominationInput) {
+  if (input.cv.fileId === input.photo.fileId) {
+    throw ApiError.unprocessable('Upload a separate CV and photograph.', [{ field: 'photo', message: 'Use a different file for the photograph.' }]);
+  }
+  const [cv, photo] = await Promise.all([
+    nominationFile(input.cv, 'cv'),
+    nominationFile(input.photo, 'photo'),
+  ]);
   const declaredAt = new Date();
   const details = {
     awardName: awardLabel(input.awardCode),
@@ -65,13 +102,15 @@ async function saveNomination(slug: CeremonySlug, emailNormalized: string, input
     nominatorEmail: input.nominatorEmail.trim().toLowerCase(),
     nominatorPhone: input.nominatorPhone,
     relationship: input.relationship,
-    checklistCv: input.checklistCv,
-    checklistStatement: input.checklistStatement,
-    checklistEvidence: input.checklistEvidence,
-    checklistHonours: input.checklistHonours,
-    checklistRecommendation: input.checklistRecommendation,
-    checklistPhotograph: input.checklistPhotograph,
-    checklistConsent: input.checklistConsent,
+    checklistCv: true,
+    checklistStatement: true,
+    checklistEvidence: true,
+    checklistHonours: false,
+    checklistRecommendation: false,
+    checklistPhotograph: true,
+    checklistConsent: true,
+    cvFileId: cv.id,
+    photoFileId: photo.id,
     declaredAt,
   };
   return prisma.$transaction(async (tx) => {
@@ -110,10 +149,16 @@ export async function submitAwardNomination(slug: string, input: AwardNomination
   try {
     result = await saveNomination(slug, emailNormalized, input);
   } catch (error) {
+    if (error instanceof ApiError) throw error;
+    const claimed = claimedFileConflict(error);
+    if (claimed) throw claimed;
     if (!isUniqueConflict(error)) throw nominationFailure(error);
     try {
       result = await saveNomination(slug, emailNormalized, input);
     } catch (retryError) {
+      if (retryError instanceof ApiError) throw retryError;
+      const retryClaimed = claimedFileConflict(retryError);
+      if (retryClaimed) throw retryClaimed;
       throw nominationFailure(retryError);
     }
   }
@@ -145,7 +190,7 @@ const nominationListSelect = {
 export async function listAwardNominations(query: PaginationQuery & { ceremony: CeremonySlug }) {
   const where = { ceremonySlug: query.ceremony };
   const [items, total] = await prisma.$transaction([
-    prisma.awardNomination.findMany({ where, orderBy: { updatedAt: 'desc' }, select: nominationListSelect, ...toSkipTake(query) }),
+    prisma.awardNomination.findMany({ where, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }], select: nominationListSelect, ...toSkipTake(query) }),
     prisma.awardNomination.count({ where }),
   ]);
   return buildPaginatedResult(items, total, query);

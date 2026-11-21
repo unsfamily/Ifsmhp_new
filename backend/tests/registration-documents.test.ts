@@ -20,6 +20,7 @@ import { env } from '../config';
 import { prisma } from '../config/database';
 import { adminMemberDetail, memberProfile } from '../services/platform.service';
 import { sha256, signAccessToken } from '../utils/security';
+import { COMMEMORATIVE_AWARD_LABELS } from '../domain/award-nomination';
 
 const app = createApp();
 const PREFIX = 'registration-doc-test';
@@ -97,7 +98,7 @@ function registrationPayload(
     institution: `${PREFIX} Institute`,
     credentials: 'PhD, clinical research license, and professional certification.',
     education: 'PhD in Clinical Psychology, Test University, 2024.',
-    researchInterests: 'Digital mental health, community care, and assessment.',
+    researchInterests: [COMMEMORATIVE_AWARD_LABELS[0]],
     documents,
     agreeTerms: true,
   };
@@ -286,7 +287,7 @@ describe('registration document persistence and retrieval', () => {
       stats: { projects: 0, publications: 0, supportRequests: 0 }, publications: [],
     });
     expect(fetched.body.data.education[0]).toMatchObject({ degree: registrationPayload('workflow', documents).education });
-    expect(fetched.body.data.researchInterests).toContain('Digital mental health');
+    expect(fetched.body.data.researchInterests).toEqual([COMMEMORATIVE_AWARD_LABELS[0]]);
     expect(fetched.body.data.credentials).toHaveLength(3);
     expect(JSON.stringify(fetched.body.data)).not.toMatch(/storageKey|claimToken|Private review note|profileId/);
     const download = await request(app).get(`/api/v1/files/${cv.id}/download`).auth(token, { type: 'bearer' });

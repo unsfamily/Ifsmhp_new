@@ -58,7 +58,7 @@ export function changesBetween(before: object | null, after: object | null) {
 }
 export function safeMetadata(value: unknown): Prisma.InputJsonObject | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  return Object.fromEntries(Object.entries(value).filter(([key]) => metadataKeys.has(key)).map(([key, v]) => [key, Array.isArray(v) ? v.slice(0, 100).map(scalar) : scalar(v)]));
+  return Object.fromEntries(Object.entries(value).filter(([key]) => metadataKeys.has(key)).map(([key, v]) => [key, Array.isArray(v) ? v.slice(0, 100).map((item) => scalar(item)) : scalar(v)]));
 }
 function registrySeverity(action: string, changes: Prisma.InputJsonObject | undefined): AuditSeverity {
   const status = changes?.status as { after?: string } | undefined;

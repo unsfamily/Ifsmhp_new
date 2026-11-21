@@ -1,4 +1,5 @@
 import { referralSchema, fileClaimSchema, waiverReason, paymentReference, hidesAcademicBackground, isSchoolStudent } from '../domain/membership';
+import { COMMEMORATIVE_AWARD_LABELS } from '../domain/award-nomination';
 import { securityAudit } from '../services/audit.service';
 import { sendFailure } from '../utils/apiResponse';
 import { Router } from 'express';
@@ -36,13 +37,13 @@ const registerFields = z.object({
   firstName: memberNameSchema.optional(),
   lastName: memberNameSchema.optional(),
   communicationAddress: memberAddressSchema,
-  permanentAddress: memberAddressSchema,
+  permanentAddress: memberAddressSchema.optional(),
   email: z.string().email('Invalid email format'),
   professionalType: z.string().min(2).max(120),
   institution: z.string().trim().max(200),
   credentials: z.string().trim().max(5000),
-  education: z.string().trim().max(5000),
-  researchInterests: z.string().min(10).max(5000),
+  education: z.string().trim().max(5000).optional(),
+  researchInterests: z.array(z.enum(COMMEMORATIVE_AWARD_LABELS, { errorMap: () => ({ message: 'Select a commemorative award.' }) })).min(1, 'Select at least one commemorative award.').max(2, 'You can choose only two.').refine((items) => new Set(items).size === items.length, 'Select each award only once.'),
   country: z.string().max(120).optional(),
   phone: z.string().max(40).optional(),
   documents: z.array(z.object({
@@ -59,12 +60,11 @@ const registerFields = z.object({
   agreeTerms: z.literal(true, { invalid_type_error: 'You must agree to the terms' }),
 }).strict();
 
-function refineApplicantDetail(value: { professionalType: string; institution: string; credentials: string; education: string }, ctx: z.RefinementCtx) {
+function refineApplicantDetail(value: { professionalType: string; institution: string; credentials: string }, ctx: z.RefinementCtx) {
   if (isSchoolStudent(value.professionalType)) return;
   if (value.institution.length < 2) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['institution'], message: 'Type of Professional Organization / Independent Professionals is required' });
   if (hidesAcademicBackground(value.professionalType)) return;
   if (value.credentials.length < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['credentials'], message: 'Please briefly describe your credentials' });
-  if (value.education.length < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['education'], message: 'Please list your relevant education' });
 }
 
 /**

@@ -32,7 +32,7 @@ Access tokens are short-lived JWTs returned in the response body. Refresh tokens
 | `POST` | `/auth/forgot-password` | Create a hashed reset token record |
 | `POST` | `/auth/reset-password` | Consume reset token and update password hash |
 
-Registration requests retain `fullName` and accept optional `firstName` and `lastName` together (trimmed, 1–59 characters each, matching the combined full name). Optional `communicationAddress` and `permanentAddress` accept null/blank as null, or trimmed text of 5–1,000 characters. Older requests and OTP drafts may omit these fields. The current form requires both names and addresses. Session responses add nullable split names; private member profile and admin member detail responses also include both nullable addresses. See [registration fields](member-registration-fields.md).
+Registration requests retain `fullName` and accept optional `firstName` and `lastName` together (trimmed, 1–59 characters each, matching the combined full name). Optional `communicationAddress` and `permanentAddress` accept null/blank as null, or trimmed text of 5–1,000 characters. The current form requires both names and the communication address. It does not send a permanent address or education. `researchInterests` is an array of one or two exact commemorative-award labels. Older requests and OTP drafts may omit the address fields. Session responses add nullable split names; private member profile and admin member detail responses also include both nullable addresses. See [registration fields](member-registration-fields.md).
 
 ## Public
 
