@@ -79,7 +79,8 @@ jobs:
           --health-retries=20
     env:
       NODE_ENV: test
-      DATABASE_URL: mysql://ifsmhp:ifsmhp@127.0.0.1:3306/ifsmhp_platform
+      DATABASE_URL: mysql://ifsmhp:ifsmhp@127.0.0.1:3306/ifsmhp_platform_test
+      UPLOAD_STORAGE_PATH: /tmp/ifsmhp-test-uploads
       ADMIN_DATABASE_URL: mysql://root:root@127.0.0.1:3306
       JWT_ACCESS_SECRET: ci-access-secret-not-used-in-production-01
       JWT_REFRESH_SECRET: ci-refresh-secret-not-used-in-production-02

@@ -189,11 +189,18 @@ function provision(target: Target, adminUrl: string): void {
   ok(`database ${target.database} ready`, `${CHARSET} / ${COLLATION}`);
 
   // Split so the password can be set whether or not the user already exists.
-  const account = `${quoteLiteral(target.user)}@${quoteLiteral(mysqlAccountHost(target.host))}`;
+  // A published Docker port, including GitHub Actions, presents the client as
+  // the bridge address rather than 127.0.0.1, so a loopback server also needs '%'.
   const secret = quoteLiteral(target.password);
-  execSql(serverOnlyUrl(adminUrl), `CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ${secret};`, 'Creating the application user');
-  execSql(serverOnlyUrl(adminUrl), `ALTER USER ${account} IDENTIFIED BY ${secret};`, 'Setting the application user password');
-  execSql(serverOnlyUrl(adminUrl), `GRANT ALL PRIVILEGES ON ${db}.* TO ${account};`, 'Granting privileges');
+  const identified = `IDENTIFIED WITH caching_sha2_password BY ${secret}`;
+  const accountHosts = [mysqlAccountHost(target.host)];
+  if (target.loopback && !accountHosts.includes('%')) accountHosts.push('%');
+  for (const accountHost of accountHosts) {
+    const account = `${quoteLiteral(target.user)}@${quoteLiteral(accountHost)}`;
+    execSql(serverOnlyUrl(adminUrl), `CREATE USER IF NOT EXISTS ${account} ${identified};`, 'Creating the application user');
+    execSql(serverOnlyUrl(adminUrl), `ALTER USER ${account} ${identified};`, 'Setting the application user password');
+    execSql(serverOnlyUrl(adminUrl), `GRANT ALL PRIVILEGES ON ${db}.* TO ${account};`, 'Granting privileges');
+  }
   execSql(serverOnlyUrl(adminUrl), 'FLUSH PRIVILEGES;', 'Flushing privileges');
   ok(`user ${target.user} ready`, `ALL PRIVILEGES on ${target.database}`);
 }
@@ -210,7 +217,7 @@ function assertAppCanConnect(target: Target): void {
         'Set ADMIN_DATABASE_URL and re-run to provision it automatically, or run this once as an admin:',
         '',
         `  CREATE DATABASE ${db} CHARACTER SET ${CHARSET} COLLATE ${COLLATION};`,
-        `  CREATE USER '${target.user}'@'${mysqlAccountHost(target.host)}' IDENTIFIED BY '<password from DATABASE_URL>';`,
+        `  CREATE USER '${target.user}'@'${mysqlAccountHost(target.host)}' IDENTIFIED WITH caching_sha2_password BY '<password from DATABASE_URL>';`,
         `  GRANT ALL PRIVILEGES ON ${db}.* TO '${target.user}'@'${mysqlAccountHost(target.host)}';`,
         `  FLUSH PRIVILEGES;`,
         '',
