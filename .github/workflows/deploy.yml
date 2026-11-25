@@ -1,0 +1,80 @@
+name: Deploy and host
+
+# Production publish stays manual. A green CI run does not deploy.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ifsmhp-production
+  cancel-in-progress: false
+
+jobs:
+  api:
+    name: Deploy API
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Open an SSH session and update the API
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          if [ -z "$EC2_SSH_KEY" ]; then
+            echo "Set the EC2_SSH_KEY secret before deploying." >&2
+            exit 1
+          fi
+          install -m 700 -d "$HOME/.ssh"
+          key_file="$(mktemp)"
+          trap 'rm -f "$key_file"' EXIT
+          umask 077
+          printf '%s\n' "$EC2_SSH_KEY" > "$key_file"
+          chmod 600 "$key_file"
+          ssh-keyscan -H 100.52.212.133 >> "$HOME/.ssh/known_hosts"
+          ssh -i "$key_file" -o IdentitiesOnly=yes ubuntu@100.52.212.133 'bash -s' < .github/scripts/deploy-api.sh
+
+      - name: Check the live API
+        run: |
+          for _ in 1 2 3 4 5 6; do
+            if curl -fsS https://api.ifsmhp.com/api/v1/health | grep -q '"status":"ok"'; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "The production API health check did not return status ok." >&2
+          exit 1
+
+  site:
+    name: Publish public site
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Install the FTP client
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Build and publish the site
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOSTINGER_FTP_USER: ${{ secrets.HOSTINGER_FTP_USER }}
+          HOSTINGER_FTP_PASSWORD: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          HOSTINGER_FTP_HOST: ${{ secrets.HOSTINGER_FTP_HOST }}
+          HOSTINGER_FTP_PATH: ${{ secrets.HOSTINGER_FTP_PATH }}
+        run: bash .github/scripts/publish-site.sh

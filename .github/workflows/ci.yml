@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Typecheck, lint, and production bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix backend
+          npm ci --prefix frontend
+
+      - name: Typecheck and lint
+        run: |
+          npm run typecheck
+          npm run lint
+          npm --prefix frontend run test:session
+
+      - name: Build the public site against the production API
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: https://api.ifsmhp.com/api/v1
+        run: npm run build
+
+      - name: Confirm the bundle points at the public API
+        run: |
+          if grep -R -q 'http://localhost:4000' frontend/dist; then
+            echo "The production bundle contains the local API URL." >&2
+            exit 1
+          fi
+          if ! grep -R -q 'https://api.ifsmhp.com/api/v1' frontend/dist; then
+            echo "The production bundle is missing the public API URL." >&2
+            exit 1
+          fi
+
+  test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: ifsmhp_platform
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: mysql://ifsmhp:ifsmhp@127.0.0.1:3306/ifsmhp_platform
+      ADMIN_DATABASE_URL: mysql://root:root@127.0.0.1:3306
+      JWT_ACCESS_SECRET: ci-access-secret-not-used-in-production-01
+      JWT_REFRESH_SECRET: ci-refresh-secret-not-used-in-production-02
+      CLIENT_URL: http://localhost:5173
+      SMTP_HOST: ""
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      MEMBERSHIP_WORKER_ENABLED: "false"
+      ANNOUNCEMENT_WORKER_ENABLED: "false"
+      ADMIN_EMAIL_WORKER_ENABLED: "false"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix backend
+
+      - name: Create the test database and apply migrations
+        run: npm run db:setup
+
+      - name: Run the backend test suite
+        run: npm test
