@@ -191,8 +191,9 @@ function provision(target: Target, adminUrl: string): void {
   // Split so the password can be set whether or not the user already exists.
   const account = `${quoteLiteral(target.user)}@${quoteLiteral(mysqlAccountHost(target.host))}`;
   const secret = quoteLiteral(target.password);
-  execSql(serverOnlyUrl(adminUrl), `CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ${secret};`, 'Creating the application user');
-  execSql(serverOnlyUrl(adminUrl), `ALTER USER ${account} IDENTIFIED BY ${secret};`, 'Setting the application user password');
+  const identified = `IDENTIFIED WITH caching_sha2_password BY ${secret}`;
+  execSql(serverOnlyUrl(adminUrl), `CREATE USER IF NOT EXISTS ${account} ${identified};`, 'Creating the application user');
+  execSql(serverOnlyUrl(adminUrl), `ALTER USER ${account} ${identified};`, 'Setting the application user password');
   execSql(serverOnlyUrl(adminUrl), `GRANT ALL PRIVILEGES ON ${db}.* TO ${account};`, 'Granting privileges');
   execSql(serverOnlyUrl(adminUrl), 'FLUSH PRIVILEGES;', 'Flushing privileges');
   ok(`user ${target.user} ready`, `ALL PRIVILEGES on ${target.database}`);
@@ -210,7 +211,7 @@ function assertAppCanConnect(target: Target): void {
         'Set ADMIN_DATABASE_URL and re-run to provision it automatically, or run this once as an admin:',
         '',
         `  CREATE DATABASE ${db} CHARACTER SET ${CHARSET} COLLATE ${COLLATION};`,
-        `  CREATE USER '${target.user}'@'${mysqlAccountHost(target.host)}' IDENTIFIED BY '<password from DATABASE_URL>';`,
+        `  CREATE USER '${target.user}'@'${mysqlAccountHost(target.host)}' IDENTIFIED WITH caching_sha2_password BY '<password from DATABASE_URL>';`,
         `  GRANT ALL PRIVILEGES ON ${db}.* TO '${target.user}'@'${mysqlAccountHost(target.host)}';`,
         `  FLUSH PRIVILEGES;`,
         '',

@@ -40,11 +40,14 @@ export function parseDatabaseUrl(url: string): DatabaseTarget {
 /**
  * MySQL account host for CREATE USER.
  *
- * On a local server the client is localhost. On RDS the client is never the
- * database hostname, so the account must be `'user'@'%'`.
+ * A URL host of `localhost` uses a socket and authenticates as `'user'@'localhost'`.
+ * `127.0.0.1` is a TCP connection, so the account host must be `127.0.0.1`.
+ * On RDS the client is never the database hostname, so the account must be `'user'@'%'`.
  */
 export function mysqlAccountHost(serverHost: string): string {
-  return LOOPBACK_HOSTS.has(serverHost) ? 'localhost' : '%';
+  if (serverHost === '127.0.0.1') return '127.0.0.1';
+  if (LOOPBACK_HOSTS.has(serverHost)) return 'localhost';
+  return '%';
 }
 
 export function databaseDeploymentProblems(

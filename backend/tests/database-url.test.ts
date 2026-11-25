@@ -35,8 +35,9 @@ describe('production database URL', () => {
     expect(problems).toContain('--reset is refused for production and for any database that is not on localhost.');
   });
 
-  it('creates remote MySQL accounts for any client host', () => {
-    expect(mysqlAccountHost('127.0.0.1')).toBe('localhost');
+  it('matches the MySQL account host to the way the client connects', () => {
+    expect(mysqlAccountHost('localhost')).toBe('localhost');
+    expect(mysqlAccountHost('127.0.0.1')).toBe('127.0.0.1');
     expect(mysqlAccountHost('ifsmhp.abc.us-east-1.rds.amazonaws.com')).toBe('%');
   });
 });
