@@ -167,6 +167,24 @@ Feature-specific rollout notes (what not to reseed, which migration is additive)
 
 A change that only replaces `backend/assets/certificates/ifsmhp-letterhead.pdf` does not need `db:deploy` or a frontend publish. `tsc` does not copy that file. After a fast-forward, confirm the server path matches the committed file, build the API, and restart it. Do not email members as part of that deploy. The letterhead already prints the signature and the round seal.
 
+## GitHub Actions
+
+Two workflows live in `.github/workflows/`. Neither one changes DNS or TLS certificates.
+
+`CI` runs on every pull request and on every push to `main`. It typechecks, lints, builds the public site with `VITE_API_BASE_URL=https://api.ifsmhp.com/api/v1`, and rejects a bundle that still points at `localhost:4000`. Backend tests run against a temporary MySQL 8 service. A green CI run does not publish production.
+
+`Deploy and host` runs only from the Actions tab, via **Run workflow**. It uses the `production` environment.
+
+| Secret | Used for |
+|---|---|
+| `EC2_SSH_KEY` | Private key for `ubuntu@100.52.212.133`. The server checkout must already be `/opt/ifsmhp` and able to fast-forward `origin/main`. |
+| `HOSTINGER_FTP_USER` | Hostinger FTP account for `ifsmhp.com` |
+| `HOSTINGER_FTP_PASSWORD` | Password for that FTP account |
+| `HOSTINGER_FTP_HOST` | Optional. Defaults to `ftp.ifsmhp.com`. |
+| `HOSTINGER_FTP_PATH` | Optional. Defaults to `public_html`. Set it to `.` when the FTP login already opens inside `public_html`. |
+
+The API job fast-forwards `/opt/ifsmhp`, installs backend dependencies, runs `db:deploy` only when the pulled range contains a Prisma migration, builds the API, checks files under `backend/assets/`, and restarts the `ifsmhp-api` service. It does not seed or reset the database. The site job builds the SPA, copies it to `/opt/ifsmhp/frontend/dist`, and uploads that same build into Hostinger `public_html`. Visitors see the Hostinger copy. Store the secrets as repository secrets or as secrets on the `production` environment. Do not commit them.
+
 ## Member profile image rollout and verification
 
 Apply migration `20261010000000_member_avatar` and regenerate Prisma before
