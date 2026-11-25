@@ -106,6 +106,6 @@ describe('Home carousel photographs', () => {
     }
     const rejected = await upload();
     expect(rejected.status).toBe(422);
-    expect(rejected.body.message).toMatch(/12/);
+    expect(rejected.body.message).toContain(String(HOME_CAROUSEL_LIMIT));
   });
 });

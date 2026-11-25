@@ -3,13 +3,13 @@ import type { Request } from 'express';
 
 // Mail is stubbed so no message leaves the machine; `failNextSend` stands in for
 // a transport that is down.
-const sentApprovals: Array<{ email: string; memberId: string; certificate?: Buffer }> = [];
+const sentApprovals: Array<{ email: string; memberId: string; certificate?: { membership: { pdf: Uint8Array }; admission: { pdf: Uint8Array } } }> = [];
 let failNextSend: Error | null = null;
 vi.mock('../services/mail.service', () => ({
   sendOtpEmail: vi.fn(async () => undefined),
   verifyTransport: vi.fn(async () => undefined),
   sendMembershipCertificateEmail: vi.fn(async () => undefined),
-  sendApprovalEmail: vi.fn(async (email: string, _fullName: string, memberId: string, certificate?: Buffer) => {
+  sendApprovalEmail: vi.fn(async (email: string, _fullName: string, memberId: string, certificate?: { membership: { pdf: Uint8Array }; admission: { pdf: Uint8Array } }) => {
     if (failNextSend) {
       const err = failNextSend;
       failNextSend = null;
@@ -253,8 +253,12 @@ describe('admin decisions', () => {
 
     expect(sentApprovals).toHaveLength(1);
     expect(sentApprovals[0]).toMatchObject({ email: user.email, memberId: result.memberId });
-    expect(sentApprovals[0]?.certificate?.subarray(0, 4).toString()).toBe('%PDF');
-    expect(sentApprovals[0]?.certificate?.length ?? 0).toBeGreaterThan(10_000);
+    const membershipPdf = Buffer.from(sentApprovals[0]?.certificate?.membership.pdf ?? []);
+    const admissionPdf = Buffer.from(sentApprovals[0]?.certificate?.admission.pdf ?? []);
+    expect(membershipPdf.subarray(0, 4).toString()).toBe('%PDF');
+    expect(admissionPdf.subarray(0, 4).toString()).toBe('%PDF');
+    expect(membershipPdf.length).toBeGreaterThan(10_000);
+    expect(admissionPdf.length).toBeGreaterThan(10_000);
 
     const row = await prisma.membershipApplication.findUniqueOrThrow({ where: { id: application.id } });
     expect(row.approvalEmailSentAt).not.toBeNull();
