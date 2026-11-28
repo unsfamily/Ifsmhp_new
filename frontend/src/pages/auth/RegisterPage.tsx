@@ -25,7 +25,7 @@ import {
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { hidesAcademicBackground, isApplicationFeeExempt, isCvOptional, isSchoolStudent, SCHOOL_STUDENT_TYPE, STEM_COLLEGE_STUDENT_TYPE } from '../../domain/membershipFee';
+import { hidesAcademicBackground, isApplicationFeeExempt, isSchoolStudent, SCHOOL_STUDENT_TYPE, STEM_COLLEGE_STUDENT_TYPE } from '../../domain/membershipFee';
 import { DISCIPLINARY_AWARD_OPTIONS } from '../../domain/awardNomination';
 import CheckboxDropdown from '../../components/common/CheckboxDropdown';
 import Button from '../../components/common/Button';
@@ -110,14 +110,6 @@ const documentSlots: Array<{
   typeError: string;
   hint: string;
 }> = [
-  {
-    kind: 'CV',
-    label: 'CV',
-    accept: 'application/pdf,.pdf,application/msword,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp',
-    extensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp'],
-    typeError: 'Upload a PDF, DOC, DOCX, JPG, PNG, or WebP file.',
-    hint: 'PDF, DOC, DOCX, JPG, PNG, or WebP, up to 5 MB. School students and STEM students joining college may upload a school ID card or bonafide certificate. This information can be used for insurance purposes.',
-  },
   {
     kind: 'CREDENTIAL',
     label: 'Credentials / Certifications / ID Card',
@@ -216,9 +208,8 @@ export default function RegisterPage() {
   const schoolStudent = isSchoolStudent(professionalType);
   const isRequired = (kind: RegistrationDocumentKind) => {
     if (kind === 'PHOTO') return true;
-    if (schoolStudent) return false;
-    if (kind === 'CV' && isCvOptional(professionalType)) return false;
-    return kind === 'CV' ? policy?.requireProfile ?? true : policy?.requireCredential ?? true;
+    if (schoolStudent || kind === 'CV') return false;
+    return policy?.requireCredential ?? true;
   };
   const paymentRequired = Boolean(policy?.applicationFeeEnabled && professionalType && !isApplicationFeeExempt(professionalType));
   const offlinePayment = paymentRequired && !policy?.razorpayEnabled;

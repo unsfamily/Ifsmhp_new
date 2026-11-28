@@ -11,12 +11,11 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
   const divisions = programme.divisions.filter((division) => division.title.trim());
   const allocation = programme.allocation ?? [];
   const allocationTotal = allocation.reduce((sum, row) => ({
-    categories: sum.categories + row.categories,
     senior: sum.senior + row.senior,
     midCareer: sum.midCareer + row.midCareer,
     young: sum.young + row.young,
     total: sum.total + row.total,
-  }), { categories: 0, senior: 0, midCareer: 0, young: 0, total: 0 });
+  }), { senior: 0, midCareer: 0, young: 0, total: 0 });
   const hasGroups = groups.length > 0;
   const hasDivisions = divisions.length > 0;
 
@@ -55,18 +54,16 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
                 <thead className="bg-forum-900 text-[13px] uppercase tracking-wide text-white">
                   <tr>
                     <th className="px-4 py-3 font-medium" scope="col">Academic division</th>
-                    <th className="px-4 py-3 text-right font-medium" scope="col">Categories</th>
                     <th className="px-4 py-3 text-right font-medium" scope="col">Senior</th>
                     <th className="px-4 py-3 text-right font-medium" scope="col">Mid-career</th>
                     <th className="px-4 py-3 text-right font-medium" scope="col">Young</th>
-                    <th className="px-4 py-3 text-right font-medium" scope="col">Total</th>
+                    <th className="px-4 py-3 text-right font-medium" scope="col">Total categories</th>
                   </tr>
                 </thead>
                 <tbody>
                   {allocation.map((row) => (
                     <tr key={row.division} className="border-t border-paper-border">
                       <th className="px-4 py-3 font-medium text-forum-900" scope="row">{row.division}</th>
-                      <td className="px-4 py-3 text-right tabular-nums text-ink">{row.categories}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-ink">{row.senior}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-ink">{row.midCareer}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-ink">{row.young}</td>
@@ -77,7 +74,6 @@ export default function CeremonyAwardProgramme({ programme }: { programme: Cerem
                 <tfoot className="bg-forum-900 text-white">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold" scope="row">Total</th>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums">{allocationTotal.categories}</td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums">{allocationTotal.senior}</td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums">{allocationTotal.midCareer}</td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums">{allocationTotal.young}</td>

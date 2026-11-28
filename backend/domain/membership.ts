@@ -30,7 +30,7 @@ After paying, enter the UTR / UPI reference and upload a JPEG or PNG screenshot 
 Students: no application fee.`;
 export const legacyMembershipPolicy: MembershipPolicy = {
   pendingDays: 5, reviewDays: 5, idIssuance: 'AUTOMATIC', idPrefix: 'IFSMHP', idPadding: 6,
-  requireProfile: true, requireCredential: true, applicationFeeEnabled: true, applicationFee: '100.00',
+  requireProfile: false, requireCredential: true, applicationFeeEnabled: true, applicationFee: '100.00',
   annualDuesEnabled: false, annualDues: '0.00', currency: 'INR', paymentInstructions: DEFAULT_APPLICATION_PAYMENT_INSTRUCTIONS, waiversEnabled: false,
   referralCount: 0, referenceLetterCount: 0, autoArchive: false, archiveAfterDays: 90,
   upiId: '', upiPayeeName: 'IFSMHP',

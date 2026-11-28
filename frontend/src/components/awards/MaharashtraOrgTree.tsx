@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Atom,
@@ -96,27 +97,77 @@ function LeafCard({
       : 'border-[#e4c98a] bg-gradient-to-b from-[#fff9ea] to-[#f3dd9a] text-[#1c2d4a]';
 
   return (
-    <li className={`flex h-full min-h-[104px] flex-col items-center justify-center rounded-2xl border px-2.5 py-3 text-center shadow-[0_8px_16px_rgba(28,45,74,0.08)] ${toneClass}`}>
+    <div className={`flex h-full min-h-[104px] w-full flex-col items-center justify-center rounded-2xl border px-2.5 py-3 text-center shadow-[0_8px_16px_rgba(28,45,74,0.08)] ${toneClass}`}>
       {Icon && <Icon className="mb-1.5 h-5 w-5 shrink-0 opacity-80" aria-hidden="true" />}
       <p className="text-[12px] font-semibold leading-snug sm:text-[13px]">{role.title}</p>
       {role.seats && role.seats > 1 && <p className="mt-1 text-[11px] font-medium opacity-75">{role.seats} seats</p>}
-    </li>
+    </div>
   );
 }
 
 function WideBar({ role, icon: Icon }: { role: OrgTreeRole; icon: LucideIcon }) {
   return (
-    <li className="flex items-center justify-center gap-3 rounded-full border border-[#e4c98a] bg-gradient-to-r from-[#f8e7b0] via-[#e8c56b] to-[#f8e7b0] px-5 py-3 text-center text-[#1c2d4a] shadow-md">
+    <div className="flex w-full items-center justify-center gap-3 rounded-full border border-[#e4c98a] bg-gradient-to-r from-[#f8e7b0] via-[#e8c56b] to-[#f8e7b0] px-5 py-3 text-center text-[#1c2d4a] shadow-md">
       <Icon className="hidden h-5 w-5 shrink-0 sm:block" aria-hidden="true" />
       <p>
         <span className="block text-[14px] font-semibold sm:text-[15px]">{role.title}</span>
         {role.detail && <span className="mt-0.5 block text-[12px] font-medium opacity-80">{role.detail}</span>}
       </p>
+    </div>
+  );
+}
+
+const line = 'pointer-events-none rounded-full from-[#3d8c3a] via-[#8b5a2b] to-[#c6a15b]';
+
+function Stem() {
+  return <span aria-hidden="true" className="h-4 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-[#8b5a2b] to-[#c6a15b]" />;
+}
+
+function TreeNode({ children, className = 'w-[9rem]' }: { children: ReactNode; className?: string }) {
+  return (
+    <li
+      className={`relative flex shrink-0 flex-col items-center px-1 before:pointer-events-none before:absolute before:right-1/2 before:top-0 before:h-1.5 before:w-1/2 before:bg-[#8b5a2b] after:pointer-events-none after:absolute after:left-1/2 after:top-0 after:h-1.5 after:w-1/2 after:bg-[#8b5a2b] first:before:hidden last:after:hidden ${className}`}
+    >
+      <Stem />
+      {children}
     </li>
   );
 }
 
+function CardRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative">
+      <span aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 hidden h-1.5 w-1/2 bg-[#8b5a2b] lg:block" />
+      <div className="overflow-x-auto">
+        <ul className="relative z-10 mx-auto flex w-max justify-center">{children}</ul>
+      </div>
+    </div>
+  );
+}
+
+function SingleBranch({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative">
+      <span aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 hidden h-1.5 w-1/2 bg-[#8b5a2b] lg:block" />
+      <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col items-center">
+        <Stem />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LevelLabelCell({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="relative z-10 flex items-center lg:pr-3">
+      <LevelLabel title={title} detail={detail} />
+      <span aria-hidden="true" className={`${line} absolute right-3 top-1/2 z-0 hidden h-1.5 w-3 -mt-[3px] translate-x-full bg-gradient-to-r lg:block`} />
+    </div>
+  );
+}
+
 const leadershipTones = ['navy', 'admiral', 'gold'] as const;
+const executiveRows = [maharashtraExecutives.slice(0, 5), maharashtraExecutives.slice(5)];
 
 export default function MaharashtraOrgTree() {
   const [cro, advisor, secretary] = maharashtraLeadership;
@@ -140,43 +191,67 @@ export default function MaharashtraOrgTree() {
             </h2>
           </header>
 
-          <div className="relative space-y-8 px-4 py-8 sm:px-6 lg:px-8">
-            <ol className="relative mx-auto flex max-w-xl flex-col items-center gap-3 before:absolute before:bottom-8 before:left-1/2 before:top-8 before:w-1.5 before:-translate-x-1/2 before:rounded-full before:bg-gradient-to-b before:from-[#3d8c3a] before:via-[#8b5a2b] before:to-[#c6a15b]">
+          <div className="relative px-4 py-8 sm:px-6 lg:px-8">
+            <ol className="relative z-10 mx-auto flex max-w-xl flex-col items-center gap-3 before:absolute before:bottom-8 before:left-1/2 before:top-8 before:w-1.5 before:-translate-x-1/2 before:rounded-full before:bg-gradient-to-b before:from-[#3d8c3a] before:via-[#8b5a2b] before:to-[#c6a15b]">
               {cro && <LeadershipPill role={cro} tone={leadershipTones[0]} />}
               {advisor && <LeadershipPill role={advisor} tone={leadershipTones[1]} />}
               {secretary && <LeadershipPill role={secretary} tone={leadershipTones[2]} />}
             </ol>
 
-            <div className="grid items-start gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
-              <LevelLabel title="State Executive Committee" detail={`${maharashtraAppointmentTotals.stateExecutives} positions`} />
-              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-                {maharashtraExecutives.map((role) => (
-                  <LeafCard key={role.id} role={role} icon={executiveIcons[role.id]} tone="cream" />
-                ))}
-              </ul>
+            <div aria-hidden="true" className="relative hidden h-8 lg:block">
+              <span className={`${line} absolute left-1/2 top-0 h-10 w-1.5 -translate-x-1/2 bg-gradient-to-b`} />
             </div>
+            <div aria-hidden="true" className={`${line} mx-auto h-8 w-1.5 bg-gradient-to-b lg:hidden`} />
 
-            <div className="grid items-start gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
-              <LevelLabel title="Divisional level" detail={`${maharashtraAppointmentTotals.divisionalCoordinators} coordinators`} />
-              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-                {maharashtraDivisions.map((role) => (
-                  <LeafCard key={role.id} role={role} icon={divisionIcons[role.id]} tone="sky" />
-                ))}
-              </ul>
-            </div>
+            <div className="relative grid items-start gap-y-5 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-center lg:gap-y-6">
+              <span aria-hidden="true" className={`${line} absolute -top-1 bottom-2 left-[180px] z-0 hidden w-1.5 -translate-x-1/2 bg-gradient-to-b lg:block`} />
 
-            <div className="grid items-start gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
-              <LevelLabel title="District level" detail={`${maharashtraAppointmentTotals.districtCoordinators} districts`} />
-              <ul>
-                <WideBar role={maharashtraDistrictLayer} icon={MapPin} />
-              </ul>
-            </div>
+              <LevelLabelCell title="State Executive Committee" detail={`${maharashtraAppointmentTotals.stateExecutives} positions`} />
+              <div className="min-w-0">
+                <div aria-hidden="true" className={`${line} mx-auto mb-1 h-6 w-1.5 bg-gradient-to-b lg:hidden`} />
+                <div className="space-y-4">
+                  {executiveRows.map((row, index) => (
+                    <div key={row[0]?.id}>
+                      {index > 0 && <div aria-hidden="true" className={`${line} mx-auto mb-1 h-4 w-1.5 bg-gradient-to-b lg:hidden`} />}
+                      <CardRow>
+                        {row.map((role) => (
+                          <TreeNode key={role.id}>
+                            <LeafCard role={role} icon={executiveIcons[role.id]} tone="cream" />
+                          </TreeNode>
+                        ))}
+                      </CardRow>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-            <div className="grid items-start gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
-              <LevelLabel title="Institutional level" detail="Members and volunteers" />
-              <ul>
-                <WideBar role={maharashtraInstitutionalLayer} icon={Building2} />
-              </ul>
+              <LevelLabelCell title="Divisional level" detail={`${maharashtraAppointmentTotals.divisionalCoordinators} coordinators`} />
+              <div className="min-w-0">
+                <div aria-hidden="true" className={`${line} mx-auto mb-1 h-6 w-1.5 bg-gradient-to-b lg:hidden`} />
+                <CardRow>
+                  {maharashtraDivisions.map((role) => (
+                    <TreeNode key={role.id} className="w-[8.25rem]">
+                      <LeafCard role={role} icon={divisionIcons[role.id]} tone="sky" />
+                    </TreeNode>
+                  ))}
+                </CardRow>
+              </div>
+
+              <LevelLabelCell title="District level" detail={`${maharashtraAppointmentTotals.districtCoordinators} districts`} />
+              <div className="min-w-0">
+                <div aria-hidden="true" className={`${line} mx-auto mb-1 h-6 w-1.5 bg-gradient-to-b lg:hidden`} />
+                <SingleBranch>
+                  <WideBar role={maharashtraDistrictLayer} icon={MapPin} />
+                </SingleBranch>
+              </div>
+
+              <LevelLabelCell title="Institutional level" detail="Members and volunteers" />
+              <div className="min-w-0">
+                <div aria-hidden="true" className={`${line} mx-auto mb-1 h-6 w-1.5 bg-gradient-to-b lg:hidden`} />
+                <SingleBranch>
+                  <WideBar role={maharashtraInstitutionalLayer} icon={Building2} />
+                </SingleBranch>
+              </div>
             </div>
           </div>
 

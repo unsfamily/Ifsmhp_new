@@ -5,12 +5,12 @@ import { evidenceKinds } from '../services/membership-policy.service';
 const required = { ...legacyMembershipPolicy, requireProfile: true, requireCredential: true };
 
 describe('student registration evidence', () => {
-  it('keeps CV and credentials required for a professional applicant', () => {
-    expect(evidenceKinds(required, 'Psychologist')).toEqual(['CV', 'CREDENTIAL']);
+  it('keeps credentials required for a professional applicant and does not require a CV', () => {
+    expect(evidenceKinds(required, 'Psychologist')).toEqual(['CREDENTIAL']);
     expect(isApplicationFeeExempt('Psychologist')).toBe(false);
   });
 
-  it('drops the CV for every fee-exempt student type and the credentials document for school students', () => {
+  it('keeps credentials for college students and drops them for school students', () => {
     expect(isApplicationFeeExempt('Student')).toBe(true);
     expect(isCvOptional(STEM_COLLEGE_STUDENT_TYPE)).toBe(true);
     expect(evidenceKinds(required, 'Student')).toEqual(['CREDENTIAL']);
