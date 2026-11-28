@@ -33,7 +33,7 @@ jobs:
           key_file="$(mktemp)"
           trap 'rm -f "$key_file"' EXIT
           umask 077
-          printf '%s\n' "$EC2_SSH_KEY" > "$key_file"
+          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > "$key_file"
           chmod 600 "$key_file"
           ssh-keyscan -H 100.52.212.133 >> "$HOME/.ssh/known_hosts"
           ssh -i "$key_file" -o IdentitiesOnly=yes ubuntu@100.52.212.133 'bash -s' < .github/scripts/deploy-api.sh

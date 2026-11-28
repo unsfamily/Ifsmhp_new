@@ -13,13 +13,14 @@ key_file="$(mktemp)"
 trap 'rm -f "$key_file" "$HOME/.netrc"' EXIT
 
 umask 077
-printf '%s\n' "$EC2_SSH_KEY" > "$key_file"
+printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > "$key_file"
 chmod 600 "$key_file"
 printf 'machine %s\nlogin %s\npassword %s\n' "$host" "$HOSTINGER_FTP_USER" "$HOSTINGER_FTP_PASSWORD" > "$HOME/.netrc"
 chmod 600 "$HOME/.netrc"
 
 export VITE_API_BASE_URL="https://api.ifsmhp.com/api/v1"
 npm ci
+npm ci --prefix backend
 npm ci --prefix frontend
 npm --prefix frontend run build
 
