@@ -17,6 +17,7 @@ printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > "$key_file"
 chmod 600 "$key_file"
 printf 'machine %s\nlogin %s\npassword %s\n' "$host" "$HOSTINGER_FTP_USER" "$HOSTINGER_FTP_PASSWORD" > "$HOME/.netrc"
 chmod 600 "$HOME/.netrc"
+umask 022
 
 export VITE_API_BASE_URL="https://api.ifsmhp.com/api/v1"
 npm ci
@@ -35,11 +36,12 @@ fi
 
 install -m 700 -d "$HOME/.ssh"
 ssh-keyscan -H "$api_host" >> "$HOME/.ssh/known_hosts"
+chmod -R a+rX frontend/dist
 rsync -az --delete \
   -e "ssh -i ${key_file} -o IdentitiesOnly=yes" \
   frontend/dist/ "ubuntu@${api_host}:/opt/ifsmhp/frontend/dist/"
 
 # Hostinger's certificate is for its own FTP hostname, not ftp.ifsmhp.com.
-lftp -e "set net:max-retries 2; set ftp:ssl-allow true; set ssl:verify-certificate no; set cmd:trace no; lcd frontend/dist; cd ${remote_dir}; mirror -R --parallel=2 .; bye" "$host"
+lftp -e "set net:max-retries 2; set ftp:ssl-allow true; set ssl:verify-certificate no; set cmd:trace no; lcd frontend/dist; cd ${remote_dir}; mirror -R --parallel=2 .; chmod 755 assets; bye" "$host"
 
 echo "Published the site bundle to /opt/ifsmhp/frontend/dist and Hostinger ${remote_dir}."
