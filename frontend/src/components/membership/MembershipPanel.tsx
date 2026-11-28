@@ -77,7 +77,7 @@ export default function MembershipPanel({ id, onChange }: { id?: string; onChang
   const pending = data && ['PENDING', 'UNDER_REVIEW'].includes(data.status);
   const applicationCharge = data?.charges.find(c => c.kind === 'APPLICATION');
   const feeSettled = !applicationCharge || applicationCharge.status !== 'UNPAID' || !!data?.applicationFeeExempt;
-  const evidenceDone = !!data?.evidenceReviewedAt || !(data?.policy.requireProfile || data?.policy.requireCredential || (data?.policy.referralCount ?? 0) || (data?.policy.referenceLetterCount ?? 0));
+  const evidenceDone = !!data?.evidenceReviewedAt || !(data?.policy.requireCredential || (data?.policy.referralCount ?? 0) || (data?.policy.referenceLetterCount ?? 0));
   return <Card><CardHeader><h2 className="font-display text-xl font-semibold">Membership requirements & payments</h2></CardHeader><CardContent className="space-y-4">
     {error && <p role="alert" className="text-danger-700">{error}</p>}{success && <p role="status" className="text-success-700">{success}</p>}
     {paymentResult === 'success' && <p role="status" className="rounded-lg bg-success-100 px-3 py-2 text-sm text-success-700">Payment received. An administrator still approves membership separately.</p>}

@@ -109,8 +109,8 @@ export default function SecondInternationalAwardsPage() {
                 {' '}at {CEREMONY_VENUE}, Pune. Nomination is separate from membership and does not guarantee selection.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Button as="link" to="/register" size="lg">
-                  Register your interest
+                <Button as="link" to={CEREMONY_NOMINATE_PATH} size="lg">
+                  Submit a Nomination
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
                 <Button as="link" to={CEREMONY_INFORMATION_PATH} variant="outline" size="lg">

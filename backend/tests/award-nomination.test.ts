@@ -128,6 +128,27 @@ describe('award nomination', () => {
     for (const secret of [nomineeEmail, nominatorEmail, nomineeName, statement]) expect(auditText).not.toContain(secret);
   });
 
+  it('stores omitted discoveries, publications, and the nomination statement as empty text', async () => {
+    const email = `${prefix}-sparse@example.test`;
+    const body = await valid({
+      nomineeEmail: email,
+      awardCode: 'SALIM_ALI',
+      projects: 'Field trials and a methods book',
+    });
+    delete body.principalContributions;
+    delete body.publications;
+    delete body.statement;
+    const response = await request(app).post(path).send(body);
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    const row = await prisma.awardNomination.findFirstOrThrow({ where: { nomineeEmailNormalized: email, awardCode: 'SALIM_ALI' } });
+    expect(row).toMatchObject({
+      principalContributions: '',
+      publications: '',
+      statement: '',
+      projects: 'Field trials and a methods book',
+    });
+  });
+
   it('updates the same nominee and award without sending another acknowledgement', async () => {
     const created = await prisma.awardNomination.findFirstOrThrow({ where: { nomineeEmailNormalized: nomineeEmail, awardCode: 'SWAMINATHAN' } });
     vi.mocked(sendAwardNominationAcknowledgement).mockClear();

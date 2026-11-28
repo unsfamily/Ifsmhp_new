@@ -34,7 +34,6 @@ const groups: Record<SettingsSection, Group[]> = {
       { key: 'idIssuance', label: 'Member ID issuance', options: ['AUTOMATIC', 'MANUAL'], hint: 'Manual mode requires an administrator to enter a unique ID during approval.' },
       { key: 'idPrefix', label: 'Member ID prefix', hint: 'Automatic format: PREFIX-SEQUENCE. Changing the prefix does not rewrite IDs already issued.' },
       { key: 'idPadding', label: 'Sequence digits', type: 'number', hint: '4–10 digits. The year is not included.' },
-      { key: 'requireProfile', label: 'Require CV document', type: 'checkbox' },
       { key: 'requireCredential', label: 'Require Credentials / Certifications / ID Card', type: 'checkbox' },
     ] },
     { title: 'Application & Credential Review SLA', fields: [{ key: 'pendingDays', label: 'Pending → start review (calendar days)', type: 'number' }, { key: 'reviewDays', label: 'Under review → decision (calendar days)', type: 'number' }] },

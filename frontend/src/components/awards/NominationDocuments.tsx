@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { AlertCircle, CheckCircle2, FileText, RefreshCw, Trash2, Upload } from 'lucide-react';
 import Button from '../common/Button';
 import {
@@ -8,6 +8,7 @@ import {
 } from '../../api/auth';
 import { normalizeError } from '../../api/client';
 import { formatBytes } from '../../utils/formatBytes';
+import PhotoPortraitField from './PhotoPortraitField';
 
 export type NominationDocumentKind = 'cv' | 'photo';
 
@@ -16,21 +17,25 @@ type UploadStatus = 'idle' | 'uploading' | 'uploaded' | 'removing' | 'failed';
 export type NominationDocumentState = {
   status: UploadStatus;
   uploaded: RegistrationDocumentUpload | null;
+  previewUrl: string | null;
   error: string | null;
 };
 
 const slots: Array<{ kind: NominationDocumentKind; label: string; accept: string; hint: string }> = [
   { kind: 'cv', label: 'Upload your CV', accept: '.pdf,.doc,.docx', hint: 'PDF, DOC, DOCX (max 5MB)' },
-  { kind: 'photo', label: 'Upload your recent photo', accept: '.jpg,.jpeg,.png', hint: 'JPG or PNG (max 5MB)' },
 ];
 
 const cvExtensions = new Set(['pdf', 'doc', 'docx']);
 const photoExtensions = new Set(['jpg', 'jpeg', 'png']);
 
 export const emptyNominationDocuments = (): Record<NominationDocumentKind, NominationDocumentState> => ({
-  cv: { status: 'idle', uploaded: null, error: null },
-  photo: { status: 'idle', uploaded: null, error: null },
+  cv: { status: 'idle', uploaded: null, previewUrl: null, error: null },
+  photo: { status: 'idle', uploaded: null, previewUrl: null, error: null },
 });
+
+function revokePreview(url: string | null) {
+  if (url) URL.revokeObjectURL(url);
+}
 
 function extensionOf(fileName: string) {
   return fileName.split('.').pop()?.toLowerCase() ?? '';
@@ -54,28 +59,49 @@ type NominationDocumentsProps = {
 
 export default function NominationDocuments({ documents, setDocuments, errors, disabled }: NominationDocumentsProps) {
   const [busy, setBusy] = useState(false);
+  const documentsRef = useRef(documents);
+  documentsRef.current = documents;
+
+  useEffect(() => () => {
+    revokePreview(documentsRef.current.cv.previewUrl);
+    revokePreview(documentsRef.current.photo.previewUrl);
+  }, []);
 
   const selectFile = async (kind: NominationDocumentKind, file: File | null) => {
     if (!file || busy) return;
     const localError = clientFileError(kind, file);
     if (localError) {
-      setDocuments((current) => ({ ...current, [kind]: { status: 'failed', uploaded: null, error: localError } }));
+      setDocuments((current) => ({
+        ...current,
+        [kind]: {
+          ...current[kind],
+          status: current[kind].uploaded ? 'uploaded' : 'failed',
+          error: localError,
+        },
+      }));
       return;
     }
-    const previous = documents[kind].uploaded;
+    const previous = documents[kind];
     setBusy(true);
-    setDocuments((current) => ({ ...current, [kind]: { status: 'uploading', uploaded: null, error: null } }));
+    setDocuments((current) => ({ ...current, [kind]: { ...current[kind], status: 'uploading', error: null } }));
     try {
       const uploaded = await uploadRegistrationDocument(file);
-      setDocuments((current) => ({ ...current, [kind]: { status: 'uploaded', uploaded, error: null } }));
-      if (previous) {
-        await removeRegistrationDocument({ id: previous.id, claimToken: previous.claimToken }).catch(() => undefined);
+      const previewUrl = kind === 'photo' ? URL.createObjectURL(file) : null;
+      revokePreview(previous.previewUrl);
+      setDocuments((current) => ({ ...current, [kind]: { status: 'uploaded', uploaded, previewUrl, error: null } }));
+      if (previous.uploaded) {
+        await removeRegistrationDocument({ id: previous.uploaded.id, claimToken: previous.uploaded.claimToken }).catch(() => undefined);
       }
     } catch (error) {
       const normalized = normalizeError(error);
       setDocuments((current) => ({
         ...current,
-        [kind]: { status: 'failed', uploaded: null, error: normalized.fieldErrors.file ?? normalized.message },
+        [kind]: {
+          status: previous.uploaded ? 'uploaded' : 'failed',
+          uploaded: previous.uploaded,
+          previewUrl: previous.previewUrl,
+          error: normalized.fieldErrors.file ?? normalized.message,
+        },
       }));
     } finally {
       setBusy(false);
@@ -85,14 +111,16 @@ export default function NominationDocuments({ documents, setDocuments, errors, d
   const removeFile = async (kind: NominationDocumentKind) => {
     const current = documents[kind];
     if (!current.uploaded) {
-      setDocuments((all) => ({ ...all, [kind]: { status: 'idle', uploaded: null, error: null } }));
+      revokePreview(current.previewUrl);
+      setDocuments((all) => ({ ...all, [kind]: { status: 'idle', uploaded: null, previewUrl: null, error: null } }));
       return;
     }
     setBusy(true);
     setDocuments((all) => ({ ...all, [kind]: { ...all[kind], status: 'removing', error: null } }));
     try {
       await removeRegistrationDocument({ id: current.uploaded.id, claimToken: current.uploaded.claimToken });
-      setDocuments((all) => ({ ...all, [kind]: { status: 'idle', uploaded: null, error: null } }));
+      revokePreview(current.previewUrl);
+      setDocuments((all) => ({ ...all, [kind]: { status: 'idle', uploaded: null, previewUrl: null, error: null } }));
     } catch (error) {
       setDocuments((all) => ({
         ...all,
@@ -172,6 +200,25 @@ export default function NominationDocuments({ documents, setDocuments, errors, d
             </div>
           );
         })}
+        <PhotoPortraitField
+          id="nomination-photo"
+          status={documents.photo.status}
+          fileName={documents.photo.uploaded?.name ?? null}
+          previewUrl={documents.photo.previewUrl}
+          error={documents.photo.error ?? errors.photo ?? null}
+          disabled={disabled || busy}
+          onSelect={(file) => { void selectFile('photo', file); }}
+          onInvalid={(message) => {
+            setDocuments((current) => ({
+              ...current,
+              photo: {
+                ...current.photo,
+                status: current.photo.uploaded ? 'uploaded' : 'failed',
+                error: message,
+              },
+            }));
+          }}
+        />
       </div>
     </fieldset>
   );

@@ -9,7 +9,7 @@ import { applicationFeeUpiPayment, legacyMembershipPolicy, membershipSettings, m
 import { REGISTRATION_MAX_BYTES, resolveRegistrationDocuments, verifyRegistrationClaimToken, type RegistrationDocumentClaim } from './registration-documents.service';
 type DB = Prisma.TransactionClient;
 export const policyFor = (value: unknown): MembershipPolicy => value == null ? { ...legacyMembershipPolicy } : membershipSettings.parse(value);
-export const requiredKinds = (p: MembershipPolicy): RegistrationDocumentClaim['kind'][] => [...(p.requireProfile ? ['CV' as const] : []), ...(p.requireCredential ? ['CREDENTIAL' as const] : [])];
+export const requiredKinds = (p: MembershipPolicy): RegistrationDocumentClaim['kind'][] => (p.requireCredential ? ['CREDENTIAL'] : []);
 export const evidenceKinds = (p: MembershipPolicy, professionalType?: string | null): RegistrationDocumentClaim['kind'][] => requiredKinds(p).filter((kind) => !(kind === 'CV' && isCvOptional(professionalType ?? '')) && !(isSchoolStudent(professionalType ?? '') && kind === 'CREDENTIAL'));
 export async function currentMembershipPolicy(): Promise<MembershipPolicySnapshot> {
   return prisma.$transaction(async tx => ({ values: (await effectiveSettings(tx)).membership, revision: (await tx.settingRevision.findUnique({ where: { section: 'membership' } }))?.revision ?? 0 }));

@@ -12,7 +12,6 @@ import {
   NOMINATION_SUCCESS,
   awardNominationSchema,
   emptyAwardNomination,
-  nominationWordCount,
 } from '../../domain/awardNomination';
 import { CEREMONY_ADDRESS, CEREMONY_EVENT_DATE, CEREMONY_VENUE } from '../../domain/ceremonyProgramme';
 import { CEREMONY_PAGE_PATH, CEREMONY_SLUG } from '../../domain/ceremonyRegistration';
@@ -20,10 +19,8 @@ import NominationDocuments, { emptyNominationDocuments } from '../../components/
 
 const longFields = [
   ['careerOverview', 'Professional career overview'],
-  ['principalContributions', 'Principal discoveries, achievements, and contributions'],
   ['majorAwards', 'Major awards, distinctions, and recognitions'],
-  ['publications', 'Research publications / books'],
-  ['projects', 'Research projects / initiatives'],
+  ['projects', 'Research projects / initiatives / Books'],
 ] as const;
 
 function fieldMap(issues: { path: (string | number)[]; message: string }[]) {
@@ -200,8 +197,8 @@ export default function AwardNominationPage() {
                 {longFields.map(([key, label]) => (
                   <TextArea key={key} id={`nomination-${key}`} label={label} required rows={4} value={form[key]} error={errors[key]} disabled={submitting} onChange={(event) => update(key, event.target.value)} />
                 ))}
+                <TextArea id="nomination-principalContributions" label="Principal discoveries, achievements, and contributions" hint="Optional" rows={4} value={form.principalContributions} error={errors.principalContributions} disabled={submitting} onChange={(event) => update('principalContributions', event.target.value)} />
                 <TextArea id="nomination-societalImpact" label="Documented societal or professional impact" hint="Optional" rows={4} value={form.societalImpact} error={errors.societalImpact} disabled={submitting} onChange={(event) => update('societalImpact', event.target.value)} />
-                <TextArea id="nomination-statement" label="Nomination statement" required rows={8} value={form.statement} error={errors.statement} hint={`${nominationWordCount(form.statement)} / 1,000 words`} disabled={submitting} onChange={(event) => update('statement', event.target.value)} />
               </fieldset>
 
               <fieldset className="space-y-4">

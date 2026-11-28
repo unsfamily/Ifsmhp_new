@@ -2,11 +2,11 @@ import { expect, test } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
 
-test('award interest CTAs and legacy ceremony register path go to membership registration', async ({ page }) => {
+test('award nomination CTA opens the form and the ceremony CTA opens membership registration', async ({ page }) => {
   await page.goto('/awards/second-international');
-  await page.getByRole('link', { name: 'Register your interest' }).click();
-  await expect(page).toHaveURL(/\/register$/);
-  await expect(page.getByRole('heading', { name: 'Apply for IFSMHP Membership' })).toBeVisible();
+  await page.getByRole('link', { name: 'Submit a Nomination' }).click();
+  await expect(page).toHaveURL(/\/awards\/second-international\/nominate$/);
+  await expect(page.getByRole('heading', { name: 'Official nomination form' })).toBeVisible();
 
   await page.goto('/awards/second-international');
   await page.locator('#ceremony-register-cta').click();
